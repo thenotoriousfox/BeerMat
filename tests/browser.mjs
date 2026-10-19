@@ -25,6 +25,7 @@ const host = await hostContext.newPage(), player = await playerContext.newPage()
 const prompts = [];
 host.on('dialog', async dialog => {await dialog.accept(dialog.type() === 'prompt' ? prompts.shift() || 'Test round' : undefined);});
 player.on('dialog', dialog => dialog.accept());
+rival.on('dialog', dialog => dialog.accept());
 const log = text => console.log('PASS:', text);
 // A silent mono 8 kHz WAV of the given length.
 function makeWav(seconds) {
@@ -223,6 +224,28 @@ try {
   await player.locator('#claimBingo').click(); await waitFor(player, () => document.getElementById('bingoStatus').textContent.includes('counted'));
   await host.keyboard.press('c');
   log('music bingo: song titles and uploaded audio, desk plays songs, TV hides the current title, claim verified');
+  const hostApi = async (route, body = {}) => {const key = (await (await fetch(base + '/api/login', {method: 'POST', body: JSON.stringify({key: 'browser-test-private-key'})})).json()).key; return (await fetch(base + '/api/host/' + route, {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: JSON.stringify(body)})).json();};
+  await host.locator('[data-tab=build]').click(); await saveQuestion('wordsnake', 'Tallest animal', {answer: 'Giraffe'});
+  await host.locator('[data-tab=build]').click(); await host.locator('#questionSelect').selectOption(await host.locator('#questionSelect option', {hasText: 'Tallest animal'}).first().getAttribute('value'));
+  await host.locator('#qGoWide').check(); await host.locator('#qGoWidePoints').fill('1'); await host.locator('#saveQuestion').click(); await waitFor(host, () => document.getElementById('editorStatus').textContent === 'Saved question loaded');
+  await saveQuestion('tiles', 'Disney film', {answer: 'The Lion King'});
+  await play('Tallest animal'); await visible(player, '#snakeArea .snake');
+  const snake = (await hostApi('state')).question;
+  const size = snake.grid.size, first = snake.snakePath[0];
+  const far = snake.grid.letters.findIndex((_, i) => Math.abs(Math.floor(i / size) - Math.floor(first / size)) > 1 || Math.abs(i % size - first % size) > 1);
+  await player.locator('#snakeArea button').nth(far).click(); await player.locator("#snakeArea button").nth(first).click();
+  assert.equal(await player.locator('#snakeWord').textContent(), 'G', 'a non-touching tap starts again');
+  for (const i of snake.snakePath.slice(1)) await player.locator('#snakeArea button').nth(i).click();
+  assert.equal(await player.locator('#snakeWord').textContent(), 'GIRAFFE'); await submitted(player);
+  await rival.locator('#goWide').click(); await waitFor(rival, () => document.querySelectorAll('#snakeArea .gone').length === 9);
+  for (const i of snake.snakePath) await rival.locator('#snakeArea button').nth(i).click(); await submitted(rival);
+  await host.keyboard.press('c');
+  await play('Disney film'); await visible(player, '#tileWord'); await waitFor(projector, () => document.getElementById('projectItems').textContent.includes('___ ____ ____'));
+  const tiles = (await hostApi('state')).question, usedTiles = new Set();
+  for (const t of tiles.tiles) {const i = tiles.pieces.findIndex((p, j) => p === t && !usedTiles.has(j)); usedTiles.add(i); await player.locator(`#inputs .tiles button[data-index="${i}"]`).click();}
+  assert.equal(await player.locator('#tileWord').textContent(), 'THE LION KING'); await submitted(player); await host.keyboard.press('c');
+  await host.locator('#reveal').click(); await waitFor(projector, () => document.getElementById('solution').textContent.includes('The Lion King'));
+  log('word snake trace with restart and go wide; Seven Squares-style tiles; TV shows the word pattern');
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await host.locator('#finish').click(); await waitFor(projector, () => document.getElementById('boardStatus').textContent === 'Final standings');
   await visible(projector, '#winnerSection'); await waitFor(projector, () => document.getElementById('winnerName').textContent === 'Fox team' && document.querySelectorAll('#confetti span').length === 80);
   assert.match(await projector.locator('#podium').textContent(), /🥈 Owl team/); await waitFor(player, () => document.getElementById('answerState').textContent === 'Quiz finished');

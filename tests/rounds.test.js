@@ -258,3 +258,26 @@ test('music bingo: song-title tickets, hidden current song, verified claims', ()
   await call('host/close'); assert.equal(await score(a), 6);
   assert.deepEqual((await call('state', {}, a.secret)).question.bingo.titles, played, 'all titles shown once the game ends');
 }));
+
+test('word snake: adjacent traces only, go wide scores less; tiles assemble the answer', () => fixture(async ({call, teams, score}) => {
+  const [a, b, c] = await teams('Alpha', 'Bravo', 'Charlie');
+  await call('host/open', {...base, text: 'Tallest animal', type: 'wordsnake', answer: 'gir affe', points: 6, goWide: true, goWidePoints: 2});
+  let s = await call('state', {}, a.secret); const id = s.question.id;
+  assert.equal(s.question.snakePath, undefined); assert.equal(s.question.grid.letters.length, 16); assert.equal(s.question.answer, undefined);
+  const path = (await call('host/state')).question.snakePath; assert.equal(path.map(i => s.question.grid.letters[i]).join(''), 'GIRAFFE');
+  await call('answer', {question: id, value: path}, a.secret);
+  assert.deepEqual((await call('gowide', {question: id}, b.secret)).cells, path);
+  assert.deepEqual((await call('state', {}, b.secret)).question.wideCells, path);
+  await call('answer', {question: id, value: path}, b.secret);
+  const broken = [...path]; [broken[0], broken[broken.length - 1]] = [broken[broken.length - 1], broken[0]];
+  await call('answer', {question: id, value: broken}, c.secret);
+  await call('host/close'); assert.equal(await score(a), 6); assert.equal(await score(b), 2); assert.equal(await score(c), 0);
+
+  await call('host/open', {...base, text: 'Disney film', type: 'tiles', answer: 'The Lion King', points: 5});
+  s = await call('state', {}, a.secret); const tid = s.question.id;
+  assert.deepEqual(s.question.wordLengths, [3, 4, 4]); assert.equal(s.question.tiles, undefined); assert.equal(s.question.pieces.join('').length, 11);
+  const {tiles, pieces} = (await call('host/state')).question, used = new Set();
+  const order = tiles.map(t => {const i = pieces.findIndex((p, j) => p === t && !used.has(j)); used.add(i); return i;});
+  await call('answer', {question: tid, value: order}, a.secret); await call('answer', {question: tid, value: [...order].reverse()}, b.secret);
+  await call('host/close'); assert.equal(await score(a), 11); assert.equal(await score(b), 2);
+}));

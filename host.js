@@ -34,10 +34,11 @@ function editorChanged() {dirty = true; $('editorStatus').textContent = 'Unsaved
 function formTypes() {
   const type = $('qType').value, show = (id, on) => {$(id).hidden = !on;};
   show('choiceFields', ['choice', 'vote', 'multi'].includes(type)); show('multiFields', type === 'multi'); show('sheetFields', type === 'sheet'); show('sequenceFields', type === 'sequence');
-  show('nearestFields', type === 'nearest'); show('buzzerFields', type === 'buzzer'); show('pinpointFields', type === 'pinpoint'); show('bingoFields', type === 'bingo' || type === 'musicbingo'); show('musicFields', type === 'musicbingo'); show('clipsFields', type === 'clips');
+  show('nearestFields', type === 'nearest'); show('buzzerFields', type === 'buzzer'); show('pinpointFields', type === 'pinpoint'); show('goWideFields', type === 'pinpoint' || type === 'wordsnake');
+  $('goWideText').textContent = type === 'wordsnake' ? 'Allow go wide: teams can remove the decoy letters for fewer points' : 'Allow go wide: a second tap scores if the first misses'; show('bingoFields', type === 'bingo' || type === 'musicbingo'); show('musicFields', type === 'musicbingo'); show('clipsFields', type === 'clips');
   show('mediaFields', !['sheet', 'bingo', 'musicbingo', 'clips'].includes(type)); show('answerFields', !['sheet', 'vote', 'sequence', 'multi', 'pinpoint', 'bingo', 'musicbingo', 'clips'].includes(type)); show('aliasesLabel', ['text', 'picture', 'audio'].includes(type)); show('noteLabel', type !== 'sheet');
   show('pointsLabel', type !== 'sheet'); show('speedLabel', speedTypes.includes(type));
-  $('answerLabel').textContent = {choice: 'Correct choice (copy one line from above; blank for manual marking)', letter: 'Correct letter (A–Z)', number: 'Correct number', nearest: 'Correct number', buzzer: 'Expected answer (shown only to you)'}[type] || 'Correct answer (blank for manual marking)';
+  $('answerLabel').textContent = {choice: 'Correct choice (copy one line from above; blank for manual marking)', letter: 'Correct letter (A–Z)', wordsnake: 'Answer word (letters only, 3–20; spaces are removed)', tiles: 'Answer (4–40 letters; spaces mark separate words)', number: 'Correct number', nearest: 'Correct number', buzzer: 'Expected answer (shown only to you)'}[type] || 'Correct answer (blank for manual marking)';
   $('pointsText').textContent = {nearest: 'Points for the closest team', buzzer: 'Points for a correct buzz', vote: 'Points (votes score nothing)', multi: 'Points for every right tick', pinpoint: 'Points for a first-tap hit', bingo: 'Points for a valid bingo', musicbingo: 'Points for a valid bingo', clips: 'Points for tapping the right clip'}[type] || 'Correct answer points';
   $('speedText').textContent = type === 'bingo' || type === 'musicbingo' ? 'Bonus for the first claim' : 'Maximum speed bonus';
   $('mediaLabel').textContent = type === 'picture' || type === 'pinpoint' ? 'Picture file (required)' : type === 'audio' ? 'Audio file (required)' : 'Optional picture or audio clip';
@@ -118,7 +119,8 @@ function readQuestion() {
     speedBonus: speedTypes.includes(type) ? Number($('qSpeed').value) : 0, answer: $('qAnswer').value.trim(), answerNote: $('qNote').value.trim(), aliases: lines('qAliases'), media: $('qMedia').value};
   if (['choice', 'vote', 'multi'].includes(type)) q.options = lines('qOptions');
   if (type === 'multi') q.correct = lines('qCorrect');
-  if (type === 'pinpoint') Object.assign(q, {target: pinTarget, goWide: $('qGoWide').checked, goWidePoints: Number($('qGoWidePoints').value)});
+  if (type === 'pinpoint') q.target = pinTarget;
+  if (type === 'pinpoint' || type === 'wordsnake') Object.assign(q, {goWide: $('qGoWide').checked, goWidePoints: Number($('qGoWidePoints').value)});
   if (type === 'bingo') Object.assign(q, {mode: $('qMode').value, media: ''});
   if (type === 'musicbingo') Object.assign(q, {mode: $('qMode').value, revealNow: $('qRevealNow').checked, media: '', songs: lines('qSongs').map(line => {
     const [title, media] = line.split(/\s*\|\s*(?=\/media\/)/); return {title: title.trim(), media: media?.trim() || null};
@@ -295,7 +297,7 @@ $('printSheets').onclick = () => {
   paper.replaceChildren(element('h1', library.title), element('p', 'Team name: __________________________________'));
   for (const r of library.rounds) {paper.append(element('h2', r.title)); for (const [i, q] of r.questions.entries()) {
     if (q.type === 'sheet') {paper.append(element('h3', q.text)); q.items.forEach((item, n) => paper.append(element('p', `${n + 1}. ${item}`), line()));}
-    else if (['buzzer', 'bingo', 'musicbingo', 'pinpoint', 'clips'].includes(q.type)) continue;
+    else if (['buzzer', 'bingo', 'musicbingo', 'pinpoint', 'clips', 'wordsnake', 'tiles'].includes(q.type)) continue;
     else {
       paper.append(element('p', `${i + 1}. ${q.text}`));
       if (['choice', 'vote', 'multi'].includes(q.type)) paper.append(element('p', q.options.map((o, n) => `${letters[n]}. ${o}`).join('    ')));
@@ -358,6 +360,8 @@ function renderBingoPanel(q) {
   $('callNumber').disabled = busy || !!g.winners.length || !!q.paused || g.called.length >= 90;
 }
 function shownValue(q, value) {
+  if (q.type === 'wordsnake') {try {const {path, wide} = JSON.parse(value); return path.map(i => q.grid.letters[i]).join('') + (wide ? ' (went wide)' : '');} catch {return value;}}
+  if (q.type === 'tiles') {try {return JSON.parse(value).map(i => q.pieces[i]).join('');} catch {return value;}}
   if (q.type === 'multi') {try {return JSON.parse(value).join(', ') || '(nothing ticked)';} catch {return value;}}
   if (q.type === 'pinpoint') {try {return JSON.parse(value).map((p, i) => `${i ? 'Go-wide tap' : 'Tap'} at ${Math.round(p[0] * 100)}%, ${Math.round(p[1] * 100)}%`).join(' · ');} catch {return value;}}
   if (q.type === 'sequence') {try {return JSON.parse(value).map(i => q.items[i]).join(' → ');} catch {return value;}}

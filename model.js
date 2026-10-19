@@ -17,8 +17,8 @@ const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = 
 
 // Question types. Keypad formats follow common pub-quiz handset conventions:
 // letters (first letter of the answer), numbers, multiple choice and sequence.
-export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet'];
-export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
+export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet'];
+export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
 // Buzzer questions stay open until the quizmaster rules on them; the timer only limits buzzing.
 export const hostDriven = type => ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(type);
 export const isBingo = type => type === 'bingo' || type === 'musicbingo';
@@ -68,8 +68,20 @@ export function validateQuestion(q, mediaDir) {
     const t = q.target, fraction = v => typeof v === 'number' && v >= 0 && v <= 1;
     requireValue(t && fraction(t.x) && fraction(t.y) && typeof t.r === 'number' && t.r >= 0.01 && t.r <= 0.5, 'Click the picture to set the target area');
     requireValue(t.aspect === undefined || (typeof t.aspect === 'number' && t.aspect >= 0.1 && t.aspect <= 10), 'Invalid picture shape');
-    result.target = {x: t.x, y: t.y, r: t.r, aspect: t.aspect ?? 1}; result.goWide = q.goWide === true; result.goWidePoints = q.goWidePoints ?? 0;
+    result.target = {x: t.x, y: t.y, r: t.r, aspect: t.aspect ?? 1};
+  }
+  if (q.type === 'wordsnake') {
+    result.answer = result.answer.toUpperCase().replace(/[^A-Z]/g, '');
+    requireValue(result.answer.length >= 3 && result.answer.length <= 20, 'Word snake answers need 3–20 letters (A–Z)');
+  }
+  if (q.type === 'wordsnake' || q.type === 'pinpoint') {
+    result.goWide = q.goWide === true; result.goWidePoints = q.goWidePoints ?? 0;
     requireValue(integer(result.goWidePoints, 0, 100), 'Go-wide points must be 0–100');
+  }
+  if (q.type === 'tiles') {
+    const letters = result.answer.toUpperCase().replace(/[^A-Z ]/g, '').replace(/\s+/g, ' ').trim();
+    requireValue(letters.replace(/ /g, '').length >= 4 && letters.length <= 40, 'Tile answers need 4–40 letters');
+    result.tiles = splitTiles(letters.replace(/ /g, '')); result.wordLengths = letters.split(' ').map(w => w.length);
   }
   if (q.type === 'clips') {
     requireValue(Array.isArray(q.clips) && q.clips.length >= 2 && q.clips.length <= 30, 'Add 2–30 audio clips');
@@ -140,6 +152,12 @@ export function answerValue(value, q, final = true) {
     requireValue(Array.isArray(value) && value.every(v => q.options.includes(v)) && new Set(value).size === value.length && (!final || value.length), 'Tick at least one choice');
     return JSON.stringify(q.options.filter(o => value.includes(o)));
   }
+  if (q.type === 'wordsnake' || q.type === 'tiles') {
+    const max = q.type === 'tiles' ? q.tiles.length : 25;
+    requireValue(Array.isArray(value) && value.every(i => integer(i, 0, max - 1)) && new Set(value).size === value.length, q.type === 'tiles' ? 'Invalid tiles' : 'Invalid letters');
+    requireValue(!final || value.length, q.type === 'tiles' ? 'Place the tiles first' : 'Trace the word first');
+    return JSON.stringify(value);
+  }
   if (q.type === 'pinpoint') {
     const point = p => Array.isArray(p) && p.length === 2 && p.every(v => typeof v === 'number' && v >= 0 && v <= 1);
     requireValue(Array.isArray(value) && value.length <= (q.goWide ? 2 : 1) && value.every(point) && (!final || value.length), 'Tap the picture');
@@ -159,6 +177,8 @@ export function isCorrect(value, q) {
   if (q.type === 'sequence') return JSON.stringify(JSON.parse(value)) === JSON.stringify(q.items.map((_, i) => i));
   if (q.type === 'multi') return JSON.parse(value).join('\n') === q.correct.join('\n');
   if (q.type === 'pinpoint') return hits(JSON.parse(value)[0], q.target);
+  if (q.type === 'wordsnake') {const {path} = JSON.parse(value); return validSnake(path, q.snake) && path.map(i => q.snake.grid[i]).join('') === q.answer;}
+  if (q.type === 'tiles') return JSON.parse(value).map(i => q.pieces[i]).join('') === q.tiles.join('');
   if (['vote', 'nearest', 'buzzer', 'bingo', 'musicbingo', 'clips', 'sheet'].includes(q.type) || !q.answer) return null;
   if (q.type === 'number') return Number(value) === Number(q.answer);
   if (q.type === 'choice' || q.type === 'letter') return value === q.answer;
@@ -176,12 +196,49 @@ export function basePoints(value, q) {
     const picks = JSON.parse(value), right = picks.filter(p => q.correct.includes(p)).length;
     return Math.max(0, Math.round(q.points * (right - (picks.length - right)) / q.correct.length));
   }
+  if (q.type === 'wordsnake') return isCorrect(value, q) ? JSON.parse(value).wide ? q.goWidePoints : q.points : 0;
   if (q.type === 'pinpoint') {
     const [first, second] = JSON.parse(value);
     return hits(first, q.target) ? q.points : hits(second, q.target) ? q.goWidePoints : 0;
   }
   return isCorrect(value, q) ? q.points : 0;
 }
+
+// Seven Squares-style tiles: the answer's letters cut into at most seven pieces, longest first.
+export function splitTiles(letters) {
+  const count = Math.min(7, letters.length), base = Math.floor(letters.length / count), extra = letters.length % count, tiles = [];
+  for (let i = 0, at = 0; i < count; i++) {const size = base + (i < extra ? 1 : 0); tiles.push(letters.slice(at, at + size)); at += size;}
+  return tiles;
+}
+// Tiles are shown shuffled (chosen when the question opens); the stored order is the answer.
+export function shuffleTiles(tiles, random = Math.random) {
+  const pieces = [...tiles];
+  for (let i = pieces.length - 1; i > 0; i--) {const j = Math.floor(random() * (i + 1)); [pieces[i], pieces[j]] = [pieces[j], pieces[i]];}
+  return pieces.join('') === tiles.join('') ? [...pieces.slice(1), pieces[0]] : pieces;
+}
+// Word snake: the answer runs through the grid one neighbouring square at a time (diagonals allowed);
+// every other square holds a decoy letter.
+const neighbours = (i, size) => {
+  const r = Math.floor(i / size), c = i % size, out = [];
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) if ((dr || dc) && r + dr >= 0 && r + dr < size && c + dc >= 0 && c + dc < size) out.push((r + dr) * size + c + dc);
+  return out;
+};
+export function snakeGrid(word, random = Math.random) {
+  const size = word.length <= 9 ? 4 : 5, cells = size * size;
+  const shuffle = list => {for (let i = list.length - 1; i > 0; i--) {const j = Math.floor(random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]];} return list;};
+  const walk = path => {
+    if (path.length === word.length) return path;
+    for (const next of shuffle(neighbours(path.at(-1), size).filter(n => !path.includes(n)))) {const found = walk([...path, next]); if (found) return found;}
+    return null;
+  };
+  let path = null;
+  for (const start of shuffle(Array.from({length: cells}, (_, i) => i))) if ((path = walk([start]))) break;
+  const decoys = 'EEAAIOTNSRLDUCMHGBPKYW' + word;
+  const grid = Array.from({length: cells}, () => decoys[Math.floor(random() * decoys.length)]);
+  path.forEach((cell, i) => {grid[cell] = word[i];});
+  return {size, grid, path};
+}
+export const validSnake = (path, snake) => Array.isArray(path) && new Set(path).size === path.length && path.every((cell, i) => Number.isInteger(cell) && cell >= 0 && cell < snake.grid.length && (i === 0 || neighbours(path[i - 1], snake.size).includes(cell)));
 
 // UK-style 90-ball ticket: 3 rows of 9 columns, 5 numbers per row, column c holds c*10..c*10+9 (1–9, 80–90).
 // Seeded so a team always sees the same ticket for a question without storing it.

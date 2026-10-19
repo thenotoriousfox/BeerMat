@@ -1,12 +1,12 @@
 import {qrMatrix, wifiCode} from './qr.js';
-import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, sounds, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, sounds, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('pubquiz-team'), current = null, renderedQuestion = undefined, offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
 let localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0, winnerShown = '';
 const inputs = () => [...$('inputs').querySelectorAll('input,select')];
 const draftKey = id => `pubquiz-draft:${secret}:${id}`;
 const keypad = type => ['choice', 'vote', 'letter'].includes(type);
-const listValue = type => ['sequence', 'multi', 'pinpoint'].includes(type);
+const listValue = type => ['sequence', 'multi', 'pinpoint', 'wordsnake', 'tiles'].includes(type);
 const modes = {line: 'One line', twoLines: 'Two lines', fullHouse: 'Full house'};
 function saveIdentity(code) {
   secret = code; current = null; renderedQuestion = undefined; localDraft = null; inputRevision = 0;
@@ -47,6 +47,19 @@ function syncPicks() {
     if ($('submit').disabled) return;
     pick(JSON.stringify(list.length < (q.goWide ? 2 : 1) ? [...list, point] : [...list.slice(0, -1), point]));
   });
+  if (q.type === 'wordsnake') {
+    renderSnake($('snakeArea'), q.grid, list, q.wideCells || null, i => {
+      if ($('submit').disabled || q.wideCells?.length && !q.wideCells.includes(i)) return;
+      const last = list.at(-1), path = last === undefined || (!list.includes(i) && adjacent(last, i, q.grid.size)) ? [...list, i] : [i];
+      pick(JSON.stringify(path));
+    });
+    $('snakeWord').textContent = list.map(i => q.grid.letters[i]).join('') || 'Tap the first letter';
+    if ($('goWide')) $('goWide').hidden = !!q.wideCells;
+  }
+  if (q.type === 'tiles') {
+    $('tileWord').textContent = tileWord(list.map(i => q.pieces[i]).join(''), q.wordLengths);
+    $('inputs').querySelectorAll('[data-index]').forEach(b => b.classList.toggle('picked', list.includes(Number(b.dataset.index))));
+  }
   if (q.type === 'sequence') {
     const picked = list;
     $('picked').replaceChildren(...picked.map(i => element('li', q.items[i])));
@@ -65,7 +78,10 @@ function writeInputs(value) {
   syncPicks();
 }
 function parseSaved(value) {
-  try {return current.question.type === 'sheet' || listValue(current.question.type) ? JSON.parse(value) : value;} catch {return null;}
+  try {
+    const parsed = current.question.type === 'sheet' || listValue(current.question.type) ? JSON.parse(value) : value;
+    return current.question.type === 'wordsnake' && parsed?.path ? parsed.path : parsed; // stored final answers carry {path, wide}
+  } catch {return null;}
 }
 function buildInputs(q) {
   const box = $('inputs');
@@ -79,6 +95,32 @@ function buildInputs(q) {
       const picked = inputValue(); pick(JSON.stringify(picked.includes(option) ? picked.filter(p => p !== option) : [...picked, option]));
     }; return b;}));
     box.append(element('p', 'Tick every right answer — wrong ticks cost points', 'muted'), pad); return;
+  }
+  if (q.type === 'wordsnake') {
+    hiddenInput(); const area = element('div'); area.id = 'snakeArea';
+    const word = element('p', '', 'tile-word'); word.id = 'snakeWord';
+    const clear = element('button', 'Start again', 'subtle'); clear.type = 'button'; clear.onclick = () => pick('[]');
+    box.append(element('p', 'Trace the answer: each letter touches the last, diagonals too. Tapping a letter that does not touch starts again.', 'muted'), area, word, clear);
+    if (q.goWide) {
+      const wide = element('button', `Go wide (scores ${q.goWidePoints})`, 'subtle'); wide.type = 'button'; wide.id = 'goWide';
+      wide.onclick = async () => {
+        if (!confirm(`Go wide? The decoy letters disappear, but a right answer scores ${q.goWidePoints} instead of ${q.points}.`)) return;
+        try {await api('gowide', {question: q.id}, secret); pick('[]'); await updates.update();} catch (e) {message(e.message, true);}
+      };
+      box.append(wide);
+    }
+    return;
+  }
+  if (q.type === 'tiles') {
+    hiddenInput(); const word = element('p', '', 'tile-word'); word.id = 'tileWord';
+    const pad = element('div', undefined, 'keypad tiles');
+    // Tiles always appear in a different order on each team's phone.
+    pad.append(...seededOrder(q.pieces.length, `${current.team.id}:${q.id}`).map(i => {
+      const b = element('button', q.pieces[i]); b.type = 'button'; b.dataset.index = String(i);
+      b.onclick = () => {const picked = inputValue(); if (!picked.includes(i)) pick(JSON.stringify([...picked, i]));}; return b;
+    }));
+    const undo = element('button', 'Undo last', 'subtle'); undo.type = 'button'; undo.onclick = () => pick(JSON.stringify(inputValue().slice(0, -1)));
+    box.append(element('p', 'Tap the tiles in order to build the answer', 'muted'), word, pad, undo); return;
   }
   if (q.type === 'pinpoint') {
     hiddenInput(); const area = element('div'); area.id = 'pinArea';
@@ -176,6 +218,7 @@ function playerState(s) {
   $('photoStatus').textContent = !s.team.photo ? 'Add a team photo to appear on the big screen. The quizmaster approves it first.' : s.team.photoStatus === 'approved' ? '✓ Approved — showing on the big screen' : 'Waiting for the quizmaster to approve it';
   selectOptions($('sound'), sounds.map(([label], i) => [String(i), label]), document.activeElement === $('sound') ? undefined : String(s.team.sound ?? ''));
   if (s.answer && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? 'Your final answer is safely stored on the quiz laptop.' : `Your answer scored ${s.answer.points} ${Math.abs(s.answer.points) === 1 ? 'point' : 'points'}.`; localDraft = null; writeStorage(draftKey(q.id), '');}
+  if (q && listValue(q.type)) syncPicks();
   renderSolution($('solution'), q); updateControls();
 }
 function sharedState(s) {
@@ -208,9 +251,11 @@ function displayState(s) {
   renderSolution($('solution'), q);
   if (q?.id !== renderedQuestion) {
     renderedQuestion = q?.id;
-    const items = q?.type === 'choice' || q?.type === 'vote' ? q.options.map((o, i) => `${letters[i]}. ${o}`) : q?.type === 'sequence' ? q.order.map(i => q.items[i]) : q?.type === 'sheet' ? q.items : [];
+    const items = q?.type === 'choice' || q?.type === 'vote' || q?.type === 'multi' ? q.options.map((o, i) => `${letters[i]}. ${o}`) : q?.type === 'sequence' ? q.order.map(i => q.items[i]) : q?.type === 'sheet' ? q.items : q?.type === 'tiles' ? [tileWord('', q.wordLengths), q.pieces.join('  ·  ')] : [];
     $('projectItems').replaceChildren(...items.map(text => element('li', text)));
   }
+  $('projectSnake').hidden = q?.type !== 'wordsnake';
+  if (q?.type === 'wordsnake') renderSnake($('projectSnake'), q.grid, q.revealed ? q.snakePath : []);
   const c = q?.clipGame; $('projectClips').hidden = !c;
   if (c) {$('clipNow').textContent = c.playing ? `🎵 Clip ${c.playing} of ${c.count}` : q.live ? 'Listen carefully…' : 'Clips finished'; $('clipTaps').textContent = `${c.taps} ${c.taps === 1 ? 'team has' : 'teams have'} tapped`;}
   const g = q?.bingo; $('projectBingo').hidden = !g;
@@ -321,7 +366,7 @@ if (role === 'player') {
     const value = inputValue(), q = current.question;
     if (q.type === 'sheet' && value.some(v => !v.trim()) && !confirm('Some sheet answers are blank. Submit this as your final sheet?')) return;
     if ((q.type === 'sequence' && value.length !== q.items.length) || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length)) {
-      return message(q.type === 'sequence' ? 'Place every item in order first' : q.type === 'pinpoint' ? 'Tap the picture first' : keypad(q.type) || q.type === 'multi' ? 'Choose an answer first' : 'Type an answer first', true);
+      return message(q.type === 'sequence' ? 'Place every item in order first' : q.type === 'pinpoint' ? 'Tap the picture first' : q.type === 'wordsnake' ? 'Trace the word first' : q.type === 'tiles' ? 'Place the tiles first' : keypad(q.type) || q.type === 'multi' ? 'Choose an answer first' : 'Type an answer first', true);
     }
     submitting = true; updateControls(); clearTimeout(draftTimer);
     try {await api('answer', {question: q.id, value}, secret); message('Final answer received'); await refresh();}

@@ -140,3 +140,23 @@ export function fanfare() {
     osc.connect(gain).connect(audio.destination); osc.start(t); osc.stop(t + 0.32);
   });
 }
+// Word snake grid. path: squares picked so far; shown: squares still visible after going wide (null = all).
+export const adjacent = (a, b, size) => a !== b && Math.abs(Math.floor(a / size) - Math.floor(b / size)) <= 1 && Math.abs(a % size - b % size) <= 1;
+export function renderSnake(container, grid, path = [], shown = null, onTap = null) {
+  const key = JSON.stringify([grid.letters, path, shown, !!onTap]);
+  if (container.dataset.snake === key) return;
+  container.dataset.snake = key;
+  const box = element('div', undefined, 'snake'); box.style.gridTemplateColumns = `repeat(${grid.size}, 1fr)`;
+  box.append(...grid.letters.map((letter, i) => {
+    const cell = element(onTap ? 'button' : 'span', letter); if (onTap) {cell.type = 'button'; cell.onclick = () => onTap(i);}
+    cell.classList.toggle('picked', path.includes(i)); cell.classList.toggle('gone', !!shown && !shown.includes(i));
+    if (path.includes(i)) cell.dataset.step = String(path.indexOf(i) + 1);
+    return cell;
+  }));
+  container.replaceChildren(box);
+}
+// Tile answer pattern, e.g. "LION KI__" for word lengths [4, 4].
+export function tileWord(letters, wordLengths) {
+  const total = wordLengths.reduce((a, b) => a + b, 0), padded = letters.padEnd(total, '_');
+  let at = 0; return wordLengths.map(n => padded.slice(at, at += n)).join(' ');
+}

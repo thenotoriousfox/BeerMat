@@ -5,7 +5,7 @@ import {existsSync, mkdirSync, writeFileSync, statSync, createReadStream, unlink
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {offensive} from './names.js';
-import {QuizError, requireValue, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, hostDriven, isBingo, bingoCard, musicCard, bingoLines, bingoNeeded, mediaPattern} from './model.js';
+import {QuizError, requireValue, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, hostDriven, isBingo, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern} from './model.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(24).toString('hex');
@@ -35,6 +35,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     CREATE TABLE IF NOT EXISTS buzzes(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),at INTEGER NOT NULL,status TEXT NOT NULL,PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS agrees(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),at INTEGER NOT NULL,PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS host_sessions(hash TEXT PRIMARY KEY,expires INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS go_wide(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS clip_plays(question INTEGER REFERENCES questions(id),seq INTEGER NOT NULL,clip INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,seq));
     CREATE TABLE IF NOT EXISTS bingo_calls(question INTEGER REFERENCES questions(id),seq INTEGER NOT NULL,number INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,seq));
   `);
@@ -153,12 +154,17 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function publicQuestion(q, host = false, teamId = null) {
     if (!q) return null;
     const data = dataOf(q);
-    const {answer, aliases, itemAnswers, answerNote, correct, target, clips, targetClip, songs, ...safe} = data;
+    const {answer, aliases, itemAnswers, answerNote, correct, target, clips, targetClip, songs, snake, tiles, ...safe} = data;
     // Sequence items are shown shuffled; the stored order is the answer.
     const result = {...safe, id: q.id, deadline: q.deadline, open: accepting(q), live: pending(q), paused: pending(q) && q.paused_ms !== null,
       remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: !!q.revealed, buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId, host), clipGame: clipState(q, data, teamId)};
     if (data.type === 'sequence') result.order = shuffleOrder(data.items.length, q.id);
-    if (host || q.revealed) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], correct, target, clips, targetClip, songs, tally: tally(q, data),
+    if (snake) {
+      result.grid = {size: snake.size, letters: snake.grid};
+      // Going wide shows a team only the squares on the answer's path.
+      if (teamId && one('SELECT 1 FROM go_wide WHERE team=? AND question=?', teamId, q.id)) result.wideCells = snake.path;
+    }
+    if (host || q.revealed) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], correct, target, clips, targetClip, songs, snakePath: snake?.path, tiles, tally: tally(q, data),
       correctCount: one('SELECT COUNT(*) n FROM answers WHERE question=? AND points>0', q.id).n});
     return result;
   }
@@ -204,8 +210,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const current = latest();
     requireValue(!pending(current), 'Close current question first', 409);
     settle(current);
-    const q = validateQuestion(data, mediaDir);
+    const q = validateQuestion(data, mediaDir), random = () => randomInt(2 ** 32) / 2 ** 32;
     if (sourceId) q.sourceId = sourceId;
+    // Each play gets a fresh word-snake grid and tile shuffle.
+    if (q.type === 'wordsnake') q.snake = snakeGrid(q.answer, random);
+    if (q.type === 'tiles') q.pieces = shuffleTiles(q.tiles, random);
     const result = run('INSERT INTO questions(data,opened,deadline) VALUES(?,?,?)', JSON.stringify(q), now(), now() + q.seconds * 1000);
     return {ok: true, id: Number(result.lastInsertRowid)};
   }
@@ -540,6 +549,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         award(team.id, q, `BINGO on call ${called.size}`, data.points + (first ? data.speedBonus : 0));
         return send(200, {ok: true, first});
       }
+      if (p === '/api/gowide') {
+        const q = latest(); requireValue(q && body.question === q.id && accepting(q) && dataOf(q).type === 'wordsnake' && dataOf(q).goWide, 'Going wide is not available now', 409);
+        requireValue(!one('SELECT 1 FROM answers WHERE team=? AND question=?', team.id, q.id), 'Already submitted', 409);
+        run('INSERT OR IGNORE INTO go_wide VALUES(?,?)', team.id, q.id); return send(200, {cells: dataOf(q).snake.path});
+      }
       if (p === '/api/tap') {
         const q = latest(); requireValue(q && body.question === q.id && pending(q) && q.paused_ms === null && dataOf(q).type === 'clips' && !settings().ended, 'No live sound clips game', 409);
         const data = dataOf(q), playing = nowPlaying(q);
@@ -570,7 +584,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       }
       if (p === '/api/answer' || p === '/api/draft') {
         const q = latest(); requireValue(q && body.question === q.id && accepting(q), 'Question closed, paused or outdated', 409);
-        const data = dataOf(q); const value = answerValue(body.value, data, p === '/api/answer');
+        const data = dataOf(q); let value = answerValue(body.value, data, p === '/api/answer');
+        if (data.type === 'wordsnake' && p === '/api/answer') value = JSON.stringify({path: JSON.parse(value), wide: !!one('SELECT 1 FROM go_wide WHERE team=? AND question=?', team.id, q.id)});
         requireValue(!one('SELECT 1 FROM answers WHERE team=? AND question=?', team.id, q.id), 'Already submitted', 409);
         if (p === '/api/draft') {
           run('INSERT INTO drafts VALUES(?,?,?) ON CONFLICT(team,question) DO UPDATE SET value=excluded.value', team.id, q.id, value); return send(200, {ok: true});
