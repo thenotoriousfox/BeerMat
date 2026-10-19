@@ -19,7 +19,7 @@ Open **http://localhost:3000/host**. Players can use **http://LAPTOP-IP:3000/** 
 **Network changes require the laptop owner's approval. These commands have not been run against your laptop.** A Wi-Fi adapter supporting AP mode is required. A single radio will usually disconnect from its current Wi-Fi network while hosting; internet is unnecessary.
 
 1. Find the interface with `nmcli device status` (often `wlan0` or `wlp...`). Run `python scripts/hotspot.py check --interface wlan0` to inspect AP capability.
-2. Start PubQuiz as your normal user, keeping the terminal open. Test the dashboard first.
+2. Start PubQuiz as your normal user with `./scripts/start.sh --hotspot`, keeping the terminal open. `--hotspot` makes the server answer only on this laptop and the quiz Wi-Fi (10.42.0.1), not on any other network the laptop is connected to. Test the dashboard first.
 3. Preview: `python scripts/hotspot.py up --interface wlan0 --ssid PubQuiz`.
 4. After local approval: `sudo python scripts/hotspot.py up --interface wlan0 --ssid PubQuiz --apply`.
 5. Connect phones to **PubQuiz**, keep the connection when told “no internet”, and enter a team name.
@@ -37,11 +37,11 @@ DNS and plain HTTP captive probes open registration. Automatic opening depends o
 
 Each new team receives an unguessable recovery code. It is saved in browser storage and shown under “Team recovery code”. Copy it before leaving a captive mini-browser: the normal browser has separate storage. Use the code to resume from another browser/device; names alone never grant team access. All tabs holding a team's code represent that same team; first accepted answer wins. Keep the code private. If a code is lost, the quizmaster can issue a new recovery code for the same team; this revokes the old code and preserves answers, drafts and scores.
 
-Phones send a heartbeat by polling every 1.5 seconds. The dashboard flags teams after 15 seconds without a request and clears the flag when requests resume. Sleeping phones, background tabs and captive windows can also trigger warnings; a warning means unreachable, not cheating. No notification permission or external ping is needed.
+Phones, the projector and the desk hold a live server-sent-event connection and update as soon as anything changes, with a 5-second refresh as a fallback. The dashboard flags teams after 15 seconds with no open connection and no request, and clears the flag when they return. Sleeping phones, background tabs and captive windows can also trigger warnings; a warning means unreachable, not cheating. No notification permission or external ping is needed.
 
 ## Gameplay and quizmaster dashboard
 
-The dashboard has four screens: **Run quiz**, **Build quiz**, **Mark answers** and **Teams & results**. Use form controls to author and persist named rounds, reorder questions, upload local media, and run the quiz without editing JSON. Text and choice questions support automatic marking and optional speed bonuses. Answer sheets support keyed and manual per-item marking; paper rounds support printed sheets and score adjustments. The quizmaster can pause/resume, close early, reveal answers, moderate/recover teams, hide scores and finish/resume an event.
+Round formats follow the usual pub-quiz handset games: multiple choice, letters, numbers, sequence, nearest wins, buzz-in (classic and advanced with agree voting), votes, typed answers with optional picture/audio, and answer sheets. SpeedQuizzing `.sqb`/`.sqq`/`.sqn` rounds and Quick Question files import into new rounds. The dashboard has four screens: **Run quiz**, **Build quiz**, **Mark answers** and **Teams & results**. Use form controls to author and persist named rounds, reorder questions, upload local media, and run the quiz without editing JSON. Text and choice questions support automatic marking and optional speed bonuses. Answer sheets support keyed and manual per-item marking; paper rounds support printed sheets and score adjustments. The quizmaster can pause/resume, close early, reveal answers, moderate/recover teams, hide scores and finish/resume an event.
 
 Players reconnect automatically and retain the same identity, final answers and drafts. They can also recover from another browser using their private code. A quizmaster can rotate a lost code without losing the team's score. The server enforces deadlines, schemas, first-answer locking and host permissions. Scores for an open/paused question are withheld until closure or expiry.
 
@@ -53,7 +53,7 @@ See the [complete quizmaster guide](docs/QUIZMASTER.md) for authoring, live play
 
 ## Persistence and tests
 
-Stop the server before copying `quiz.sqlite` for a consistent backup (or use a SQLite-aware backup tool). Keep backups private: the database contains team recovery secrets. To start a new event, stop the server and use a new `QUIZ_DB` path. Existing teams/scores remain in the old event file. Export JSON excludes recovery secrets; it is a results archive, not an importable database backup. Host logins are memory-only, expire after 12 hours, and must be repeated after restart. The application automatically migrates databases from the earlier prototype.
+Stop the server before copying `quiz.sqlite` for a consistent backup (or use a SQLite-aware backup tool). Keep backups private: the database contains team recovery secrets. To start a new event, stop the server and use a new `QUIZ_DB` path. Existing teams/scores remain in the old event file. Export JSON excludes recovery secrets; it is a results archive, not an importable database backup. Host logins are stored (as hashes) in the database, expire after 12 hours and survive a restart. The application automatically migrates databases from the earlier prototype.
 
 ```bash
 npm test
@@ -70,6 +70,8 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-Browser tooling is development-only. The quiz server itself still has no runtime dependencies and never needs this download during a quiz. The browser suite launches an isolated temporary quiz server and tests authoring, player registration/reconnection/drafts, pause/resume, text/choices/sheets, marking, media decoding/playback, projector view, recovery rotation, paper scoring and finish. It fails on browser JavaScript errors or external page requests.
+To use an already installed Chrome or Chromium instead of downloading one: `PUBQUIZ_BROWSER=/usr/bin/google-chrome-stable npm run test:browser`.
+
+Browser tooling is development-only. The quiz server itself still has no runtime dependencies and never needs this download during a quiz. The browser suite launches an isolated temporary quiz server and tests authoring, player registration/reconnection/drafts, pause/resume, text/choices/sheets, letters, sequence, nearest wins, classic and advanced buzz-in with two phones, SpeedQuizzing import, marking, media decoding/playback, projector view, recovery rotation, paper scoring and finish. It fails on browser JavaScript errors or external page requests.
 
 See [audit and test limits](docs/AUDIT.md). Before a real event, test on the actual laptop with at least one Android and one iPhone: automatic portal and fallback URL; mini-browser to full-browser recovery; Wi-Fi off/on; phone sleep; server restart; duplicate/late answers; picture and audio; ten or more concurrent teams; firewall compatibility; stop and restore normal Wi-Fi. Physical AP/radio and real phone acceptance remain pending; automated gameplay and plan tests do not establish that the hotspot works on your hardware.

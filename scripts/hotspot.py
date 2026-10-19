@@ -51,6 +51,14 @@ def nft_config(interface):
 }}
 '''
 
+def teardown():
+    return [
+        ['systemctl', 'stop', 'pubquiz-dnsmasq.service'],
+        ['nft', 'delete', 'table', 'inet', TABLE],
+        ['nmcli', 'connection', 'down', PROFILE],
+        ['nmcli', 'connection', 'delete', PROFILE],
+    ]
+
 def run(cmd, **kw):
     return subprocess.run(cmd, check=True, text=True, **kw)
 
@@ -72,11 +80,11 @@ def main():
         p.error('--apply requires root')
     runtime = Path('/run/pubquiz')
     if a.action == 'down':
-        # Never kill an arbitrary PID from a stale pidfile.
-        run(['systemctl', 'stop', 'pubquiz-dnsmasq.service'])
-        run(['nft', 'delete', 'table', 'inet', TABLE])
-        run(['nmcli', 'connection', 'down', PROFILE])
-        run(['nmcli', 'connection', 'delete', PROFILE])
+        # Never kill an arbitrary PID from a stale pidfile. Each step runs even if an earlier one
+        # fails (for example dnsmasq already stopped), so a partial setup is still fully removed.
+        failed = [' '.join(cmd) for cmd in teardown() if subprocess.run(cmd, check=False).returncode != 0]
+        if failed:
+            print('Already absent or failed (inspect if unexpected):\n  ' + '\n  '.join(failed))
         return
     capability = run(['nmcli', '-g', 'WIFI-PROPERTIES.AP', 'device', 'show', a.interface], capture_output=True).stdout.strip()
     if capability != 'yes':

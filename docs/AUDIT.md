@@ -28,4 +28,18 @@ Validated locally:
 
 `npm run test:browser` reproduces the browser suite with a locally installed Playwright browser. The test harness also accepts `PUBQUIZ_PLAYWRIGHT` (module path) and `PUBQUIZ_BROWSER` (Chromium executable path) for restricted development runners; these are not runtime requirements.
 
-Real Android/iOS captive windows, Wi-Fi hardware, AP setup, OS firewall interactions, physical audio output and actual paper printing still require the laptop/device acceptance check. These are distinct from the completed application-code tests. GitHub Actions is outside this iteration's scope at the user's instruction.
+Real Android/iOS captive windows, Wi-Fi hardware, AP setup, OS firewall interactions, physical audio output and actual paper printing still require the laptop/device acceptance check. These are distinct from the completed application-code tests. GitHub Actions runs the Node and Python suites on every push and pull request (`.github/workflows/test.yml`); the browser suite is run locally.
+
+# SpeedQuizzing parity iteration (2026-10-19)
+
+Compared against SpeedQuizzing Pro 5.4.11's published game rules and quiz-file formats (interoperability only; no code or media was copied). Added:
+
+- Formats: letters, numbers, sequence, nearest wins (sliding scale, earliest wins ties), vote, buzz-in classic (queue, pass-on, lockout of the next buzz-in question) and advanced (announced answer, agree countdown, wrong/pass penalties, agreement points). Optional media on any non-sheet format. Reveal shows a full-answer note, scorer count and answer tallies.
+- Live push over server-sent events for phones, projector and desk (polling every 1.5 s removed; 5 s fallback refresh remains).
+- Fair speed bonus: per-team clock starts at delivery, capped at a 2 s grace period.
+- Import of SpeedQuizzing `.sqb`/`.sqq`/`.sqn` rounds and Quick Question files/folders; verified against every sample file shipped with SpeedQuizzing 5.4.11 (all questions convert and validate).
+- Review fixes: host sessions persisted (hashed) across restarts; `ALLOWED_ADDRESSES` / `start.sh --hotspot` restrict the server to the quiz Wi-Fi; hotspot teardown continues past a failed step; login attempts and expired sessions are pruned; server close is idempotent.
+
+Validated: 19 Node tests (integration plus importer), 5 Python hotspot tests, and the browser suite in Chrome with two phone contexts (all 11 sections pass, no JavaScript errors, no external requests).
+
+Not yet covered compared with SpeedQuizzing: bingo/music bingo, spin-the-wheel, pinpoint (tap a picture), multi-tap, team photos/buzzer sound choice, Stream Deck control and internet play.

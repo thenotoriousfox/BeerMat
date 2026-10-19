@@ -22,5 +22,11 @@ class HotspotTests(unittest.TestCase):
         with patch('sys.argv', ['hotspot.py', 'up']), patch.object(hotspot, 'run') as run, patch('builtins.print'):
             hotspot.main()
             run.assert_not_called()
+    def test_down_continues_after_a_failed_step(self):
+        results = iter([1, 0, 0, 0])
+        with patch('sys.argv', ['hotspot.py', 'down', '--apply']), patch('os.geteuid', return_value=0), \
+                patch('subprocess.run', side_effect=lambda cmd, check: type('R', (), {'returncode': next(results)})) as run, patch('builtins.print'):
+            hotspot.main()
+            self.assertEqual(run.call_count, 4)
 if __name__ == '__main__':
     unittest.main()

@@ -482,10 +482,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     }
   });
   server.requestTimeout = 15000; server.headersTimeout = 10000;
+  let closing = null;
   function close() {
     clearInterval(ticker); clearInterval(keepAlive); clearTimeout(notifyTimer);
     for (const stream of streams) stream.res.end();
-    return new Promise(resolve => {server.close(() => {db.close(); resolve();}); server.closeAllConnections();});
+    closing ||= new Promise(resolve => {server.close(() => {db.close(); resolve();}); server.closeAllConnections();});
+    return closing;
   }
   return {server, db, close};
 }
