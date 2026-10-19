@@ -281,3 +281,21 @@ test('word snake: adjacent traces only, go wide scores less; tiles assemble the 
   await call('answer', {question: tid, value: order}, a.secret); await call('answer', {question: tid, value: [...order].reverse()}, b.secret);
   await call('host/close'); assert.equal(await score(a), 11); assert.equal(await score(b), 2);
 }));
+
+test('4-digit codes move a team to a new phone once; notes and stats stay on the desk', () => fixture(async ({call, teams, tick}) => {
+  const [a] = await teams('Alpha');
+  const {code} = await call('host/team', {id: a.id, action: 'transfer'}); assert.match(code, /^\d{4}$/);
+  assert.equal((await call('transfer', {code: code === '1234' ? '4321' : '1234'})).status, 403);
+  assert.equal((await call('transfer', {code})).secret, a.secret);
+  assert.equal((await call('transfer', {code})).status, 403, 'one use only');
+  const late = (await call('host/team', {id: a.id, action: 'transfer'})).code; tick(5 * 60 * 1000 + 1);
+  assert.equal((await call('transfer', {code: late})).status, 403, 'expires after five minutes');
+  await call('host/team', {id: a.id, action: 'note', note: 'Table 4, birthday'});
+  await call('host/open', {...base, text: 'Q', type: 'text', answer: 'yes'}); const id = (await call('state', {}, a.secret)).question.id;
+  tick(1500); await call('answer', {question: id, value: 'yes'}, a.secret); await call('host/close');
+  const t = (await call('host/state')).teams[0];
+  assert.equal(t.note, 'Table 4, birthday'); assert.deepEqual(t.stats, {answered: 1, scored: 1, fastest: 1500});
+  const board = await call('state', {}, a.secret); assert.equal(board.teams[0].note, undefined);
+  for (let i = 0; i < 9; i++) await call('transfer', {code: '0000'});
+  assert.equal((await call('transfer', {code: '0000'})).status, 429, 'guessing is rate limited');
+}));

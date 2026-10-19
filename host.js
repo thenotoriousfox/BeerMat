@@ -310,13 +310,23 @@ function teamControls(team) {
   const box = element('article', undefined, 'card'); box.append(element('h3', team.name), element('p', `${team.score} pts · ${team.enabled ? team.connected ? 'Connected' : 'Disconnected' : 'Disabled'}`));
   const photoActions = team.photo ? (team.photo_status === 'pending' ? [['Approve photo', 'approvePhoto'], ['Reject photo', 'rejectPhoto']] : [['Remove photo', 'rejectPhoto']]) : [];
   if (team.photo) box.append(avatar(team.photo), element('p', team.photo_status === 'pending' ? 'Photo waiting for approval' : 'Photo approved', 'muted'));
-  for (const [label, actionName] of [...photoActions, ['Rename', 'rename'], ['Issue recovery code', 'recover'], [team.enabled ? 'Disable' : 'Restore', team.enabled ? 'disable' : 'restore']]) {
+  const {answered, scored, fastest} = team.stats;
+  box.append(element('p', `${answered} answered · ${scored} scored${fastest !== null ? ` · fastest scoring answer ${(fastest / 1000).toFixed(1)}s` : ''}`, 'muted'));
+  const note = element('textarea'); note.rows = 2; note.maxLength = 500; note.placeholder = 'Private notes (only on this desk)'; note.value = team.note || '';
+  note.setAttribute('aria-label', `Notes for ${team.name}`);
+  note.onchange = () => action(() => request('team', {id: team.id, action: 'note', note: note.value}), 'Note saved');
+  box.append(note);
+  for (const [label, actionName] of [...photoActions, ['Rename', 'rename'], ['Move to a new phone', 'transfer'], ['Issue recovery code', 'recover'], [team.enabled ? 'Disable' : 'Restore', team.enabled ? 'disable' : 'restore']]) {
     const button = element('button', label, 'subtle'); button.onclick = () => action(async () => {
       const body = {id: team.id, action: actionName};
       if (actionName === 'rename') {body.name = prompt('Team name', team.name); if (!body.name) return;}
       if (actionName === 'recover' && !confirm(`Revoke the old recovery code for ${team.name}?`)) return;
       const result = await request('team', body);
-      if (result.secret) {$('recoveryName').textContent = team.name; $('recoveryCode').textContent = result.secret; $('recoveryDialog').showModal();}
+      if (result.secret || result.code) {
+        $('recoveryTitle').textContent = result.code ? 'Move to a new phone' : 'New team recovery code';
+        $('recoveryHelp').textContent = result.code ? 'On the new phone, open the quiz, choose “Already registered?” and enter this code. It works once, for five minutes. The old phone keeps working too.' : 'Give this privately to the team. Their answers and score stay intact.';
+        $('recoveryName').textContent = team.name; $('recoveryCode').textContent = result.secret || result.code; $('recoveryDialog').showModal();
+      }
     }); box.append(button);
   } return box;
 }
@@ -395,7 +405,7 @@ function renderState(s) {
   if (library && library.revision !== s.libraryRevision) $('libraryStatus').textContent = 'Saved quiz changed in another window. Reload before editing.';
   selectOptions($('reviewSelect'), s.history.map(q => [String(q.id), `${q.id}. ${q.round ? q.round + ' · ' : ''}${q.text}`]), reviewId || String(q?.id || ''));
   const teamSignature = JSON.stringify(s.teams.map(({seen, ...t}) => t));
-  if (teamSignature !== teamsSignature) {teamsSignature = teamSignature; $('teamCards').replaceChildren(...s.teams.map(teamControls));}
+  if (teamSignature !== teamsSignature && !$('teamCards').contains(document.activeElement)) {teamsSignature = teamSignature; $('teamCards').replaceChildren(...s.teams.map(teamControls));}
   selectOptions($('adjustTeam'), s.teams.filter(t => t.enabled).map(t => [t.id, t.name]), $('adjustTeam').value);
 }
 $('reviewSelect').onchange = () => {

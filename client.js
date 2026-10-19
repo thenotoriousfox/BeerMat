@@ -354,7 +354,15 @@ if (role === 'player') {
     e.preventDefault(); $('joinButton').disabled = true;
     try {const team = await api('join', {name: $('name').value}); saveIdentity(team.secret); message('Team registered. Keep your recovery code.'); await refresh();} catch (e) {message(e.message, true);} finally {if (!secret) $('joinButton').disabled = false;}
   };
-  $('recoverForm').onsubmit = async e => {e.preventDefault(); try {const code = $('recovery').value.trim(); await api('state', {}, code); saveIdentity(code); message('Welcome back'); await refresh();} catch (e) {message(e.message, true);}};
+  $('recoverForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      // A 4-digit code from the quizmaster moves the team to this phone.
+      let code = $('recovery').value.trim();
+      if (/^\d{4}$/.test(code)) code = (await api('transfer', {code})).secret;
+      await api('state', {}, code); saveIdentity(code); $('recovery').value = ''; message('Welcome back'); await refresh();
+    } catch (e) {message(e.message, true);}
+  };
   $('switchTeam').onclick = () => {if (!confirm('Switch teams on this browser? Save your current recovery code first.')) return; clearTimeout(draftTimer); secret = ''; writeStorage('pubquiz-team', ''); current = null; renderedQuestion = undefined; $('join').hidden = false; $('game').hidden = true; updates.reconnect(); refresh();};
   $('inputs').oninput = () => {
     localDraft = inputValue(); inputRevision++; writeStorage(draftKey(current.question.id), JSON.stringify(localDraft));

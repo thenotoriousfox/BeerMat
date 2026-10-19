@@ -46,6 +46,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   column('teams', 'sound', 'INTEGER');
   column('teams', 'photo', 'TEXT');
   column('teams', 'photo_status', 'TEXT');
+  column('teams', 'note', 'TEXT');
+  column('teams', 'transfer_code', 'TEXT');
+  column('teams', 'transfer_expires', 'INTEGER');
   column('questions', 'paused_ms', 'INTEGER');
   column('questions', 'revealed', 'INTEGER NOT NULL DEFAULT 0');
   column('questions', 'settled', 'INTEGER NOT NULL DEFAULT 0');
@@ -176,7 +179,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   }
   function scores(includeDisabled = false) {
     const live = liveTeams();
-    const teams = rows(`SELECT id,name,seen,enabled,photo,photo_status,
+    const teams = rows(`SELECT id,name,seen,enabled,photo,photo_status,note,
       COALESCE((SELECT SUM(a.points) FROM answers a JOIN questions q ON a.question=q.id WHERE a.team=teams.id AND (q.closed=1 OR q.settled=1)),0)
       +COALESCE((SELECT SUM(points) FROM adjustments WHERE team=teams.id),0) score FROM teams ${includeDisabled ? '' : 'WHERE enabled=1'} ORDER BY score DESC,name`);
     let rank = 0, previous;
@@ -189,7 +192,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     run('UPDATE teams SET photo=NULL,photo_status=NULL WHERE id=?', team.id);
   }
   function publicScores() {
-    return settings().leaderboardVisible ? scores().map(({seen, connected, enabled, photo, photo_status, ...t}) => ({...t, photo: publicPhoto({photo, photo_status})})) : [];
+    return settings().leaderboardVisible ? scores().map(({seen, connected, enabled, photo, photo_status, note, ...t}) => ({...t, photo: publicPhoto({photo, photo_status})})) : [];
+  }
+  // Desk-only statistics: answers given, answers that scored, and the quickest scoring answer.
+  function teamStats() {
+    const stats = {};
+    for (const row of rows(`SELECT a.team, COUNT(*) answered, SUM(a.points>0) scored, MIN(CASE WHEN a.points>0 THEN a.submitted-q.opened END) fastest
+      FROM answers a JOIN questions q ON q.id=a.question WHERE a.submitted IS NOT NULL GROUP BY a.team`)) stats[row.team] = {answered: row.answered, scored: row.scored, fastest: row.fastest};
+    return stats;
   }
   function publicState() { return {serverTime: now(), settings: settings(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null)}; }
 
@@ -385,9 +395,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         requireValue(isHost(auth), 'Host login required', 403);
         if (p === '/api/host/logout') {run('DELETE FROM host_sessions WHERE hash=?', hash(auth)); return send(200, {ok: true});}
         if (p === '/api/host/state') {
-          const q = latest();
+          const q = latest(), stats = teamStats();
           return send(200, {serverTime: now(), settings: settings(), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
-            teams: scores(true), question: publicQuestion(q, true), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
+            teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
         if (p === '/api/host/library') return send(200, library());
@@ -501,6 +511,15 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const team = one('SELECT * FROM teams WHERE id=?', body.id); requireValue(team, 'Team not found', 404);
           if (body.action === 'approvePhoto') {requireValue(team.photo, 'No photo to approve', 409); run(`UPDATE teams SET photo_status='approved' WHERE id=?`, team.id); return send(200, {ok: true});}
           if (body.action === 'rejectPhoto') {removePhoto(team); return send(200, {ok: true});}
+          if (body.action === 'note') {
+            requireValue(typeof body.note === 'string' && body.note.length <= 500, 'Notes must be up to 500 characters');
+            run('UPDATE teams SET note=? WHERE id=?', body.note.trim() || null, team.id); return send(200, {ok: true});
+          }
+          if (body.action === 'transfer') {
+            // A short code to move a team to another phone; valid for five minutes, used once.
+            let code; do code = String(randomInt(1000, 10000)); while (one('SELECT 1 FROM teams WHERE transfer_code=? AND transfer_expires>?', code, now()));
+            run('UPDATE teams SET transfer_code=?,transfer_expires=? WHERE id=?', code, now() + 5 * 60 * 1000, team.id); return send(200, {code});
+          }
           if (body.action === 'recover') {const secret = token(); run('UPDATE teams SET secret=?,seen=0 WHERE id=?', secret, team.id); return send(200, {secret});}
           if (body.action === 'rename') {
             requireValue(typeof body.name === 'string' && body.name.trim().length >= 2 && body.name.trim().length <= 40, 'Team name must be 2–40 characters');
@@ -514,6 +533,15 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         }
         if (p === '/api/host/export') return send(200, {version: 3, settings: settings(), library: library(), teams: rows('SELECT id,name,enabled FROM teams'), questions: rows('SELECT * FROM questions'), answers: rows('SELECT * FROM answers'), adjustments: rows('SELECT * FROM adjustments'), markingLog: rows('SELECT * FROM marking_log'), buzzes: rows('SELECT * FROM buzzes'), agrees: rows('SELECT * FROM agrees'), bingoCalls: rows('SELECT * FROM bingo_calls'), clipPlays: rows('SELECT * FROM clip_plays')});
         throw new QuizError('Unknown host action', 404);
+      }
+      if (p === '/api/transfer') {
+        const ip = req.socket.remoteAddress, a = attempts.get('transfer:' + ip) || {n: 0, time: now()};
+        if (now() - a.time >= 60000) {a.n = 0; a.time = now();} attempts.set('transfer:' + ip, a);
+        requireValue(++a.n <= 10, 'Wait one minute before trying again', 429);
+        const team = typeof body.code === 'string' && /^\d{4}$/.test(body.code) && one('SELECT id,secret FROM teams WHERE transfer_code=? AND transfer_expires>?', body.code, now());
+        requireValue(team, 'That code is wrong or has expired. Ask the quizmaster for a new one.', 403);
+        run('UPDATE teams SET transfer_code=NULL,transfer_expires=NULL WHERE id=?', team.id);
+        return send(200, {secret: team.secret});
       }
       if (p === '/api/join') {
         requireValue(settings().registrationOpen && !settings().ended, 'Registration is closed. Ask the quizmaster.', 409);

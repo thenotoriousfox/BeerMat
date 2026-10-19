@@ -246,6 +246,14 @@ try {
   assert.equal(await player.locator('#tileWord').textContent(), 'THE LION KING'); await submitted(player); await host.keyboard.press('c');
   await host.locator('#reveal').click(); await waitFor(projector, () => document.getElementById('solution').textContent.includes('The Lion King'));
   log('word snake trace with restart and go wide; Seven Squares-style tiles; TV shows the word pattern');
+  await host.locator('[data-tab=teams]').click(); const owlCard = host.locator('#teamCards article', {hasText: 'Owl team'});
+  await owlCard.locator('textarea').fill('Table 7'); await owlCard.locator('textarea').blur(); await waitFor(host, () => document.getElementById('message').textContent === 'Note saved');
+  await owlCard.getByRole('button', {name: 'Move to a new phone'}).click(); await visible(host, '#recoveryDialog'); const moveCode = await host.locator('#recoveryCode').textContent(); await host.locator('#recoveryDialog button').click();
+  const newPhone = await rivalContext.browser().newContext({viewport: {width: 390, height: 844}, isMobile: true}).then(c => c.newPage()); newPhone.on('pageerror', e => errors.push(e.message));
+  await newPhone.goto(base + '/'); await newPhone.locator('#join details').evaluate(d => d.open = true); await newPhone.locator('#recovery').fill(moveCode); await newPhone.locator('#recoverForm button').click();
+  await visible(newPhone, '#game'); assert.equal(await newPhone.locator('#team').textContent(), 'Owl team');
+  assert.match(await owlCard.textContent(), /answered · \d+ scored/); assert.equal(await owlCard.locator('textarea').inputValue(), 'Table 7');
+  log('team notes and stats on the desk; 4-digit code moves a team to a new phone');
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await host.locator('#finish').click(); await waitFor(projector, () => document.getElementById('boardStatus').textContent === 'Final standings');
   await visible(projector, '#winnerSection'); await waitFor(projector, () => document.getElementById('winnerName').textContent === 'Fox team' && document.querySelectorAll('#confetti span').length === 80);
   assert.match(await projector.locator('#podium').textContent(), /🥈 Owl team/); await waitFor(player, () => document.getElementById('answerState').textContent === 'Quiz finished');
