@@ -185,7 +185,7 @@ async function importSpeedQuizzing(input) {
   };
   for (const file of files) {
     const folder = (file.webkitRelativePath || '').split('/').slice(-2, -1)[0] || '';
-    if (/\.sq[bqn]$/i.test(file.name)) {
+    if (/\.sq[bqntwp]$/i.test(file.name)) {
       if (file.size > 4 * 1024 * 1024) throw Error(`${file.name} is too large`);
       const round = parseSqRound(await file.text(), file.name), target = roundFor(round.title);
       target.questions.push(...round.questions.map(q => ({...q, id: uid()}))); count += round.questions.length;

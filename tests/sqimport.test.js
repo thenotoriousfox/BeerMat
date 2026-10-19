@@ -40,3 +40,15 @@ test('Quick Question file names decode every documented form', () => {
   assert.deepEqual(parseQuickQuestion('QQ_Name this bird_Robin.jpg'), {question: {text: 'Name this bird', seconds: 30, points: 1, type: 'picture', answer: 'Robin'}, media: 'picture'});
   assert.equal(parseQuickQuestion('holiday.jpg'), null);
 });
+
+test('multi-tap and word snake round files import; pinpoint is flagged for rebuilding', () => {
+  const xml = body => `d><?xml version="1.0"?><round><game>x</game><points_per_question>2</points_per_question><questions>${body}</questions></round>`;
+  const multi = parseSqRound(xml('<question><q>Tick the primes</q><short_answer>A_C</short_answer><options><option>2</option><option>4</option><option>5</option></options></question>'), 'Primes.sqt');
+  assert.deepEqual(multi.questions[0].correct, ['2', '5']); assert.equal(multi.questions[0].type, 'multi');
+  const snake = parseSqRound(xml('<question><q>Tallest animal</q><short_answer>gir affe</short_answer><long_answer>Giraffe</long_answer></question>'), 'Animals.sqw');
+  assert.equal(snake.questions[0].type, 'wordsnake'); assert.equal(snake.questions[0].answer, 'GIRAFFE');
+  const pin = parseSqRound(xml('<question><q>Where is Cardiff</q><long_answer>45005010</long_answer></question>'), 'Map.sqp');
+  assert.equal(pin.questions.length, 0); assert.match(pin.skipped[0], /pinpoint/);
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'sq-'));
+  try {for (const q of [...multi.questions, ...snake.questions]) validateQuestion(q, dir);} finally {rmSync(dir, {recursive: true})}
+});

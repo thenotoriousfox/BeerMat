@@ -24,12 +24,23 @@ export function renderMedia(container, question) {
   container.append(media);
 }
 export function avatar(src) {const img = element('img', undefined, 'avatar'); img.src = src; img.alt = ''; return img;}
+// Leaderboard rows slide from their old position to the new one when the order changes.
 export function renderBoard(container, teams) {
+  const key = JSON.stringify(teams);
+  if (container.dataset.board === key) return;
+  container.dataset.board = key;
+  const before = new Map([...container.children].map(li => [li.dataset.team, li.getBoundingClientRect().top]));
   container.replaceChildren(...teams.map(team => {
     const li = element('li'), name = element('span', `${team.rank}. ${team.name}`, 'team-name');
     if (team.photo) name.prepend(avatar(team.photo));
-    li.append(name, element('strong', `${team.score} pts`)); return li;
+    li.append(name, element('strong', `${team.score} pts`)); li.dataset.team = team.id; return li;
   }));
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for (const li of container.children) {
+    const old = before.get(li.dataset.team), now = li.getBoundingClientRect().top;
+    if (old === undefined) li.animate([{opacity: 0, transform: 'translateX(-24px)'}, {opacity: 1, transform: 'none'}], {duration: 500, easing: 'ease-out'});
+    else if (old !== now) li.animate([{transform: `translateY(${old - now}px)`}, {transform: 'none'}], {duration: 800, easing: 'cubic-bezier(.2,.8,.2,1)'});
+  }
 }
 export function timeText(question, offset = 0) {
   if (!question) return 'Waiting for the quizmaster';
@@ -40,8 +51,12 @@ export function timeText(question, offset = 0) {
 }
 export const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 export function renderSolution(container, question) {
-  container.replaceChildren();
+  // Only rebuild when the reveal changes, so its entrance animation plays once.
+  const key = question?.revealed ? JSON.stringify([question.id, question.answer, question.tally, question.correctCount, question.answerNote]) : '';
+  if (container.dataset.reveal === key) return;
+  container.dataset.reveal = key; container.replaceChildren();
   if (!question?.revealed) return;
+  container.classList.remove('reveal'); void container.offsetWidth; container.classList.add('reveal');
   container.append(element('h3', question.type === 'vote' ? 'Votes' : 'Answer reveal'));
   if (question.type === 'sheet') container.append(...question.items.map((item, i) => element('p', `${i + 1}. ${item} — ${question.itemAnswers?.[i] || 'Marked by quizmaster'}`)));
   else if (question.type === 'sequence') {const list = element('ol', undefined, 'solution'); list.append(...question.items.map(item => element('li', item))); container.append(list);}

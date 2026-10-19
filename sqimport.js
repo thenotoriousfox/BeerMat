@@ -1,5 +1,6 @@
 // Converts SpeedQuizzing quiz files into PubQuiz questions, for interoperability with existing quiz packs.
-// Round files (.sqb buzz-in, .sqq keypad, .sqn nearest wins) are small XML documents. Quick Questions
+// Round files (.sqb buzz-in, .sqq keypad, .sqn nearest wins, .sqt multi-tap, .sqw word snake, .sqp pinpoint)
+// are small XML documents. Quick Questions
 // keep the whole question in the file name, split by underscores.
 const entities = {amp: '&', lt: '<', gt: '>', quot: '"', apos: "'"};
 const decode = value => value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
@@ -13,7 +14,7 @@ const clip = (value, max) => value.slice(0, max);
 export function parseSqRound(text, fileName = 'SpeedQuizzing round') {
   const xml = text.slice(Math.max(0, text.indexOf('<')));
   if (!/<round>/.test(xml)) throw Error(`${fileName} is not a SpeedQuizzing round file`);
-  const game = tag(xml, 'game').toLowerCase(), variation = tag(xml, 'game_variation').toLowerCase();
+  const game = tag(xml, 'game').toLowerCase(), variation = tag(xml, 'game_variation').toLowerCase(), ext = (/\.(sq[a-z])$/i.exec(fileName)?.[1] || '').toLowerCase();
   const points = Math.min(100, Math.max(0, Number.parseInt(tag(xml, 'points_per_question'), 10) || 1));
   const speedBonus = tag(xml, 'speed_bonus') === 'true' ? points : 0;
   const skipped = [];
@@ -23,6 +24,16 @@ export function parseSqRound(text, fileName = 'SpeedQuizzing round') {
     if (!textValue) {skipped.push(`question ${n + 1} has no text`); return null;}
     if (tag(q, 'picture')) skipped.push(`question ${n + 1} used a picture that is not inside the file — upload it in Build quiz`);
     const common = {text: textValue, points, answerNote: clip(long, 300)};
+    // Pinpoint targets live on a picture that is not inside the file, so those questions are rebuilt by hand.
+    if (ext === 'sqp' || game.includes('pinpoint')) {skipped.push(`question ${n + 1} is a pinpoint question — upload its picture and set the target in Build quiz`); return null;}
+    if (ext === 'sqw' || game.replace(/\s/g, '').includes('wordsnake')) {
+      const word = short.toUpperCase().replace(/[^A-Z]/g, '');
+      if (word.length >= 3 && word.length <= 20) return {...common, type: 'wordsnake', seconds: 45, speedBonus, answer: word, answerNote: clip(long && long.toUpperCase().replace(/[^A-Z]/g, '') !== word ? long : '', 300)};
+    }
+    if ((ext === 'sqt' || game.replace(/[\s-]/g, '').includes('multitap')) && options.length >= 2) {
+      const correct = [...new Set((short.toUpperCase().match(/[A-H]/g) || []).map(l => options[l.charCodeAt(0) - 65]).filter(Boolean))];
+      if (correct.length) return {...common, type: 'multi', seconds: 30, speedBonus, options: [...new Set(options)], correct};
+    }
     if (game === 'buzzin') return {...common, type: 'buzzer', variation: variation === 'advanced' ? 'advanced' : 'classic', seconds: 60, answer: clip(long || short, 300), answerNote: '', agreePoints: Math.max(1, Math.round(points / 2))};
     if (game.startsWith('nearest')) return numeric(short) ? {...common, type: 'nearest', seconds: 20, answer: short.replace(/,/g, '')} : {...common, type: 'text', seconds: 30, answer: clip(long || short, 300)};
     if (view === 'multi' && options.length >= 2) {
