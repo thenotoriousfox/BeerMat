@@ -299,3 +299,27 @@ test('4-digit codes move a team to a new phone once; notes and stats stay on the
   for (let i = 0; i < 9; i++) await call('transfer', {code: '0000'});
   assert.equal((await call('transfer', {code: '0000'})).status, 429, 'guessing is rate limited');
 }));
+
+test('joined phones get "online" answers to OS checks, can continue in another browser, and leaving is reported', () => fixture(async ({call, url, tick}) => {
+  const as = ip => ({'X-Test-Ip': ip});
+  const post = (route, body, ip, key = '') => fetch(url() + '/api/' + route, {method: 'POST', headers: {...as(ip), Authorization: 'Bearer ' + key}, body: JSON.stringify(body)}).then(async r => ({status: r.status, ...await r.json()}));
+  let r = await fetch(url() + '/generate_204', {headers: as('10.42.0.50')}); assert.equal(r.status, 200, 'unknown phone sees the sign-in page');
+  const team = await post('join', {name: 'Phone team'}, '10.42.0.50');
+  r = await fetch(url() + '/generate_204', {headers: as('10.42.0.50')}); assert.equal(r.status, 204);
+  r = await fetch(url() + '/hotspot-detect.html', {headers: as('10.42.0.50')}); assert.match(await r.text(), /<TITLE>Success<\/TITLE>/);
+  assert.equal((await fetch(url() + '/generate_204', {headers: as('10.42.0.51')})).status, 200, 'other phones still see the sign-in page');
+  assert.equal((await fetch(url() + '/generate_204', {headers: as('127.0.0.1')})).status, 200, 'the laptop itself is never a team phone');
+  assert.deepEqual((await post('device', {}, '10.42.0.50')).team, {name: 'Phone team'});
+  assert.equal((await post('device', {}, '10.42.0.51')).team, null);
+  assert.equal((await post('device/continue', {}, '10.42.0.50')).secret, team.secret);
+  assert.equal((await post('device/continue', {}, '10.42.0.51')).status, 404);
+  await call('host/settings', {onlineAfterJoin: false});
+  assert.equal((await fetch(url() + '/generate_204', {headers: as('10.42.0.50')})).status, 200);
+
+  await call('host/open', {...base, text: 'Q', type: 'text', answer: 'yes'}); const id = (await call('state', {}, team.secret)).question.id;
+  await post('away', {question: id, state: 'left'}, '10.42.0.50', team.secret); tick(4000);
+  let away = (await call('host/state')).away; assert.deepEqual(away, [{name: 'Phone team', count: 1, ms: 4000, awayNow: true}]);
+  await post('away', {question: id, state: 'back'}, '10.42.0.50', team.secret);
+  await post('away', {question: id, state: 'left'}, '10.42.0.50', team.secret); tick(1000); await call('host/close'); tick(9000);
+  away = (await call('host/review', {question: id})).away; assert.deepEqual(away, [{name: 'Phone team', count: 2, ms: 5000, awayNow: false}], 'stops counting when the question closes');
+}, {clientAddress: req => req.headers['x-test-ip'] || '127.0.0.1'}));

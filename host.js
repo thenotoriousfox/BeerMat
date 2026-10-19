@@ -272,6 +272,7 @@ $('registration').onclick = () => action(() => request('settings', {registration
 $('visibility').onclick = () => action(() => request('settings', {leaderboardVisible: !state.settings.leaderboardVisible}));
 $('scramble').onclick = () => action(() => request('settings', {scrambleKeypads: !state.settings.scrambleKeypads}), 'Keypad scrambling updated — applies from the next question');
 $('phrases').onclick = () => action(() => request('settings', {bingoPhrases: !state.settings.bingoPhrases}));
+$('online').onclick = () => action(() => request('settings', {onlineAfterJoin: !state.settings.onlineAfterJoin}));
 $('photos').onclick = () => action(() => request('settings', {teamPhotos: !state.settings.teamPhotos}));
 $('blockedForm').onsubmit = e => {e.preventDefault(); action(() => request('settings', {blockedWords: $('blockedWords').value}), 'Blocked words saved');};
 $('tvLanguage').onchange = () => action(() => request('settings', {language: $('tvLanguage').value}), 'TV language updated (phones use their own language)');
@@ -344,6 +345,8 @@ function answerKey(q) {
   const i = q.options?.indexOf(q.answer);
   return `Answer: ${q.type === 'choice' && i >= 0 ? `${letters[i]}. ` : ''}${q.answer || '(manual marking)'}${q.answerNote ? ` · ${q.answerNote}` : ''}${q.type === 'nearest' ? ` · top ${q.places} score` : ''}`;
 }
+// Teams whose phone left the quiz page (switched app or locked) while this question was open.
+const awayText = list => list?.length ? '👀 Left the quiz page: ' + list.map(a => `${a.name} ${a.awayNow ? '(away now, ' : '('}${Math.round(a.ms / 1000)}s${a.count > 1 ? `, ${a.count} times` : ''})`).join(' · ') : '';
 function renderBuzzPanel(q) {
   const b = q?.buzz; $('buzzPanel').hidden = !b || !q.live;
   if (!b) return;
@@ -397,6 +400,9 @@ function renderState(s) {
   $('registration').textContent = s.settings.registrationOpen ? 'Close registration' : 'Open registration'; $('registration').disabled = s.settings.ended;
   $('visibility').textContent = s.settings.leaderboardVisible ? 'Hide leaderboard' : 'Show leaderboard';
   $('photos').textContent = `Team photos: ${s.settings.teamPhotos ? 'on' : 'off'}`;
+  $('online').textContent = `Keep phones on quiz Wi-Fi: ${s.settings.onlineAfterJoin ? 'on' : 'off'}`;
+  $('online').title = 'After a team joins, tell its phone the Wi-Fi is online so it stays on the quiz Wi-Fi instead of mobile data.';
+  $('liveAway').textContent = awayText(s.away);
   $('scramble').textContent = `Scramble keypads: ${s.settings.scrambleKeypads ? 'on' : 'off'}`; $('phrases').textContent = `Bingo phrases: ${s.settings.bingoPhrases ? 'on' : 'off'}`;
   if (!$('blockedForm').contains(document.activeElement)) $('blockedWords').value = s.blockedWords.join('\n'); $('displayMode').value = s.settings.displayMode; $('tvLanguage').value = s.settings.language; $('finish').textContent = s.settings.ended ? 'Resume quiz' : 'Finish quiz';
   const offline = s.teams.filter(t => t.enabled && !t.connected), photos = s.teams.filter(t => t.photo_status === 'pending').length;
@@ -422,7 +428,7 @@ async function loadReview() {
   if ($('markCards').contains(document.activeElement) || $('markCards').querySelector('[data-dirty=true]')) return;
   reviewSignature = signature; const q = r.question;
   $('reviewKey').textContent = q.type === 'sheet' ? 'One point per item. Review any items without a key.' : answerKey(q) + (q.aliases?.length ? ' · Also accepts: ' + q.aliases.join(', ') : '');
-  renderMedia($('reviewMedia'), q);
+  renderMedia($('reviewMedia'), q); $('reviewAway').textContent = awayText(r.away);
   $('markCards').replaceChildren(...state.teams.map(team => {
     const answer = r.answers.find(a => a.team === team.id), card = element('form', undefined, 'card');
     card.oninput = card.onchange = () => {card.dataset.dirty = 'true';};

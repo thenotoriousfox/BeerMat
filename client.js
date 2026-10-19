@@ -27,6 +27,7 @@ function updateControls() {
   inputs().forEach(input => input.disabled = !canAnswer || submitting);
   $('inputs').querySelectorAll('button').forEach(button => button.disabled = !canAnswer || submitting);
   $('submit').disabled = !canAnswer || submitting;
+  $('awayNote').hidden = !(q?.open && !current.answer);
   $('status').textContent = timeText(q, offset);
   $('answerState').textContent = current.settings.ended ? t('Quiz finished') : q?.type === 'buzzer' ? '' : current.answer ? '✓ Final answer saved' : q?.paused ? t('Paused') : '';
   if (q?.type === 'buzzer') renderBuzzer(q);
@@ -241,8 +242,11 @@ function displayState(s) {
   $('projection').hidden = s.settings.displayMode === 'blank';
   $('joinSection').hidden = s.settings.displayMode !== 'join';
   if (s.settings.displayMode === 'join') {
-    $('joinSsid').textContent = joinSsid; $('joinUrl').textContent = joinUrl.replace(/^http:\/\//, '');
-    renderQr($('wifiQr'), wifiCode(joinSsid)); renderQr($('urlQr'), joinUrl);
+    // One code does it all: it joins the quiz Wi-Fi, and the phone's sign-in window then opens the quiz.
+    renderQr($('wifiQr'), wifiCode(joinSsid));
+    $('joinStepWifi').textContent = t('Join the “{ssid}” Wi-Fi when your phone offers it', {ssid: joinSsid});
+    $('joinStepQuiz').textContent = t('The quiz opens by itself — pick a team name');
+    $('joinFallback').textContent = t('Quiz not opening? On the {ssid} Wi-Fi, go to {url}', {ssid: joinSsid, url: joinUrl.replace(/^http:\/\//, '')});
     $('joinStatus').textContent = !joining ? t('Registration is closed — ask the quizmaster to join') : s.teams.length ? (s.teams.length === 1 ? t('1 team has joined') : t('{n} teams have joined', {n: s.teams.length})) : t('Be the first team to join!');
   }
   $('joinHint').textContent = joining ? t('Join: Wi-Fi “{ssid}” → {url}', {ssid: joinSsid, url: joinUrl.replace(/^http:\/\//, '')}) : '';
@@ -323,7 +327,22 @@ function renderWinner(s) {
 async function publicState() {
   const response = await fetch('/api/leaderboard', {signal: AbortSignal.timeout(8000)}); if (!response.ok) throw Error(t('Cannot reach quiz server')); return response.json();
 }
-let initialised = false;
+let initialised = false, deviceChecked = false, lastSettings = null;
+// A phone that already joined (for example in the Wi-Fi sign-in window) is offered its team back.
+async function checkDevice() {
+  deviceChecked = true;
+  try {
+    const {team} = await api('device');
+    $('continueBox').hidden = !team;
+    if (team) {$('continueText').textContent = t('This phone was playing as {name}.', {name: team.name}); $('continueTeam').textContent = t('Continue as {name}', {name: team.name});}
+  } catch {}
+}
+// Leaving the page during an open question (switching app, locking the phone) is reported to the quizmaster.
+function reportAway(state) {
+  const q = current?.question;
+  if (!secret || !q?.live || current.answer) return;
+  fetch('/api/away', {method: 'POST', keepalive: true, headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + secret}, body: JSON.stringify({question: q.id, state})}).catch(() => {});
+}
 async function refresh() {
   try {
     const s = role === 'player' && secret ? await api('state', {}, secret) : await publicState();
@@ -331,10 +350,12 @@ async function refresh() {
     // The TV follows the quizmaster's language setting; a change after load reloads the page in the new language.
     if (role === 'display' && s.settings.language !== language()) {if (initialised) return location.reload(); setLanguage(s.settings.language); translatePage();}
     initialised = true;
-    $('connection').textContent = t('● Connected'); sharedState(s);
+    $('connection').textContent = t('● Connected'); lastSettings = s.settings; sharedState(s);
     if (role === 'display') displayState(s);
     else if (secret) playerState(s);
-    else {$('joinButton').disabled = !s.settings.registrationOpen || s.settings.ended; $('registrationState').textContent = s.settings.ended ? t('This quiz has finished.') : s.settings.registrationOpen ? t('Registration is open') : t('Registration closed — existing teams can still recover below.');}
+    else {
+      if (!deviceChecked) checkDevice();
+      $('joinButton').disabled = !s.settings.registrationOpen || s.settings.ended; $('registrationState').textContent = s.settings.ended ? t('This quiz has finished.') : s.settings.registrationOpen ? t('Registration is open') : t('Registration closed — existing teams can still recover below.');}
     if (role === 'player' && online && localDraft !== null) flushDraft();
   } catch (e) {
     online = false; $('connection').textContent = t('● Connection lost — retrying');
@@ -358,7 +379,11 @@ async function flushDraft() {
 if (role === 'player') {
   $('joinForm').onsubmit = async e => {
     e.preventDefault(); $('joinButton').disabled = true;
-    try {const team = await api('join', {name: $('name').value}); saveIdentity(team.secret); message('Team registered. Keep your recovery code.'); await refresh();} catch (e) {message(e.message, true);} finally {if (!secret) $('joinButton').disabled = false;}
+    try {
+      const team = await api('join', {name: $('name').value}); saveIdentity(team.secret);
+      message(t('You’re in! Keep this window open to play. If it closes, open {url} in your browser to carry on.', {url: (lastSettings?.joinUrl || 'http://10.42.0.1').replace(/^http:\/\//, '')}));
+      await refresh();
+    } catch (e) {message(e.message, true);} finally {if (!secret) $('joinButton').disabled = false;}
   };
   $('recoverForm').onsubmit = async e => {
     e.preventDefault();
@@ -411,6 +436,14 @@ if (role === 'player') {
     selectOptions(select, Object.entries(languages), language());
     select.onchange = () => {writeStorage('pubquiz-lang', select.value); location.reload();};
   }
+  $('continueTeam').onclick = async () => {
+    try {const {secret: code} = await api('device/continue'); saveIdentity(code); $('continueBox').hidden = true; message('Welcome back'); await refresh();} catch (e) {message(e.message, true);}
+  };
+  let leftAt = null;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {if (current?.question?.open && !current.answer) {leftAt = Date.now(); reportAway('left');}}
+    else if (leftAt) {leftAt = null; reportAway('back');}
+  });
   $('photoInput').onchange = async () => {
     const file = $('photoInput').files[0]; $('photoInput').value = ''; if (!file) return;
     try {

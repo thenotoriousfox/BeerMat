@@ -17,9 +17,9 @@ const security = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosnif
 const DELIVERY_GRACE_MS = 2000;
 const SESSION_MS = 12 * 60 * 60 * 1000;
 // Read-only routes never notify clients of a change.
-const readOnly = new Set(['/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout']);
+const readOnly = new Set(['/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device']);
 
-export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null} = {}) {
+export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null} = {}) {
   if (typeof hostKey !== 'string' || hostKey.length < 12) throw Error('HOST_KEY must contain at least 12 characters');
   const db = new DatabaseSync(database);
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
@@ -36,6 +36,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     CREATE TABLE IF NOT EXISTS agrees(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),at INTEGER NOT NULL,PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS host_sessions(hash TEXT PRIMARY KEY,expires INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS go_wide(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),PRIMARY KEY(team,question));
+    CREATE TABLE IF NOT EXISTS device_ips(ip TEXT PRIMARY KEY,team TEXT REFERENCES teams(id),seen INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS away(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),ms INTEGER NOT NULL DEFAULT 0,count INTEGER NOT NULL DEFAULT 0,since INTEGER,PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS clip_plays(question INTEGER REFERENCES questions(id),seq INTEGER NOT NULL,clip INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,seq));
     CREATE TABLE IF NOT EXISTS bingo_calls(question INTEGER REFERENCES questions(id),seq INTEGER NOT NULL,number INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,seq));
   `);
@@ -70,7 +72,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'leaderboard', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, teamPhotos: true, language: 'en'};
+  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'leaderboard', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, teamPhotos: true, language: 'en', onlineAfterJoin: true};
   const SOUNDS = 8;
   const settings = () => ({...defaultSettings, ...getMeta('settings', {})});
   const library = () => getMeta('library', {revision: 0, title: 'My quiz', rounds: []});
@@ -213,8 +215,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         for (const r of ranked) run('UPDATE answers SET points=? WHERE team=? AND question=?', r.points, r.team, q.id);
       }
       run('UPDATE questions SET settled=1 WHERE id=?', q.id);
+      endAway(q);
     });
   }
+  // Time away stops counting when the question ends.
+  const endAway = q => run('UPDATE away SET ms=ms+(?-since),since=NULL WHERE question=? AND since IS NOT NULL', now(), q.id);
   function openQuestion(data, sourceId = null) {
     requireValue(!settings().ended, 'Quiz has finished. Resume it first.', 409);
     const current = latest();
@@ -230,7 +235,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   }
   function closeQuestion(q) {
     if (!q) return;
-    run('UPDATE questions SET closed=1,paused_ms=NULL,agree_deadline=NULL WHERE id=?', q.id);
+    run('UPDATE questions SET closed=1,paused_ms=NULL,agree_deadline=NULL WHERE id=?', q.id); endAway(q);
     settle(questionById(q.id));
   }
   function autoMark(value, data, q, teamId) {
@@ -330,6 +335,34 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (team) notify();
     req.on('close', () => {streams.delete(stream); if (team) notify();});
   }
+  // Phones are recognised by their address on the quiz Wi-Fi. The laptop itself (loopback) is never a team device.
+  const clientIp = req => clientAddress ? clientAddress(req) : (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+  const loopback = ip => ip.startsWith('127.') || ip === '::1';
+  const DEVICE_MS = 12 * 60 * 60 * 1000;
+  function rememberDevice(req, teamId) {
+    const ip = clientIp(req); if (!ip || loopback(ip)) return;
+    run('INSERT INTO device_ips VALUES(?,?,?) ON CONFLICT(ip) DO UPDATE SET team=excluded.team,seen=excluded.seen', ip, teamId, now());
+  }
+  const deviceTeam = req => {
+    const ip = clientIp(req);
+    return loopback(ip) ? null : one('SELECT t.id,t.name,t.secret FROM device_ips d JOIN teams t ON t.id=d.team WHERE d.ip=? AND d.seen>? AND t.enabled=1', ip, now() - DEVICE_MS);
+  };
+  // Once a phone has joined, answer its operating system's "is there internet?" check with the expected reply,
+  // so the phone keeps the quiz Wi-Fi as its main connection instead of falling back to mobile data.
+  const probes = {'/generate_204': 'android', '/gen_204': 'android', '/hotspot-detect.html': 'apple', '/library/test/success.html': 'apple',
+    '/connecttest.txt': 'Microsoft Connect Test', '/ncsi.txt': 'Microsoft NCSI', '/success.txt': 'success\n'};
+  function answerProbe(req, res, p) {
+    if (!probes[p] || !settings().onlineAfterJoin || !deviceTeam(req)) return false;
+    if (probes[p] === 'android') {res.writeHead(204, {'Cache-Control': 'no-store'}); res.end(); return true;}
+    const apple = probes[p] === 'apple';
+    res.writeHead(200, {'Content-Type': apple ? 'text/html' : 'text/plain', 'Cache-Control': 'no-store'});
+    res.end(apple ? '<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>' : probes[p]); return true;
+  }
+  function awayList(q) {
+    if (!q) return [];
+    return rows('SELECT a.ms,a.count,a.since,t.name FROM away a JOIN teams t ON t.id=a.team WHERE a.question=? ORDER BY t.name', q.id)
+      .map(a => ({name: a.name, count: a.count, ms: a.ms + (a.since ? now() - a.since : 0), awayNow: a.since !== null}));
+  }
   const localAllowed = req => !allowedAddresses || allowedAddresses.includes((req.socket.localAddress || '').replace(/^::ffff:/, ''));
   const server = http.createServer(async (req, res) => {
     const send = (status, data) => {res.writeHead(status, {...security, 'Content-Type': 'application/json'}); res.end(JSON.stringify(data));};
@@ -348,6 +381,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           return sendFile(req, res, file);
         }
         if (p === '/health') return send(200, {ok: true});
+        if (answerProbe(req, res, p)) return;
         // OS HTTP probes and arbitrary HTTP landing URLs get registration.
         return sendFile(req, res, path.join(root, routes[p] || 'player.html'));
       }
@@ -397,7 +431,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats();
           return send(200, {serverTime: now(), settings: settings(), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
-            teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
+            teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
         if (p === '/api/host/library') return send(200, library());
@@ -408,7 +442,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         }
         if (p === '/api/host/settings') {
           const next = {...settings()};
-          for (const k of ['registrationOpen', 'leaderboardVisible', 'ended', 'scrambleKeypads', 'bingoPhrases', 'teamPhotos']) if (Object.hasOwn(body, k)) {requireValue(typeof body[k] === 'boolean', 'Invalid setting'); next[k] = body[k];}
+          for (const k of ['registrationOpen', 'leaderboardVisible', 'ended', 'scrambleKeypads', 'bingoPhrases', 'teamPhotos', 'onlineAfterJoin']) if (Object.hasOwn(body, k)) {requireValue(typeof body[k] === 'boolean', 'Invalid setting'); next[k] = body[k];}
           if (Object.hasOwn(body, 'title')) {requireValue(typeof body.title === 'string' && body.title.trim() && body.title.length <= 100, 'Title must contain 1–100 characters'); next.title = body.title.trim();}
           // Shown on the projector's join screen; the Wi-Fi name should match the hotspot's --ssid.
           if (Object.hasOwn(body, 'joinSsid')) {requireValue(typeof body.joinSsid === 'string' && body.joinSsid.trim() && Buffer.byteLength(body.joinSsid.trim()) <= 32, 'Wi-Fi name must be 1–32 bytes'); next.joinSsid = body.joinSsid.trim();}
@@ -473,7 +507,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         }
         if (p === '/api/host/review') {
           const q = questionById(body.question); requireValue(q, 'Question not found', 404);
-          return send(200, {question: publicQuestion(q, true), answers: rows('SELECT * FROM answers WHERE question=?', q.id)});
+          return send(200, {question: publicQuestion(q, true), answers: rows('SELECT * FROM answers WHERE question=?', q.id), away: awayList(q)});
         }
         if (p === '/api/host/mark') {
           const q = questionById(body.question); requireValue(q && !pending(q), 'Close question before marking', 409);
@@ -550,11 +584,18 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         requireValue(!offensive(body.name, getMeta('blockedWords', [])), 'Please choose a different team name', 400);
         requireValue(!one('SELECT id FROM teams WHERE name=? COLLATE NOCASE', body.name.trim()), 'Name taken. Use your recovery code to reconnect.', 409);
         requireValue(one('SELECT COUNT(*) n FROM teams').n < 250, 'Team limit reached. Ask the quizmaster.', 409);
-        const id = token(), secret = token(); run('INSERT INTO teams(id,name,secret,seen) VALUES(?,?,?,?)', id, body.name.trim(), secret, now()); return send(200, {id, secret});
+        const id = token(), secret = token(); run('INSERT INTO teams(id,name,secret,seen) VALUES(?,?,?,?)', id, body.name.trim(), secret, now());
+        rememberDevice(req, id); return send(200, {id, secret});
+      }
+      // A phone that already played (e.g. in the Wi-Fi sign-in window) can carry on in its normal browser.
+      if (p === '/api/device') {const team = deviceTeam(req); return send(200, {team: team ? {name: team.name} : null});}
+      if (p === '/api/device/continue') {
+        const team = deviceTeam(req); requireValue(team, 'This phone has not joined a team yet', 404);
+        rememberDevice(req, team.id); return send(200, {secret: team.secret});
       }
       const team = one('SELECT * FROM teams WHERE secret=?', auth || ''); requireValue(team, 'Team recovery code required', 401);
       requireValue(team.enabled, 'This team is disabled. Ask the quizmaster.', 403);
-      run('UPDATE teams SET seen=? WHERE id=?', now(), team.id);
+      run('UPDATE teams SET seen=? WHERE id=?', now(), team.id); rememberDevice(req, team.id);
       if (p === '/api/state') {
         const q = latest();
         if (q && pending(q)) run('INSERT OR IGNORE INTO deliveries VALUES(?,?,?)', team.id, q.id, now());
@@ -577,6 +618,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         const first = !one('SELECT 1 FROM answers WHERE question=? AND points>0', q.id);
         award(team.id, q, `BINGO on call ${called.size}`, data.points + (first ? data.speedBonus : 0));
         return send(200, {ok: true, first});
+      }
+      // Phones report leaving the quiz page (switching app, locking) while a question is open.
+      if (p === '/api/away') {
+        const q = latest(); requireValue(q && body.question === q.id && pending(q) && ['left', 'back'].includes(body.state), 'Not during a live question', 409);
+        run('INSERT OR IGNORE INTO away(team,question) VALUES(?,?)', team.id, q.id);
+        if (body.state === 'left') run('UPDATE away SET since=COALESCE(since,?),count=count+(since IS NULL) WHERE team=? AND question=?', now(), team.id, q.id);
+        else run('UPDATE away SET ms=ms+CASE WHEN since IS NULL THEN 0 ELSE ?-since END,since=NULL WHERE team=? AND question=?', now(), team.id, q.id);
+        return send(200, {ok: true});
       }
       if (p === '/api/gowide') {
         const q = latest(); requireValue(q && body.question === q.id && accepting(q) && dataOf(q).type === 'wordsnake' && dataOf(q).goWide, 'Going wide is not available now', 409);

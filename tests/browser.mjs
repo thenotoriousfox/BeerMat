@@ -73,9 +73,10 @@ try {
   await player.goto(base + '/hotspot-detect.html'); await player.locator('#name').fill('Fox team'); await player.locator('#joinButton').click(); await visible(player, '#game'); const recovery = await player.locator('#code').textContent(); assert.equal(recovery.length, 48);
   await projector.goto(base + '/display'); await projector.getByText('1. Fox team').waitFor();
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('join'); await visible(projector, '#joinSection');
-  await waitFor(projector, () => document.querySelector('#wifiQr svg')?.getAttribute('aria-label') === 'QR code: WIFI:T:nopass;S:PubQuiz;;' && document.querySelector('#urlQr svg path').getAttribute('d').length > 100);
-  assert.equal(await projector.locator('#joinSsid').textContent(), 'PubQuiz'); assert.match(await projector.locator('#joinStatus').textContent(), /1 team has joined/);
-  await host.locator('#joinSsidInput').fill('Fox Quiz'); await host.locator('#joinDetails button').click(); await waitFor(projector, () => document.getElementById('joinSsid').textContent === 'Fox Quiz');
+  await waitFor(projector, () => document.querySelector('#wifiQr svg')?.getAttribute('aria-label') === 'QR code: WIFI:T:nopass;S:PubQuiz;;');
+  assert.equal(await projector.locator('.qr').count(), 1, 'one code to scan'); assert.match(await projector.locator('#joinStepWifi').textContent(), /“PubQuiz”/);
+  assert.match(await projector.locator('#joinFallback').textContent(), /10\.42\.0\.1/); assert.match(await projector.locator('#joinStatus').textContent(), /1 team has joined/);
+  await host.locator('#joinSsidInput').fill('Fox Quiz'); await host.locator('#joinDetails button').click(); await waitFor(projector, () => document.getElementById('joinStepWifi').textContent.includes('Fox Quiz'));
   await projector.mouse.move(5, 5); await projector.mouse.move(20, 20); await projector.locator('#fullscreen').click(); await waitFor(projector, () => !!document.fullscreenElement && document.getElementById('fullscreen').textContent.includes('Exit'));
   await projector.keyboard.press('f'); await waitFor(projector, () => !document.fullscreenElement);
   await host.locator('#displayMode').selectOption('leaderboard'); await waitFor(projector, () => document.getElementById('joinHint').textContent.includes('Fox Quiz'));
@@ -124,6 +125,10 @@ try {
   const layout = page => page.locator('#inputs .keypad button').allTextContents();
   assert.notDeepEqual(await layout(player), await layout(rival), 'scrambled keypads differ per team'); assert.deepEqual([...await layout(player)].sort(), [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']);
   await player.getByRole('button', {name: 'H', exact: true}).click(); await submitted(player);
+  await rival.evaluate(() => {Object.defineProperty(document, 'hidden', {value: true, configurable: true}); document.dispatchEvent(new Event('visibilitychange'));});
+  await waitFor(host, () => /Left the quiz page: Owl team \(away now/.test(document.getElementById('liveAway').textContent));
+  await rival.evaluate(() => {Object.defineProperty(document, 'hidden', {value: false, configurable: true}); document.dispatchEvent(new Event('visibilitychange'));});
+  await waitFor(host, () => /Owl team \(\d+s\)/.test(document.getElementById('liveAway').textContent));
   await rival.getByRole('button', {name: 'G', exact: true}).click(); await submitted(rival); await host.locator('#close').click();
   await play('Order one two three');
   for (const item of ['One', 'Two', 'Three']) await player.locator('#inputs .keypad button', {hasText: item}).click();
@@ -132,6 +137,7 @@ try {
   await rival.locator('#inputs input[type=text]').fill('70'); await submitted(rival); await host.locator('#close').click();
   await host.locator('[data-tab=teams]').click(); await waitFor(host, () => document.getElementById('teamCards').textContent.includes('Owl team'));
   assert.equal(await scoreOf('Fox team'), before + 3); assert.equal(await scoreOf('Owl team'), 1);
+  log('leaving the quiz page during a question is shown on the desk');
   log('letter keypad, tap-to-order sequence and nearest-wins sliding scale (2 places: 1 point each after rounding)');
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('question'); await projector.mouse.move(5, 5); await projector.mouse.move(20, 20); await projector.locator('#enableSound').click();
   await play('Classic buzz'); await visible(rival, '#buzz'); await rival.locator('#buzz').click(); await player.locator('#buzz').click();
@@ -257,7 +263,7 @@ try {
   const french = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, locale: 'fr-FR'}).then(c => c.newPage()); french.on('pageerror', e => errors.push(e.message));
   await french.goto(base + '/'); await waitFor(french, () => document.getElementById('joinButton').textContent === 'Rejoindre le quiz');
   await french.locator('#name').fill('Les Renards'); await french.locator('#joinButton').click(); await visible(french, '#game');
-  await waitFor(french, () => document.getElementById('connection').textContent === '● Connecté' && document.getElementById('message').textContent.startsWith('Équipe inscrite'));
+  await waitFor(french, () => document.getElementById('connection').textContent === '● Connecté' && document.getElementById('message').textContent.startsWith('C’est parti'));
   await french.locator('#game details').first().evaluate(d => d.open = true); await french.locator('#game .language').first().selectOption('es'); await waitFor(french, () => document.getElementById('connection').textContent === '● Conectado');
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await Promise.all([projector.waitForEvent('load'), host.locator('#tvLanguage').selectOption('es')]);
   await waitFor(projector, () => document.querySelector('#boardSection h2')?.textContent === 'Clasificación');

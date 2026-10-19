@@ -11,7 +11,7 @@
 7. In **Run quiz**, name the event, choose the projector view and open `/display` on the TV or projector. The projector can show how to join, scores, the current question/media, the wheel, or a blank screen.
    - **TV over HDMI (most reliable):** extend the desktop to the TV, open `http://localhost:3000/display` there and press **⛶ Full screen** (or **F**). The pointer and screen buttons hide after 3 seconds without movement.
    - **Smart TV or streaming-stick browser:** join the quiz Wi-Fi and open `http://10.42.0.1:3000/display`. Casting a browser tab needs internet, so it will not work on the offline hotspot.
-   - **How to join** shows two QR codes: one joins the quiz Wi-Fi, the other opens the quiz page. Set the Wi-Fi name and address under **Save join details** (the Wi-Fi name must match the hotspot's `--ssid`). While registration is open, the leaderboard also shows a one-line join reminder.
+   - **How to join** shows one QR code. Scanning it joins the quiz Wi-Fi, and the phone's sign-in window then opens the quiz by itself; teams pick a name there and play. The address is shown underneath for phones whose sign-in window does not appear. Set the Wi-Fi name and address under **Save join details** (the Wi-Fi name must match the hotspot's `--ssid`). While registration is open, the leaderboard also shows a one-line join reminder.
 8. Start the approved hotspot setup separately. Phones need only the quiz Wi-Fi and their browser. If the captive login window does not open, enter `http://10.42.0.1` manually. In direct LAN testing use the laptop IP and port 3000.
 
 Questions and rounds are saved to SQLite immediately after **Save**. If another quizmaster window saves first, your stale save is refused: download/copy your changes, then reload the saved quiz. Unsaved edits trigger a warning when leaving the page. Keep the laptop clock steady during a quiz.
@@ -46,6 +46,14 @@ Buzz-in and bingo stay live until you end them: for buzz-in the timer only limit
 - **Bingo phrases** shows the traditional call with each number ("22 — Two little ducks") on the TV, phones and desk.
 - **Blocked team names** (Teams & results): common swear words are refused at registration, including spaced-out and number-swapped spellings, while names like Scunthorpe or Arsenal are allowed. Add your own words there. The desk can still rename any team.
 - **Finish quiz** switches the projector to the **winner celebration**: the winning team (or tied teams) with confetti, a short fanfare if sound is enabled, and second and third place. It respects a hidden leaderboard.
+
+## Keeping phones on the quiz Wi-Fi
+
+A phone that sees “no internet” on the quiz Wi-Fi may quietly use mobile data instead. With **Keep phones on quiz Wi-Fi** on (the default), once a team has joined, the laptop answers that phone's “is there internet?” check with “yes”. iPhones then keep the quiz Wi-Fi as their main connection, so search engines stop loading while they play; many Android phones ask “Stay connected?”, and the join screen tells teams to say yes. Nothing on the laptop can switch a phone's mobile data off, so treat this as a strong nudge, not a lock.
+
+If the sign-in window closes (on iPhone it gains a **Done** button), the team opens the quiz address in their normal browser and taps **Continue as <team>**: the laptop recognises the phone by its address on the quiz Wi-Fi, so no recovery code is needed.
+
+**Leaving the quiz page:** if a phone switches to another app or tab, or is locked, while a question is open and unanswered, the desk shows “👀 Left the quiz page: Fox team (14s)”, live and in **Mark answers**. Teams see a note that the quizmaster can see this. It is a deterrent and a prompt to look, not proof of cheating.
 
 ## Teams
 
