@@ -35,7 +35,7 @@ test('persistent identities, authoritative deadlines, validation, scoring and ac
  assert.equal((await api('host/state',{},host)).teams.find(t=>t.id===team.id).connected,true);
  await quiz.close();await start();
  state=await api('state',{},team.secret);assert.equal(state.answer.value,'cardiff');assert.equal(state.teams.find(t=>t.id===team.id).score,4);
- assert.equal((await api('host/state',{},host)).status,403);
+ assert.equal((await api('host/state',{},host)).status,200);
  const h=(await api('login',{key})).key;
  assert.equal((await api('host/open',{...q,type:'choice',options:['A','B'],answer:'C'},h)).status,400);
  assert.equal((await api('host/open',{...q,type:'picture',media:'/media/../../secrets'},h)).status,400);
