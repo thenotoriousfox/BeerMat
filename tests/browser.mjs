@@ -254,6 +254,16 @@ try {
   await visible(newPhone, '#game'); assert.equal(await newPhone.locator('#team').textContent(), 'Owl team');
   assert.match(await owlCard.textContent(), /answered · \d+ scored/); assert.equal(await owlCard.locator('textarea').inputValue(), 'Table 7');
   log('team notes and stats on the desk; 4-digit code moves a team to a new phone');
+  const french = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, locale: 'fr-FR'}).then(c => c.newPage()); french.on('pageerror', e => errors.push(e.message));
+  await french.goto(base + '/'); await waitFor(french, () => document.getElementById('joinButton').textContent === 'Rejoindre le quiz');
+  await french.locator('#name').fill('Les Renards'); await french.locator('#joinButton').click(); await visible(french, '#game');
+  await waitFor(french, () => document.getElementById('connection').textContent === '● Connecté' && document.getElementById('message').textContent.startsWith('Équipe inscrite'));
+  await french.locator('#game details').first().evaluate(d => d.open = true); await french.locator('#game .language').first().selectOption('es'); await waitFor(french, () => document.getElementById('connection').textContent === '● Conectado');
+  await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await Promise.all([projector.waitForEvent('load'), host.locator('#tvLanguage').selectOption('es')]);
+  await waitFor(projector, () => document.querySelector('#boardSection h2')?.textContent === 'Clasificación');
+  await Promise.all([projector.waitForEvent('load'), host.locator('#tvLanguage').selectOption('en')]); await waitFor(projector, () => document.querySelector('#boardSection h2')?.textContent === 'Leaderboard');
+  await host.locator('[data-tab=teams]').click(); await host.locator('#teamCards article', {hasText: 'Les Renards'}).getByRole('button', {name: 'Disable'}).click();
+  log('French phone by browser locale, switched to Spanish; TV language follows the desk setting');
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await host.locator('#finish').click(); await waitFor(projector, () => document.getElementById('boardStatus').textContent === 'Final standings');
   await visible(projector, '#winnerSection'); await waitFor(projector, () => document.getElementById('winnerName').textContent === 'Fox team' && document.querySelectorAll('#confetti span').length === 80);
   assert.match(await projector.locator('#podium').textContent(), /🥈 Owl team/); await waitFor(player, () => document.getElementById('answerState').textContent === 'Quiz finished');

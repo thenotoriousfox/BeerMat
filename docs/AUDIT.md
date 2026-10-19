@@ -40,7 +40,7 @@ Compared against SpeedQuizzing Pro 5.4.11's published game rules and quiz-file f
 - Import of SpeedQuizzing `.sqb`/`.sqq`/`.sqn` rounds and Quick Question files/folders; verified against every sample file shipped with SpeedQuizzing 5.4.11 (all questions convert and validate).
 - Review fixes: host sessions persisted (hashed) across restarts; `ALLOWED_ADDRESSES` / `start.sh --hotspot` restrict the server to the quiz Wi-Fi; hotspot teardown continues past a failed step; login attempts and expired sessions are pruned; server close is idempotent.
 
-Validated: 19 Node tests (integration plus importer), 5 Python hotspot tests, and the browser suite in Chrome with two phone contexts (no JavaScript errors, no external requests).
+Validated at that point: 19 Node tests (integration plus importer), 5 Python hotspot tests, and the browser suite in Chrome with two phone contexts (no JavaScript errors, no external requests).
 
 Second batch: multi-tap, pinpoint with go wide, 90-ball bingo with seeded per-team tickets and server-checked claims, spin-the-wheel on the projector, per-team buzzer sounds (synthesised, no audio files), and single-key desk shortcuts usable from a Stream Deck. Validated with 22 Node tests and 14 browser sections in Chrome.
 
@@ -49,3 +49,7 @@ Not covered compared with SpeedQuizzing: music bingo (needs a song library), Sev
 TV display iteration: projector join screen with an offline QR encoder (`qr.js`, byte mode, level M, versions 1–10; every version decoded with zbar, including from a 1080p screenshot of the page), editable Wi-Fi name and join address, a join reminder under the leaderboard, a full-screen toggle (button or F) and an idle pointer hide. 25 Node tests and 15 browser sections pass.
 
 Quick-wins iteration: per-team scrambled keypads, a team-name filter (`names.js`, word-start matching with letter-swap and spacing normalisation, host-extendable), traditional bingo call phrases, and a winner celebration view shown on finish. 27 Node tests and 15 browser sections pass.
+
+Gap-closing iteration: team photos with host approval, Sound Clips, music bingo, word snake, Seven Squares-style tiles (Seven Squares' own rules are not in the SpeedQuizzing installer, so this follows the tile-assembly idea), 4-digit phone transfer codes, private team notes and per-team stats, animated reveals and leaderboard moves, `.sqt`/`.sqw` import, and French/Spanish for phones and the TV (`i18n.js`, with a test that every on-screen string has both translations). 36 Node tests and 21 browser sections pass (repeated runs stable).
+
+Still not covered: SpeedQuizzing's paid quiz-pack library and online reporting (services, not software), the native Stream Deck plugin (desk keys instead), dedicated router hardware, and internet play (offline by design).

@@ -6,7 +6,7 @@
 2. In **Build quiz**, set a quiz title and add rounds. Add and save questions with the form. Move questions up/down to set their order.
 3. Pick a format (see **Round formats** below). Upload images/audio directly in the form; any format except answer sheets can carry an optional picture or clip. Files stay on the laptop. Each upload has a unique filename, so replacing a picture cannot change a question already played.
 4. Add the correct answer and accepted alternatives, or leave it blank for manual marking. Choices must match one of the supplied options exactly. Each sheet item is worth one point and can have its own marking key. For a traditional paper round, print blank sheets and enter its score later.
-5. To reuse SpeedQuizzing material, use **Import SpeedQuizzing files** for `.sqb`, `.sqq` and `.sqn` rounds or Quick Question files, or **Import a Quick Questions folder**. Each file or folder becomes a new round; nothing existing is replaced. Pictures referenced inside SpeedQuizzing round files are not embedded in them, so the import lists those questions for you to add the picture by hand. Quick Question picture and sound files are uploaded automatically.
+5. To reuse SpeedQuizzing material, use **Import SpeedQuizzing files** for `.sqb`, `.sqq`, `.sqn`, `.sqt` (multi-tap) and `.sqw` (word snake) rounds or Quick Question files, or **Import a Quick Questions folder**. Each file or folder becomes a new round; nothing existing is replaced. Pictures referenced inside SpeedQuizzing round files are not embedded in them, so the import lists those questions for you to add the picture by hand. Quick Question picture and sound files are uploaded automatically.
 6. Use **Download quiz JSON** to keep an editable question-bank copy. A quiz import replaces the saved question bank but keeps played history and scores. Media files must still be present locally when importing media questions; JSON does not embed media.
 7. In **Run quiz**, name the event, choose the projector view and open `/display` on the TV or projector. The projector can show how to join, scores, the current question/media, the wheel, or a blank screen.
    - **TV over HDMI (most reliable):** extend the desktop to the TV, open `http://localhost:3000/display` there and press **⛶ Full screen** (or **F**). The pointer and screen buttons hide after 3 seconds without movement.
@@ -30,6 +30,10 @@ Questions and rounds are saved to SQLite immediately after **Save**. If another 
 | Buzz-in advanced | BUZZ, then an “I agree” button | First buzzer answers. Type what they said and press **Start agree countdown**; other teams tap if they agree. ✓/✗ then scores the buzzer (points or penalty) and gives agreement points to everyone who agreed with a right answer or didn’t agree with a wrong one. **Pass** applies the pass penalty and moves to the next buzzer |
 | Pinpoint | The picture, to tap | Upload a picture and click it in the builder to place the target circle (size slider). A first tap inside scores the points. With **go wide**, a second tap scores the go-wide points if the first missed |
 | Bingo | Their own 90-ball ticket (3 rows × 9 columns, 15 numbers) | Press **Call next number** (or key **B**); teams dab their own tickets and press **BINGO!**. Claims are checked against the numbers called for one line, two lines or full house. The first valid claim gets the points plus the bonus; any other valid claim on the same number gets the points. Calling stops once someone has won |
+| Word snake | A 4×4 or 5×5 letter grid | The answer runs through touching squares (diagonals too); teams trace it. Tapping a letter that does not touch restarts the trace. A fresh grid is made every time the question plays. With **go wide**, a team can remove the decoy letters but scores the go-wide points instead |
+| Seven Squares-style tiles | Up to seven letter tiles and the word pattern (e.g. `___ ____ ____`) | The answer is cut into tiles, shuffled differently on every phone; teams tap them in order |
+| Sound clips | A big **THIS ONE!** button | Upload several clips and pick the right one. **Play clips** on the desk plays them in order through the laptop; a team's single tap scores if it lands during the right clip, with a bonus that fades over its first five seconds. Phones only see “Clip 3 of 8” |
+| Music bingo | A ticket of 15 song titles | Type 15–300 titles (or upload song files; each file name becomes its title). **Play next song** picks one at random and plays its file on the desk, or you play it from your own music player. The TV shows “Song 7” and reveals each title once the next song starts (or straight away, if you tick that). Claims are checked against the songs played |
 | Vote | Lettered buttons | No right answer; the reveal shows the tally |
 | Typed / picture / audio | Text box | Text matching as before, with alternatives |
 | Answer sheet | Several text boxes | One point per item |
@@ -42,6 +46,16 @@ Buzz-in and bingo stay live until you end them: for buzz-in the timer only limit
 - **Bingo phrases** shows the traditional call with each number ("22 — Two little ducks") on the TV, phones and desk.
 - **Blocked team names** (Teams & results): common swear words are refused at registration, including spaced-out and number-swapped spellings, while names like Scunthorpe or Arsenal are allowed. Add your own words there. The desk can still rename any team.
 - **Finish quiz** switches the projector to the **winner celebration**: the winning team (or tied teams) with confetti, a short fanfare if sound is enabled, and second and third place. It respects a hidden leaderboard.
+
+## Teams
+
+- **Team photos:** teams can add a selfie from the team panel on their phone. It is cropped and shrunk on the phone before upload, stays private until you approve it under Teams & results (the desk shows how many are waiting), and then appears on the leaderboard, buzz call-outs and winner screen. Rejecting deletes it. Switch photos off under Room controls.
+- **Moving to a new phone:** **Move to a new phone** on a team card shows a 4-digit code. On the new phone, open the quiz, choose “Already registered?” and enter it. It works once, for five minutes.
+- **Notes and stats:** each team card has private notes (only on the desk) and shows how many questions the team answered, how many scored, and its fastest scoring answer.
+
+## Languages
+
+Phones show the quiz in the phone's own language when it is English, French or Spanish, and teams can change it in the join screen or team panel. The TV language is set on the desk (**TV language**). The desk itself stays in English, and the traditional bingo call phrases are always English.
 
 ## Spin the wheel and keyboard control
 

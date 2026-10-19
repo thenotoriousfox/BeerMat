@@ -1,4 +1,5 @@
 import {qrMatrix, wifiCode} from './qr.js';
+import {t, setLanguage, language, languages, translatePage} from './i18n.js';
 import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, sounds, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('pubquiz-team'), current = null, renderedQuestion = undefined, offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
@@ -7,10 +8,10 @@ const inputs = () => [...$('inputs').querySelectorAll('input,select')];
 const draftKey = id => `pubquiz-draft:${secret}:${id}`;
 const keypad = type => ['choice', 'vote', 'letter'].includes(type);
 const listValue = type => ['sequence', 'multi', 'pinpoint', 'wordsnake', 'tiles'].includes(type);
-const modes = {line: 'One line', twoLines: 'Two lines', fullHouse: 'Full house'};
+const modes = {line: 'One line', twoLines: 'Two lines', fullHouse: 'Full house'}, mode = m => t(modes[m]);
 function saveIdentity(code) {
   secret = code; current = null; renderedQuestion = undefined; localDraft = null; inputRevision = 0;
-  if (!writeStorage('pubquiz-team', code)) $('storageWarning').textContent = 'Browser storage is unavailable. Write down your recovery code before closing this window.';
+  if (!writeStorage('pubquiz-team', code)) $('storageWarning').textContent = t('Browser storage is unavailable. Write down your recovery code before closing this window.');
   updates?.reconnect();
 }
 function inputValue() {
@@ -27,13 +28,13 @@ function updateControls() {
   $('inputs').querySelectorAll('button').forEach(button => button.disabled = !canAnswer || submitting);
   $('submit').disabled = !canAnswer || submitting;
   $('status').textContent = timeText(q, offset);
-  $('answerState').textContent = current.settings.ended ? 'Quiz finished' : q?.type === 'buzzer' ? '' : current.answer ? '✓ Final answer saved' : q?.paused ? 'Paused' : '';
+  $('answerState').textContent = current.settings.ended ? t('Quiz finished') : q?.type === 'buzzer' ? '' : current.answer ? '✓ Final answer saved' : q?.paused ? t('Paused') : '';
   if (q?.type === 'buzzer') renderBuzzer(q);
   if (q?.bingo) renderBingo(q);
   if (q?.type === 'clips') {
     const c = q.clipGame;
     $('tap').disabled = !(online && q.live && !q.paused && c.playing !== null && !c.tapped && !current.settings.ended);
-    $('clipStatus').textContent = c.tapped ? `You tapped: ${c.tapped}` : c.playing ? `🎵 Clip ${c.playing} of ${c.count}` : q.live ? 'Get ready — listen for the clips' : 'Clips finished';
+    $('clipStatus').textContent = c.tapped ? t('You tapped: {clip}', {clip: c.tapped}) : c.playing ? t('🎵 Clip {n} of {count}', {n: c.playing, count: c.count}) : q.live ? t('Get ready — listen for the clips') : t('Clips finished');
   }
 }
 // Keypad and sequence buttons write to one hidden input so drafts work the same as typed answers.
@@ -94,17 +95,17 @@ function buildInputs(q) {
     pad.append(...order(q.options.length).map(i => {const option = q.options[i], b = element('button', `${letters[i]}. ${option}`); b.type = 'button'; b.dataset.value = option; b.onclick = () => {
       const picked = inputValue(); pick(JSON.stringify(picked.includes(option) ? picked.filter(p => p !== option) : [...picked, option]));
     }; return b;}));
-    box.append(element('p', 'Tick every right answer — wrong ticks cost points', 'muted'), pad); return;
+    box.append(element('p', t('Tick every right answer — wrong ticks cost points'), 'muted'), pad); return;
   }
   if (q.type === 'wordsnake') {
     hiddenInput(); const area = element('div'); area.id = 'snakeArea';
     const word = element('p', '', 'tile-word'); word.id = 'snakeWord';
-    const clear = element('button', 'Start again', 'subtle'); clear.type = 'button'; clear.onclick = () => pick('[]');
-    box.append(element('p', 'Trace the answer: each letter touches the last, diagonals too. Tapping a letter that does not touch starts again.', 'muted'), area, word, clear);
+    const clear = element('button', t('Start again'), 'subtle'); clear.type = 'button'; clear.onclick = () => pick('[]');
+    box.append(element('p', t('Trace the answer: each letter touches the last, diagonals too. Tapping a letter that does not touch starts again.'), 'muted'), area, word, clear);
     if (q.goWide) {
-      const wide = element('button', `Go wide (scores ${q.goWidePoints})`, 'subtle'); wide.type = 'button'; wide.id = 'goWide';
+      const wide = element('button', t('Go wide (scores {n})', {n: q.goWidePoints}), 'subtle'); wide.type = 'button'; wide.id = 'goWide';
       wide.onclick = async () => {
-        if (!confirm(`Go wide? The decoy letters disappear, but a right answer scores ${q.goWidePoints} instead of ${q.points}.`)) return;
+        if (!confirm(t('Go wide? The decoy letters disappear, but a right answer scores {wide} instead of {full}.', {wide: q.goWidePoints, full: q.points}))) return;
         try {await api('gowide', {question: q.id}, secret); pick('[]'); await updates.update();} catch (e) {message(e.message, true);}
       };
       box.append(wide);
@@ -119,13 +120,13 @@ function buildInputs(q) {
       const b = element('button', q.pieces[i]); b.type = 'button'; b.dataset.index = String(i);
       b.onclick = () => {const picked = inputValue(); if (!picked.includes(i)) pick(JSON.stringify([...picked, i]));}; return b;
     }));
-    const undo = element('button', 'Undo last', 'subtle'); undo.type = 'button'; undo.onclick = () => pick(JSON.stringify(inputValue().slice(0, -1)));
-    box.append(element('p', 'Tap the tiles in order to build the answer', 'muted'), word, pad, undo); return;
+    const undo = element('button', t('Undo last'), 'subtle'); undo.type = 'button'; undo.onclick = () => pick(JSON.stringify(inputValue().slice(0, -1)));
+    box.append(element('p', t('Tap the tiles in order to build the answer'), 'muted'), word, pad, undo); return;
   }
   if (q.type === 'pinpoint') {
     hiddenInput(); const area = element('div'); area.id = 'pinArea';
-    const undo = element('button', 'Undo tap', 'subtle'); undo.type = 'button'; undo.onclick = () => pick(JSON.stringify(inputValue().slice(0, -1)));
-    box.append(element('p', q.goWide ? `Tap the picture. Go wide: a second tap scores ${q.goWidePoints} if your first misses.` : 'Tap the picture to place your answer', 'muted'), area, undo); return;
+    const undo = element('button', t('Undo tap'), 'subtle'); undo.type = 'button'; undo.onclick = () => pick(JSON.stringify(inputValue().slice(0, -1)));
+    box.append(element('p', q.goWide ? t('Tap the picture. Go wide: a second tap scores {n} if your first misses.', {n: q.goWidePoints}) : t('Tap the picture to place your answer'), 'muted'), area, undo); return;
   }
   if (q.type === 'sheet') {
     q.items.forEach((text, i) => {
@@ -143,12 +144,12 @@ function buildInputs(q) {
         const picked = inputValue(); if (!picked.includes(i)) pick(JSON.stringify([...picked, i]));
       }; return b;}));
       const chosen = element('ol', undefined, 'picked'); chosen.id = 'picked';
-      const undo = element('button', 'Undo last', 'subtle'); undo.type = 'button'; undo.onclick = () => pick(JSON.stringify(inputValue().slice(0, -1)));
-      box.append(element('p', 'Tap the items in order', 'muted'), pad, chosen, undo); return;
+      const undo = element('button', t('Undo last'), 'subtle'); undo.type = 'button'; undo.onclick = () => pick(JSON.stringify(inputValue().slice(0, -1)));
+      box.append(element('p', t('Tap the items in order'), 'muted'), pad, chosen, undo); return;
     } else pad.append(...order(q.options.length).map(i => {const option = q.options[i], b = element('button', `${letters[i]}. ${option}`); b.type = 'button'; b.dataset.value = option; b.onclick = () => pick(option); return b;}));
     box.append(pad); return;
   }
-  const label = element('label', q.type === 'nearest' ? 'Your number (closest wins)' : q.type === 'number' ? 'Your number' : 'Your answer'), input = element('input');
+  const label = element('label', q.type === 'nearest' ? t('Your number (closest wins)') : q.type === 'number' ? t('Your number') : t('Your answer')), input = element('input');
   input.name = 'answer-0'; input.autocomplete = 'off'; input.maxLength = 300; input.type = 'text';
   if (q.type === 'number' || q.type === 'nearest') {input.inputMode = 'decimal'; input.pattern = '-?[0-9]+(\\.[0-9]+)?';}
   label.append(input); box.append(label);
@@ -157,13 +158,13 @@ function renderBuzzer(q) {
   const b = q.buzz, mine = b.buzzed, queue = b.queue.filter(x => ['active', 'queued'].includes(x.status));
   const position = queue.findIndex(x => x.team === current.team.id) + 1;
   $('buzz').disabled = !(online && q.open && !q.paused && !mine && !b.lockedOut && !current.settings.ended);
-  $('buzzStatus').textContent = b.lockedOut ? 'Locked out — wrong answer on the last buzzer question' : mine === 'active' ? 'You buzzed first — give your answer!' :
-    mine === 'queued' ? `Buzzed · you are #${position} in the queue` : mine === 'wrong' ? 'Ruled wrong' : mine === 'passed' ? 'Passed' : mine === 'correct' ? 'Correct!' :
-    b.active ? `${b.active.name} is answering` : q.open ? 'Buzz when you know it!' : q.live ? 'Buzzing closed' : '';
+  $('buzzStatus').textContent = b.lockedOut ? t('Locked out — wrong answer on the last buzzer question') : mine === 'active' ? t('You buzzed first — give your answer!') :
+    mine === 'queued' ? t('Buzzed · you are #{n} in the queue', {n: position}) : mine === 'wrong' ? t('Ruled wrong') : mine === 'passed' ? t('Passed') : mine === 'correct' ? t('Correct!') :
+    b.active ? t('{name} is answering', {name: b.active.name}) : q.open ? t('Buzz when you know it!') : q.live ? t('Buzzing closed') : '';
   const canAgree = b.agreeOpen && !['active', 'passed', 'wrong'].includes(mine);
   $('agreeBox').hidden = !b.agreeOpen;
-  $('agreeText').textContent = b.active ? `${b.active.name} answered “${b.announced || '…'}”. Do you agree?` : '';
-  $('agree').disabled = !canAgree || b.agreed; $('agree').textContent = b.agreed ? '✓ You agreed' : 'I agree';
+  $('agreeText').textContent = b.active ? t('{name} answered “{answer}”. Do you agree?', {name: b.active.name, answer: b.announced || '…'}) : '';
+  $('agree').disabled = !canAgree || b.agreed; $('agree').textContent = b.agreed ? t('✓ You agreed') : t('I agree');
 }
 // Teams dab their own ticket, as on paper; dabs stay on this phone.
 const dabKey = id => `pubquiz-dabs:${secret}:${id}`;
@@ -184,14 +185,14 @@ function buildTicket(q) {
 function renderBingo(q) {
   const b = q.bingo;
   if (b.music) {
-    $('bingoMode').textContent = `Music bingo · ${modes[b.mode]} · ${b.played} ${b.played === 1 ? 'song' : 'songs'} played`;
-    $('bingoLast').textContent = b.played ? `Song ${b.played}` : '–'; $('bingoPhrase').textContent = b.titles.length ? `Revealed: ${b.titles.at(-1)}` : '';
+    $('bingoMode').textContent = t('Music bingo · {mode} · {n} played', {mode: mode(b.mode), n: b.played});
+    $('bingoLast').textContent = b.played ? t('Song {n}', {n: b.played}) : '–'; $('bingoPhrase').textContent = b.titles.length ? t('Revealed: {title}', {title: b.titles.at(-1)}) : '';
   } else {
-    $('bingoMode').textContent = `${modes[b.mode]} · ${b.called.length} called`;
+    $('bingoMode').textContent = t('{mode} · {n} called', {mode: mode(b.mode), n: b.called.length});
     $('bingoLast').textContent = b.last ?? '–'; $('bingoPhrase').textContent = current.settings.bingoPhrases && b.last ? bingoCall(b.last) : '';
   }
   $('claimBingo').disabled = !(online && q.live && !q.paused && !b.claimed && !current.settings.ended);
-  $('bingoStatus').textContent = b.claimed ? '✓ Bingo! Your claim was checked and counted.' : b.winners.length ? `Bingo called by ${b.winners.join(', ')} — claim now only if you have it on this number` : '';
+  $('bingoStatus').textContent = b.claimed ? t('✓ Bingo! Your claim was checked and counted.') : b.winners.length ? t('Bingo called by {names} — claim now only if you have it on this number', {names: b.winners.join(', ')}) : '';
 }
 function playerState(s) {
   current = s; offset = s.serverTime - Date.now(); $('join').hidden = true; $('game').hidden = false;
@@ -199,7 +200,7 @@ function playerState(s) {
   if (q?.id !== renderedQuestion) {
     clearTimeout(draftTimer); draftGeneration++; localDraft = null; inputRevision = 0;
     renderedQuestion = q?.id; $('inputs').replaceChildren(); $('draftStatus').textContent = '';
-    $('question').textContent = q?.text || 'Waiting for the quizmaster'; $('round').textContent = q?.round || '';
+    $('question').textContent = q?.text || t('Waiting for the quizmaster'); $('round').textContent = q?.round || '';
     renderMedia($('media'), q?.type === 'pinpoint' ? null : q);
     const bingo = q?.type === 'bingo' || q?.type === 'musicbingo';
     $('answerForm').hidden = bingo || ['buzzer', 'clips'].includes(q?.type); $('buzzBox').hidden = q?.type !== 'buzzer'; $('bingoBox').hidden = !bingo; $('clipBox').hidden = q?.type !== 'clips';
@@ -210,21 +211,21 @@ function playerState(s) {
       if (saved) {try {localDraft = JSON.parse(saved);} catch {}}
       if (localDraft !== null) writeInputs(localDraft);
       else if (s.draft) {localDraft = parseSaved(s.draft.value); writeInputs(localDraft);}
-      if (localDraft !== null) $('draftStatus').textContent = 'Draft restored — submit when ready';
+      if (localDraft !== null) $('draftStatus').textContent = t('Draft restored — submit when ready');
     }
   }
   $('photoDetails').hidden = !s.settings.teamPhotos; $('myPhoto').hidden = !s.team.photo;
   if (s.team.photo && $('myPhoto').getAttribute('src') !== s.team.photo) $('myPhoto').src = s.team.photo;
-  $('photoStatus').textContent = !s.team.photo ? 'Add a team photo to appear on the big screen. The quizmaster approves it first.' : s.team.photoStatus === 'approved' ? '✓ Approved — showing on the big screen' : 'Waiting for the quizmaster to approve it';
+  $('photoStatus').textContent = !s.team.photo ? t('Add a team photo to appear on the big screen. The quizmaster approves it first.') : s.team.photoStatus === 'approved' ? t('✓ Approved — showing on the big screen') : t('Waiting for the quizmaster to approve it');
   selectOptions($('sound'), sounds.map(([label], i) => [String(i), label]), document.activeElement === $('sound') ? undefined : String(s.team.sound ?? ''));
-  if (s.answer && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? 'Your final answer is safely stored on the quiz laptop.' : `Your answer scored ${s.answer.points} ${Math.abs(s.answer.points) === 1 ? 'point' : 'points'}.`; localDraft = null; writeStorage(draftKey(q.id), '');}
+  if (s.answer && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? t('Your final answer is safely stored on the quiz laptop.') : (Math.abs(s.answer.points) === 1 ? t('Your answer scored 1 point.').replace('1', s.answer.points) : t('Your answer scored {n} points.', {n: s.answer.points})); localDraft = null; writeStorage(draftKey(q.id), '');}
   if (q && listValue(q.type)) syncPicks();
   renderSolution($('solution'), q); updateControls();
 }
 function sharedState(s) {
   $('title').textContent = s.settings.title; document.title = s.settings.title + ' — ' + (role === 'player' ? 'Team' : 'Projector');
   renderBoard($('leaderboard'), s.teams);
-  $('boardStatus').textContent = !s.settings.leaderboardVisible ? 'The quizmaster has hidden scores for now.' : s.settings.ended ? 'Final standings' : s.teams.length ? 'Ties share the same rank.' : 'Waiting for teams';
+  $('boardStatus').textContent = !s.settings.leaderboardVisible ? t('The quizmaster has hidden scores for now.') : s.settings.ended ? t('Final standings') : s.teams.length ? t('Ties share the same rank.') : t('Waiting for teams');
 }
 function renderQr(container, text) {
   if (container.dataset.qr === text) return;
@@ -242,11 +243,11 @@ function displayState(s) {
   if (s.settings.displayMode === 'join') {
     $('joinSsid').textContent = joinSsid; $('joinUrl').textContent = joinUrl.replace(/^http:\/\//, '');
     renderQr($('wifiQr'), wifiCode(joinSsid)); renderQr($('urlQr'), joinUrl);
-    $('joinStatus').textContent = !joining ? 'Registration is closed — ask the quizmaster to join' : s.teams.length ? `${s.teams.length} ${s.teams.length === 1 ? 'team has' : 'teams have'} joined` : 'Be the first team to join!';
+    $('joinStatus').textContent = !joining ? t('Registration is closed — ask the quizmaster to join') : s.teams.length ? (s.teams.length === 1 ? t('1 team has joined') : t('{n} teams have joined', {n: s.teams.length})) : t('Be the first team to join!');
   }
-  $('joinHint').textContent = joining ? `Join: Wi-Fi “${joinSsid}” → ${joinUrl.replace(/^http:\/\//, '')}` : '';
+  $('joinHint').textContent = joining ? t('Join: Wi-Fi “{ssid}” → {url}', {ssid: joinSsid, url: joinUrl.replace(/^http:\/\//, '')}) : '';
   $('boardSection').hidden = s.settings.displayMode !== 'leaderboard'; $('projectQuestion').hidden = s.settings.displayMode !== 'question';
-  const q = s.question; $('question').textContent = q?.text || 'Waiting for the quizmaster'; $('round').textContent = q?.round || ''; $('status').textContent = timeText(q, offset);
+  const q = s.question; $('question').textContent = q?.text || t('Waiting for the quizmaster'); $('round').textContent = q?.round || ''; $('status').textContent = timeText(q, offset);
   if (q?.type === 'pinpoint') renderPinpoint($('media'), q); else renderMedia($('media'), q);
   renderSolution($('solution'), q);
   if (q?.id !== renderedQuestion) {
@@ -257,17 +258,17 @@ function displayState(s) {
   $('projectSnake').hidden = q?.type !== 'wordsnake';
   if (q?.type === 'wordsnake') renderSnake($('projectSnake'), q.grid, q.revealed ? q.snakePath : []);
   const c = q?.clipGame; $('projectClips').hidden = !c;
-  if (c) {$('clipNow').textContent = c.playing ? `🎵 Clip ${c.playing} of ${c.count}` : q.live ? 'Listen carefully…' : 'Clips finished'; $('clipTaps').textContent = `${c.taps} ${c.taps === 1 ? 'team has' : 'teams have'} tapped`;}
+  if (c) {$('clipNow').textContent = c.playing ? t('🎵 Clip {n} of {count}', {n: c.playing, count: c.count}) : q.live ? t('Listen carefully…') : t('Clips finished'); $('clipTaps').textContent = t('{n} teams have tapped', {n: c.taps});}
   const g = q?.bingo; $('projectBingo').hidden = !g;
   if (g) {
     $('bingoBoard').classList.toggle('music', !!g.music);
     if (g.music) {
-      $('bingoBig').textContent = g.played ? `🎵 Song ${g.played}` : '🎵'; $('bingoCallText').textContent = g.titles.length ? `Last revealed: ${g.titles.at(-1)}` : '';
-      $('bingoWinners').textContent = g.winners.length ? `BINGO! ${g.winners.join(', ')}` : `Music bingo · ${modes[g.mode]}`;
+      $('bingoBig').textContent = g.played ? '🎵 ' + t('Song {n}', {n: g.played}) : '🎵'; $('bingoCallText').textContent = g.titles.length ? t('Last revealed: {title}', {title: g.titles.at(-1)}) : '';
+      $('bingoWinners').textContent = g.winners.length ? t('BINGO! {names}', {names: g.winners.join(', ')}) : t('Music bingo · {mode}', {mode: mode(g.mode)});
       $('bingoBoard').replaceChildren(...[...g.titles].reverse().map(title => element('span', title, 'called')));
     } else {
       $('bingoBig').textContent = g.last ?? '–'; $('bingoCallText').textContent = s.settings.bingoPhrases && g.last ? bingoCall(g.last) : '';
-      $('bingoWinners').textContent = g.winners.length ? `BINGO! ${g.winners.join(', ')}` : `${modes[g.mode]} · ${g.called.length} called`;
+      $('bingoWinners').textContent = g.winners.length ? t('BINGO! {names}', {names: g.winners.join(', ')}) : t('{mode} · {n} called', {mode: mode(g.mode), n: g.called.length});
       if ($('bingoBoard').children.length !== 90 || $('bingoBoard').firstChild.textContent !== '1') $('bingoBoard').replaceChildren(...Array.from({length: 90}, (_, i) => element('span', String(i + 1))));
       [...$('bingoBoard').children].forEach((cell, i) => cell.classList.toggle('called', g.called.includes(i + 1)));
     }
@@ -278,7 +279,7 @@ function displayState(s) {
   if (s.settings.displayMode === 'wheel' && s.wheel) renderWheel(s.wheel, s.serverTime - s.wheel.spun < 3000);
   const b = q?.buzz; $('projectBuzz').hidden = !b;
   if (b) {
-    $('buzzLeader').textContent = b.active ? `🔔 ${b.active.name}` : q.open ? 'Buzzers open' : '';
+    $('buzzLeader').textContent = b.active ? `🔔 ${b.active.name}` : q.open ? t('Buzzers open') : '';
     if (b.active?.photo) $('buzzLeader').prepend(avatar(b.active.photo));
     $('buzzDetail').textContent = b.agreeOpen ? `“${b.announced}” — agree now! ${b.agreeCount} agreed` : b.queue.filter(x => x.status === 'queued').map(x => x.name).join(' · ');
     const leader = b.active?.name || ''; if (leader && leader !== lastBuzzer) buzzSound(leader, b.active.sound); lastBuzzer = leader;
@@ -306,9 +307,9 @@ function renderWheel(wheel, fresh) {
 }
 function renderWinner(s) {
   const top = s.teams.filter(t => t.rank === 1), names = top.map(t => t.name).join(' & ');
-  $('winnerName').textContent = !s.settings.leaderboardVisible ? 'Scores are hidden for now' : names || 'No teams yet';
+  $('winnerName').textContent = !s.settings.leaderboardVisible ? t('Scores are hidden for now') : names || t('No teams yet');
   $('winnerPhotos').replaceChildren(...(s.settings.leaderboardVisible ? top.filter(t => t.photo).map(t => avatar(t.photo)) : []));
-  $('winnerScore').textContent = top.length && s.settings.leaderboardVisible ? `${top[0].score} points${top.length > 1 ? ' — a tie!' : ''}` : '';
+  $('winnerScore').textContent = top.length && s.settings.leaderboardVisible ? t(top.length > 1 ? '{n} points — a tie!' : '{n} points', {n: top[0].score}) : '';
   $('podium').replaceChildren(...s.teams.filter(t => t.rank > 1 && t.rank <= 3).map(t => {const li = element('li'); li.append(element('span', `${t.rank === 2 ? '🥈' : '🥉'} ${t.name}`), element('strong', `${t.score} pts`)); return li;}));
   if (names && names !== winnerShown) {
     winnerShown = names; fanfare();
@@ -320,18 +321,23 @@ function renderWinner(s) {
   }
 }
 async function publicState() {
-  const response = await fetch('/api/leaderboard', {signal: AbortSignal.timeout(8000)}); if (!response.ok) throw Error('Cannot reach quiz server'); return response.json();
+  const response = await fetch('/api/leaderboard', {signal: AbortSignal.timeout(8000)}); if (!response.ok) throw Error(t('Cannot reach quiz server')); return response.json();
 }
+let initialised = false;
 async function refresh() {
   try {
     const s = role === 'player' && secret ? await api('state', {}, secret) : await publicState();
-    online = true; $('connection').textContent = '● Connected'; sharedState(s);
+    online = true;
+    // The TV follows the quizmaster's language setting; a change after load reloads the page in the new language.
+    if (role === 'display' && s.settings.language !== language()) {if (initialised) return location.reload(); setLanguage(s.settings.language); translatePage();}
+    initialised = true;
+    $('connection').textContent = t('● Connected'); sharedState(s);
     if (role === 'display') displayState(s);
     else if (secret) playerState(s);
-    else {$('joinButton').disabled = !s.settings.registrationOpen || s.settings.ended; $('registrationState').textContent = s.settings.ended ? 'This quiz has finished.' : s.settings.registrationOpen ? 'Registration is open' : 'Registration closed — existing teams can still recover below.';}
+    else {$('joinButton').disabled = !s.settings.registrationOpen || s.settings.ended; $('registrationState').textContent = s.settings.ended ? t('This quiz has finished.') : s.settings.registrationOpen ? t('Registration is open') : t('Registration closed — existing teams can still recover below.');}
     if (role === 'player' && online && localDraft !== null) flushDraft();
   } catch (e) {
-    online = false; $('connection').textContent = '● Connection lost — retrying';
+    online = false; $('connection').textContent = t('● Connection lost — retrying');
     if (role === 'player') {
       if (e.status === 401) {secret = ''; writeStorage('pubquiz-team', ''); current = null; $('join').hidden = false; $('game').hidden = true; message('Your old recovery code is no longer valid. Ask the quizmaster for a new one.', true); updates.reconnect();}
       else if (e.status === 403) message(e.message, true);
@@ -345,8 +351,8 @@ async function flushDraft() {
   inFlight = true;
   try {
     await api('draft', {question: id, value}, code);
-    if (generation === draftGeneration && revision === inputRevision && !current.answer) $('draftStatus').textContent = 'Draft saved on quiz laptop — final submission still required';
-  } catch {if (generation === draftGeneration && !current.answer) $('draftStatus').textContent = 'Draft kept in this browser — waiting for connection';}
+    if (generation === draftGeneration && revision === inputRevision && !current.answer) $('draftStatus').textContent = t('Draft saved on quiz laptop — final submission still required');
+  } catch {if (generation === draftGeneration && !current.answer) $('draftStatus').textContent = t('Draft kept in this browser — waiting for connection');}
   finally {inFlight = false; if (generation === draftGeneration && revision !== inputRevision) {clearTimeout(draftTimer); draftTimer = setTimeout(flushDraft, 400);}}
 }
 if (role === 'player') {
@@ -363,25 +369,25 @@ if (role === 'player') {
       await api('state', {}, code); saveIdentity(code); $('recovery').value = ''; message('Welcome back'); await refresh();
     } catch (e) {message(e.message, true);}
   };
-  $('switchTeam').onclick = () => {if (!confirm('Switch teams on this browser? Save your current recovery code first.')) return; clearTimeout(draftTimer); secret = ''; writeStorage('pubquiz-team', ''); current = null; renderedQuestion = undefined; $('join').hidden = false; $('game').hidden = true; updates.reconnect(); refresh();};
+  $('switchTeam').onclick = () => {if (!confirm(t('Switch teams on this browser? Save your current recovery code first.'))) return; clearTimeout(draftTimer); secret = ''; writeStorage('pubquiz-team', ''); current = null; renderedQuestion = undefined; $('join').hidden = false; $('game').hidden = true; updates.reconnect(); refresh();};
   $('inputs').oninput = () => {
     localDraft = inputValue(); inputRevision++; writeStorage(draftKey(current.question.id), JSON.stringify(localDraft));
-    $('draftStatus').textContent = online ? 'Saving draft…' : 'Draft kept in this browser — waiting for connection';
+    $('draftStatus').textContent = online ? t('Saving draft…') : t('Draft kept in this browser — waiting for connection');
     clearTimeout(draftTimer); draftTimer = setTimeout(flushDraft, 500);
   };
   $('answerForm').onsubmit = async e => {
     e.preventDefault(); if ($('submit').disabled) return;
     const value = inputValue(), q = current.question;
-    if (q.type === 'sheet' && value.some(v => !v.trim()) && !confirm('Some sheet answers are blank. Submit this as your final sheet?')) return;
+    if (q.type === 'sheet' && value.some(v => !v.trim()) && !confirm(t('Some sheet answers are blank. Submit this as your final sheet?'))) return;
     if ((q.type === 'sequence' && value.length !== q.items.length) || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length)) {
-      return message(q.type === 'sequence' ? 'Place every item in order first' : q.type === 'pinpoint' ? 'Tap the picture first' : q.type === 'wordsnake' ? 'Trace the word first' : q.type === 'tiles' ? 'Place the tiles first' : keypad(q.type) || q.type === 'multi' ? 'Choose an answer first' : 'Type an answer first', true);
+      return message(q.type === 'sequence' ? t('Place every item in order first') : q.type === 'pinpoint' ? t('Tap the picture first') : q.type === 'wordsnake' ? t('Trace the word first') : q.type === 'tiles' ? t('Place the tiles first') : keypad(q.type) || q.type === 'multi' ? t('Choose an answer first') : t('Type an answer first'), true);
     }
     submitting = true; updateControls(); clearTimeout(draftTimer);
     try {await api('answer', {question: q.id, value}, secret); message('Final answer received'); await refresh();}
-    catch (e) {message(e.status ? e.message : 'Could not confirm submission. Reconnecting will check whether it was received.', true); await refresh();}
+    catch (e) {message(e.status ? e.message : t('Could not confirm submission. Reconnecting will check whether it was received.'), true); await refresh();}
     finally {submitting = false; updateControls();}
   };
-  for (const [id, route, done] of [['buzz', 'buzz', 'Buzzed!'], ['agree', 'agree', 'Agreement recorded'], ['claimBingo', 'bingo', 'BINGO! Checked and counted'], ['tap', 'tap', 'Tap recorded']]) $(id).onclick = async () => {
+  for (const [id, route, done] of [['buzz', 'buzz', t('Buzzed!')], ['agree', 'agree', t('Agreement recorded')], ['claimBingo', 'bingo', t('BINGO! Checked and counted')], ['tap', 'tap', t('Tap recorded')]]) $(id).onclick = async () => {
     $(id).disabled = true; enableSound();
     try {await api(route, {question: current.question.id}, secret); message(done); navigator.vibrate?.(80); if (id === 'buzz') buzzSound(current.team.name, current.team.sound);} catch (e) {message(e.message, true);}
     await updates.update();
@@ -398,14 +404,21 @@ async function shrinkPhoto(file) {
   } finally {URL.revokeObjectURL(url);}
 }
 if (role === 'player') {
+  // Phones use their own language unless the team picks one.
+  const chosen = readStorage('pubquiz-lang'), browser = navigator.language.slice(0, 2);
+  setLanguage(chosen || (languages[browser] ? browser : 'en')); translatePage();
+  for (const select of document.querySelectorAll('.language')) {
+    selectOptions(select, Object.entries(languages), language());
+    select.onchange = () => {writeStorage('pubquiz-lang', select.value); location.reload();};
+  }
   $('photoInput').onchange = async () => {
     const file = $('photoInput').files[0]; $('photoInput').value = ''; if (!file) return;
     try {
-      $('photoStatus').textContent = 'Uploading…';
+      $('photoStatus').textContent = t('Uploading…');
       const response = await fetch('/api/team/photo', {method: 'POST', headers: {Authorization: 'Bearer ' + secret, 'Content-Type': 'image/jpeg'}, body: await shrinkPhoto(file), signal: AbortSignal.timeout(20000)});
       const data = await response.json(); if (!response.ok) throw Error(data.error);
       message('Photo sent — the quizmaster will approve it'); await updates.update();
-    } catch (e) {message(e.message || 'That photo could not be used', true);}
+    } catch (e) {message(e.message || t('That photo could not be used'), true);}
   };
   $('sound').onchange = async () => {enableSound(); const sound = Number($('sound').value); buzzSound('', sound); try {await api('team/sound', {sound}, secret); message('Buzzer sound saved');} catch (e) {message(e.message, true);}};
 }
@@ -414,7 +427,7 @@ if (role === 'display') {
   const toggleFullscreen = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => message('Full screen is not available in this browser — try F11', true));
   $('fullscreen').onclick = toggleFullscreen;
   document.addEventListener('keydown', e => {if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey) toggleFullscreen();});
-  document.addEventListener('fullscreenchange', () => {$('fullscreen').textContent = document.fullscreenElement ? '✕ Exit full screen' : '⛶ Full screen';});
+  document.addEventListener('fullscreenchange', () => {$('fullscreen').textContent = document.fullscreenElement ? t('✕ Exit full screen') : t('⛶ Full screen');});
   // Hide the pointer and screen buttons after a few seconds without movement.
   let idleTimer;
   const wake = () => {document.body.classList.remove('idle'); clearTimeout(idleTimer); idleTimer = setTimeout(() => document.body.classList.add('idle'), 3000);};

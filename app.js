@@ -1,3 +1,4 @@
+import {t} from './i18n.js';
 export const $ = id => document.getElementById(id);
 export const element = (tag, text, className) => {const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (className) el.className = className; return el;};
 export function readStorage(key, session = false) {try {return (session ? sessionStorage : localStorage).getItem(key) || '';} catch {return '';}}
@@ -5,10 +6,10 @@ export function writeStorage(key, value, session = false) {try {(session ? sessi
 export async function api(route, body = {}, key = '') {
   const response = await fetch('/api/' + route, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body), signal: AbortSignal.timeout(8000)});
   const data = await response.json();
-  if (!response.ok) {const error = Error(data.error || 'Request failed'); error.status = response.status; throw error;}
+  if (!response.ok) {const error = Error(t(data.error || 'Request failed')); error.status = response.status; throw error;}
   return data;
 }
-export function message(text, error = false) {$('message').textContent = text; $('message').classList.toggle('error', error);}
+export function message(text, error = false) {$('message').textContent = t(text); $('message').classList.toggle('error', error);}
 export function download(name, data) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}));
   const link = element('a'); link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -43,11 +44,11 @@ export function renderBoard(container, teams) {
   }
 }
 export function timeText(question, offset = 0) {
-  if (!question) return 'Waiting for the quizmaster';
-  if (question.type === 'bingo' || question.type === 'musicbingo') return question.paused ? 'Paused' : question.live ? 'Eyes down — game in progress' : 'Game over';
-  if (question.paused) return `Paused · ${Math.ceil(question.remaining / 1000)}s remaining`;
-  if (!question.open || question.deadline <= Date.now() + offset) return 'Answers closed';
-  return `${Math.max(0, Math.ceil((question.deadline - Date.now() - offset) / 1000))}s remaining`;
+  if (!question) return t('Waiting for the quizmaster');
+  if (question.type === 'bingo' || question.type === 'musicbingo') return t(question.paused ? 'Paused' : question.live ? 'Eyes down — game in progress' : 'Game over');
+  if (question.paused) return t('Paused · {n}s remaining', {n: Math.ceil(question.remaining / 1000)});
+  if (!question.open || question.deadline <= Date.now() + offset) return t('Answers closed');
+  return t('{n}s remaining', {n: Math.max(0, Math.ceil((question.deadline - Date.now() - offset) / 1000))});
 }
 export const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 export function renderSolution(container, question) {
@@ -57,11 +58,11 @@ export function renderSolution(container, question) {
   container.dataset.reveal = key; container.replaceChildren();
   if (!question?.revealed) return;
   container.classList.remove('reveal'); void container.offsetWidth; container.classList.add('reveal');
-  container.append(element('h3', question.type === 'vote' ? 'Votes' : 'Answer reveal'));
-  if (question.type === 'sheet') container.append(...question.items.map((item, i) => element('p', `${i + 1}. ${item} — ${question.itemAnswers?.[i] || 'Marked by quizmaster'}`)));
+  container.append(element('h3', t(question.type === 'vote' ? 'Votes' : 'Answer reveal')));
+  if (question.type === 'sheet') container.append(...question.items.map((item, i) => element('p', `${i + 1}. ${item} — ${question.itemAnswers?.[i] || t('Marked by quizmaster')}`)));
   else if (question.type === 'sequence') {const list = element('ol', undefined, 'solution'); list.append(...question.items.map(item => element('li', item))); container.append(list);}
-  else if (question.type === 'choice') {const i = question.options.indexOf(question.answer); container.append(element('p', i < 0 ? 'Marked by quizmaster' : `${letters[i]}. ${question.answer}`, 'solution'));}
-  else if (question.type !== 'vote') container.append(element('p', question.answer || 'Marked by quizmaster', 'solution'));
+  else if (question.type === 'choice') {const i = question.options.indexOf(question.answer); container.append(element('p', i < 0 ? t('Marked by quizmaster') : `${letters[i]}. ${question.answer}`, 'solution'));}
+  else if (question.type !== 'vote') container.append(element('p', question.answer || t('Marked by quizmaster'), 'solution'));
   if (question.answerNote) container.append(element('p', question.answerNote, 'muted'));
   if (question.tally) {
     const keys = question.type === 'choice' || question.type === 'vote' ? question.options : Object.keys(question.tally).sort();
@@ -73,7 +74,7 @@ export function renderSolution(container, question) {
     }
     container.append(list);
   }
-  if (question.type !== 'vote' && question.correctCount !== undefined) container.append(element('p', `${question.correctCount} ${question.correctCount === 1 ? 'team' : 'teams'} scored`, 'muted'));
+  if (question.type !== 'vote' && question.correctCount !== undefined) container.append(element('p', question.correctCount === 1 ? t('1 team scored') : t('{n} teams scored', {n: question.correctCount}), 'muted'));
 }
 export function selectOptions(select, entries, chosen) {
   const signature = JSON.stringify(entries);

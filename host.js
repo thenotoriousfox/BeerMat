@@ -274,6 +274,7 @@ $('scramble').onclick = () => action(() => request('settings', {scrambleKeypads:
 $('phrases').onclick = () => action(() => request('settings', {bingoPhrases: !state.settings.bingoPhrases}));
 $('photos').onclick = () => action(() => request('settings', {teamPhotos: !state.settings.teamPhotos}));
 $('blockedForm').onsubmit = e => {e.preventDefault(); action(() => request('settings', {blockedWords: $('blockedWords').value}), 'Blocked words saved');};
+$('tvLanguage').onchange = () => action(() => request('settings', {language: $('tvLanguage').value}), 'TV language updated (phones use their own language)');
 $('displayMode').onchange = () => action(() => request('settings', {displayMode: $('displayMode').value}));
 $('finish').onclick = () => action(async () => {
   if (!state.settings.ended && !confirm('Finish this quiz and close answers and registration? You can resume it later.')) return;
@@ -397,7 +398,7 @@ function renderState(s) {
   $('visibility').textContent = s.settings.leaderboardVisible ? 'Hide leaderboard' : 'Show leaderboard';
   $('photos').textContent = `Team photos: ${s.settings.teamPhotos ? 'on' : 'off'}`;
   $('scramble').textContent = `Scramble keypads: ${s.settings.scrambleKeypads ? 'on' : 'off'}`; $('phrases').textContent = `Bingo phrases: ${s.settings.bingoPhrases ? 'on' : 'off'}`;
-  if (!$('blockedForm').contains(document.activeElement)) $('blockedWords').value = s.blockedWords.join('\n'); $('displayMode').value = s.settings.displayMode; $('finish').textContent = s.settings.ended ? 'Resume quiz' : 'Finish quiz';
+  if (!$('blockedForm').contains(document.activeElement)) $('blockedWords').value = s.blockedWords.join('\n'); $('displayMode').value = s.settings.displayMode; $('tvLanguage').value = s.settings.language; $('finish').textContent = s.settings.ended ? 'Resume quiz' : 'Finish quiz';
   const offline = s.teams.filter(t => t.enabled && !t.connected), photos = s.teams.filter(t => t.photo_status === 'pending').length;
   $('alerts').textContent = [offline.length ? `⚠ Disconnected: ${offline.map(t => t.name).join(', ')}` : '', photos ? `📷 ${photos} team ${photos === 1 ? 'photo' : 'photos'} waiting for approval in Teams & results` : ''].filter(Boolean).join(' · ');
   const played = new Set(s.history.map(q => q.sourceId)); const all = library?.rounds.flatMap(r => r.questions) || [];
