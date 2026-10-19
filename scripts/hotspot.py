@@ -115,11 +115,17 @@ def main():
     if capability != 'yes':
         p.error('Selected Wi-Fi adapter does not report AP support')
     # In list mode nmcli calls the connection name field NAME (connection.id only works for a single connection).
-    existing = run(['nmcli', '-g', 'NAME', 'connection', 'show'], capture_output=True).stdout.splitlines()
-    if PROFILE in existing:
-        p.error('PubQuiz profile already exists; inspect/stop it first')
+    # Leftovers happen when the laptop rejoins another network without running down first.
+    leftovers = []
+    if PROFILE in run(['nmcli', '-g', 'NAME', 'connection', 'show'], capture_output=True).stdout.splitlines():
+        leftovers.append(f'Wi-Fi profile {PROFILE}')
     if run(['nft', 'list', 'tables'], capture_output=True).stdout.find('table inet pubquiz') >= 0:
-        p.error('PubQuiz firewall table already exists; inspect/stop it first')
+        leftovers.append('firewall table inet pubquiz')
+    if subprocess.run(['systemctl', 'is-active', '--quiet', 'pubquiz-dnsmasq.service'], check=False).returncode == 0:
+        leftovers.append('pubquiz-dnsmasq service')
+    if leftovers:
+        p.error('A previous hotspot is still set up (' + ', '.join(leftovers) + '). Remove it first with:\n'
+                f'  sudo python scripts/hotspot.py down --interface {a.interface} --apply' + (' --keep-wifi' if Path(f'/sys/class/net/{AP_IFACE}').exists() else ''))
     channel = None
     if a.keep_wifi:
         # One radio can only serve one channel, and this kind of card only hosts on 2.4 GHz while connected.

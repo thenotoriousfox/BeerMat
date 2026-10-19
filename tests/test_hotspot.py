@@ -54,7 +54,7 @@ class HotspotTests(unittest.TestCase):
         with patch('sys.argv', ['hotspot.py', 'up', '--interface', 'wlan0', '--keep-wifi', '--apply', *extra]), patch('os.geteuid', return_value=0), \
                 patch.object(hotspot, 'run', side_effect=fake), patch.object(hotspot.Path, 'mkdir'), patch.object(hotspot.Path, 'write_text'), \
                 patch.object(hotspot.Path, 'exists', exists), patch.object(hotspot.Path, 'read_text', return_value='9c:67:d6:d7:ae:4c\n'), \
-                patch('subprocess.run', return_value=type('R', (), {'returncode': 0})), patch('builtins.print'):
+                patch('subprocess.run', side_effect=lambda cmd, **kw: type('R', (), {'returncode': 3 if 'is-active' in cmd else 0})), patch('builtins.print'):
             hotspot.main()
         return calls
     def test_keep_wifi_hosts_on_a_virtual_interface_on_the_home_channel(self):
@@ -71,5 +71,16 @@ class HotspotTests(unittest.TestCase):
         self.assertIn("802-11-wireless.band bg", ''.join(c.args[0] for c in err.write.call_args_list))
     def test_channel_mapping(self):
         self.assertEqual([hotspot.channel_of(f) for f in (2412, 2437, 2472, 2484, 5180)], [1, 6, 13, 14, None])
+    def test_leftovers_are_named_with_the_down_command(self):
+        def fake(cmd, **kw):
+            out = {('nmcli', '-g', 'WIFI-PROPERTIES.AP'): 'yes\n', ('nmcli', '-g', 'NAME'): 'BTB\nPubQuiz-offline\n', ('nft', 'list', 'tables'): 'table inet pubquiz\n'}
+            return type('R', (), {'stdout': out.get(tuple(cmd[:3]), ''), 'returncode': 0})
+        with patch('sys.argv', ['hotspot.py', 'up', '--apply']), patch('os.geteuid', return_value=0), patch.object(hotspot, 'run', side_effect=fake), \
+                patch('subprocess.run', return_value=type('R', (), {'returncode': 0})), patch.object(hotspot.Path, 'exists', return_value=False), \
+                self.assertRaises(SystemExit), patch('sys.stderr') as err:
+            hotspot.main()
+        message = ''.join(c.args[0] for c in err.write.call_args_list)
+        self.assertIn('Wi-Fi profile PubQuiz-offline, firewall table inet pubquiz, pubquiz-dnsmasq service', message)
+        self.assertIn('hotspot.py down --interface wlan0 --apply', message)
 if __name__ == '__main__':
     unittest.main()
