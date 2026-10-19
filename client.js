@@ -270,7 +270,7 @@ function displayState(s) {
     // One code does it all: it joins the quiz Wi-Fi, and the phone's sign-in window then opens the quiz.
     renderQr($('wifiQr'), wifiCode(joinSsid));
     $('joinStepWifi').textContent = t('Join the “{ssid}” Wi-Fi when your phone offers it', {ssid: joinSsid});
-    $('joinStepQuiz').textContent = t('The quiz opens by itself — pick a team name');
+    $('joinStepQuiz').textContent = t('Tap “Sign in” when your phone asks (iPhones open it straight away) — then pick a team name');
     $('joinFallback').textContent = t('Quiz not opening? On the {ssid} Wi-Fi, go to {url}', {ssid: joinSsid, url: joinUrl.replace(/^http:\/\//, '')});
     $('joinStatus').textContent = !joining ? t('Registration is closed — ask the quizmaster to join') : s.teams.length ? (s.teams.length === 1 ? t('1 team has joined') : t('{n} teams have joined', {n: s.teams.length})) : t('Be the first team to join!');
   }
