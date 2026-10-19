@@ -29,7 +29,7 @@ function updateControls() {
   $('status').textContent = timeText(q, offset);
   $('answerState').textContent = current.settings.ended ? 'Quiz finished' : q?.type === 'buzzer' ? '' : current.answer ? '✓ Final answer saved' : q?.paused ? 'Paused' : '';
   if (q?.type === 'buzzer') renderBuzzer(q);
-  if (q?.type === 'bingo') renderBingo(q);
+  if (q?.bingo) renderBingo(q);
   if (q?.type === 'clips') {
     const c = q.clipGame;
     $('tap').disabled = !(online && q.live && !q.paused && c.playing !== null && !c.tapped && !current.settings.ended);
@@ -127,6 +127,7 @@ function renderBuzzer(q) {
 const dabKey = id => `pubquiz-dabs:${secret}:${id}`;
 function buildTicket(q) {
   let dabs = []; try {dabs = JSON.parse(readStorage(dabKey(q.id)) || '[]');} catch {}
+  $('ticket').classList.toggle('music', !!q.bingo.music);
   $('ticket').replaceChildren(...q.bingo.card.map(row => {
     const tr = element('div', undefined, 'ticket-row');
     tr.append(...row.map(n => {
@@ -140,8 +141,13 @@ function buildTicket(q) {
 }
 function renderBingo(q) {
   const b = q.bingo;
-  $('bingoMode').textContent = `${modes[b.mode]} · ${b.called.length} called`;
-  $('bingoLast').textContent = b.last ?? '–'; $('bingoPhrase').textContent = current.settings.bingoPhrases && b.last ? bingoCall(b.last) : '';
+  if (b.music) {
+    $('bingoMode').textContent = `Music bingo · ${modes[b.mode]} · ${b.played} ${b.played === 1 ? 'song' : 'songs'} played`;
+    $('bingoLast').textContent = b.played ? `Song ${b.played}` : '–'; $('bingoPhrase').textContent = b.titles.length ? `Revealed: ${b.titles.at(-1)}` : '';
+  } else {
+    $('bingoMode').textContent = `${modes[b.mode]} · ${b.called.length} called`;
+    $('bingoLast').textContent = b.last ?? '–'; $('bingoPhrase').textContent = current.settings.bingoPhrases && b.last ? bingoCall(b.last) : '';
+  }
   $('claimBingo').disabled = !(online && q.live && !q.paused && !b.claimed && !current.settings.ended);
   $('bingoStatus').textContent = b.claimed ? '✓ Bingo! Your claim was checked and counted.' : b.winners.length ? `Bingo called by ${b.winners.join(', ')} — claim now only if you have it on this number` : '';
 }
@@ -153,8 +159,9 @@ function playerState(s) {
     renderedQuestion = q?.id; $('inputs').replaceChildren(); $('draftStatus').textContent = '';
     $('question').textContent = q?.text || 'Waiting for the quizmaster'; $('round').textContent = q?.round || '';
     renderMedia($('media'), q?.type === 'pinpoint' ? null : q);
-    $('answerForm').hidden = ['buzzer', 'bingo', 'clips'].includes(q?.type); $('buzzBox').hidden = q?.type !== 'buzzer'; $('bingoBox').hidden = q?.type !== 'bingo'; $('clipBox').hidden = q?.type !== 'clips';
-    if (q?.type === 'bingo') buildTicket(q);
+    const bingo = q?.type === 'bingo' || q?.type === 'musicbingo';
+    $('answerForm').hidden = bingo || ['buzzer', 'clips'].includes(q?.type); $('buzzBox').hidden = q?.type !== 'buzzer'; $('bingoBox').hidden = !bingo; $('clipBox').hidden = q?.type !== 'clips';
+    if (bingo) buildTicket(q);
     if (q) {
       buildInputs(q); syncPicks();
       const saved = readStorage(draftKey(q.id));
@@ -168,7 +175,7 @@ function playerState(s) {
   if (s.team.photo && $('myPhoto').getAttribute('src') !== s.team.photo) $('myPhoto').src = s.team.photo;
   $('photoStatus').textContent = !s.team.photo ? 'Add a team photo to appear on the big screen. The quizmaster approves it first.' : s.team.photoStatus === 'approved' ? '✓ Approved — showing on the big screen' : 'Waiting for the quizmaster to approve it';
   selectOptions($('sound'), sounds.map(([label], i) => [String(i), label]), document.activeElement === $('sound') ? undefined : String(s.team.sound ?? ''));
-  if (s.answer && !['buzzer', 'bingo', 'clips'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? 'Your final answer is safely stored on the quiz laptop.' : `Your answer scored ${s.answer.points} ${Math.abs(s.answer.points) === 1 ? 'point' : 'points'}.`; localDraft = null; writeStorage(draftKey(q.id), '');}
+  if (s.answer && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? 'Your final answer is safely stored on the quiz laptop.' : `Your answer scored ${s.answer.points} ${Math.abs(s.answer.points) === 1 ? 'point' : 'points'}.`; localDraft = null; writeStorage(draftKey(q.id), '');}
   renderSolution($('solution'), q); updateControls();
 }
 function sharedState(s) {
@@ -208,9 +215,17 @@ function displayState(s) {
   if (c) {$('clipNow').textContent = c.playing ? `🎵 Clip ${c.playing} of ${c.count}` : q.live ? 'Listen carefully…' : 'Clips finished'; $('clipTaps').textContent = `${c.taps} ${c.taps === 1 ? 'team has' : 'teams have'} tapped`;}
   const g = q?.bingo; $('projectBingo').hidden = !g;
   if (g) {
-    $('bingoBig').textContent = g.last ?? '–'; $('bingoCallText').textContent = s.settings.bingoPhrases && g.last ? bingoCall(g.last) : ''; $('bingoWinners').textContent = g.winners.length ? `BINGO! ${g.winners.join(', ')}` : `${modes[g.mode]} · ${g.called.length} called`;
-    if ($('bingoBoard').children.length !== 90) $('bingoBoard').replaceChildren(...Array.from({length: 90}, (_, i) => element('span', String(i + 1))));
-    [...$('bingoBoard').children].forEach((cell, i) => cell.classList.toggle('called', g.called.includes(i + 1)));
+    $('bingoBoard').classList.toggle('music', !!g.music);
+    if (g.music) {
+      $('bingoBig').textContent = g.played ? `🎵 Song ${g.played}` : '🎵'; $('bingoCallText').textContent = g.titles.length ? `Last revealed: ${g.titles.at(-1)}` : '';
+      $('bingoWinners').textContent = g.winners.length ? `BINGO! ${g.winners.join(', ')}` : `Music bingo · ${modes[g.mode]}`;
+      $('bingoBoard').replaceChildren(...[...g.titles].reverse().map(title => element('span', title, 'called')));
+    } else {
+      $('bingoBig').textContent = g.last ?? '–'; $('bingoCallText').textContent = s.settings.bingoPhrases && g.last ? bingoCall(g.last) : '';
+      $('bingoWinners').textContent = g.winners.length ? `BINGO! ${g.winners.join(', ')}` : `${modes[g.mode]} · ${g.called.length} called`;
+      if ($('bingoBoard').children.length !== 90 || $('bingoBoard').firstChild.textContent !== '1') $('bingoBoard').replaceChildren(...Array.from({length: 90}, (_, i) => element('span', String(i + 1))));
+      [...$('bingoBoard').children].forEach((cell, i) => cell.classList.toggle('called', g.called.includes(i + 1)));
+    }
   }
   $('wheelSection').hidden = s.settings.displayMode !== 'wheel';
   $('winnerSection').hidden = s.settings.displayMode !== 'winner';

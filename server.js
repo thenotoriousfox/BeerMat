@@ -5,7 +5,7 @@ import {existsSync, mkdirSync, writeFileSync, statSync, createReadStream, unlink
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {offensive} from './names.js';
-import {QuizError, requireValue, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, hostDriven, bingoCard, bingoLines, bingoNeeded, mediaPattern} from './model.js';
+import {QuizError, requireValue, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, hostDriven, isBingo, bingoCard, musicCard, bingoLines, bingoNeeded, mediaPattern} from './model.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(24).toString('hex');
@@ -130,11 +130,17 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return !!previous && dataOf(previous).variation === 'classic' && !!one(`SELECT 1 FROM buzzes WHERE question=? AND team=? AND status='wrong'`, previous.id, teamId);
   }
   const calledNumbers = q => rows('SELECT number FROM bingo_calls WHERE question=? ORDER BY seq', q.id).map(r => r.number);
-  function bingoState(q, data, teamId) {
-    if (data.type !== 'bingo') return null;
-    const called = calledNumbers(q);
-    return {mode: data.mode, called, last: called.at(-1) ?? null, winners: rows('SELECT t.name FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=? AND a.points>0 ORDER BY a.submitted,a.rowid', q.id).map(w => w.name),
-      ...(teamId ? {card: bingoCard(`${teamId}:${q.id}`), claimed: !!one('SELECT 1 FROM answers WHERE team=? AND question=?', teamId, q.id)} : {})};
+  const ticket = (data, teamId, q) => data.type === 'musicbingo' ? musicCard(`${teamId}:${q.id}`, data.songs.length) : bingoCard(`${teamId}:${q.id}`);
+  function bingoState(q, data, teamId, host) {
+    if (!isBingo(data.type)) return null;
+    const called = calledNumbers(q), winners = rows('SELECT t.name FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=? AND a.points>0 ORDER BY a.submitted,a.rowid', q.id).map(w => w.name);
+    const mine = teamId ? {claimed: !!one('SELECT 1 FROM answers WHERE team=? AND question=?', teamId, q.id)} : {};
+    if (data.type === 'bingo') return {mode: data.mode, called, last: called.at(-1) ?? null, winners, ...mine, ...(teamId ? {card: ticket(data, teamId, q)} : {})};
+    // Music bingo hides the song now playing (teams must recognise it) unless the host chose to reveal titles straight away.
+    const shown = data.revealNow || !pending(q) ? called : called.slice(0, -1);
+    return {mode: data.mode, music: true, played: called.length, titles: shown.map(n => data.songs[n - 1].title), winners, ...mine,
+      ...(teamId ? {card: ticket(data, teamId, q).map(row => row.map(n => data.songs[n - 1].title))} : {}),
+      ...(host ? {current: called.length ? {number: called.at(-1), ...data.songs[called.at(-1) - 1]} : null} : {})};
   }
   // Sound clips: the desk logs when each clip starts (clip -1 = gap/stopped); a tap counts for whatever was playing.
   const nowPlaying = q => one('SELECT seq,clip,at FROM clip_plays WHERE question=? ORDER BY seq DESC LIMIT 1', q.id);
@@ -147,12 +153,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function publicQuestion(q, host = false, teamId = null) {
     if (!q) return null;
     const data = dataOf(q);
-    const {answer, aliases, itemAnswers, answerNote, correct, target, clips, targetClip, ...safe} = data;
+    const {answer, aliases, itemAnswers, answerNote, correct, target, clips, targetClip, songs, ...safe} = data;
     // Sequence items are shown shuffled; the stored order is the answer.
     const result = {...safe, id: q.id, deadline: q.deadline, open: accepting(q), live: pending(q), paused: pending(q) && q.paused_ms !== null,
-      remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: !!q.revealed, buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId), clipGame: clipState(q, data, teamId)};
+      remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: !!q.revealed, buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId, host), clipGame: clipState(q, data, teamId)};
     if (data.type === 'sequence') result.order = shuffleOrder(data.items.length, q.id);
-    if (host || q.revealed) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], correct, target, clips, targetClip, tally: tally(q, data),
+    if (host || q.revealed) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], correct, target, clips, targetClip, songs, tally: tally(q, data),
       correctCount: one('SELECT COUNT(*) n FROM answers WHERE question=? AND points>0', q.id).n});
     return result;
   }
@@ -421,11 +427,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         }
         if (p === '/api/host/buzz') {hostBuzz(body); return send(200, {ok: true});}
         if (p === '/api/host/bingo') {
-          const q = questionById(body.question); requireValue(q && pending(q) && dataOf(q).type === 'bingo', 'No live bingo game', 409);
+          const q = questionById(body.question); requireValue(q && pending(q) && isBingo(dataOf(q).type), 'No live bingo game', 409);
           requireValue(q.paused_ms === null, 'Resume the game first', 409);
           requireValue(!one('SELECT 1 FROM answers WHERE question=? AND points>0', q.id), 'A team has called bingo — end the game', 409);
-          const called = new Set(calledNumbers(q)), remaining = Array.from({length: 90}, (_, i) => i + 1).filter(n => !called.has(n));
-          requireValue(remaining.length, 'Every number has been called', 409);
+          const data = dataOf(q), called = new Set(calledNumbers(q));
+          const remaining = Array.from({length: data.type === 'musicbingo' ? data.songs.length : 90}, (_, i) => i + 1).filter(n => !called.has(n));
+          requireValue(remaining.length, data.type === 'musicbingo' ? 'Every song has been played' : 'Every number has been called', 409);
           const number = remaining[randomInt(remaining.length)];
           run('INSERT INTO bingo_calls VALUES(?,?,?,?)', q.id, called.size + 1, number, now()); return send(200, {number});
         }
@@ -524,10 +531,10 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         run('UPDATE teams SET sound=? WHERE id=?', body.sound, team.id); return send(200, {ok: true});
       }
       if (p === '/api/bingo') {
-        const q = latest(); requireValue(q && body.question === q.id && pending(q) && q.paused_ms === null && dataOf(q).type === 'bingo' && !settings().ended, 'No live bingo game', 409);
+        const q = latest(); requireValue(q && body.question === q.id && pending(q) && q.paused_ms === null && isBingo(dataOf(q).type) && !settings().ended, 'No live bingo game', 409);
         requireValue(!one('SELECT 1 FROM answers WHERE team=? AND question=?', team.id, q.id), 'Already claimed', 409);
         const data = dataOf(q), called = new Set(calledNumbers(q));
-        requireValue(bingoLines(bingoCard(`${team.id}:${q.id}`), called) >= bingoNeeded(data.mode), 'Not yet — keep marking your ticket', 409);
+        requireValue(bingoLines(ticket(data, team.id, q), called) >= bingoNeeded(data.mode), 'Not yet — keep marking your ticket', 409);
         // The first claim takes the bonus; later claims on the same call score the standard points.
         const first = !one('SELECT 1 FROM answers WHERE question=? AND points>0', q.id);
         award(team.id, q, `BINGO on call ${called.size}`, data.points + (first ? data.speedBonus : 0));

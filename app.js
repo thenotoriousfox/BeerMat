@@ -33,7 +33,7 @@ export function renderBoard(container, teams) {
 }
 export function timeText(question, offset = 0) {
   if (!question) return 'Waiting for the quizmaster';
-  if (question.type === 'bingo') return question.paused ? 'Paused' : question.live ? 'Eyes down — game in progress' : 'Game over';
+  if (question.type === 'bingo' || question.type === 'musicbingo') return question.paused ? 'Paused' : question.live ? 'Eyes down — game in progress' : 'Game over';
   if (question.paused) return `Paused · ${Math.ceil(question.remaining / 1000)}s remaining`;
   if (!question.open || question.deadline <= Date.now() + offset) return 'Answers closed';
   return `${Math.max(0, Math.ceil((question.deadline - Date.now() - offset) / 1000))}s remaining`;

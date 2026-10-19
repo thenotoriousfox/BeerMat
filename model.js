@@ -17,10 +17,11 @@ const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = 
 
 // Question types. Keypad formats follow common pub-quiz handset conventions:
 // letters (first letter of the answer), numbers, multiple choice and sequence.
-export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'vote', 'buzzer', 'bingo', 'clips', 'picture', 'audio', 'sheet'];
-export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'picture', 'audio', 'bingo', 'clips'];
+export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet'];
+export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
 // Buzzer questions stay open until the quizmaster rules on them; the timer only limits buzzing.
-export const hostDriven = type => ['buzzer', 'bingo', 'clips'].includes(type);
+export const hostDriven = type => ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(type);
+export const isBingo = type => type === 'bingo' || type === 'musicbingo';
 
 export function validateQuestion(q, mediaDir) {
   requireValue(q && typeof q === 'object', 'Question required');
@@ -80,7 +81,18 @@ export function validateQuestion(q, mediaDir) {
     result.targetClip = q.targetClip;
     requireValue(integer(q.targetClip, 0, result.clips.length - 1), 'Pick which clip teams should tap for');
   }
-  if (q.type === 'bingo') {
+  if (q.type === 'musicbingo') {
+    requireValue(Array.isArray(q.songs) && q.songs.length >= 15 && q.songs.length <= 300, 'Music bingo needs 15–300 songs');
+    result.songs = q.songs.map(song => {
+      requireValue(song && text(song.title, 100), 'Every song needs a title of up to 100 characters');
+      const media = song.media || null;
+      requireValue(!media || (typeof media === 'string' && mediaPattern.test(media) && audioExtensions.includes(path.extname(media).toLowerCase()) && existsSync(path.join(mediaDir, path.basename(media)))), 'Song audio must be an uploaded MP3, Ogg or WAV');
+      return {title: song.title.trim(), media};
+    });
+    requireValue(new Set(result.songs.map(s => s.title.toLowerCase())).size === result.songs.length, 'Song titles must all be different');
+    result.revealNow = q.revealNow === true;
+  }
+  if (isBingo(q.type)) {
     result.mode = q.mode ?? 'line';
     requireValue(['line', 'twoLines', 'fullHouse'].includes(result.mode), 'Bingo needs one line, two lines or full house');
   }
@@ -133,7 +145,7 @@ export function answerValue(value, q, final = true) {
     requireValue(Array.isArray(value) && value.length <= (q.goWide ? 2 : 1) && value.every(point) && (!final || value.length), 'Tap the picture');
     return JSON.stringify(value.map(p => p.map(v => Math.round(v * 10000) / 10000)));
   }
-  requireValue(!['buzzer', 'bingo', 'clips'].includes(q.type), 'Use the buttons for this question');
+  requireValue(!['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q.type), 'Use the buttons for this question');
   requireValue(typeof value === 'string' && value.length <= 300 && (!final || value.trim()), 'Answer must contain 1–300 characters');
   if (!final && value === '') return '';
   if (q.type === 'choice' || q.type === 'vote') requireValue(q.options.includes(value), 'Select a valid choice');
@@ -147,7 +159,7 @@ export function isCorrect(value, q) {
   if (q.type === 'sequence') return JSON.stringify(JSON.parse(value)) === JSON.stringify(q.items.map((_, i) => i));
   if (q.type === 'multi') return JSON.parse(value).join('\n') === q.correct.join('\n');
   if (q.type === 'pinpoint') return hits(JSON.parse(value)[0], q.target);
-  if (['vote', 'nearest', 'buzzer', 'bingo', 'clips', 'sheet'].includes(q.type) || !q.answer) return null;
+  if (['vote', 'nearest', 'buzzer', 'bingo', 'musicbingo', 'clips', 'sheet'].includes(q.type) || !q.answer) return null;
   if (q.type === 'number') return Number(value) === Number(q.answer);
   if (q.type === 'choice' || q.type === 'letter') return value === q.answer;
   return matches(value, [q.answer, ...(q.aliases || [])]);
@@ -186,6 +198,13 @@ export function bingoCard(seed) {
     used.forEach((r, i) => {rows[r][c] = numbers[i];});
   }
   return rows;
+}
+// Music bingo ticket: 3 rows of 5 different songs (1-based song numbers), seeded per team.
+export function musicCard(seed, songs) {
+  let h = 2166136261; for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  const pool = Array.from({length: songs}, (_, i) => i + 1);
+  for (let i = pool.length - 1; i > 0; i--) {h = Math.imul(h ^ (h >>> 15), 2246822507) ^ i; const j = (h >>> 0) % (i + 1); [pool[i], pool[j]] = [pool[j], pool[i]];}
+  return [0, 1, 2].map(r => pool.slice(r * 5, r * 5 + 5));
 }
 export const bingoLines = (card, called) => card.filter(row => row.every(n => n === null || called.has(n))).length;
 export const bingoNeeded = mode => ({line: 1, twoLines: 2, fullHouse: 3})[mode];

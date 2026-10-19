@@ -239,3 +239,22 @@ test('sound clips: taps score only during the right clip, with a fading bonus', 
   await call('host/close');
   assert.equal(await score(a), 7); assert.equal(await score(b), 0); assert.equal(await score(c), 0);
 }));
+
+test('music bingo: song-title tickets, hidden current song, verified claims', () => fixture(async ({call, teams, score}) => {
+  const [a] = await teams('Alpha');
+  const songs = Array.from({length: 16}, (_, i) => ({title: `Song title ${i + 1}`}));
+  assert.equal((await call('host/open', {...base, text: 'Music bingo', type: 'musicbingo', songs: songs.slice(0, 10)})).status, 400, 'needs 15 songs');
+  await call('host/open', {...base, text: 'Music bingo', type: 'musicbingo', songs, mode: 'line', points: 4, speedBonus: 2});
+  let s = await call('state', {}, a.secret); const id = s.question.id, card = s.question.bingo.card;
+  assert.equal(s.question.songs, undefined); assert.equal(card.length, 3); assert.equal(new Set(card.flat()).size, 15);
+  const row = card[0]; let played = [];
+  while (!row.every(t => played.includes(t))) {
+    const {number} = await call('host/bingo', {question: id}); played.push(songs[number - 1].title);
+    s = await call('state', {}, a.secret);
+    assert.deepEqual(s.question.bingo.titles, played.slice(0, -1), 'the song now playing stays hidden');
+    assert.equal((await call('host/state')).question.bingo.current.title, played.at(-1));
+  }
+  assert.equal((await call('bingo', {question: id}, a.secret)).first, true);
+  await call('host/close'); assert.equal(await score(a), 6);
+  assert.deepEqual((await call('state', {}, a.secret)).question.bingo.titles, played, 'all titles shown once the game ends');
+}));

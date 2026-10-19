@@ -207,6 +207,22 @@ try {
   await host.keyboard.press('c'); await host.locator('[data-tab=teams]').click();
   await waitFor(host, () => document.getElementById('teamCards').textContent.length > 0); assert.equal(await scoreOf('Fox team'), foxBefore + 1);
   log('sound clips: desk plays the playlist, taps scored by which clip was playing');
+  await host.locator('[data-tab=build]').click(); await host.locator('#roundSelect').selectOption({index: 0});
+  await host.locator('#newQuestion').click(); await host.locator('#qText').fill('Name that tune bingo'); await host.locator('#qType').selectOption('musicbingo');
+  await host.locator('#qSongs').fill(Array.from({length: 14}, (_, i) => `Track ${i + 1}`).join('\n'));
+  await host.locator('#songUpload').setInputFiles({name: 'Final_Track.wav', mimeType: 'audio/wav', buffer: makeWav(2)});
+  await waitFor(host, () => /Final Track \| \/media\//.test(document.getElementById('qSongs').value));
+  await host.locator('#saveQuestion').click(); await waitFor(host, () => document.getElementById('editorStatus').textContent === 'Saved question loaded');
+  await play('Name that tune bingo'); await visible(player, '#ticket');
+  assert.equal(await player.locator('#ticket button').count(), 15);
+  for (let i = 0; i < 15; i++) {
+    await host.locator('#callNumber').click(); await host.waitForFunction(n => document.getElementById('bingoCalls').textContent.startsWith(`${n} of`), i + 1, {timeout: 12000});
+    if (/Final Track/.test(await host.locator('#bingoInfo').textContent())) await waitFor(host, () => !document.getElementById('songAudio').hidden && document.getElementById('songAudio').currentSrc.includes('/media/'));
+  }
+  await waitFor(projector, () => document.getElementById('bingoBig').textContent.includes('Song 15') && document.querySelectorAll('#bingoBoard span').length === 14);
+  await player.locator('#claimBingo').click(); await waitFor(player, () => document.getElementById('bingoStatus').textContent.includes('counted'));
+  await host.keyboard.press('c');
+  log('music bingo: song titles and uploaded audio, desk plays songs, TV hides the current title, claim verified');
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await host.locator('#finish').click(); await waitFor(projector, () => document.getElementById('boardStatus').textContent === 'Final standings');
   await visible(projector, '#winnerSection'); await waitFor(projector, () => document.getElementById('winnerName').textContent === 'Fox team' && document.querySelectorAll('#confetti span').length === 80);
   assert.match(await projector.locator('#podium').textContent(), /🥈 Owl team/); await waitFor(player, () => document.getElementById('answerState').textContent === 'Quiz finished');
