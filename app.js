@@ -23,9 +23,12 @@ export function renderMedia(container, question) {
   if (isAudio(value)) {media.controls = true; media.preload = 'metadata';} else media.alt = 'Quiz picture';
   container.append(media);
 }
+export function avatar(src) {const img = element('img', undefined, 'avatar'); img.src = src; img.alt = ''; return img;}
 export function renderBoard(container, teams) {
   container.replaceChildren(...teams.map(team => {
-    const li = element('li'); li.append(element('span', `${team.rank}. ${team.name}`), element('strong', `${team.score} pts`)); return li;
+    const li = element('li'), name = element('span', `${team.rank}. ${team.name}`, 'team-name');
+    if (team.photo) name.prepend(avatar(team.photo));
+    li.append(name, element('strong', `${team.score} pts`)); return li;
   }));
 }
 export function timeText(question, offset = 0) {

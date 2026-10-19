@@ -202,3 +202,19 @@ test('blocked names, keypad scrambling and bingo phrase settings', () => fixture
   const settings = await call('host/settings', {scrambleKeypads: true, bingoPhrases: false, displayMode: 'winner'});
   assert.deepEqual([settings.scrambleKeypads, settings.bingoPhrases, settings.displayMode], [true, false, 'winner']);
 }));
+
+test('team photos stay private until approved and are deleted when rejected', () => fixture(async ({call, url, teams}) => {
+  const [a] = await teams('Alpha');
+  const upload = (body, key = a.secret) => fetch(url() + '/api/team/photo', {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body}).then(async r => ({status: r.status, ...await r.json()}));
+  assert.equal((await upload(Buffer.from('not a jpeg'))).status, 400);
+  assert.equal((await upload(Buffer.from([255, 216, 255, 224, 1, 2]), 'wrong')).status, 401);
+  const {photo} = await upload(Buffer.from([255, 216, 255, 224, 1, 2]));
+  assert.equal((await fetch(url() + photo)).status, 200);
+  const board = async () => (await (await fetch(url() + '/api/leaderboard')).json()).teams[0].photo;
+  assert.equal(await board(), null, 'pending photo hidden'); assert.equal((await call('state', {}, a.secret)).team.photoStatus, 'pending');
+  await call('host/team', {id: a.id, action: 'approvePhoto'}); assert.equal(await board(), photo);
+  await call('host/settings', {teamPhotos: false}); assert.equal(await board(), null);
+  assert.equal((await upload(Buffer.from([255, 216, 255, 224]))).status, 403);
+  await call('host/settings', {teamPhotos: true}); await call('host/team', {id: a.id, action: 'rejectPhoto'});
+  assert.equal(await board(), null); assert.equal((await fetch(url() + photo)).status, 404);
+}));

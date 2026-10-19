@@ -1,4 +1,4 @@
-import {$, element, api, message, readStorage, writeStorage, download, renderMedia, renderSolution, timeText, selectOptions, letters, live, enableSound, buzzSound, renderPinpoint, bingoCall} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, download, renderMedia, renderSolution, timeText, selectOptions, letters, live, enableSound, buzzSound, renderPinpoint, bingoCall, avatar} from './app.js';
 import {parseSqRound, parseQuickQuestion} from './sqimport.js';
 let key = readStorage('pubquiz-host', true), state = null, library = null, editingId = null, tab = 'live', dirty = false, reviewId = '', reviewSignature = '', busy = false;
 const uid = () => 'id-' + crypto.getRandomValues(new Uint32Array(4)).join('-');
@@ -208,6 +208,7 @@ $('registration').onclick = () => action(() => request('settings', {registration
 $('visibility').onclick = () => action(() => request('settings', {leaderboardVisible: !state.settings.leaderboardVisible}));
 $('scramble').onclick = () => action(() => request('settings', {scrambleKeypads: !state.settings.scrambleKeypads}), 'Keypad scrambling updated — applies from the next question');
 $('phrases').onclick = () => action(() => request('settings', {bingoPhrases: !state.settings.bingoPhrases}));
+$('photos').onclick = () => action(() => request('settings', {teamPhotos: !state.settings.teamPhotos}));
 $('blockedForm').onsubmit = e => {e.preventDefault(); action(() => request('settings', {blockedWords: $('blockedWords').value}), 'Blocked words saved');};
 $('displayMode').onchange = () => action(() => request('settings', {displayMode: $('displayMode').value}));
 $('finish').onclick = () => action(async () => {
@@ -243,7 +244,9 @@ $('printSheets').onclick = () => {
 };
 function teamControls(team) {
   const box = element('article', undefined, 'card'); box.append(element('h3', team.name), element('p', `${team.score} pts · ${team.enabled ? team.connected ? 'Connected' : 'Disconnected' : 'Disabled'}`));
-  for (const [label, actionName] of [['Rename', 'rename'], ['Issue recovery code', 'recover'], [team.enabled ? 'Disable' : 'Restore', team.enabled ? 'disable' : 'restore']]) {
+  const photoActions = team.photo ? (team.photo_status === 'pending' ? [['Approve photo', 'approvePhoto'], ['Reject photo', 'rejectPhoto']] : [['Remove photo', 'rejectPhoto']]) : [];
+  if (team.photo) box.append(avatar(team.photo), element('p', team.photo_status === 'pending' ? 'Photo waiting for approval' : 'Photo approved', 'muted'));
+  for (const [label, actionName] of [...photoActions, ['Rename', 'rename'], ['Issue recovery code', 'recover'], [team.enabled ? 'Disable' : 'Restore', team.enabled ? 'disable' : 'restore']]) {
     const button = element('button', label, 'subtle'); button.onclick = () => action(async () => {
       const body = {id: team.id, action: actionName};
       if (actionName === 'rename') {body.name = prompt('Team name', team.name); if (!body.name) return;}
@@ -305,9 +308,11 @@ function renderState(s) {
   $('reveal').textContent = q?.revealed ? 'Hide answer reveal' : 'Reveal answer';
   $('registration').textContent = s.settings.registrationOpen ? 'Close registration' : 'Open registration'; $('registration').disabled = s.settings.ended;
   $('visibility').textContent = s.settings.leaderboardVisible ? 'Hide leaderboard' : 'Show leaderboard';
+  $('photos').textContent = `Team photos: ${s.settings.teamPhotos ? 'on' : 'off'}`;
   $('scramble').textContent = `Scramble keypads: ${s.settings.scrambleKeypads ? 'on' : 'off'}`; $('phrases').textContent = `Bingo phrases: ${s.settings.bingoPhrases ? 'on' : 'off'}`;
   if (!$('blockedForm').contains(document.activeElement)) $('blockedWords').value = s.blockedWords.join('\n'); $('displayMode').value = s.settings.displayMode; $('finish').textContent = s.settings.ended ? 'Resume quiz' : 'Finish quiz';
-  const offline = s.teams.filter(t => t.enabled && !t.connected); $('alerts').textContent = offline.length ? `⚠ Disconnected: ${offline.map(t => t.name).join(', ')}` : '';
+  const offline = s.teams.filter(t => t.enabled && !t.connected), photos = s.teams.filter(t => t.photo_status === 'pending').length;
+  $('alerts').textContent = [offline.length ? `⚠ Disconnected: ${offline.map(t => t.name).join(', ')}` : '', photos ? `📷 ${photos} team ${photos === 1 ? 'photo' : 'photos'} waiting for approval in Teams & results` : ''].filter(Boolean).join(' · ');
   const played = new Set(s.history.map(q => q.sourceId)); const all = library?.rounds.flatMap(r => r.questions) || [];
   $('progress').textContent = `${all.filter(q => played.has(q.id)).length} of ${all.length} saved questions played`;
   if (library && library.revision !== s.libraryRevision) $('libraryStatus').textContent = 'Saved quiz changed in another window. Reload before editing.';

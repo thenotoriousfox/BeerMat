@@ -1,5 +1,5 @@
 import {qrMatrix, wifiCode} from './qr.js';
-import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, sounds, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, sounds, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('pubquiz-team'), current = null, renderedQuestion = undefined, offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
 let localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0, winnerShown = '';
@@ -159,6 +159,9 @@ function playerState(s) {
       if (localDraft !== null) $('draftStatus').textContent = 'Draft restored — submit when ready';
     }
   }
+  $('photoDetails').hidden = !s.settings.teamPhotos; $('myPhoto').hidden = !s.team.photo;
+  if (s.team.photo && $('myPhoto').getAttribute('src') !== s.team.photo) $('myPhoto').src = s.team.photo;
+  $('photoStatus').textContent = !s.team.photo ? 'Add a team photo to appear on the big screen. The quizmaster approves it first.' : s.team.photoStatus === 'approved' ? '✓ Approved — showing on the big screen' : 'Waiting for the quizmaster to approve it';
   selectOptions($('sound'), sounds.map(([label], i) => [String(i), label]), document.activeElement === $('sound') ? undefined : String(s.team.sound ?? ''));
   if (s.answer && !['buzzer', 'bingo'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? 'Your final answer is safely stored on the quiz laptop.' : `Your answer scored ${s.answer.points} ${Math.abs(s.answer.points) === 1 ? 'point' : 'points'}.`; localDraft = null; writeStorage(draftKey(q.id), '');}
   renderSolution($('solution'), q); updateControls();
@@ -209,6 +212,7 @@ function displayState(s) {
   const b = q?.buzz; $('projectBuzz').hidden = !b;
   if (b) {
     $('buzzLeader').textContent = b.active ? `🔔 ${b.active.name}` : q.open ? 'Buzzers open' : '';
+    if (b.active?.photo) $('buzzLeader').prepend(avatar(b.active.photo));
     $('buzzDetail').textContent = b.agreeOpen ? `“${b.announced}” — agree now! ${b.agreeCount} agreed` : b.queue.filter(x => x.status === 'queued').map(x => x.name).join(' · ');
     const leader = b.active?.name || ''; if (leader && leader !== lastBuzzer) buzzSound(leader, b.active.sound); lastBuzzer = leader;
   }
@@ -236,6 +240,7 @@ function renderWheel(wheel, fresh) {
 function renderWinner(s) {
   const top = s.teams.filter(t => t.rank === 1), names = top.map(t => t.name).join(' & ');
   $('winnerName').textContent = !s.settings.leaderboardVisible ? 'Scores are hidden for now' : names || 'No teams yet';
+  $('winnerPhotos').replaceChildren(...(s.settings.leaderboardVisible ? top.filter(t => t.photo).map(t => avatar(t.photo)) : []));
   $('winnerScore').textContent = top.length && s.settings.leaderboardVisible ? `${top[0].score} points${top.length > 1 ? ' — a tie!' : ''}` : '';
   $('podium').replaceChildren(...s.teams.filter(t => t.rank > 1 && t.rank <= 3).map(t => {const li = element('li'); li.append(element('span', `${t.rank === 2 ? '🥈' : '🥉'} ${t.name}`), element('strong', `${t.score} pts`)); return li;}));
   if (names && names !== winnerShown) {
@@ -307,7 +312,26 @@ if (role === 'player') {
     await updates.update();
   };
 }
+// Photos are cropped square and shrunk on the phone, so only a small JPEG ever reaches the laptop.
+async function shrinkPhoto(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    const side = Math.min(img.naturalWidth, img.naturalHeight), canvas = document.createElement('canvas'); canvas.width = canvas.height = 360;
+    canvas.getContext('2d').drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, 360, 360);
+    return await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+  } finally {URL.revokeObjectURL(url);}
+}
 if (role === 'player') {
+  $('photoInput').onchange = async () => {
+    const file = $('photoInput').files[0]; $('photoInput').value = ''; if (!file) return;
+    try {
+      $('photoStatus').textContent = 'Uploading…';
+      const response = await fetch('/api/team/photo', {method: 'POST', headers: {Authorization: 'Bearer ' + secret, 'Content-Type': 'image/jpeg'}, body: await shrinkPhoto(file), signal: AbortSignal.timeout(20000)});
+      const data = await response.json(); if (!response.ok) throw Error(data.error);
+      message('Photo sent — the quizmaster will approve it'); await updates.update();
+    } catch (e) {message(e.message || 'That photo could not be used', true);}
+  };
   $('sound').onchange = async () => {enableSound(); const sound = Number($('sound').value); buzzSound('', sound); try {await api('team/sound', {sound}, secret); message('Buzzer sound saved');} catch (e) {message(e.message, true);}};
 }
 if (role === 'display') {

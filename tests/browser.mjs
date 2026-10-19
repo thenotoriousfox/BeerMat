@@ -179,6 +179,13 @@ try {
   await visible(projector, '#wheelSection'); await waitFor(projector, () => document.getElementById('wheelResult').textContent.startsWith('🎉'));
   assert.match(await projector.locator('#wheelResult').textContent(), /Red|Blue|Green/);
   log('spin the wheel on the projector; team buzzer sound choice saved');
+  await player.locator('#photoDetails').evaluate(d => d.open = true); await player.locator('#photoInput').setInputFiles({name: 'selfie.png', mimeType: 'image/png', buffer: makePng(640, 480)});
+  await waitFor(player, () => document.getElementById('photoStatus').textContent.includes('Waiting'));
+  await host.locator('[data-tab=teams]').click(); await host.locator('#teamCards article', {hasText: 'Fox team'}).getByRole('button', {name: 'Approve photo'}).click();
+  await waitFor(player, () => document.getElementById('photoStatus').textContent.includes('Approved'));
+  await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard');
+  await waitFor(projector, () => document.querySelector('#leaderboard .avatar')?.naturalWidth === 360);
+  log('team photo: shrunk to a 360px JPEG on the phone, approved by the host, shown on the TV leaderboard');
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await host.locator('#finish').click(); await waitFor(projector, () => document.getElementById('boardStatus').textContent === 'Final standings');
   await visible(projector, '#winnerSection'); await waitFor(projector, () => document.getElementById('winnerName').textContent === 'Fox team' && document.querySelectorAll('#confetti span').length === 80);
   assert.match(await projector.locator('#podium').textContent(), /🥈 Owl team/); await waitFor(player, () => document.getElementById('answerState').textContent === 'Quiz finished');

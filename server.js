@@ -1,7 +1,7 @@
 import http from 'node:http';
 import {DatabaseSync} from 'node:sqlite';
 import {randomBytes, randomInt, timingSafeEqual, createHash} from 'node:crypto';
-import {existsSync, mkdirSync, writeFileSync, statSync, createReadStream} from 'node:fs';
+import {existsSync, mkdirSync, writeFileSync, statSync, createReadStream, unlinkSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {offensive} from './names.js';
@@ -12,7 +12,7 @@ const token = () => randomBytes(24).toString('hex');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const equal = (a, b) => typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav'};
-const security = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; media-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"};
+const security = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; media-src 'self'; img-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"};
 // A late phone may not gain more than this much speed-bonus time over the moment the question opened.
 const DELIVERY_GRACE_MS = 2000;
 const SESSION_MS = 12 * 60 * 60 * 1000;
@@ -42,6 +42,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   }
   column('teams', 'enabled', 'INTEGER NOT NULL DEFAULT 1');
   column('teams', 'sound', 'INTEGER');
+  column('teams', 'photo', 'TEXT');
+  column('teams', 'photo_status', 'TEXT');
   column('questions', 'paused_ms', 'INTEGER');
   column('questions', 'revealed', 'INTEGER NOT NULL DEFAULT 0');
   column('questions', 'settled', 'INTEGER NOT NULL DEFAULT 0');
@@ -63,7 +65,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'leaderboard', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true};
+  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'leaderboard', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, teamPhotos: true};
   const SOUNDS = 8;
   const settings = () => ({...defaultSettings, ...getMeta('settings', {})});
   const library = () => getMeta('library', {revision: 0, title: 'My quiz', rounds: []});
@@ -114,9 +116,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   }
   function buzzState(q, data, teamId = null) {
     if (data.type !== 'buzzer') return null;
-    const queue = rows(`SELECT b.team,b.at,b.status,t.name,t.sound FROM buzzes b JOIN teams t ON t.id=b.team WHERE b.question=? ORDER BY b.at,b.rowid`, q.id);
+    const queue = rows(`SELECT b.team,b.at,b.status,t.name,t.sound,t.photo,t.photo_status FROM buzzes b JOIN teams t ON t.id=b.team WHERE b.question=? ORDER BY b.at,b.rowid`, q.id);
     const active = queue.find(b => b.status === 'active');
-    return {variation: data.variation, queue: queue.map(({team, name, status}) => ({team, name, status})), active: active ? {team: active.team, name: active.name, sound: active.sound} : null,
+    return {variation: data.variation, queue: queue.map(({team, name, status}) => ({team, name, status})), active: active ? {team: active.team, name: active.name, sound: active.sound, photo: publicPhoto(active)} : null,
       announced: q.announced || '', agreeOpen: q.agree_deadline > now(), agreeDeadline: q.agree_deadline || null,
       agreeCount: one('SELECT COUNT(*) n FROM agrees WHERE question=?', q.id).n,
       ...(teamId ? {buzzed: queue.find(b => b.team === teamId)?.status || null, agreed: !!one('SELECT 1 FROM agrees WHERE question=? AND team=?', q.id, teamId), lockedOut: lockedOut(q, teamId)} : {})};
@@ -153,14 +155,20 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   }
   function scores(includeDisabled = false) {
     const live = liveTeams();
-    const teams = rows(`SELECT id,name,seen,enabled,
+    const teams = rows(`SELECT id,name,seen,enabled,photo,photo_status,
       COALESCE((SELECT SUM(a.points) FROM answers a JOIN questions q ON a.question=q.id WHERE a.team=teams.id AND (q.closed=1 OR q.settled=1)),0)
       +COALESCE((SELECT SUM(points) FROM adjustments WHERE team=teams.id),0) score FROM teams ${includeDisabled ? '' : 'WHERE enabled=1'} ORDER BY score DESC,name`);
     let rank = 0, previous;
     return teams.map((t, i) => {if (previous !== t.score) rank = i + 1; previous = t.score; return {...t, rank, connected: !!t.enabled && (live.has(t.id) || now() - t.seen < 15000)};});
   }
+  // Only photos the quizmaster approved are ever shown to other teams or on the TV.
+  const publicPhoto = t => settings().teamPhotos && t.photo_status === 'approved' ? t.photo : null;
+  function removePhoto(team) {
+    if (team.photo) try {unlinkSync(path.join(mediaDir, path.basename(team.photo)));} catch {}
+    run('UPDATE teams SET photo=NULL,photo_status=NULL WHERE id=?', team.id);
+  }
   function publicScores() {
-    return settings().leaderboardVisible ? scores().map(({seen, connected, enabled, ...t}) => t) : [];
+    return settings().leaderboardVisible ? scores().map(({seen, connected, enabled, photo, photo_status, ...t}) => ({...t, photo: publicPhoto({photo, photo_status})})) : [];
   }
   function publicState() { return {serverTime: now(), settings: settings(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null)}; }
 
@@ -329,6 +337,16 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         const name = `${token()}${ext}`; writeFileSync(path.join(mediaDir, name), data, {flag: 'wx', mode: 0o600});
         return send(200, {media: '/media/' + name});
       }
+      if (p === '/api/team/photo') {
+        const team = one('SELECT * FROM teams WHERE secret=?', auth || ''); requireValue(team, 'Team recovery code required', 401);
+        requireValue(team.enabled && settings().teamPhotos, 'Team photos are switched off', 403);
+        const data = await readBody(req, 512 * 1024);
+        requireValue(data.length > 3 && data[0] === 255 && data[1] === 216 && data[2] === 255, 'Photo must be a JPEG');
+        mkdirSync(mediaDir, {recursive: true});
+        const name = `team-${token()}.jpg`; writeFileSync(path.join(mediaDir, name), data, {flag: 'wx', mode: 0o600});
+        removePhoto(team); run(`UPDATE teams SET photo=?,photo_status='pending' WHERE id=?`, '/media/' + name, team.id);
+        return send(200, {photo: '/media/' + name, status: 'pending'});
+      }
       let body;
       try {body = JSON.parse((await readBody(req, 4 * 1024 * 1024)).toString() || '{}');} catch (e) {if (e instanceof QuizError) throw e; throw new QuizError('Invalid JSON');}
       requireValue(body && typeof body === 'object' && !Array.isArray(body), 'Invalid request');
@@ -356,7 +374,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         }
         if (p === '/api/host/settings') {
           const next = {...settings()};
-          for (const k of ['registrationOpen', 'leaderboardVisible', 'ended', 'scrambleKeypads', 'bingoPhrases']) if (Object.hasOwn(body, k)) {requireValue(typeof body[k] === 'boolean', 'Invalid setting'); next[k] = body[k];}
+          for (const k of ['registrationOpen', 'leaderboardVisible', 'ended', 'scrambleKeypads', 'bingoPhrases', 'teamPhotos']) if (Object.hasOwn(body, k)) {requireValue(typeof body[k] === 'boolean', 'Invalid setting'); next[k] = body[k];}
           if (Object.hasOwn(body, 'title')) {requireValue(typeof body.title === 'string' && body.title.trim() && body.title.length <= 100, 'Title must contain 1–100 characters'); next.title = body.title.trim();}
           // Shown on the projector's join screen; the Wi-Fi name should match the hotspot's --ssid.
           if (Object.hasOwn(body, 'joinSsid')) {requireValue(typeof body.joinSsid === 'string' && body.joinSsid.trim() && Buffer.byteLength(body.joinSsid.trim()) <= 32, 'Wi-Fi name must be 1–32 bytes'); next.joinSsid = body.joinSsid.trim();}
@@ -451,6 +469,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/team') {
           requireValue(typeof body.id === 'string', 'Team ID required');
           const team = one('SELECT * FROM teams WHERE id=?', body.id); requireValue(team, 'Team not found', 404);
+          if (body.action === 'approvePhoto') {requireValue(team.photo, 'No photo to approve', 409); run(`UPDATE teams SET photo_status='approved' WHERE id=?`, team.id); return send(200, {ok: true});}
+          if (body.action === 'rejectPhoto') {removePhoto(team); return send(200, {ok: true});}
           if (body.action === 'recover') {const secret = token(); run('UPDATE teams SET secret=?,seen=0 WHERE id=?', secret, team.id); return send(200, {secret});}
           if (body.action === 'rename') {
             requireValue(typeof body.name === 'string' && body.name.trim().length >= 2 && body.name.trim().length <= 40, 'Team name must be 2–40 characters');
@@ -482,7 +502,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         const a = q && one('SELECT value,points,marks,submitted FROM answers WHERE team=? AND question=?', team.id, q.id);
         // Points stay hidden until scoring is final.
         const answer = !a || a.submitted === null && !q.settled && !q.closed ? null : pending(q) ? {value: a.value} : {value: a.value, points: a.points, marks: a.marks};
-        return send(200, {...publicState(), question: publicQuestion(q, false, team.id), team: {id: team.id, name: team.name, sound: team.sound}, answer,
+        return send(200, {...publicState(), question: publicQuestion(q, false, team.id), team: {id: team.id, name: team.name, sound: team.sound, photo: team.photo, photoStatus: team.photo_status}, answer,
           draft: one('SELECT value FROM drafts WHERE team=? AND question=?', team.id, q?.id || 0) || null});
       }
       if (p === '/api/team/sound') {
