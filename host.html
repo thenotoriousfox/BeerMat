@@ -1,0 +1,8 @@
+<!doctype html><html lang="en"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PubQuiz — Host</title><style>body{font:17px system-ui;max-width:850px;margin:30px auto;padding:15px}input,button{font:inherit;padding:9px;margin:5px}li{margin:8px 0}</style><h1>Quizmaster</h1><section id="login"><input id="key" type="password" placeholder="Host key"><button id="auth">Unlock</button></section><section id="panel" hidden><input id="question" placeholder="Question text" size="50"><button id="open">Open question</button><button id="close">Close question</button><h2>Teams and answers</h2><ul id="teams"></ul></section><p id="msg"></p><script src="/socket.io/socket.io.js"></script><script>
+const socket=io(),$=id=>document.getElementById(id);
+$('auth').onclick=()=>socket.emit('host:auth',$('key').value,r=>{if(r.ok){$('login').hidden=true;$('panel').hidden=false;}else $('msg').textContent='Wrong key';});
+$('open').onclick=()=>socket.emit('host:question',$('question').value,r=>{if(!r?.ok)$('msg').textContent='Could not open question';});
+$('close').onclick=()=>socket.emit('host:close');
+socket.on('state',s=>{$('teams').replaceChildren();for(const t of s.teams){const li=document.createElement('li');const a=s.answers.find(a=>a.teamId===t.id);li.append(document.createTextNode(`${t.name} (${t.score} points) — ${t.connected?'connected':'DISCONNECTED'} — ${a?.answer??'No answer'}`));for(const p of [1,-1]){const b=document.createElement('button');b.textContent=p===1?'+1':'−1';b.onclick=()=>socket.emit('host:score',{teamId:t.id,points:p});li.append(b);}$('teams').append(li);}});
+socket.on('team:disconnected',()=>{$('msg').textContent='A team disconnected — check the team list';});
+</script></html>
