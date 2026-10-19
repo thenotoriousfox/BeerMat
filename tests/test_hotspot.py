@@ -28,5 +28,19 @@ class HotspotTests(unittest.TestCase):
                 patch('subprocess.run', side_effect=lambda cmd, check: type('R', (), {'returncode': next(results)})) as run, patch('builtins.print'):
             hotspot.main()
             self.assertEqual(run.call_count, 4)
+    def test_apply_runs_every_step_in_order(self):
+        calls = []
+        def fake(cmd, **kw):
+            calls.append(cmd)
+            out = {('nmcli', '-g', 'WIFI-PROPERTIES.AP'): 'yes\n', ('nmcli', '-g', 'NAME'): 'Home WiFi\ndocker0\n', ('nft', 'list', 'tables'): 'table inet filter\n'}
+            return type('R', (), {'stdout': out.get(tuple(cmd[:3]), ''), 'returncode': 0})
+        with patch('sys.argv', ['hotspot.py', 'up', '--interface', 'wlan0', '--apply']), patch('os.geteuid', return_value=0), \
+                patch.object(hotspot, 'run', side_effect=fake), patch.object(hotspot.Path, 'mkdir'), patch.object(hotspot.Path, 'write_text'), patch('builtins.print'):
+            hotspot.main()
+        self.assertIn(['nmcli', '-g', 'NAME', 'connection', 'show'], calls)
+        self.assertEqual([c[:3] for c in calls if c[0] == 'nmcli' and c[1] == 'connection'], [['nmcli', 'connection', 'add'], ['nmcli', 'connection', 'modify'], ['nmcli', 'connection', 'up']])
+        self.assertTrue(any(c[0] == 'systemd-run' for c in calls))
+    def test_dnsmasq_stays_off_loopback(self):
+        self.assertIn('except-interface=lo', hotspot.dns_config('wlan0'))
 if __name__ == '__main__':
     unittest.main()

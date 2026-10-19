@@ -24,6 +24,7 @@ def commands(interface, ssid):
 def dns_config(interface):
     commands(interface, 'PubQuiz')
     return f'''interface={interface}
+except-interface=lo
 bind-interfaces
 listen-address=10.42.0.1
 port=53
@@ -89,7 +90,8 @@ def main():
     capability = run(['nmcli', '-g', 'WIFI-PROPERTIES.AP', 'device', 'show', a.interface], capture_output=True).stdout.strip()
     if capability != 'yes':
         p.error('Selected Wi-Fi adapter does not report AP support')
-    existing = run(['nmcli', '-g', 'connection.id', 'connection', 'show'], capture_output=True).stdout.splitlines()
+    # In list mode nmcli calls the connection name field NAME (connection.id only works for a single connection).
+    existing = run(['nmcli', '-g', 'NAME', 'connection', 'show'], capture_output=True).stdout.splitlines()
     if PROFILE in existing:
         p.error('PubQuiz profile already exists; inspect/stop it first')
     if run(['nft', 'list', 'tables'], capture_output=True).stdout.find('table inet pubquiz') >= 0:
