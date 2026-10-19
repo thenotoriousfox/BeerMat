@@ -1,0 +1,14 @@
+{
+  "title": "PubQuiz rehearsal",
+  "rounds": [
+    {
+      "id": "demo-round-one",
+      "title": "Try the controls",
+      "questions": [
+        {"id":"demo-hello","text":"Type hello","type":"text","seconds":30,"points":1,"answer":"hello","aliases":["hi"],"speedBonus":0},
+        {"id":"demo-choice","text":"Choose orange","type":"choice","seconds":20,"points":1,"answer":"orange","options":["orange","blue","green"],"speedBonus":0},
+        {"id":"demo-sheet","text":"Practice answer sheet","type":"sheet","seconds":120,"points":2,"items":["Type one","Type two"],"itemAnswers":["one","two"],"speedBonus":0}
+      ]
+    }
+  ]
+}

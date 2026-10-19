@@ -1,40 +1,50 @@
-const $=id=>document.getElementById(id),role=document.body.dataset.role;
-let secret='',host='',qid=null,last=null,questions=[],isSheet=false;
-try{secret=localStorage.getItem('pubquiz-team')||'';host=sessionStorage.getItem('pubquiz-host')||'';}catch{}
-const message=s=>{$('message').textContent=s;};
-async function api(p,b={},key=role==='host'?host:secret){const r=await fetch('/api/'+p,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify(b),signal:AbortSignal.timeout(5000)});const data=await r.json();if(!r.ok){const e=Error(data.error);e.status=r.status;throw e;}return data;}
-function leaderboard(teams){$('leaderboard')?.replaceChildren(...teams.map(t=>{const li=document.createElement('li');li.textContent=`${t.name} — ${t.score}`;return li;}));}
-function timer(q){return q?.open?`${Math.max(0,Math.ceil((q.deadline-Date.now())/1000))} seconds remaining`:'Answers closed';}
-function showPlayer(s){$('join').hidden=true;$('game').hidden=false;$('team').textContent=s.team.name;$('code').textContent=secret;const q=s.question;$('status').textContent=timer(q);leaderboard(s.teams);
- if(q?.id!==qid){qid=q?.id;isSheet=q?.type==='sheet';$('question').textContent=q?.text||'Waiting for quizmaster…';$('inputs').replaceChildren();$('media').replaceChildren();
-  if(q?.media){const el=document.createElement(q.type==='audio'?'audio':'img');el.src=q.media;if(q.type==='audio')el.controls=true;else el.alt='Quiz picture';$('media').append(el);}
-  if(q){const items=q.type==='sheet'?q.items:[q.text];for(const [i,item]of items.entries()){const label=document.createElement('label');label.textContent=q.type==='sheet'?`${i+1}. ${item}`:'Your answer';let input=document.createElement(q.type==='choice'?'select':'input');if(q.type==='choice'){const empty=document.createElement('option');empty.value='';empty.textContent='Choose…';input.append(empty,...q.options.map(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;return o;}));}else input.maxLength=300;label.append(input);$('inputs').append(label);}}
- }
- const disabled=!q?.open||!!s.answer;for(const x of $('inputs').querySelectorAll('input,select'))x.disabled=disabled;$('submit').disabled=disabled;if(s.answer){$('status').textContent='Answer saved';let values=isSheet?JSON.parse(s.answer.value):[s.answer.value];[...$('inputs').querySelectorAll('input,select')].forEach((x,i)=>{x.value=values[i]||'';});}
+export const $ = id => document.getElementById(id);
+export const element = (tag, text, className) => {const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (className) el.className = className; return el;};
+export function readStorage(key, session = false) {try {return (session ? sessionStorage : localStorage).getItem(key) || '';} catch {return '';}}
+export function writeStorage(key, value, session = false) {try {(session ? sessionStorage : localStorage).setItem(key, value); return true;} catch {return false;}}
+export async function api(route, body = {}, key = '') {
+  const response = await fetch('/api/' + route, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body), signal: AbortSignal.timeout(8000)});
+  const data = await response.json();
+  if (!response.ok) {const error = Error(data.error || 'Request failed'); error.status = response.status; throw error;}
+  return data;
 }
-async function poll(){try{
- if(role==='display'){const r=await fetch('/api/leaderboard',{signal:AbortSignal.timeout(5000)});leaderboard((await r.json()).teams);message('');}
- if(role==='player'&&secret){showPlayer(await api('state'));message('Connected');}
- if(role==='host'&&host){const s=await api('host/state');$('login').hidden=true;$('panel').hidden=false;last=s;$('question').textContent=s.question?.text||'Waiting';$('status').textContent=timer(s.question);
- const selected=$('adjustTeam').value;$('adjustTeam').replaceChildren(...s.teams.map(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=t.name;return o;}));if(selected)$('adjustTeam').value=selected;
- $('teams').replaceChildren(...s.teams.map(t=>{const box=document.createElement('p');const a=s.answers.find(a=>a.team===t.id);box.textContent=`${t.name} — ${t.score} points — ${t.connected?'connected':'⚠ DISCONNECTED'} — ${a?.value||'No answer'} `;
- if(a&&!s.question?.open){for(const pts of [0,s.question.points]){const b=document.createElement('button');b.textContent=`Set ${pts}`;b.onclick=()=>act(()=>api('host/mark',{question:s.question.id,team:t.id,points:pts}));box.append(b);}}return box;}));message(s.teams.some(t=>!t.connected)?'⚠ Disconnected teams — check team list':'Connected');
- }
- }catch(e){if(e.status===401&&role==='player'){$('join').hidden=false;$('game').hidden=true;secret='';}if(role==='player')$('submit').disabled=true;message(e.status?e.message:'Connection lost — reconnecting automatically. Do not create a new team.');}finally{setTimeout(poll,2000);}}
-async function act(f){try{await f();message('Saved');}catch(e){message(e.message);}}
-if(role==='player'){
- const save=key=>{secret=key;qid=null;try{localStorage.setItem('pubquiz-team',key);}catch{message('Storage unavailable: copy your recovery code');}};
- $('joinButton').onclick=()=>act(async()=>{const r=await api('join',{name:$('name').value});save(r.secret);showPlayer(await api('state'));});
- $('recover').onclick=()=>act(async()=>{const code=$('recovery').value.trim();const s=await api('state',{},code);save(code);showPlayer(s);});
- $('submit').onclick=()=>act(async()=>{const values=[...$('inputs').querySelectorAll('input,select')].map(x=>x.value);await api('answer',{question:qid,value:isSheet?values:values[0]});showPlayer(await api('state'));});
+export function message(text, error = false) {$('message').textContent = text; $('message').classList.toggle('error', error);}
+export function download(name, data) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}));
+  const link = element('a'); link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-if(role==='host'){
- $('auth').onclick=()=>act(async()=>{host=(await api('login',{key:$('key').value})).key;try{sessionStorage.setItem('pubquiz-host',host);}catch{}$('key').value='';});
- $('open').onclick=()=>act(()=>api('host/open',JSON.parse($('editor').value)));
- $('close').onclick=()=>act(()=>api('host/close'));
- $('adjust').onclick=()=>act(()=>api('host/adjust',{team:$('adjustTeam').value,points:Number($('points').value),reason:$('reason').value}));
- $('import').onchange=()=>act(async()=>{questions=JSON.parse(await $('import').files[0].text());if(!Array.isArray(questions))throw Error('Quiz must be a JSON array');$('queue').replaceChildren(...questions.map((q,i)=>{const o=document.createElement('option');o.value=i;o.textContent=`${i+1}. ${q.text}`;return o;}));});
- $('load').onclick=()=>{$('editor').value=JSON.stringify(questions[Number($('queue').value)],null,2);};
- $('export').onclick=()=>act(async()=>{const data=await api('host/export');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='pubquiz-results.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);});
+export function renderMedia(container, question) {
+  const value = question?.media || '';
+  if (container.dataset.media === value) return;
+  container.dataset.media = value; container.replaceChildren();
+  if (!value) return;
+  const media = element(question.type === 'audio' ? 'audio' : 'img'); media.src = value;
+  if (question.type === 'audio') {media.controls = true; media.preload = 'metadata';} else media.alt = 'Quiz picture';
+  container.append(media);
 }
-poll();
+export function renderBoard(container, teams) {
+  container.replaceChildren(...teams.map(team => {
+    const li = element('li'); li.append(element('span', `${team.rank}. ${team.name}`), element('strong', `${team.score} pts`)); return li;
+  }));
+}
+export function timeText(question, offset = 0) {
+  if (!question) return 'Waiting for the quizmaster';
+  if (question.paused) return `Paused · ${Math.ceil(question.remaining / 1000)}s remaining`;
+  if (!question.open || question.deadline <= Date.now() + offset) return 'Answers closed';
+  return `${Math.max(0, Math.ceil((question.deadline - Date.now() - offset) / 1000))}s remaining`;
+}
+export function renderSolution(container, question) {
+  container.replaceChildren();
+  if (!question?.revealed) return;
+  container.append(element('h3', 'Answer reveal'));
+  if (question.type === 'sheet') container.append(...question.items.map((item, i) => element('p', `${i + 1}. ${item} — ${question.itemAnswers?.[i] || 'Marked by quizmaster'}`)));
+  else container.append(element('p', question.answer || 'Marked by quizmaster', 'solution'));
+}
+export function selectOptions(select, entries, chosen) {
+  const signature = JSON.stringify(entries);
+  if (select.dataset.options !== signature) {
+    select.dataset.options = signature;
+    select.replaceChildren(...entries.map(([value, label]) => {const o = element('option', label); o.value = value; return o;}));
+  }
+  if (chosen !== undefined && [...select.options].some(o => o.value === String(chosen))) select.value = chosen;
+}

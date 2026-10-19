@@ -35,29 +35,17 @@ Network configuration references: [NetworkManager settings](https://networkmanag
 
 DNS and plain HTTP captive probes open registration. Automatic opening depends on the phone OS and is not guaranteed. HTTPS sites cannot be transparently redirected without certificate errors. The reliable fallback is opening **http://10.42.0.1** in a normal browser (including the `http://`). For direct access without redirection use **http://10.42.0.1:3000**.
 
-Each new team receives an unguessable recovery code. It is saved in browser storage and shown under “Team recovery code”. Copy it before leaving a captive mini-browser: the normal browser has separate storage. Use the code to resume from another browser/device; names alone never grant team access. All tabs holding a team's code represent that same team; first accepted answer wins. Keep the code private. Lost codes require retaining the original browser storage or creating a differently named team; this version has no host identity-reset interface.
+Each new team receives an unguessable recovery code. It is saved in browser storage and shown under “Team recovery code”. Copy it before leaving a captive mini-browser: the normal browser has separate storage. Use the code to resume from another browser/device; names alone never grant team access. All tabs holding a team's code represent that same team; first accepted answer wins. Keep the code private. If a code is lost, the quizmaster can issue a new recovery code for the same team; this revokes the old code and preserves answers, drafts and scores.
 
-Phones send a heartbeat by polling every two seconds. The dashboard flags teams after 15 seconds without a request and clears the flag when requests resume. Sleeping phones, background tabs and captive windows can also trigger warnings; a warning means unreachable, not cheating. No notification permission or external ping is needed.
+Phones send a heartbeat by polling every 1.5 seconds. The dashboard flags teams after 15 seconds without a request and clears the flag when requests resume. Sleeping phones, background tabs and captive windows can also trigger warnings; a warning means unreachable, not cheating. No notification permission or external ping is needed.
 
-## Running rounds
+## Gameplay and quizmaster dashboard
 
-Unlock the dashboard, edit the question JSON, then **Open question**. Load a JSON array to queue an entire quiz. Selecting a queued question loads its editor; opening remains an explicit action. Close a question early with **Close question**. The server rejects answers at or after the deadline, outdated question IDs, invalid choices, oversized/empty answers and duplicate submissions. A restart preserves the original deadline; time spent stopped still counts. Keep the laptop system clock accurate during a quiz.
+The dashboard has four screens: **Run quiz**, **Build quiz**, **Mark answers** and **Teams & results**. Use form controls to author and persist named rounds, reorder questions, upload local media, and run the quiz without editing JSON. Text and choice questions support automatic marking and optional speed bonuses. Answer sheets support keyed and manual per-item marking; paper rounds support printed sheets and score adjustments. The quizmaster can pause/resume, close early, reveal answers, moderate/recover teams, hide scores and finish/resume an event.
 
-Examples:
+Players reconnect automatically and retain the same identity, final answers and drafts. They can also recover from another browser using their private code. A quizmaster can rotate a lost code without losing the team's score. The server enforces deadlines, schemas, first-answer locking and host permissions. Scores for an open/paused question are withheld until closure or expiry.
 
-```json
-[
- {"text":"Capital of Wales?","type":"text","seconds":30,"points":1,"answer":"Cardiff"},
- {"text":"Choose the prime","type":"choice","seconds":15,"points":2,"options":["8","11","12"],"answer":"11"},
- {"text":"Identify this landmark","type":"picture","seconds":45,"points":1,"media":"/media/landmark.jpg","answer":"Example"},
- {"text":"Name the song","type":"audio","seconds":60,"points":1,"media":"/media/song.mp3","answer":"Example"},
- {"text":"Written round","type":"sheet","seconds":600,"points":10,"items":["Question one","Question two"]}
-]
-```
-
-Put your own local images/audio in `media/` before opening media questions. Audio has a play button because mobile browsers restrict autoplay. The host can use a player browser for venue audio playback; each phone can also play the clip. No streaming service is used. Only files deliberately placed in media/ are served. Do not put answer keys there.
-
-Text/choice/picture/audio answers use Unicode normalization and case-insensitive exact matching; accents, punctuation and spelling are otherwise significant. The host can override after closing. “Set 0” and “Set N” replace an answer's score, making repeated marking safe. Sheet questions accept one final list; mark each sheet as a whole with the configured maximum or zero, or use the score correction form for partial credit. For physical paper answer sheets, run the round verbally and enter totals through the paper score form, with a reason. Manual adjustments are additive: do not click twice unintentionally. Export results from the dashboard for marking history and backups. Scores are visible live, including automatically awarded points before the question closes.
+See the [complete quizmaster guide](docs/QUIZMASTER.md) for authoring, live play, scoring, recovery and backups. A [small demo quiz](examples/demo-quiz.json) is included for rehearsal; it uses simple instruction questions so you can test without writing a quiz first.
 
 ## Optional internet check
 
@@ -65,13 +53,23 @@ Text/choice/picture/audio answers use Unicode normalization and case-insensitive
 
 ## Persistence and tests
 
-Stop the server before copying `quiz.sqlite` for a consistent backup (or use a SQLite-aware backup tool). Keep backups private: the database contains team recovery secrets. To start a new event, stop the server and use a new `QUIZ_DB` path. Existing teams/scores remain in the old event file. Export JSON excludes recovery secrets; it is a results archive, not an importable database backup. Host logins are memory-only and must be repeated after restart.
+Stop the server before copying `quiz.sqlite` for a consistent backup (or use a SQLite-aware backup tool). Keep backups private: the database contains team recovery secrets. To start a new event, stop the server and use a new `QUIZ_DB` path. Existing teams/scores remain in the old event file. Export JSON excludes recovery secrets; it is a results archive, not an importable database backup. Host logins are memory-only, expire after 12 hours, and must be repeated after restart. The application automatically migrates databases from the earlier prototype.
 
 ```bash
 npm test
 python -m unittest discover -s tests -p 'test_*.py'
-bash -n scripts/*.sh
+bash -n scripts/setup.sh scripts/start.sh scripts/connectivity.sh
 python scripts/hotspot.py up --interface wlan0  # dry run
 ```
 
-See [audit and test limits](docs/AUDIT.md). Before a real event, test on the actual laptop with at least one Android and one iPhone: automatic portal and fallback URL; mini-browser to full-browser recovery; Wi-Fi off/on; phone sleep; server restart; duplicate/late answers; picture and audio; ten or more concurrent teams; firewall compatibility; stop and restore normal Wi-Fi. Physical AP/radio and phone acceptance remain pending; automated plan tests do not establish that they work on your hardware.
+For real browser tests, install the pinned development tooling and a Chromium binary while online, then run:
+
+```bash
+npm ci
+npx playwright install chromium
+npm run test:browser
+```
+
+Browser tooling is development-only. The quiz server itself still has no runtime dependencies and never needs this download during a quiz. The browser suite launches an isolated temporary quiz server and tests authoring, player registration/reconnection/drafts, pause/resume, text/choices/sheets, marking, media decoding/playback, projector view, recovery rotation, paper scoring and finish. It fails on browser JavaScript errors or external page requests.
+
+See [audit and test limits](docs/AUDIT.md). Before a real event, test on the actual laptop with at least one Android and one iPhone: automatic portal and fallback URL; mini-browser to full-browser recovery; Wi-Fi off/on; phone sleep; server restart; duplicate/late answers; picture and audio; ten or more concurrent teams; firewall compatibility; stop and restore normal Wi-Fi. Physical AP/radio and real phone acceptance remain pending; automated gameplay and plan tests do not establish that the hotspot works on your hardware.
