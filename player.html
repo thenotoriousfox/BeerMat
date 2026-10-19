@@ -1,0 +1,8 @@
+<!doctype html><html lang="en"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PubQuiz — Team</title><style>body{font:18px system-ui;max-width:520px;margin:5vh auto;padding:20px;background:#111827;color:white}input,button{font:inherit;padding:12px;margin:5px 0;width:100%;box-sizing:border-box}button{background:#fb923c;border:0;border-radius:8px}small{color:#fca5a5}</style><h1>PubQuiz</h1><section id="join"><p>Enter your team name</p><input id="name" maxlength="40"><button id="joinButton">Join quiz</button></section><section id="game" hidden><p id="status">Waiting for quizmaster…</p><h2 id="question"></h2><input id="answer" placeholder="Your answer"><button id="submit">Submit answer</button></section><small id="message"></small><script src="/socket.io/socket.io.js"></script><script>
+const socket=io();const $=id=>document.getElementById(id);let joined=false;
+$('joinButton').onclick=()=>socket.emit('team:join',$('name').value,r=>{if(!r.ok)return $('message').textContent=r.error;joined=true;$('join').hidden=true;$('game').hidden=false;$('message').textContent='';});
+socket.on('question',q=>{$('question').textContent=q.text||'';$('status').textContent=q.open?'Question open':'Question closed';$('answer').disabled=!q.open;$('submit').disabled=!q.open;$('answer').value='';});
+$('submit').onclick=()=>socket.emit('team:answer',$('answer').value,r=>{$('message').textContent=r.ok?'Answer received':r.error;});
+socket.on('disconnect',()=>{$('message').textContent='Connection lost — tell the quizmaster';$('submit').disabled=true;});
+socket.on('connect',()=>{if(joined){$('message').textContent='Reconnected, but team recovery is not implemented yet. Ask the quizmaster.';$('submit').disabled=true;}});
+</script></html>
