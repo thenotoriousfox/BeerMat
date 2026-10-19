@@ -102,7 +102,8 @@ try {
   const play = async (text) => {await host.locator('[data-tab=build]').click(); await host.locator('#questionSelect').selectOption(await host.locator('#questionSelect option', {hasText: text}).first().getAttribute('value')); await host.locator('#playSelected').click(); await host.locator('[data-tab=live]').click(); await player.getByRole('heading', {name: text, exact: true}).waitFor();};
   const submitted = async page => {await page.locator('#submit').click(); await waitFor(page, () => document.getElementById('answerState').textContent.includes('Final answer saved'));};
   const scoreOf = async name => Number((await host.locator('#teamCards article', {hasText: name}).locator('p').textContent()).split(' ')[0]);
-  await rival.goto(base + '/'); await rival.locator('#name').fill('Owl team'); await rival.locator('#joinButton').click(); await visible(rival, '#game');
+  await rival.goto(base + '/'); await rival.locator('#name').fill('F u c k team'); await rival.locator('#joinButton').click(); await waitFor(rival, () => document.getElementById('message').textContent.includes('different team name'));
+  await rival.locator('#name').fill('Owl team'); await rival.locator('#joinButton').click(); await visible(rival, '#game');
   await host.locator('[data-tab=build]').click(); await host.locator('#roundSelect').selectOption({index: 0});
   await saveQuestion('letter', 'Sonic is a what', {answer: 'h'});
   await saveQuestion('sequence', 'Order one two three', {sequence: 'One\nTwo\nThree'});
@@ -110,7 +111,11 @@ try {
   await saveQuestion('buzzer', 'Classic buzz', {answer: 'Yes'});
   await saveQuestion('buzzer', 'Advanced buzz', {answer: 'Giraffe', variation: 'advanced', agreePoints: '2'});
   await host.locator('[data-tab=teams]').click(); const before = await scoreOf('Fox team');
-  await play('Sonic is a what'); await player.getByRole('button', {name: 'H', exact: true}).click(); await submitted(player);
+  await host.locator('[data-tab=live]').click(); await host.locator('#scramble').click(); await waitFor(host, () => document.getElementById('scramble').textContent.endsWith('on'));
+  await play('Sonic is a what'); await rival.getByRole('heading', {name: 'Sonic is a what', exact: true}).waitFor();
+  const layout = page => page.locator('#inputs .keypad button').allTextContents();
+  assert.notDeepEqual(await layout(player), await layout(rival), 'scrambled keypads differ per team'); assert.deepEqual([...await layout(player)].sort(), [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']);
+  await player.getByRole('button', {name: 'H', exact: true}).click(); await submitted(player);
   await rival.getByRole('button', {name: 'G', exact: true}).click(); await submitted(rival); await host.locator('#close').click();
   await play('Order one two three');
   for (const item of ['One', 'Two', 'Three']) await player.locator('#inputs .keypad button', {hasText: item}).click();
@@ -164,19 +169,21 @@ try {
     const called = (await host.locator('#bingoCalls').textContent()).split(' · ').map(Number);
     if (row.every(n => called.includes(n))) break;
   }
-  await waitFor(projector, () => document.getElementById('bingoBoard').querySelectorAll('.called').length > 0);
+  await waitFor(projector, () => document.getElementById('bingoBoard').querySelectorAll('.called').length > 0 && document.getElementById('bingoCallText').textContent.length > 1);
   for (const n of row) await player.locator('#ticket button', {hasText: new RegExp(`^${n}$`)}).click();
   await player.locator('#claimBingo').click(); await waitFor(player, () => document.getElementById('bingoStatus').textContent.includes('counted'));
   await waitFor(projector, () => document.getElementById('bingoWinners').textContent.includes('Fox team'));
   assert.equal(await host.locator('#callNumber').isDisabled(), true); await host.keyboard.press('c');
-  log('bingo: ticket dabbing, B shortcut calls numbers, verified claim shown on projector');
+  log('bingo: ticket dabbing, B shortcut calls numbers, call phrases, verified claim shown on projector');
   await host.locator('#wheelItems').fill('Red\nBlue\nGreen'); await host.locator('#wheelItems').evaluate(e => e.blur()); await host.keyboard.press('w');
   await visible(projector, '#wheelSection'); await waitFor(projector, () => document.getElementById('wheelResult').textContent.startsWith('🎉'));
   assert.match(await projector.locator('#wheelResult').textContent(), /Red|Blue|Green/);
   log('spin the wheel on the projector; team buzzer sound choice saved');
-  await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await host.locator('#finish').click(); await waitFor(projector, () => document.getElementById('boardStatus').textContent === 'Final standings'); await waitFor(player, () => document.getElementById('answerState').textContent === 'Quiz finished');
+  await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await host.locator('#finish').click(); await waitFor(projector, () => document.getElementById('boardStatus').textContent === 'Final standings');
+  await visible(projector, '#winnerSection'); await waitFor(projector, () => document.getElementById('winnerName').textContent === 'Fox team' && document.querySelectorAll('#confetti span').length === 80);
+  assert.match(await projector.locator('#podium').textContent(), /🥈 Owl team/); await waitFor(player, () => document.getElementById('answerState').textContent === 'Quiz finished');
   assert.equal(await player.locator('#submit').isDisabled(), true);
-  log('host-assisted recovery retains team identity; paper scoring and final leaderboard');
+  log('host-assisted recovery retains team identity; paper scoring; finish shows the winner celebration');
   await quiz.close(); await start(port);
   await host.reload(); await visible(host, '#panel'); // host session persists across a server restart
   await waitFor(player, () => document.getElementById('connection').textContent.includes('Connected'));

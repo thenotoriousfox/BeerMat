@@ -191,3 +191,14 @@ test('join details for the projector are validated and public', () => fixture(as
   assert.equal(board.settings.joinSsid, 'Fox Quiz'); assert.equal(board.settings.displayMode, 'join');
   assert.equal((await fetch(url() + '/qr.js')).status, 200);
 }));
+
+test('blocked names, keypad scrambling and bingo phrase settings', () => fixture(async ({call}) => {
+  assert.equal((await call('join', {name: 'Sh1t Hot'})).status, 400);
+  await call('host/settings', {blockedWords: 'llama\nalpaca'});
+  assert.deepEqual((await call('host/state')).blockedWords, ['llama', 'alpaca']);
+  assert.equal((await call('join', {name: 'Llama Drama'})).status, 400);
+  assert.equal((await call('join', {name: 'Scunthorpe Quizzers'})).status, 200);
+  assert.equal((await call('host/settings', {scrambleKeypads: 'yes'})).status, 400);
+  const settings = await call('host/settings', {scrambleKeypads: true, bingoPhrases: false, displayMode: 'winner'});
+  assert.deepEqual([settings.scrambleKeypads, settings.bingoPhrases, settings.displayMode], [true, false, 'winner']);
+}));

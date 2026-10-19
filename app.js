@@ -111,3 +111,29 @@ export function renderPinpoint(container, question, taps = [], onTap = null) {
   if (onTap) frame.onclick = e => {const r = img.getBoundingClientRect(); onTap([Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))], img);};
   container.append(frame);
 }
+// Traditional UK bingo calls, shown with each number when bingo phrases are switched on.
+const calls = ["Kelly's eye", 'One little duck', 'Cup of tea', 'Knock at the door', 'Man alive', 'Half a dozen', 'Lucky seven', 'Garden gate', "Doctor's orders", 'Cock and hen',
+  'Legs eleven', 'One dozen', 'Unlucky for some', "Valentine's Day", 'Young and keen', 'Sweet sixteen', 'Dancing queen', 'Coming of age', 'Goodbye teens', 'One score',
+  'Key of the door', 'Two little ducks', 'Thee and me', 'Two dozen', 'Duck and dive', 'Pick and mix', 'Gateway to heaven', 'Overweight', 'Rise and shine', 'Dirty Gertie',
+  'Get up and run', 'Buckle my shoe', 'All the threes', 'Ask for more', 'Jump and jive', 'Three dozen', 'More than eleven', 'Christmas cake', 'Steps', 'Naughty forty',
+  'Time for fun', 'Winnie the Pooh', 'Down on your knees', 'Droopy drawers', 'Halfway there', 'Up to tricks', 'Four and seven', 'Four dozen', 'PC', 'Half a century',
+  'Tweak of the thumb', 'Danny La Rue', 'Stuck in the tree', 'Clean the floor', 'Snakes alive', 'Was she worth it?', 'Heinz varieties', 'Make them wait', 'Brighton line', 'Five dozen',
+  "Baker's bun", 'Turn the screw', 'Tickle me sixty-three', 'Red raw', 'Old age pension', 'Clickety click', 'Stairway to heaven', 'Saving grace', 'Either way up', 'Three score and ten',
+  'Bang on the drum', 'Six dozen', 'Queen bee', 'Candy store', 'Strive and strive', 'Trombones', 'Sunset strip', "Heaven's gate", 'One more time', 'Eight and blank',
+  'Stop and run', 'Straight on through', 'Time for tea', 'Seven dozen', 'Staying alive', 'Between the sticks', 'Torquay in Devon', 'Two fat ladies', 'Nearly there', 'Top of the shop'];
+export const bingoCall = n => calls[n - 1] ?? '';
+// Same shuffle every time for a given seed, so a scrambled keypad stays put between refreshes.
+export function seededOrder(length, seed) {
+  let h = 2166136261; for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  const order = Array.from({length}, (_, i) => i);
+  for (let i = length - 1; i > 0; i--) {h = Math.imul(h ^ (h >>> 15), 2246822507) ^ i; const j = (h >>> 0) % (i + 1); [order[i], order[j]] = [order[j], order[i]];}
+  return order;
+}
+export function fanfare() {
+  if (!audio || audio.state !== 'running') return;
+  [[523, 0], [659, 0.15], [784, 0.3], [1047, 0.45], [784, 0.7], [1047, 0.85]].forEach(([freq, offset]) => {
+    const osc = audio.createOscillator(), gain = audio.createGain(), t = audio.currentTime + offset;
+    osc.type = 'triangle'; osc.frequency.value = freq; gain.gain.setValueAtTime(0.15, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    osc.connect(gain).connect(audio.destination); osc.start(t); osc.stop(t + 0.32);
+  });
+}

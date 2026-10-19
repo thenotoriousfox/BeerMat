@@ -1,8 +1,8 @@
 import {qrMatrix, wifiCode} from './qr.js';
-import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, sounds, renderPinpoint, selectOptions} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, sounds, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('pubquiz-team'), current = null, renderedQuestion = undefined, offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
-let localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0;
+let localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0, winnerShown = '';
 const inputs = () => [...$('inputs').querySelectorAll('input,select')];
 const draftKey = id => `pubquiz-draft:${secret}:${id}`;
 const keypad = type => ['choice', 'vote', 'letter'].includes(type);
@@ -64,11 +64,13 @@ function parseSaved(value) {
 }
 function buildInputs(q) {
   const box = $('inputs');
+  // Scrambled keypads put buttons in a different place on every team's phone, so neighbours cannot copy taps.
+  const order = length => current.settings.scrambleKeypads ? seededOrder(length, `${current.team.id}:${q.id}`) : Array.from({length}, (_, i) => i);
   if (q.type === 'buzzer' || q.type === 'bingo') return;
   const hiddenInput = () => {const hidden = element('input'); hidden.type = 'hidden'; hidden.name = 'answer-0'; box.append(hidden);};
   if (q.type === 'multi') {
     hiddenInput(); const pad = element('div', undefined, 'keypad');
-    pad.append(...q.options.map((option, i) => {const b = element('button', `${letters[i]}. ${option}`); b.type = 'button'; b.dataset.value = option; b.onclick = () => {
+    pad.append(...order(q.options.length).map(i => {const option = q.options[i], b = element('button', `${letters[i]}. ${option}`); b.type = 'button'; b.dataset.value = option; b.onclick = () => {
       const picked = inputValue(); pick(JSON.stringify(picked.includes(option) ? picked.filter(p => p !== option) : [...picked, option]));
     }; return b;}));
     box.append(element('p', 'Tick every right answer — wrong ticks cost points', 'muted'), pad); return;
@@ -88,15 +90,15 @@ function buildInputs(q) {
   if (keypad(q.type) || q.type === 'sequence') {
     const hidden = element('input'); hidden.type = 'hidden'; hidden.name = 'answer-0'; box.append(hidden);
     const pad = element('div', undefined, q.type === 'letter' ? 'keypad letters' : 'keypad');
-    if (q.type === 'letter') pad.append(...[...letters].map(l => {const b = element('button', l); b.type = 'button'; b.dataset.value = l; b.onclick = () => pick(l); return b;}));
+    if (q.type === 'letter') pad.append(...order(26).map(i => letters[i]).map(l => {const b = element('button', l); b.type = 'button'; b.dataset.value = l; b.onclick = () => pick(l); return b;}));
     else if (q.type === 'sequence') {
-      pad.append(...q.order.map(i => {const b = element('button', q.items[i]); b.type = 'button'; b.dataset.index = String(i); b.onclick = () => {
+      pad.append(...order(q.order.length).map(i => q.order[i]).map(i => {const b = element('button', q.items[i]); b.type = 'button'; b.dataset.index = String(i); b.onclick = () => {
         const picked = inputValue(); if (!picked.includes(i)) pick(JSON.stringify([...picked, i]));
       }; return b;}));
       const chosen = element('ol', undefined, 'picked'); chosen.id = 'picked';
       const undo = element('button', 'Undo last', 'subtle'); undo.type = 'button'; undo.onclick = () => pick(JSON.stringify(inputValue().slice(0, -1)));
       box.append(element('p', 'Tap the items in order', 'muted'), pad, chosen, undo); return;
-    } else pad.append(...q.options.map((option, i) => {const b = element('button', `${letters[i]}. ${option}`); b.type = 'button'; b.dataset.value = option; b.onclick = () => pick(option); return b;}));
+    } else pad.append(...order(q.options.length).map(i => {const option = q.options[i], b = element('button', `${letters[i]}. ${option}`); b.type = 'button'; b.dataset.value = option; b.onclick = () => pick(option); return b;}));
     box.append(pad); return;
   }
   const label = element('label', q.type === 'nearest' ? 'Your number (closest wins)' : q.type === 'number' ? 'Your number' : 'Your answer'), input = element('input');
@@ -134,7 +136,7 @@ function buildTicket(q) {
 function renderBingo(q) {
   const b = q.bingo;
   $('bingoMode').textContent = `${modes[b.mode]} · ${b.called.length} called`;
-  $('bingoLast').textContent = b.last ?? '–';
+  $('bingoLast').textContent = b.last ?? '–'; $('bingoPhrase').textContent = current.settings.bingoPhrases && b.last ? bingoCall(b.last) : '';
   $('claimBingo').disabled = !(online && q.live && !q.paused && !b.claimed && !current.settings.ended);
   $('bingoStatus').textContent = b.claimed ? '✓ Bingo! Your claim was checked and counted.' : b.winners.length ? `Bingo called by ${b.winners.join(', ')} — claim now only if you have it on this number` : '';
 }
@@ -196,11 +198,13 @@ function displayState(s) {
   }
   const g = q?.bingo; $('projectBingo').hidden = !g;
   if (g) {
-    $('bingoBig').textContent = g.last ?? '–'; $('bingoWinners').textContent = g.winners.length ? `BINGO! ${g.winners.join(', ')}` : `${modes[g.mode]} · ${g.called.length} called`;
+    $('bingoBig').textContent = g.last ?? '–'; $('bingoCallText').textContent = s.settings.bingoPhrases && g.last ? bingoCall(g.last) : ''; $('bingoWinners').textContent = g.winners.length ? `BINGO! ${g.winners.join(', ')}` : `${modes[g.mode]} · ${g.called.length} called`;
     if ($('bingoBoard').children.length !== 90) $('bingoBoard').replaceChildren(...Array.from({length: 90}, (_, i) => element('span', String(i + 1))));
     [...$('bingoBoard').children].forEach((cell, i) => cell.classList.toggle('called', g.called.includes(i + 1)));
   }
   $('wheelSection').hidden = s.settings.displayMode !== 'wheel';
+  $('winnerSection').hidden = s.settings.displayMode !== 'winner';
+  if (s.settings.displayMode === 'winner') renderWinner(s); else winnerShown = '';
   if (s.settings.displayMode === 'wheel' && s.wheel) renderWheel(s.wheel, s.serverTime - s.wheel.spun < 3000);
   const b = q?.buzz; $('projectBuzz').hidden = !b;
   if (b) {
@@ -228,6 +232,20 @@ function renderWheel(wheel, fresh) {
   spin.style.transition = first ? 'none' : 'transform 6s cubic-bezier(.12,.6,.15,1)';
   requestAnimationFrame(() => requestAnimationFrame(() => {spin.style.transform = `rotate(${wheelTurn}deg)`;}));
   if (!first) setTimeout(() => {if (wheelId === wheel.id) $('wheelResult').textContent = `🎉 ${wheel.items[wheel.result]}`;}, 6100);
+}
+function renderWinner(s) {
+  const top = s.teams.filter(t => t.rank === 1), names = top.map(t => t.name).join(' & ');
+  $('winnerName').textContent = !s.settings.leaderboardVisible ? 'Scores are hidden for now' : names || 'No teams yet';
+  $('winnerScore').textContent = top.length && s.settings.leaderboardVisible ? `${top[0].score} points${top.length > 1 ? ' — a tie!' : ''}` : '';
+  $('podium').replaceChildren(...s.teams.filter(t => t.rank > 1 && t.rank <= 3).map(t => {const li = element('li'); li.append(element('span', `${t.rank === 2 ? '🥈' : '🥉'} ${t.name}`), element('strong', `${t.score} pts`)); return li;}));
+  if (names && names !== winnerShown) {
+    winnerShown = names; fanfare();
+    // Confetti pieces fall once; reduced-motion users see a still screen (see style.css).
+    $('confetti').replaceChildren(...Array.from({length: 80}, (_, i) => {
+      const piece = element('span'); piece.style.left = `${Math.random() * 100}%`; piece.style.animationDelay = `${Math.random() * 1.5}s`;
+      piece.style.animationDuration = `${2.5 + Math.random() * 2}s`; piece.className = 'c' + (i % 5); return piece;
+    }));
+  }
 }
 async function publicState() {
   const response = await fetch('/api/leaderboard', {signal: AbortSignal.timeout(8000)}); if (!response.ok) throw Error('Cannot reach quiz server'); return response.json();

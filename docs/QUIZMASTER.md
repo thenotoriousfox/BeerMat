@@ -36,6 +36,13 @@ Questions and rounds are saved to SQLite immediately after **Save**. If another 
 
 Buzz-in and bingo stay live until you end them: for buzz-in the timer only limits buzzing. Teams can choose their buzzer sound under their recovery-code panel. The projector names the team that buzzed first and, after **Enable buzzer sound** is clicked once, plays a short tone for it (the desk plays it too). After a question closes, **Reveal answer** shows the answer, the full-answer note, how many teams scored and, for choice, letters, numbers and votes, a tally of what teams picked.
 
+## Room options
+
+- **Scramble keypads** puts multiple-choice, multi-tap, vote, letter and sequence buttons in a different order on each team's phone (labels keep their letters), so neighbouring tables cannot copy each other's taps. It applies from the next question.
+- **Bingo phrases** shows the traditional call with each number ("22 — Two little ducks") on the TV, phones and desk.
+- **Blocked team names** (Teams & results): common swear words are refused at registration, including spaced-out and number-swapped spellings, while names like Scunthorpe or Arsenal are allowed. Add your own words there. The desk can still rename any team.
+- **Finish quiz** switches the projector to the **winner celebration**: the winning team (or tied teams) with confetti, a short fanfare if sound is enabled, and second and third place. It respects a hidden leaderboard.
+
 ## Spin the wheel and keyboard control
 
 **Spin the wheel** (Run quiz → Room controls) switches the projector to the wheel and spins it. Leave the entries blank to spin team names, or type your own (prizes, forfeits, categories). The result is chosen by the server before the animation starts and also shown on the desk.

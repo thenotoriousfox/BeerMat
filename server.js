@@ -4,6 +4,7 @@ import {randomBytes, randomInt, timingSafeEqual, createHash} from 'node:crypto';
 import {existsSync, mkdirSync, writeFileSync, statSync, createReadStream} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
+import {offensive} from './names.js';
 import {QuizError, requireValue, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, hostDriven, bingoCard, bingoLines, bingoNeeded, mediaPattern} from './model.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -62,7 +63,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'leaderboard', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1'};
+  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'leaderboard', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true};
   const SOUNDS = 8;
   const settings = () => ({...defaultSettings, ...getMeta('settings', {})});
   const library = () => getMeta('library', {revision: 0, title: 'My quiz', rounds: []});
@@ -343,7 +344,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/logout') {run('DELETE FROM host_sessions WHERE hash=?', hash(auth)); return send(200, {ok: true});}
         if (p === '/api/host/state') {
           const q = latest();
-          return send(200, {serverTime: now(), settings: settings(), libraryRevision: library().revision,
+          return send(200, {serverTime: now(), settings: settings(), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true), question: publicQuestion(q, true), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -355,12 +356,17 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         }
         if (p === '/api/host/settings') {
           const next = {...settings()};
-          for (const k of ['registrationOpen', 'leaderboardVisible', 'ended']) if (Object.hasOwn(body, k)) {requireValue(typeof body[k] === 'boolean', 'Invalid setting'); next[k] = body[k];}
+          for (const k of ['registrationOpen', 'leaderboardVisible', 'ended', 'scrambleKeypads', 'bingoPhrases']) if (Object.hasOwn(body, k)) {requireValue(typeof body[k] === 'boolean', 'Invalid setting'); next[k] = body[k];}
           if (Object.hasOwn(body, 'title')) {requireValue(typeof body.title === 'string' && body.title.trim() && body.title.length <= 100, 'Title must contain 1–100 characters'); next.title = body.title.trim();}
           // Shown on the projector's join screen; the Wi-Fi name should match the hotspot's --ssid.
           if (Object.hasOwn(body, 'joinSsid')) {requireValue(typeof body.joinSsid === 'string' && body.joinSsid.trim() && Buffer.byteLength(body.joinSsid.trim()) <= 32, 'Wi-Fi name must be 1–32 bytes'); next.joinSsid = body.joinSsid.trim();}
           if (Object.hasOwn(body, 'joinUrl')) {requireValue(typeof body.joinUrl === 'string' && /^https?:\/\/[^\s]{1,150}$/.test(body.joinUrl.trim()), 'Join address must start with http:// and have no spaces'); next.joinUrl = body.joinUrl.trim();}
-          if (Object.hasOwn(body, 'displayMode')) {requireValue(['join', 'leaderboard', 'question', 'wheel', 'blank'].includes(body.displayMode), 'Invalid projector view'); next.displayMode = body.displayMode;}
+          if (Object.hasOwn(body, 'displayMode')) {requireValue(['join', 'leaderboard', 'question', 'wheel', 'winner', 'blank'].includes(body.displayMode), 'Invalid projector view'); next.displayMode = body.displayMode;}
+          // Extra blocked team-name words stay private to the desk.
+          if (Object.hasOwn(body, 'blockedWords')) {
+            requireValue(typeof body.blockedWords === 'string' && body.blockedWords.length <= 2000, 'Blocked words must be up to 2,000 characters');
+            setMeta('blockedWords', body.blockedWords.split(/[\n,]/).map(w => w.trim().toLowerCase()).filter(Boolean));
+          }
           if (next.ended) {closeQuestion(latest()); next.registrationOpen = false;}
           setMeta('settings', next); return send(200, next);
         }
@@ -462,6 +468,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       if (p === '/api/join') {
         requireValue(settings().registrationOpen && !settings().ended, 'Registration is closed. Ask the quizmaster.', 409);
         requireValue(typeof body.name === 'string' && body.name.trim().length >= 2 && body.name.trim().length <= 40, 'Team name must be 2–40 characters');
+        requireValue(!offensive(body.name, getMeta('blockedWords', [])), 'Please choose a different team name', 400);
         requireValue(!one('SELECT id FROM teams WHERE name=? COLLATE NOCASE', body.name.trim()), 'Name taken. Use your recovery code to reconnect.', 409);
         requireValue(one('SELECT COUNT(*) n FROM teams').n < 250, 'Team limit reached. Ask the quizmaster.', 409);
         const id = token(), secret = token(); run('INSERT INTO teams(id,name,secret,seen) VALUES(?,?,?,?)', id, body.name.trim(), secret, now()); return send(200, {id, secret});

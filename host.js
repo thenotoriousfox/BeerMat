@@ -1,4 +1,4 @@
-import {$, element, api, message, readStorage, writeStorage, download, renderMedia, renderSolution, timeText, selectOptions, letters, live, enableSound, buzzSound, renderPinpoint} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, download, renderMedia, renderSolution, timeText, selectOptions, letters, live, enableSound, buzzSound, renderPinpoint, bingoCall} from './app.js';
 import {parseSqRound, parseQuickQuestion} from './sqimport.js';
 let key = readStorage('pubquiz-host', true), state = null, library = null, editingId = null, tab = 'live', dirty = false, reviewId = '', reviewSignature = '', busy = false;
 const uid = () => 'id-' + crypto.getRandomValues(new Uint32Array(4)).join('-');
@@ -206,10 +206,14 @@ $('joinDetails').onsubmit = e => {e.preventDefault(); action(() => request('sett
 $('titleForm').onsubmit = e => {e.preventDefault(); action(() => request('settings', {title: $('eventName').value}));};
 $('registration').onclick = () => action(() => request('settings', {registrationOpen: !state.settings.registrationOpen}));
 $('visibility').onclick = () => action(() => request('settings', {leaderboardVisible: !state.settings.leaderboardVisible}));
+$('scramble').onclick = () => action(() => request('settings', {scrambleKeypads: !state.settings.scrambleKeypads}), 'Keypad scrambling updated — applies from the next question');
+$('phrases').onclick = () => action(() => request('settings', {bingoPhrases: !state.settings.bingoPhrases}));
+$('blockedForm').onsubmit = e => {e.preventDefault(); action(() => request('settings', {blockedWords: $('blockedWords').value}), 'Blocked words saved');};
 $('displayMode').onchange = () => action(() => request('settings', {displayMode: $('displayMode').value}));
 $('finish').onclick = () => action(async () => {
   if (!state.settings.ended && !confirm('Finish this quiz and close answers and registration? You can resume it later.')) return;
-  await request('settings', {ended: !state.settings.ended});
+  // Finishing goes straight to the winner celebration on the projector.
+  await request('settings', state.settings.ended ? {ended: false} : {ended: true, displayMode: 'winner'});
 }, 'Quiz status updated');
 document.addEventListener('pointerdown', enableSound);
 $('loginForm').onsubmit = async e => {e.preventDefault(); await action(async () => {
@@ -274,7 +278,7 @@ function renderBuzzPanel(q) {
 function renderBingoPanel(q) {
   const g = q?.bingo; $('bingoPanel').hidden = !g || !q.live;
   if (!g) return;
-  $('bingoInfo').textContent = g.winners.length ? `BINGO: ${g.winners.join(', ')} — end the game when ready` : g.last ? `Last call: ${g.last} · ${g.called.length} called` : 'No numbers called yet';
+  $('bingoInfo').textContent = g.winners.length ? `BINGO: ${g.winners.join(', ')} — end the game when ready` : g.last ? `Last call: ${g.last}${state.settings.bingoPhrases ? ` — ${bingoCall(g.last)}` : ''} · ${g.called.length} called` : 'No numbers called yet';
   $('bingoCalls').textContent = g.called.join(' · ');
   $('callNumber').disabled = busy || !!g.winners.length || !!q.paused || g.called.length >= 90;
 }
@@ -300,7 +304,9 @@ function renderState(s) {
   $('next').disabled = !!q?.live || s.settings.ended; $('close').textContent = q?.type === 'buzzer' || q?.type === 'bingo' ? 'End game' : 'Close answers'; $('close').disabled = !pending; $('pause').disabled = !q?.open; $('resume').disabled = !q?.paused; $('reveal').disabled = !q || !!pending;
   $('reveal').textContent = q?.revealed ? 'Hide answer reveal' : 'Reveal answer';
   $('registration').textContent = s.settings.registrationOpen ? 'Close registration' : 'Open registration'; $('registration').disabled = s.settings.ended;
-  $('visibility').textContent = s.settings.leaderboardVisible ? 'Hide leaderboard' : 'Show leaderboard'; $('displayMode').value = s.settings.displayMode; $('finish').textContent = s.settings.ended ? 'Resume quiz' : 'Finish quiz';
+  $('visibility').textContent = s.settings.leaderboardVisible ? 'Hide leaderboard' : 'Show leaderboard';
+  $('scramble').textContent = `Scramble keypads: ${s.settings.scrambleKeypads ? 'on' : 'off'}`; $('phrases').textContent = `Bingo phrases: ${s.settings.bingoPhrases ? 'on' : 'off'}`;
+  if (!$('blockedForm').contains(document.activeElement)) $('blockedWords').value = s.blockedWords.join('\n'); $('displayMode').value = s.settings.displayMode; $('finish').textContent = s.settings.ended ? 'Resume quiz' : 'Finish quiz';
   const offline = s.teams.filter(t => t.enabled && !t.connected); $('alerts').textContent = offline.length ? `⚠ Disconnected: ${offline.map(t => t.name).join(', ')}` : '';
   const played = new Set(s.history.map(q => q.sourceId)); const all = library?.rounds.flatMap(r => r.questions) || [];
   $('progress').textContent = `${all.filter(q => played.has(q.id)).length} of ${all.length} saved questions played`;
