@@ -9,7 +9,11 @@ export async function api(route, body = {}, key = '') {
   if (!response.ok) {const error = Error(t(data.error || 'Request failed')); error.status = response.status; throw error;}
   return data;
 }
-export function message(text, error = false) {$('message').textContent = t(text); $('message').classList.toggle('error', error);}
+let messageTimer;
+export function message(text, error = false) {
+  $('message').textContent = t(text);
+  // On phones, messages are short toasts that fade away.
+  if (document.body.dataset.role === 'player') {clearTimeout(messageTimer); messageTimer = setTimeout(() => {$('message').textContent = '';}, error ? 7000 : 4000);} $('message').classList.toggle('error', error);}
 export function download(name, data) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}));
   const link = element('a'); link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);

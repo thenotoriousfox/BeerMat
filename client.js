@@ -2,7 +2,7 @@ import {qrMatrix, wifiCode} from './qr.js';
 import {t, setLanguage, language, languages, translatePage} from './i18n.js';
 import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, sounds, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
 const role = document.body.dataset.role;
-let secret = readStorage('pubquiz-team'), current = null, renderedQuestion = undefined, offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
+let secret = readStorage('pubquiz-team'), current = null, renderedQuestion = 'unset', offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
 let localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0, winnerShown = '';
 const inputs = () => [...$('inputs').querySelectorAll('input,select')];
 const draftKey = id => `pubquiz-draft:${secret}:${id}`;
@@ -10,7 +10,7 @@ const keypad = type => ['choice', 'vote', 'letter'].includes(type);
 const listValue = type => ['sequence', 'multi', 'pinpoint', 'wordsnake', 'tiles'].includes(type);
 const modes = {line: 'One line', twoLines: 'Two lines', fullHouse: 'Full house'}, mode = m => t(modes[m]);
 function saveIdentity(code) {
-  secret = code; current = null; renderedQuestion = undefined; localDraft = null; inputRevision = 0;
+  secret = code; current = null; renderedQuestion = 'unset'; localDraft = null; inputRevision = 0;
   if (!writeStorage('pubquiz-team', code)) $('storageWarning').textContent = t('Browser storage is unavailable. Write down your recovery code before closing this window.');
   updates?.reconnect();
 }
@@ -27,9 +27,17 @@ function updateControls() {
   inputs().forEach(input => input.disabled = !canAnswer || submitting);
   $('inputs').querySelectorAll('button').forEach(button => button.disabled = !canAnswer || submitting);
   $('submit').disabled = !canAnswer || submitting;
+  $('submit').hidden = !q?.live || !!current.answer;
   $('awayNote').hidden = !(q?.open && !current.answer);
-  $('status').textContent = timeText(q, offset);
-  $('answerState').textContent = current.settings.ended ? t('Quiz finished') : q?.type === 'buzzer' ? '' : current.answer ? '✓ Final answer saved' : q?.paused ? t('Paused') : '';
+  $('status').textContent = q ? timeText(q, offset) : '';
+  $('answerState').textContent = current.settings.ended ? t('Quiz finished') : q?.type === 'buzzer' || !q?.live ? '' : current.answer ? t('✓ Final answer saved') : q?.paused ? t('Paused') : '';
+  // Timer bar: how much answering time is left (not shown for host-driven games).
+  const timed = q && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q.type) && (q.open || q.paused);
+  $('timerBar').hidden = !timed;
+  if (timed) {
+    const left = q.paused ? q.remaining : Math.max(0, q.deadline - Date.now() - offset), fraction = Math.min(1, left / (q.seconds * 1000));
+    $('timerBar').firstChild.style.width = `${fraction * 100}%`; $('timerBar').classList.toggle('low', fraction < 0.2);
+  }
   if (q?.type === 'buzzer') renderBuzzer(q);
   if (q?.bingo) renderBingo(q);
   if (q?.type === 'clips') {
@@ -93,7 +101,7 @@ function buildInputs(q) {
   const hiddenInput = () => {const hidden = element('input'); hidden.type = 'hidden'; hidden.name = 'answer-0'; box.append(hidden);};
   if (q.type === 'multi') {
     hiddenInput(); const pad = element('div', undefined, 'keypad');
-    pad.append(...order(q.options.length).map(i => {const option = q.options[i], b = element('button', `${letters[i]}. ${option}`); b.type = 'button'; b.dataset.value = option; b.onclick = () => {
+    pad.append(...order(q.options.length).map(i => {const option = q.options[i], b = element('button', `${letters[i]}. ${option}`); b.type = 'button'; b.dataset.value = option; b.className = `opt o${i}`; b.onclick = () => {
       const picked = inputValue(); pick(JSON.stringify(picked.includes(option) ? picked.filter(p => p !== option) : [...picked, option]));
     }; return b;}));
     box.append(element('p', t('Tick every right answer — wrong ticks cost points'), 'muted'), pad); return;
@@ -147,7 +155,7 @@ function buildInputs(q) {
       const chosen = element('ol', undefined, 'picked'); chosen.id = 'picked';
       const undo = element('button', t('Undo last'), 'subtle'); undo.type = 'button'; undo.onclick = () => pick(JSON.stringify(inputValue().slice(0, -1)));
       box.append(element('p', t('Tap the items in order'), 'muted'), pad, chosen, undo); return;
-    } else pad.append(...order(q.options.length).map(i => {const option = q.options[i], b = element('button', `${letters[i]}. ${option}`); b.type = 'button'; b.dataset.value = option; b.onclick = () => pick(option); return b;}));
+    } else pad.append(...order(q.options.length).map(i => {const option = q.options[i], b = element('button', `${letters[i]}. ${option}`); b.type = 'button'; b.dataset.value = option; b.className = `opt o${i}`; b.onclick = () => pick(option); return b;}));
     box.append(pad); return;
   }
   const label = element('label', q.type === 'nearest' ? t('Your number (closest wins)') : q.type === 'number' ? t('Your number') : t('Your answer')), input = element('input');
@@ -201,10 +209,11 @@ function playerState(s) {
   if (q?.id !== renderedQuestion) {
     clearTimeout(draftTimer); draftGeneration++; localDraft = null; inputRevision = 0;
     renderedQuestion = q?.id; $('inputs').replaceChildren(); $('draftStatus').textContent = '';
-    $('question').textContent = q?.text || t('Waiting for the quizmaster'); $('round').textContent = q?.round || '';
+    $('question').textContent = q?.text || t('Waiting for the next question…'); $('round').textContent = q?.round || '';
+    $('game').classList.toggle('idle', !q);
     renderMedia($('media'), q?.type === 'pinpoint' ? null : q);
     const bingo = q?.type === 'bingo' || q?.type === 'musicbingo';
-    $('answerForm').hidden = bingo || ['buzzer', 'clips'].includes(q?.type); $('buzzBox').hidden = q?.type !== 'buzzer'; $('bingoBox').hidden = !bingo; $('clipBox').hidden = q?.type !== 'clips';
+    $('answerForm').hidden = !q || bingo || ['buzzer', 'clips'].includes(q?.type); $('buzzBox').hidden = q?.type !== 'buzzer'; $('bingoBox').hidden = !bingo; $('clipBox').hidden = q?.type !== 'clips';
     if (bingo) buildTicket(q);
     if (q) {
       buildInputs(q); syncPicks();
@@ -219,9 +228,25 @@ function playerState(s) {
   if (s.team.photo && $('myPhoto').getAttribute('src') !== s.team.photo) $('myPhoto').src = s.team.photo;
   $('photoStatus').textContent = !s.team.photo ? t('Add a team photo to appear on the big screen. The quizmaster approves it first.') : s.team.photoStatus === 'approved' ? t('✓ Approved — showing on the big screen') : t('Waiting for the quizmaster to approve it');
   selectOptions($('sound'), sounds.map(([label], i) => [String(i), label]), document.activeElement === $('sound') ? undefined : String(s.team.sound ?? ''));
-  if (s.answer && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? t('Your final answer is safely stored on the quiz laptop.') : (Math.abs(s.answer.points) === 1 ? t('Your answer scored 1 point.').replace('1', s.answer.points) : t('Your answer scored {n} points.', {n: s.answer.points})); localDraft = null; writeStorage(draftKey(q.id), '');}
+  if (s.answer && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? t('Your final answer is safely stored on the quiz laptop.') : ''; localDraft = null; writeStorage(draftKey(q.id), '');}
+  renderResult(s);
+  // Between questions the phone shows the leaderboard; during one, only the question.
+  $('boardSection').hidden = !!q?.live;
+  const me = s.teams.find(team => team.id === s.team.id);
+  $('myScore').textContent = me ? t('#{rank} · {score} pts', {rank: me.rank, score: me.score}) : '';
+  $('menuButton').hidden = false;
   if (q && listValue(q.type)) syncPicks();
   renderSolution($('solution'), q); updateControls();
+}
+// After a question: a clear ✓ / ✗ card with the points it earned.
+function renderResult(s) {
+  const q = s.question, a = s.answer, done = q && !q.live && q.type !== 'vote';
+  $('resultCard').hidden = !done || (a && a.points === undefined);
+  if (!done) return;
+  const points = a?.points ?? 0;
+  $('resultCard').className = `result-card ${points > 0 ? 'good' : 'bad'}`;
+  $('resultMark').textContent = !a ? '–' : points > 0 ? '✓' : '✗';
+  $('resultPoints').textContent = !a ? t('No answer this time') : points > 0 ? (points === 1 ? t('+1 point') : t('+{n} points', {n: points})) : points < 0 ? t('{n} points', {n: points}) : t('No points this time');
 }
 function sharedState(s) {
   $('title').textContent = s.settings.title; document.title = s.settings.title + ' — ' + (role === 'player' ? 'Team' : 'Projector');
@@ -346,7 +371,7 @@ function reportAway(state) {
 async function refresh() {
   try {
     const s = role === 'player' && secret ? await api('state', {}, secret) : await publicState();
-    online = true;
+    online = true; $('connection').classList.remove('offline');
     // The TV follows the quizmaster's language setting; a change after load reloads the page in the new language.
     if (role === 'display' && s.settings.language !== language()) {if (initialised) return location.reload(); setLanguage(s.settings.language); translatePage();}
     initialised = true;
@@ -354,13 +379,14 @@ async function refresh() {
     if (role === 'display') displayState(s);
     else if (secret) playerState(s);
     else {
+      $('boardSection').hidden = true;
       if (!deviceChecked) checkDevice();
       $('joinButton').disabled = !s.settings.registrationOpen || s.settings.ended; $('registrationState').textContent = s.settings.ended ? t('This quiz has finished.') : s.settings.registrationOpen ? t('Registration is open') : t('Registration closed — existing teams can still recover below.');}
     if (role === 'player' && online && localDraft !== null) flushDraft();
   } catch (e) {
-    online = false; $('connection').textContent = t('● Connection lost — retrying');
+    online = false; $('connection').textContent = t('● Connection lost — retrying'); $('connection').classList.add('offline');
     if (role === 'player') {
-      if (e.status === 401) {secret = ''; writeStorage('pubquiz-team', ''); current = null; $('join').hidden = false; $('game').hidden = true; message('Your old recovery code is no longer valid. Ask the quizmaster for a new one.', true); updates.reconnect();}
+      if (e.status === 401) {secret = ''; writeStorage('pubquiz-team', ''); current = null; $('join').hidden = false; $('game').hidden = true; $('menuButton').hidden = true; $('myScore').textContent = ''; message('Your old recovery code is no longer valid. Ask the quizmaster for a new one.', true); updates.reconnect();}
       else if (e.status === 403) message(e.message, true);
       updateControls();
     }
@@ -372,7 +398,7 @@ async function flushDraft() {
   inFlight = true;
   try {
     await api('draft', {question: id, value}, code);
-    if (generation === draftGeneration && revision === inputRevision && !current.answer) $('draftStatus').textContent = t('Draft saved on quiz laptop — final submission still required');
+    if (generation === draftGeneration && revision === inputRevision && !current.answer) $('draftStatus').textContent = t('Draft saved — not sent yet');
   } catch {if (generation === draftGeneration && !current.answer) $('draftStatus').textContent = t('Draft kept in this browser — waiting for connection');}
   finally {inFlight = false; if (generation === draftGeneration && revision !== inputRevision) {clearTimeout(draftTimer); draftTimer = setTimeout(flushDraft, 400);}}
 }
@@ -394,7 +420,8 @@ if (role === 'player') {
       await api('state', {}, code); saveIdentity(code); $('recovery').value = ''; message('Welcome back'); await refresh();
     } catch (e) {message(e.message, true);}
   };
-  $('switchTeam').onclick = () => {if (!confirm(t('Switch teams on this browser? Save your current recovery code first.'))) return; clearTimeout(draftTimer); secret = ''; writeStorage('pubquiz-team', ''); current = null; renderedQuestion = undefined; $('join').hidden = false; $('game').hidden = true; updates.reconnect(); refresh();};
+  $('menuButton').onclick = () => $('teamMenu').showModal();
+  $('switchTeam').onclick = () => {$('teamMenu').close(); if (!confirm(t('Switch teams on this browser? Save your current recovery code first.'))) return; clearTimeout(draftTimer); secret = ''; writeStorage('pubquiz-team', ''); current = null; renderedQuestion = 'unset'; $('join').hidden = false; $('game').hidden = true; $('menuButton').hidden = true; $('myScore').textContent = ''; updates.reconnect(); refresh();};
   $('inputs').oninput = () => {
     localDraft = inputValue(); inputRevision++; writeStorage(draftKey(current.question.id), JSON.stringify(localDraft));
     $('draftStatus').textContent = online ? t('Saving draft…') : t('Draft kept in this browser — waiting for connection');
