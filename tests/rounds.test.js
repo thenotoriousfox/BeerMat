@@ -182,3 +182,12 @@ test('spin the wheel picks a server-side result and teams can choose a buzzer so
   assert.equal((await call('team/sound', {sound: 9}, a.secret)).status, 400);
   await call('team/sound', {sound: 3}, a.secret); assert.equal((await call('state', {}, a.secret)).team.sound, 3);
 }));
+
+test('join details for the projector are validated and public', () => fixture(async ({call, url}) => {
+  assert.equal((await call('host/settings', {joinSsid: ''})).status, 400);
+  assert.equal((await call('host/settings', {joinUrl: 'javascript:alert(1)'})).status, 400);
+  await call('host/settings', {joinSsid: 'Fox Quiz', joinUrl: 'http://10.42.0.1', displayMode: 'join'});
+  const board = await (await fetch(url() + '/api/leaderboard')).json();
+  assert.equal(board.settings.joinSsid, 'Fox Quiz'); assert.equal(board.settings.displayMode, 'join');
+  assert.equal((await fetch(url() + '/qr.js')).status, 200);
+}));

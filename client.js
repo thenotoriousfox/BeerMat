@@ -1,3 +1,4 @@
+import {qrMatrix, wifiCode} from './qr.js';
 import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, sounds, renderPinpoint, selectOptions} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('pubquiz-team'), current = null, renderedQuestion = undefined, offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
@@ -165,9 +166,25 @@ function sharedState(s) {
   renderBoard($('leaderboard'), s.teams);
   $('boardStatus').textContent = !s.settings.leaderboardVisible ? 'The quizmaster has hidden scores for now.' : s.settings.ended ? 'Final standings' : s.teams.length ? 'Ties share the same rank.' : 'Waiting for teams';
 }
+function renderQr(container, text) {
+  if (container.dataset.qr === text) return;
+  container.dataset.qr = text;
+  const m = qrMatrix(text), n = m.length, ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg'), path = document.createElementNS(ns, 'path');
+  svg.setAttribute('viewBox', `-4 -4 ${n + 8} ${n + 8}`); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'QR code: ' + text); svg.setAttribute('shape-rendering', 'crispEdges');
+  path.setAttribute('d', m.flatMap((row, y) => row.map((dark, x) => dark ? `M${x} ${y}h1v1h-1z` : '')).join(''));
+  svg.append(path); container.replaceChildren(svg);
+}
 function displayState(s) {
   current = s; offset = s.serverTime - Date.now();
+  const {joinSsid, joinUrl, registrationOpen, ended} = s.settings, joining = registrationOpen && !ended;
   $('projection').hidden = s.settings.displayMode === 'blank';
+  $('joinSection').hidden = s.settings.displayMode !== 'join';
+  if (s.settings.displayMode === 'join') {
+    $('joinSsid').textContent = joinSsid; $('joinUrl').textContent = joinUrl.replace(/^http:\/\//, '');
+    renderQr($('wifiQr'), wifiCode(joinSsid)); renderQr($('urlQr'), joinUrl);
+    $('joinStatus').textContent = !joining ? 'Registration is closed — ask the quizmaster to join' : s.teams.length ? `${s.teams.length} ${s.teams.length === 1 ? 'team has' : 'teams have'} joined` : 'Be the first team to join!';
+  }
+  $('joinHint').textContent = joining ? `Join: Wi-Fi “${joinSsid}” → ${joinUrl.replace(/^http:\/\//, '')}` : '';
   $('boardSection').hidden = s.settings.displayMode !== 'leaderboard'; $('projectQuestion').hidden = s.settings.displayMode !== 'question';
   const q = s.question; $('question').textContent = q?.text || 'Waiting for the quizmaster'; $('round').textContent = q?.round || ''; $('status').textContent = timeText(q, offset);
   if (q?.type === 'pinpoint') renderPinpoint($('media'), q); else renderMedia($('media'), q);
@@ -275,6 +292,17 @@ if (role === 'player') {
 if (role === 'player') {
   $('sound').onchange = async () => {enableSound(); const sound = Number($('sound').value); buzzSound('', sound); try {await api('team/sound', {sound}, secret); message('Buzzer sound saved');} catch (e) {message(e.message, true);}};
 }
-if (role === 'display') $('enableSound').onclick = () => {enableSound(); $('enableSound').hidden = true;};
+if (role === 'display') {
+  $('enableSound').onclick = () => {enableSound(); $('enableSound').hidden = true;};
+  const toggleFullscreen = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => message('Full screen is not available in this browser — try F11', true));
+  $('fullscreen').onclick = toggleFullscreen;
+  document.addEventListener('keydown', e => {if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey) toggleFullscreen();});
+  document.addEventListener('fullscreenchange', () => {$('fullscreen').textContent = document.fullscreenElement ? '✕ Exit full screen' : '⛶ Full screen';});
+  // Hide the pointer and screen buttons after a few seconds without movement.
+  let idleTimer;
+  const wake = () => {document.body.classList.remove('idle'); clearTimeout(idleTimer); idleTimer = setTimeout(() => document.body.classList.add('idle'), 3000);};
+  for (const event of ['mousemove', 'pointerdown', 'keydown']) document.addEventListener(event, wake);
+  wake();
+}
 setInterval(() => {if (role === 'player') updateControls(); else if (current) $('status').textContent = timeText(current.question, offset);}, 200);
 const updates = live(refresh, () => role === 'player' ? secret : '');

@@ -12,7 +12,7 @@ Install Node.js 24 or later. Initial OS package installation needs internet; qui
 ./scripts/start.sh                 # prompts for a private 12+ character host key
 ```
 
-Open **http://localhost:3000/host**. Players can use **http://LAPTOP-IP:3000/** before hotspot integration. The projector page is `/display`. The default database is `quiz.sqlite` beside the server; `QUIZ_DB`, `PORT` and `BIND` can override defaults. Keep the key private. The service deliberately uses local HTTP for captive portal compatibility; use only a trusted local quiz network. The hotspot is open Wi-Fi, so recovery codes and host credentials are not encrypted on air. Do not expose it to public internet or reuse an important password.
+Open **http://localhost:3000/host**. Players can use **http://LAPTOP-IP:3000/** before hotspot integration. The projector/TV page is `/display`: it has a full-screen button and a join screen with Wi-Fi and address QR codes generated on the laptop. The default database is `quiz.sqlite` beside the server; `QUIZ_DB`, `PORT` and `BIND` can override defaults. Keep the key private. The service deliberately uses local HTTP for captive portal compatibility; use only a trusted local quiz network. The hotspot is open Wi-Fi, so recovery codes and host credentials are not encrypted on air. Do not expose it to public internet or reuse an important password.
 
 ## Dedicated CachyOS Wi-Fi
 

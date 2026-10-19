@@ -62,7 +62,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'leaderboard', ended: false};
+  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'leaderboard', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1'};
   const SOUNDS = 8;
   const settings = () => ({...defaultSettings, ...getMeta('settings', {})});
   const library = () => getMeta('library', {revision: 0, title: 'My quiz', rounds: []});
@@ -297,7 +297,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       settle(latest());
       if (req.method === 'GET' && p === '/api/events') return openStream(req, res, url);
       if ((req.method === 'GET' || req.method === 'HEAD') && !p.startsWith('/api/')) {
-        const routes = {'/host': 'host.html', '/display': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/sqimport.js': 'sqimport.js', '/style.css': 'style.css'};
+        const routes = {'/host': 'host.html', '/display': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/sqimport.js': 'sqimport.js', '/qr.js': 'qr.js', '/style.css': 'style.css'};
         if (p.startsWith('/media/')) {
           requireValue(mediaPattern.test(p), 'Media not found', 404);
           const file = path.join(mediaDir, path.basename(p));
@@ -357,7 +357,10 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const next = {...settings()};
           for (const k of ['registrationOpen', 'leaderboardVisible', 'ended']) if (Object.hasOwn(body, k)) {requireValue(typeof body[k] === 'boolean', 'Invalid setting'); next[k] = body[k];}
           if (Object.hasOwn(body, 'title')) {requireValue(typeof body.title === 'string' && body.title.trim() && body.title.length <= 100, 'Title must contain 1–100 characters'); next.title = body.title.trim();}
-          if (Object.hasOwn(body, 'displayMode')) {requireValue(['leaderboard', 'question', 'wheel', 'blank'].includes(body.displayMode), 'Invalid projector view'); next.displayMode = body.displayMode;}
+          // Shown on the projector's join screen; the Wi-Fi name should match the hotspot's --ssid.
+          if (Object.hasOwn(body, 'joinSsid')) {requireValue(typeof body.joinSsid === 'string' && body.joinSsid.trim() && Buffer.byteLength(body.joinSsid.trim()) <= 32, 'Wi-Fi name must be 1–32 bytes'); next.joinSsid = body.joinSsid.trim();}
+          if (Object.hasOwn(body, 'joinUrl')) {requireValue(typeof body.joinUrl === 'string' && /^https?:\/\/[^\s]{1,150}$/.test(body.joinUrl.trim()), 'Join address must start with http:// and have no spaces'); next.joinUrl = body.joinUrl.trim();}
+          if (Object.hasOwn(body, 'displayMode')) {requireValue(['join', 'leaderboard', 'question', 'wheel', 'blank'].includes(body.displayMode), 'Invalid projector view'); next.displayMode = body.displayMode;}
           if (next.ended) {closeQuestion(latest()); next.registrationOpen = false;}
           setMeta('settings', next); return send(200, next);
         }

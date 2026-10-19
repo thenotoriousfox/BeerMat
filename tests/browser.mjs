@@ -64,6 +64,14 @@ try {
   log('form authoring: text, choice, one-item sheet, picture and audio upload; saved quiz survives reload');
   await player.goto(base + '/hotspot-detect.html'); await player.locator('#name').fill('Fox team'); await player.locator('#joinButton').click(); await visible(player, '#game'); const recovery = await player.locator('#code').textContent(); assert.equal(recovery.length, 48);
   await projector.goto(base + '/display'); await projector.getByText('1. Fox team').waitFor();
+  await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('join'); await visible(projector, '#joinSection');
+  await waitFor(projector, () => document.querySelector('#wifiQr svg')?.getAttribute('aria-label') === 'QR code: WIFI:T:nopass;S:PubQuiz;;' && document.querySelector('#urlQr svg path').getAttribute('d').length > 100);
+  assert.equal(await projector.locator('#joinSsid').textContent(), 'PubQuiz'); assert.match(await projector.locator('#joinStatus').textContent(), /1 team has joined/);
+  await host.locator('#joinSsidInput').fill('Fox Quiz'); await host.locator('#joinDetails button').click(); await waitFor(projector, () => document.getElementById('joinSsid').textContent === 'Fox Quiz');
+  await projector.mouse.move(5, 5); await projector.mouse.move(20, 20); await projector.locator('#fullscreen').click(); await waitFor(projector, () => !!document.fullscreenElement && document.getElementById('fullscreen').textContent.includes('Exit'));
+  await projector.keyboard.press('f'); await waitFor(projector, () => !document.fullscreenElement);
+  await host.locator('#displayMode').selectOption('leaderboard'); await waitFor(projector, () => document.getElementById('joinHint').textContent.includes('Fox Quiz'));
+  log('projector join screen with Wi-Fi and address QR codes, editable join details, full-screen toggle');
   await host.locator('[data-tab=live]').click(); await host.locator('#next').click(); await player.getByRole('heading', {name: 'Type hello', exact: true}).waitFor();
   await player.locator('#inputs input').fill('hi'); await waitFor(player, () => document.getElementById('draftStatus').textContent.includes('Draft saved'));
   await player.reload(); await visible(player, '#game'); assert.equal(await player.locator('#inputs input').inputValue(), 'hi');
@@ -112,7 +120,7 @@ try {
   await host.locator('[data-tab=teams]').click(); await waitFor(host, () => document.getElementById('teamCards').textContent.includes('Owl team'));
   assert.equal(await scoreOf('Fox team'), before + 3); assert.equal(await scoreOf('Owl team'), 1);
   log('letter keypad, tap-to-order sequence and nearest-wins sliding scale (2 places: 1 point each after rounding)');
-  await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('question'); await projector.locator('#enableSound').click();
+  await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('question'); await projector.mouse.move(5, 5); await projector.mouse.move(20, 20); await projector.locator('#enableSound').click();
   await play('Classic buzz'); await visible(rival, '#buzz'); await rival.locator('#buzz').click(); await player.locator('#buzz').click();
   await waitFor(player, () => document.getElementById('buzzStatus').textContent.includes('#2'));
   await waitFor(projector, () => document.getElementById('buzzLeader').textContent.includes('Owl team'));

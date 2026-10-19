@@ -202,6 +202,7 @@ document.addEventListener('keydown', e => {
   e.preventDefault(); if (tab !== 'live') chooseTab('live'); button.click();
 });
 $('reveal').onclick = () => action(() => request('reveal', {question: state.question.id, revealed: !state.question.revealed}), 'Reveal updated');
+$('joinDetails').onsubmit = e => {e.preventDefault(); action(() => request('settings', {joinSsid: $('joinSsidInput').value, joinUrl: $('joinUrlInput').value}), 'Join details saved — shown on the projector join screen');};
 $('titleForm').onsubmit = e => {e.preventDefault(); action(() => request('settings', {title: $('eventName').value}));};
 $('registration').onclick = () => action(() => request('settings', {registrationOpen: !state.settings.registrationOpen}));
 $('visibility').onclick = () => action(() => request('settings', {leaderboardVisible: !state.settings.leaderboardVisible}));
@@ -288,6 +289,7 @@ function renderState(s) {
   state = s; offset = s.serverTime - Date.now();
   $('eventTitle').textContent = s.settings.title; $('eventState').textContent = s.settings.ended ? 'Quiz finished' : 'Quiz in progress';
   if (!$('eventName').value) $('eventName').value = s.settings.title;
+  if (!$('joinDetails').contains(document.activeElement)) {$('joinSsidInput').value = s.settings.joinSsid; $('joinUrlInput').value = s.settings.joinUrl;}
   const q = s.question, pending = q?.live;
   $('liveRound').textContent = q?.round || ''; $('liveText').textContent = q?.text || 'Ready when you are'; $('liveTimer').textContent = timeText(q, offset);
   $('liveKey').textContent = q ? answerKey(q) : '';
