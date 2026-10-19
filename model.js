@@ -17,10 +17,10 @@ const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = 
 
 // Question types. Keypad formats follow common pub-quiz handset conventions:
 // letters (first letter of the answer), numbers, multiple choice and sequence.
-export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'vote', 'buzzer', 'bingo', 'picture', 'audio', 'sheet'];
-export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'picture', 'audio', 'bingo'];
+export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'vote', 'buzzer', 'bingo', 'clips', 'picture', 'audio', 'sheet'];
+export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'picture', 'audio', 'bingo', 'clips'];
 // Buzzer questions stay open until the quizmaster rules on them; the timer only limits buzzing.
-export const hostDriven = type => type === 'buzzer' || type === 'bingo';
+export const hostDriven = type => ['buzzer', 'bingo', 'clips'].includes(type);
 
 export function validateQuestion(q, mediaDir) {
   requireValue(q && typeof q === 'object', 'Question required');
@@ -69,6 +69,16 @@ export function validateQuestion(q, mediaDir) {
     requireValue(t.aspect === undefined || (typeof t.aspect === 'number' && t.aspect >= 0.1 && t.aspect <= 10), 'Invalid picture shape');
     result.target = {x: t.x, y: t.y, r: t.r, aspect: t.aspect ?? 1}; result.goWide = q.goWide === true; result.goWidePoints = q.goWidePoints ?? 0;
     requireValue(integer(result.goWidePoints, 0, 100), 'Go-wide points must be 0–100');
+  }
+  if (q.type === 'clips') {
+    requireValue(Array.isArray(q.clips) && q.clips.length >= 2 && q.clips.length <= 30, 'Add 2–30 audio clips');
+    result.clips = q.clips.map(c => {
+      requireValue(c && typeof c.media === 'string' && mediaPattern.test(c.media) && audioExtensions.includes(path.extname(c.media).toLowerCase()) && existsSync(path.join(mediaDir, path.basename(c.media))), 'Each clip needs an uploaded audio file');
+      requireValue(c.label === undefined || text(c.label, 100, false), 'Clip names must be up to 100 characters');
+      return {media: c.media, label: c.label?.trim() || ''};
+    });
+    result.targetClip = q.targetClip;
+    requireValue(integer(q.targetClip, 0, result.clips.length - 1), 'Pick which clip teams should tap for');
   }
   if (q.type === 'bingo') {
     result.mode = q.mode ?? 'line';
@@ -123,7 +133,7 @@ export function answerValue(value, q, final = true) {
     requireValue(Array.isArray(value) && value.length <= (q.goWide ? 2 : 1) && value.every(point) && (!final || value.length), 'Tap the picture');
     return JSON.stringify(value.map(p => p.map(v => Math.round(v * 10000) / 10000)));
   }
-  requireValue(q.type !== 'buzzer' && q.type !== 'bingo', 'Use the buttons for this question');
+  requireValue(!['buzzer', 'bingo', 'clips'].includes(q.type), 'Use the buttons for this question');
   requireValue(typeof value === 'string' && value.length <= 300 && (!final || value.trim()), 'Answer must contain 1–300 characters');
   if (!final && value === '') return '';
   if (q.type === 'choice' || q.type === 'vote') requireValue(q.options.includes(value), 'Select a valid choice');
@@ -137,7 +147,7 @@ export function isCorrect(value, q) {
   if (q.type === 'sequence') return JSON.stringify(JSON.parse(value)) === JSON.stringify(q.items.map((_, i) => i));
   if (q.type === 'multi') return JSON.parse(value).join('\n') === q.correct.join('\n');
   if (q.type === 'pinpoint') return hits(JSON.parse(value)[0], q.target);
-  if (['vote', 'nearest', 'buzzer', 'bingo', 'sheet'].includes(q.type) || !q.answer) return null;
+  if (['vote', 'nearest', 'buzzer', 'bingo', 'clips', 'sheet'].includes(q.type) || !q.answer) return null;
   if (q.type === 'number') return Number(value) === Number(q.answer);
   if (q.type === 'choice' || q.type === 'letter') return value === q.answer;
   return matches(value, [q.answer, ...(q.aliases || [])]);

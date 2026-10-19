@@ -218,3 +218,24 @@ test('team photos stay private until approved and are deleted when rejected', ()
   await call('host/settings', {teamPhotos: true}); await call('host/team', {id: a.id, action: 'rejectPhoto'});
   assert.equal(await board(), null); assert.equal((await fetch(url() + photo)).status, 404);
 }));
+
+test('sound clips: taps score only during the right clip, with a fading bonus', () => fixture(async ({call, url, teams, score, tick}) => {
+  const [a, b, c] = await teams('Alpha', 'Bravo', 'Charlie');
+  const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WAVE'), Buffer.alloc(40)]);
+  const key = (await call('login', {key: hostKey})).key, clips = [];
+  for (let i = 0; i < 3; i++) clips.push({media: (await (await fetch(url() + `/api/host/media?name=c${i}.wav`, {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: wav})).json()).media, label: `Song ${i}`});
+  assert.equal((await call('host/open', {...base, text: 'Tap for Song 1', type: 'clips', clips, targetClip: 5})).status, 400);
+  await call('host/open', {...base, text: 'Tap for Song 1', type: 'clips', clips, targetClip: 1, points: 5, speedBonus: 5});
+  const q = (await call('state', {}, a.secret)).question;
+  assert.equal(q.clips, undefined, 'clip files and labels hidden from phones'); assert.equal(q.clipGame.count, 3);
+  assert.equal((await call('tap', {question: q.id}, a.secret)).status, 409, 'nothing playing yet');
+  await call('host/clip', {question: q.id, clip: 0}); tick(500);
+  await call('tap', {question: q.id}, c.secret);
+  await call('host/clip', {question: q.id, clip: 1}); tick(2500);
+  assert.equal((await call('tap', {question: q.id}, a.secret)).clip, 2);
+  assert.equal((await call('tap', {question: q.id}, a.secret)).status, 409, 'one tap per team');
+  assert.equal((await call('state', {}, a.secret)).question.clipGame.playing, 2);
+  await call('host/clip', {question: q.id, clip: -1}); await call('tap', {question: q.id}, b.secret);
+  await call('host/close');
+  assert.equal(await score(a), 7); assert.equal(await score(b), 0); assert.equal(await score(c), 0);
+}));

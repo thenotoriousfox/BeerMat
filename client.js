@@ -30,6 +30,11 @@ function updateControls() {
   $('answerState').textContent = current.settings.ended ? 'Quiz finished' : q?.type === 'buzzer' ? '' : current.answer ? '✓ Final answer saved' : q?.paused ? 'Paused' : '';
   if (q?.type === 'buzzer') renderBuzzer(q);
   if (q?.type === 'bingo') renderBingo(q);
+  if (q?.type === 'clips') {
+    const c = q.clipGame;
+    $('tap').disabled = !(online && q.live && !q.paused && c.playing !== null && !c.tapped && !current.settings.ended);
+    $('clipStatus').textContent = c.tapped ? `You tapped: ${c.tapped}` : c.playing ? `🎵 Clip ${c.playing} of ${c.count}` : q.live ? 'Get ready — listen for the clips' : 'Clips finished';
+  }
 }
 // Keypad and sequence buttons write to one hidden input so drafts work the same as typed answers.
 function syncPicks() {
@@ -148,7 +153,7 @@ function playerState(s) {
     renderedQuestion = q?.id; $('inputs').replaceChildren(); $('draftStatus').textContent = '';
     $('question').textContent = q?.text || 'Waiting for the quizmaster'; $('round').textContent = q?.round || '';
     renderMedia($('media'), q?.type === 'pinpoint' ? null : q);
-    $('answerForm').hidden = ['buzzer', 'bingo'].includes(q?.type); $('buzzBox').hidden = q?.type !== 'buzzer'; $('bingoBox').hidden = q?.type !== 'bingo';
+    $('answerForm').hidden = ['buzzer', 'bingo', 'clips'].includes(q?.type); $('buzzBox').hidden = q?.type !== 'buzzer'; $('bingoBox').hidden = q?.type !== 'bingo'; $('clipBox').hidden = q?.type !== 'clips';
     if (q?.type === 'bingo') buildTicket(q);
     if (q) {
       buildInputs(q); syncPicks();
@@ -163,7 +168,7 @@ function playerState(s) {
   if (s.team.photo && $('myPhoto').getAttribute('src') !== s.team.photo) $('myPhoto').src = s.team.photo;
   $('photoStatus').textContent = !s.team.photo ? 'Add a team photo to appear on the big screen. The quizmaster approves it first.' : s.team.photoStatus === 'approved' ? '✓ Approved — showing on the big screen' : 'Waiting for the quizmaster to approve it';
   selectOptions($('sound'), sounds.map(([label], i) => [String(i), label]), document.activeElement === $('sound') ? undefined : String(s.team.sound ?? ''));
-  if (s.answer && !['buzzer', 'bingo'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? 'Your final answer is safely stored on the quiz laptop.' : `Your answer scored ${s.answer.points} ${Math.abs(s.answer.points) === 1 ? 'point' : 'points'}.`; localDraft = null; writeStorage(draftKey(q.id), '');}
+  if (s.answer && !['buzzer', 'bingo', 'clips'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? 'Your final answer is safely stored on the quiz laptop.' : `Your answer scored ${s.answer.points} ${Math.abs(s.answer.points) === 1 ? 'point' : 'points'}.`; localDraft = null; writeStorage(draftKey(q.id), '');}
   renderSolution($('solution'), q); updateControls();
 }
 function sharedState(s) {
@@ -199,6 +204,8 @@ function displayState(s) {
     const items = q?.type === 'choice' || q?.type === 'vote' ? q.options.map((o, i) => `${letters[i]}. ${o}`) : q?.type === 'sequence' ? q.order.map(i => q.items[i]) : q?.type === 'sheet' ? q.items : [];
     $('projectItems').replaceChildren(...items.map(text => element('li', text)));
   }
+  const c = q?.clipGame; $('projectClips').hidden = !c;
+  if (c) {$('clipNow').textContent = c.playing ? `🎵 Clip ${c.playing} of ${c.count}` : q.live ? 'Listen carefully…' : 'Clips finished'; $('clipTaps').textContent = `${c.taps} ${c.taps === 1 ? 'team has' : 'teams have'} tapped`;}
   const g = q?.bingo; $('projectBingo').hidden = !g;
   if (g) {
     $('bingoBig').textContent = g.last ?? '–'; $('bingoCallText').textContent = s.settings.bingoPhrases && g.last ? bingoCall(g.last) : ''; $('bingoWinners').textContent = g.winners.length ? `BINGO! ${g.winners.join(', ')}` : `${modes[g.mode]} · ${g.called.length} called`;
@@ -306,7 +313,7 @@ if (role === 'player') {
     catch (e) {message(e.status ? e.message : 'Could not confirm submission. Reconnecting will check whether it was received.', true); await refresh();}
     finally {submitting = false; updateControls();}
   };
-  for (const [id, route, done] of [['buzz', 'buzz', 'Buzzed!'], ['agree', 'agree', 'Agreement recorded'], ['claimBingo', 'bingo', 'BINGO! Checked and counted']]) $(id).onclick = async () => {
+  for (const [id, route, done] of [['buzz', 'buzz', 'Buzzed!'], ['agree', 'agree', 'Agreement recorded'], ['claimBingo', 'bingo', 'BINGO! Checked and counted'], ['tap', 'tap', 'Tap recorded']]) $(id).onclick = async () => {
     $(id).disabled = true; enableSound();
     try {await api(route, {question: current.question.id}, secret); message(done); navigator.vibrate?.(80); if (id === 'buzz') buzzSound(current.team.name, current.team.sound);} catch (e) {message(e.message, true);}
     await updates.update();

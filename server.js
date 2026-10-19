@@ -35,6 +35,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     CREATE TABLE IF NOT EXISTS buzzes(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),at INTEGER NOT NULL,status TEXT NOT NULL,PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS agrees(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),at INTEGER NOT NULL,PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS host_sessions(hash TEXT PRIMARY KEY,expires INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS clip_plays(question INTEGER REFERENCES questions(id),seq INTEGER NOT NULL,clip INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,seq));
     CREATE TABLE IF NOT EXISTS bingo_calls(question INTEGER REFERENCES questions(id),seq INTEGER NOT NULL,number INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,seq));
   `);
   function column(table, name, definition) {
@@ -135,15 +136,23 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return {mode: data.mode, called, last: called.at(-1) ?? null, winners: rows('SELECT t.name FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=? AND a.points>0 ORDER BY a.submitted,a.rowid', q.id).map(w => w.name),
       ...(teamId ? {card: bingoCard(`${teamId}:${q.id}`), claimed: !!one('SELECT 1 FROM answers WHERE team=? AND question=?', teamId, q.id)} : {})};
   }
+  // Sound clips: the desk logs when each clip starts (clip -1 = gap/stopped); a tap counts for whatever was playing.
+  const nowPlaying = q => one('SELECT seq,clip,at FROM clip_plays WHERE question=? ORDER BY seq DESC LIMIT 1', q.id);
+  function clipState(q, data, teamId) {
+    if (data.type !== 'clips') return null;
+    const playing = nowPlaying(q), tap = teamId && one('SELECT value FROM answers WHERE team=? AND question=?', teamId, q.id);
+    return {count: data.clips.length, playing: playing && playing.clip >= 0 ? playing.clip + 1 : null, taps: one('SELECT COUNT(*) n FROM answers WHERE question=?', q.id).n,
+      ...(teamId ? {tapped: tap ? tap.value : null} : {})};
+  }
   function publicQuestion(q, host = false, teamId = null) {
     if (!q) return null;
     const data = dataOf(q);
-    const {answer, aliases, itemAnswers, answerNote, correct, target, ...safe} = data;
+    const {answer, aliases, itemAnswers, answerNote, correct, target, clips, targetClip, ...safe} = data;
     // Sequence items are shown shuffled; the stored order is the answer.
     const result = {...safe, id: q.id, deadline: q.deadline, open: accepting(q), live: pending(q), paused: pending(q) && q.paused_ms !== null,
-      remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: !!q.revealed, buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId)};
+      remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: !!q.revealed, buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId), clipGame: clipState(q, data, teamId)};
     if (data.type === 'sequence') result.order = shuffleOrder(data.items.length, q.id);
-    if (host || q.revealed) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], correct, target, tally: tally(q, data),
+    if (host || q.revealed) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], correct, target, clips, targetClip, tally: tally(q, data),
       correctCount: one('SELECT COUNT(*) n FROM answers WHERE question=? AND points>0', q.id).n});
     return result;
   }
@@ -420,6 +429,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const number = remaining[randomInt(remaining.length)];
           run('INSERT INTO bingo_calls VALUES(?,?,?,?)', q.id, called.size + 1, number, now()); return send(200, {number});
         }
+        if (p === '/api/host/clip') {
+          const q = questionById(body.question); requireValue(q && pending(q) && dataOf(q).type === 'clips', 'No live sound clips game', 409);
+          requireValue(Number.isInteger(body.clip) && body.clip >= -1 && body.clip < dataOf(q).clips.length, 'Unknown clip');
+          run('INSERT INTO clip_plays VALUES(?,?,?,?)', q.id, (nowPlaying(q)?.seq || 0) + 1, body.clip, now()); return send(200, {ok: true});
+        }
         if (p === '/api/host/wheel') {
           const items = body.items ?? scores().map(t => t.name);
           requireValue(Array.isArray(items) && items.length >= 2 && items.length <= 60 && items.every(i => typeof i === 'string' && i.trim() && i.length <= 60), 'The wheel needs 2–60 entries of up to 60 characters');
@@ -482,7 +496,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           }
           return send(200, {ok: true});
         }
-        if (p === '/api/host/export') return send(200, {version: 3, settings: settings(), library: library(), teams: rows('SELECT id,name,enabled FROM teams'), questions: rows('SELECT * FROM questions'), answers: rows('SELECT * FROM answers'), adjustments: rows('SELECT * FROM adjustments'), markingLog: rows('SELECT * FROM marking_log'), buzzes: rows('SELECT * FROM buzzes'), agrees: rows('SELECT * FROM agrees'), bingoCalls: rows('SELECT * FROM bingo_calls')});
+        if (p === '/api/host/export') return send(200, {version: 3, settings: settings(), library: library(), teams: rows('SELECT id,name,enabled FROM teams'), questions: rows('SELECT * FROM questions'), answers: rows('SELECT * FROM answers'), adjustments: rows('SELECT * FROM adjustments'), markingLog: rows('SELECT * FROM marking_log'), buzzes: rows('SELECT * FROM buzzes'), agrees: rows('SELECT * FROM agrees'), bingoCalls: rows('SELECT * FROM bingo_calls'), clipPlays: rows('SELECT * FROM clip_plays')});
         throw new QuizError('Unknown host action', 404);
       }
       if (p === '/api/join') {
@@ -518,6 +532,17 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         const first = !one('SELECT 1 FROM answers WHERE question=? AND points>0', q.id);
         award(team.id, q, `BINGO on call ${called.size}`, data.points + (first ? data.speedBonus : 0));
         return send(200, {ok: true, first});
+      }
+      if (p === '/api/tap') {
+        const q = latest(); requireValue(q && body.question === q.id && pending(q) && q.paused_ms === null && dataOf(q).type === 'clips' && !settings().ended, 'No live sound clips game', 409);
+        const data = dataOf(q), playing = nowPlaying(q);
+        requireValue(playing, 'Wait for the clips to start', 409);
+        requireValue(!one('SELECT 1 FROM answers WHERE team=? AND question=?', team.id, q.id), 'You have already tapped', 409);
+        // Full points for tapping during the right clip, plus a bonus that fades over its first five seconds.
+        const right = playing.clip === data.targetClip, elapsed = now() - playing.at;
+        const points = right ? data.points + Math.floor((data.speedBonus || 0) * Math.max(0, 1 - elapsed / 5000)) : 0;
+        award(team.id, q, playing.clip >= 0 ? `Clip ${playing.clip + 1}` : 'Between clips', points);
+        return send(200, {ok: true, clip: playing.clip >= 0 ? playing.clip + 1 : null});
       }
       if (p === '/api/buzz' || p === '/api/agree') {
         const q = latest(); requireValue(q && body.question === q.id && pending(q) && q.paused_ms === null && dataOf(q).type === 'buzzer' && !settings().ended, 'No live buzzer question', 409);

@@ -26,6 +26,13 @@ const prompts = [];
 host.on('dialog', async dialog => {await dialog.accept(dialog.type() === 'prompt' ? prompts.shift() || 'Test round' : undefined);});
 player.on('dialog', dialog => dialog.accept());
 const log = text => console.log('PASS:', text);
+// A silent mono 8 kHz WAV of the given length.
+function makeWav(seconds) {
+  const data = 8000 * 2 * seconds, wav = Buffer.alloc(44 + data);
+  wav.write('RIFF'); wav.writeUInt32LE(36 + data, 4); wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(8000, 24); wav.writeUInt32LE(16000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(data, 40);
+  return wav;
+}
 // A plain w×h PNG, large enough to click on.
 function makePng(w, h) {
   const chunk = (type, data) => {const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const body = Buffer.concat([Buffer.from(type), data]); const crc = Buffer.alloc(4); crc.writeUInt32BE(zlib.crc32(body)); return Buffer.concat([len, body, crc]);};
@@ -101,7 +108,7 @@ try {
   await host.locator('#adjustPoints').fill('3'); await host.locator('#adjustReason').fill('Paper round'); await host.locator('#adjustForm button').click(); await waitFor(host, () => document.getElementById('teamCards').textContent.includes('6 pts'));
   const play = async (text) => {await host.locator('[data-tab=build]').click(); await host.locator('#questionSelect').selectOption(await host.locator('#questionSelect option', {hasText: text}).first().getAttribute('value')); await host.locator('#playSelected').click(); await host.locator('[data-tab=live]').click(); await player.getByRole('heading', {name: text, exact: true}).waitFor();};
   const submitted = async page => {await page.locator('#submit').click(); await waitFor(page, () => document.getElementById('answerState').textContent.includes('Final answer saved'));};
-  const scoreOf = async name => Number((await host.locator('#teamCards article', {hasText: name}).locator('p').textContent()).split(' ')[0]);
+  const scoreOf = async name => Number((await host.locator('#teamCards article', {hasText: name}).locator('p').first().textContent()).split(' ')[0]);
   await rival.goto(base + '/'); await rival.locator('#name').fill('F u c k team'); await rival.locator('#joinButton').click(); await waitFor(rival, () => document.getElementById('message').textContent.includes('different team name'));
   await rival.locator('#name').fill('Owl team'); await rival.locator('#joinButton').click(); await visible(rival, '#game');
   await host.locator('[data-tab=build]').click(); await host.locator('#roundSelect').selectOption({index: 0});
@@ -186,6 +193,20 @@ try {
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard');
   await waitFor(projector, () => document.querySelector('#leaderboard .avatar')?.naturalWidth === 360);
   log('team photo: shrunk to a 360px JPEG on the phone, approved by the host, shown on the TV leaderboard');
+  await host.locator('[data-tab=build]').click(); await host.locator('#roundSelect').selectOption({index: 0});
+  await host.locator('#newQuestion').click(); await host.locator('#qText').fill('Tap on the second clip'); await host.locator('#qType').selectOption('clips');
+  await host.locator('#clipUpload').setInputFiles([{name: 'Intro.wav', mimeType: 'audio/wav', buffer: makeWav(3)}, {name: 'Chorus.wav', mimeType: 'audio/wav', buffer: makeWav(3)}]);
+  await waitFor(host, () => document.querySelectorAll('#clipList li').length === 2); await host.locator('#clipList input[type=radio]').nth(1).check();
+  await host.locator('#saveQuestion').click(); await waitFor(host, () => document.getElementById('editorStatus').textContent === 'Saved question loaded');
+  await host.locator('[data-tab=teams]').click(); const foxBefore = await scoreOf('Fox team');
+  await play('Tap on the second clip'); await host.locator('#playClips').click();
+  await waitFor(rival, () => document.getElementById('clipStatus').textContent.includes('Clip 1 of 2')); await rival.locator('#tap').click();
+  await waitFor(player, () => document.getElementById('clipStatus').textContent.includes('Clip 2 of 2')); await player.locator('#tap').click();
+  await waitFor(player, () => document.getElementById('clipStatus').textContent === 'You tapped: Clip 2');
+  await waitFor(projector, () => document.getElementById('clipTaps').textContent.startsWith('2 teams'));
+  await host.keyboard.press('c'); await host.locator('[data-tab=teams]').click();
+  await waitFor(host, () => document.getElementById('teamCards').textContent.length > 0); assert.equal(await scoreOf('Fox team'), foxBefore + 1);
+  log('sound clips: desk plays the playlist, taps scored by which clip was playing');
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await host.locator('#finish').click(); await waitFor(projector, () => document.getElementById('boardStatus').textContent === 'Final standings');
   await visible(projector, '#winnerSection'); await waitFor(projector, () => document.getElementById('winnerName').textContent === 'Fox team' && document.querySelectorAll('#confetti span').length === 80);
   assert.match(await projector.locator('#podium').textContent(), /🥈 Owl team/); await waitFor(player, () => document.getElementById('answerState').textContent === 'Quiz finished');
