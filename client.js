@@ -1,10 +1,12 @@
-import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, sounds, renderPinpoint, selectOptions} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('pubquiz-team'), current = null, renderedQuestion = undefined, offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
-let localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '';
+let localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0;
 const inputs = () => [...$('inputs').querySelectorAll('input,select')];
 const draftKey = id => `pubquiz-draft:${secret}:${id}`;
 const keypad = type => ['choice', 'vote', 'letter'].includes(type);
+const listValue = type => ['sequence', 'multi', 'pinpoint'].includes(type);
+const modes = {line: 'One line', twoLines: 'Two lines', fullHouse: 'Full house'};
 function saveIdentity(code) {
   secret = code; current = null; renderedQuestion = undefined; localDraft = null; inputRevision = 0;
   if (!writeStorage('pubquiz-team', code)) $('storageWarning').textContent = 'Browser storage is unavailable. Write down your recovery code before closing this window.';
@@ -13,7 +15,7 @@ function saveIdentity(code) {
 function inputValue() {
   const q = current.question, values = inputs().map(i => i.value);
   if (q.type === 'sheet') return values;
-  if (q.type === 'sequence') {try {return JSON.parse(values[0] || '[]');} catch {return [];}}
+  if (listValue(q.type)) {try {return JSON.parse(values[0] || '[]');} catch {return [];}}
   return values[0];
 }
 function updateControls() {
@@ -26,14 +28,21 @@ function updateControls() {
   $('status').textContent = timeText(q, offset);
   $('answerState').textContent = current.settings.ended ? 'Quiz finished' : q?.type === 'buzzer' ? '' : current.answer ? '✓ Final answer saved' : q?.paused ? 'Paused' : '';
   if (q?.type === 'buzzer') renderBuzzer(q);
+  if (q?.type === 'bingo') renderBingo(q);
 }
 // Keypad and sequence buttons write to one hidden input so drafts work the same as typed answers.
 function syncPicks() {
   const q = current?.question; if (!q) return;
   const hidden = $('inputs').querySelector('input[type=hidden]'); if (!hidden) return;
   if (keypad(q.type)) $('inputs').querySelectorAll('[data-value]').forEach(b => b.classList.toggle('picked', b.dataset.value === hidden.value));
+  let list = []; try {list = listValue(q.type) ? JSON.parse(hidden.value || '[]') : [];} catch {}
+  if (q.type === 'multi') $('inputs').querySelectorAll('[data-value]').forEach(b => b.classList.toggle('picked', list.includes(b.dataset.value)));
+  if (q.type === 'pinpoint') renderPinpoint($('pinArea'), q, list, point => {
+    if ($('submit').disabled) return;
+    pick(JSON.stringify(list.length < (q.goWide ? 2 : 1) ? [...list, point] : [...list.slice(0, -1), point]));
+  });
   if (q.type === 'sequence') {
-    let picked = []; try {picked = JSON.parse(hidden.value || '[]');} catch {}
+    const picked = list;
     $('picked').replaceChildren(...picked.map(i => element('li', q.items[i])));
     $('inputs').querySelectorAll('[data-index]').forEach(b => b.classList.toggle('picked', picked.includes(Number(b.dataset.index))));
   }
@@ -44,17 +53,30 @@ function pick(value) {
 }
 function writeInputs(value) {
   const q = current.question;
-  if (q.type === 'sequence') {$('inputs').querySelector('input[type=hidden]').value = JSON.stringify(value || []); return syncPicks();}
+  if (listValue(q.type)) {$('inputs').querySelector('input[type=hidden]').value = JSON.stringify(value || []); return syncPicks();}
   const values = q.type === 'sheet' ? value : [value];
   inputs().forEach((input, i) => input.value = values?.[i] ?? '');
   syncPicks();
 }
 function parseSaved(value) {
-  try {return ['sheet', 'sequence'].includes(current.question.type) ? JSON.parse(value) : value;} catch {return null;}
+  try {return current.question.type === 'sheet' || listValue(current.question.type) ? JSON.parse(value) : value;} catch {return null;}
 }
 function buildInputs(q) {
   const box = $('inputs');
-  if (q.type === 'buzzer') return;
+  if (q.type === 'buzzer' || q.type === 'bingo') return;
+  const hiddenInput = () => {const hidden = element('input'); hidden.type = 'hidden'; hidden.name = 'answer-0'; box.append(hidden);};
+  if (q.type === 'multi') {
+    hiddenInput(); const pad = element('div', undefined, 'keypad');
+    pad.append(...q.options.map((option, i) => {const b = element('button', `${letters[i]}. ${option}`); b.type = 'button'; b.dataset.value = option; b.onclick = () => {
+      const picked = inputValue(); pick(JSON.stringify(picked.includes(option) ? picked.filter(p => p !== option) : [...picked, option]));
+    }; return b;}));
+    box.append(element('p', 'Tick every right answer — wrong ticks cost points', 'muted'), pad); return;
+  }
+  if (q.type === 'pinpoint') {
+    hiddenInput(); const area = element('div'); area.id = 'pinArea';
+    const undo = element('button', 'Undo tap', 'subtle'); undo.type = 'button'; undo.onclick = () => pick(JSON.stringify(inputValue().slice(0, -1)));
+    box.append(element('p', q.goWide ? `Tap the picture. Go wide: a second tap scores ${q.goWidePoints} if your first misses.` : 'Tap the picture to place your answer', 'muted'), area, undo); return;
+  }
   if (q.type === 'sheet') {
     q.items.forEach((text, i) => {
       const label = element('label', `${i + 1}. ${text}`), input = element('input'); input.name = `answer-${i}`; input.autocomplete = 'off'; input.maxLength = 300; input.type = 'text';
@@ -93,6 +115,28 @@ function renderBuzzer(q) {
   $('agreeText').textContent = b.active ? `${b.active.name} answered “${b.announced || '…'}”. Do you agree?` : '';
   $('agree').disabled = !canAgree || b.agreed; $('agree').textContent = b.agreed ? '✓ You agreed' : 'I agree';
 }
+// Teams dab their own ticket, as on paper; dabs stay on this phone.
+const dabKey = id => `pubquiz-dabs:${secret}:${id}`;
+function buildTicket(q) {
+  let dabs = []; try {dabs = JSON.parse(readStorage(dabKey(q.id)) || '[]');} catch {}
+  $('ticket').replaceChildren(...q.bingo.card.map(row => {
+    const tr = element('div', undefined, 'ticket-row');
+    tr.append(...row.map(n => {
+      if (n === null) return element('span', '', 'blank');
+      const b = element('button', String(n)); b.type = 'button'; b.classList.toggle('dabbed', dabs.includes(n));
+      b.onclick = () => {dabs = dabs.includes(n) ? dabs.filter(x => x !== n) : [...dabs, n]; writeStorage(dabKey(q.id), JSON.stringify(dabs)); b.classList.toggle('dabbed', dabs.includes(n));};
+      return b;
+    }));
+    return tr;
+  }));
+}
+function renderBingo(q) {
+  const b = q.bingo;
+  $('bingoMode').textContent = `${modes[b.mode]} · ${b.called.length} called`;
+  $('bingoLast').textContent = b.last ?? '–';
+  $('claimBingo').disabled = !(online && q.live && !q.paused && !b.claimed && !current.settings.ended);
+  $('bingoStatus').textContent = b.claimed ? '✓ Bingo! Your claim was checked and counted.' : b.winners.length ? `Bingo called by ${b.winners.join(', ')} — claim now only if you have it on this number` : '';
+}
 function playerState(s) {
   current = s; offset = s.serverTime - Date.now(); $('join').hidden = true; $('game').hidden = false;
   $('team').textContent = s.team.name; $('code').textContent = secret; const q = s.question;
@@ -100,10 +144,11 @@ function playerState(s) {
     clearTimeout(draftTimer); draftGeneration++; localDraft = null; inputRevision = 0;
     renderedQuestion = q?.id; $('inputs').replaceChildren(); $('draftStatus').textContent = '';
     $('question').textContent = q?.text || 'Waiting for the quizmaster'; $('round').textContent = q?.round || '';
-    renderMedia($('media'), q);
-    $('answerForm').hidden = q?.type === 'buzzer'; $('buzzBox').hidden = q?.type !== 'buzzer';
+    renderMedia($('media'), q?.type === 'pinpoint' ? null : q);
+    $('answerForm').hidden = ['buzzer', 'bingo'].includes(q?.type); $('buzzBox').hidden = q?.type !== 'buzzer'; $('bingoBox').hidden = q?.type !== 'bingo';
+    if (q?.type === 'bingo') buildTicket(q);
     if (q) {
-      buildInputs(q);
+      buildInputs(q); syncPicks();
       const saved = readStorage(draftKey(q.id));
       if (saved) {try {localDraft = JSON.parse(saved);} catch {}}
       if (localDraft !== null) writeInputs(localDraft);
@@ -111,7 +156,8 @@ function playerState(s) {
       if (localDraft !== null) $('draftStatus').textContent = 'Draft restored — submit when ready';
     }
   }
-  if (s.answer && q?.type !== 'buzzer') {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? 'Your final answer is safely stored on the quiz laptop.' : `Your answer scored ${s.answer.points} ${Math.abs(s.answer.points) === 1 ? 'point' : 'points'}.`; localDraft = null; writeStorage(draftKey(q.id), '');}
+  selectOptions($('sound'), sounds.map(([label], i) => [String(i), label]), document.activeElement === $('sound') ? undefined : String(s.team.sound ?? ''));
+  if (s.answer && !['buzzer', 'bingo'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? 'Your final answer is safely stored on the quiz laptop.' : `Your answer scored ${s.answer.points} ${Math.abs(s.answer.points) === 1 ? 'point' : 'points'}.`; localDraft = null; writeStorage(draftKey(q.id), '');}
   renderSolution($('solution'), q); updateControls();
 }
 function sharedState(s) {
@@ -124,18 +170,47 @@ function displayState(s) {
   $('projection').hidden = s.settings.displayMode === 'blank';
   $('boardSection').hidden = s.settings.displayMode !== 'leaderboard'; $('projectQuestion').hidden = s.settings.displayMode !== 'question';
   const q = s.question; $('question').textContent = q?.text || 'Waiting for the quizmaster'; $('round').textContent = q?.round || ''; $('status').textContent = timeText(q, offset);
-  renderMedia($('media'), q); renderSolution($('solution'), q);
+  if (q?.type === 'pinpoint') renderPinpoint($('media'), q); else renderMedia($('media'), q);
+  renderSolution($('solution'), q);
   if (q?.id !== renderedQuestion) {
     renderedQuestion = q?.id;
     const items = q?.type === 'choice' || q?.type === 'vote' ? q.options.map((o, i) => `${letters[i]}. ${o}`) : q?.type === 'sequence' ? q.order.map(i => q.items[i]) : q?.type === 'sheet' ? q.items : [];
     $('projectItems').replaceChildren(...items.map(text => element('li', text)));
   }
+  const g = q?.bingo; $('projectBingo').hidden = !g;
+  if (g) {
+    $('bingoBig').textContent = g.last ?? '–'; $('bingoWinners').textContent = g.winners.length ? `BINGO! ${g.winners.join(', ')}` : `${modes[g.mode]} · ${g.called.length} called`;
+    if ($('bingoBoard').children.length !== 90) $('bingoBoard').replaceChildren(...Array.from({length: 90}, (_, i) => element('span', String(i + 1))));
+    [...$('bingoBoard').children].forEach((cell, i) => cell.classList.toggle('called', g.called.includes(i + 1)));
+  }
+  $('wheelSection').hidden = s.settings.displayMode !== 'wheel';
+  if (s.settings.displayMode === 'wheel' && s.wheel) renderWheel(s.wheel, s.serverTime - s.wheel.spun < 3000);
   const b = q?.buzz; $('projectBuzz').hidden = !b;
   if (b) {
     $('buzzLeader').textContent = b.active ? `🔔 ${b.active.name}` : q.open ? 'Buzzers open' : '';
     $('buzzDetail').textContent = b.agreeOpen ? `“${b.announced}” — agree now! ${b.agreeCount} agreed` : b.queue.filter(x => x.status === 'queued').map(x => x.name).join(' · ');
-    const leader = b.active?.name || ''; if (leader && leader !== lastBuzzer) buzzSound(leader); lastBuzzer = leader;
+    const leader = b.active?.name || ''; if (leader && leader !== lastBuzzer) buzzSound(leader, b.active.sound); lastBuzzer = leader;
   }
+}
+// The wheel always turns forwards and stops with the server's chosen segment under the pointer.
+function renderWheel(wheel, fresh) {
+  if (wheel.id === wheelId) return;
+  const first = !fresh; wheelId = wheel.id;
+  const svg = $('wheel'), n = wheel.items.length, ns = 'http://www.w3.org/2000/svg', slice = 360 / n;
+  const node = (tag, attrs) => {const el = document.createElementNS(ns, tag); for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v); return el;};
+  const spin = node('g', {}); spin.id = 'wheelSpin';
+  wheel.items.forEach((item, i) => {
+    const a = (i * slice - 90) * Math.PI / 180, b = ((i + 1) * slice - 90) * Math.PI / 180;
+    spin.append(node('path', {d: `M0 0 L${100 * Math.cos(a)} ${100 * Math.sin(a)} A100 100 0 ${slice > 180 ? 1 : 0} 1 ${100 * Math.cos(b)} ${100 * Math.sin(b)} Z`, class: `slice s${i % 6}`}));
+    const label = node('text', {x: 58, y: 0, transform: `rotate(${(i + 0.5) * slice - 90})`, class: 'wheel-label', 'dominant-baseline': 'middle', 'text-anchor': 'middle'}); label.textContent = item.length > 14 ? item.slice(0, 13) + '…' : item; spin.append(label);
+  });
+  svg.replaceChildren(spin, node('polygon', {points: '-7,-108 7,-108 0,-92', class: 'pointer'}));
+  const target = 360 - (wheel.result + 0.5) * slice;
+  wheelTurn = first ? target : wheelTurn - (wheelTurn % 360) + 360 * 6 + target;
+  $('wheelResult').textContent = first ? wheel.items[wheel.result] : '';
+  spin.style.transition = first ? 'none' : 'transform 6s cubic-bezier(.12,.6,.15,1)';
+  requestAnimationFrame(() => requestAnimationFrame(() => {spin.style.transform = `rotate(${wheelTurn}deg)`;}));
+  if (!first) setTimeout(() => {if (wheelId === wheel.id) $('wheelResult').textContent = `🎉 ${wheel.items[wheel.result]}`;}, 6100);
 }
 async function publicState() {
   const response = await fetch('/api/leaderboard', {signal: AbortSignal.timeout(8000)}); if (!response.ok) throw Error('Cannot reach quiz server'); return response.json();
@@ -183,17 +258,22 @@ if (role === 'player') {
     e.preventDefault(); if ($('submit').disabled) return;
     const value = inputValue(), q = current.question;
     if (q.type === 'sheet' && value.some(v => !v.trim()) && !confirm('Some sheet answers are blank. Submit this as your final sheet?')) return;
-    if ((q.type === 'sequence' && value.length !== q.items.length) || (typeof value === 'string' && !value.trim())) return message(q.type === 'sequence' ? 'Place every item in order first' : keypad(q.type) ? 'Choose an answer first' : 'Type an answer first', true);
+    if ((q.type === 'sequence' && value.length !== q.items.length) || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length)) {
+      return message(q.type === 'sequence' ? 'Place every item in order first' : q.type === 'pinpoint' ? 'Tap the picture first' : keypad(q.type) || q.type === 'multi' ? 'Choose an answer first' : 'Type an answer first', true);
+    }
     submitting = true; updateControls(); clearTimeout(draftTimer);
     try {await api('answer', {question: q.id, value}, secret); message('Final answer received'); await refresh();}
     catch (e) {message(e.status ? e.message : 'Could not confirm submission. Reconnecting will check whether it was received.', true); await refresh();}
     finally {submitting = false; updateControls();}
   };
-  for (const [id, route, done] of [['buzz', 'buzz', 'Buzzed!'], ['agree', 'agree', 'Agreement recorded']]) $(id).onclick = async () => {
-    $(id).disabled = true;
-    try {await api(route, {question: current.question.id}, secret); message(done); navigator.vibrate?.(80);} catch (e) {message(e.message, true);}
+  for (const [id, route, done] of [['buzz', 'buzz', 'Buzzed!'], ['agree', 'agree', 'Agreement recorded'], ['claimBingo', 'bingo', 'BINGO! Checked and counted']]) $(id).onclick = async () => {
+    $(id).disabled = true; enableSound();
+    try {await api(route, {question: current.question.id}, secret); message(done); navigator.vibrate?.(80); if (id === 'buzz') buzzSound(current.team.name, current.team.sound);} catch (e) {message(e.message, true);}
     await updates.update();
   };
+}
+if (role === 'player') {
+  $('sound').onchange = async () => {enableSound(); const sound = Number($('sound').value); buzzSound('', sound); try {await api('team/sound', {sound}, secret); message('Buzzer sound saved');} catch (e) {message(e.message, true);}};
 }
 if (role === 'display') $('enableSound').onclick = () => {enableSound(); $('enableSound').hidden = true;};
 setInterval(() => {if (role === 'player') updateControls(); else if (current) $('status').textContent = timeText(current.question, offset);}, 200);

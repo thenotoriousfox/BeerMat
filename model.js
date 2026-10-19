@@ -17,10 +17,10 @@ const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = 
 
 // Question types. Keypad formats follow common pub-quiz handset conventions:
 // letters (first letter of the answer), numbers, multiple choice and sequence.
-export const types = ['text', 'choice', 'letter', 'number', 'nearest', 'sequence', 'vote', 'buzzer', 'picture', 'audio', 'sheet'];
-export const speedTypes = ['text', 'choice', 'letter', 'number', 'sequence', 'picture', 'audio'];
+export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'vote', 'buzzer', 'bingo', 'picture', 'audio', 'sheet'];
+export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'picture', 'audio', 'bingo'];
 // Buzzer questions stay open until the quizmaster rules on them; the timer only limits buzzing.
-export const hostDriven = type => type === 'buzzer';
+export const hostDriven = type => type === 'buzzer' || type === 'bingo';
 
 export function validateQuestion(q, mediaDir) {
   requireValue(q && typeof q === 'object', 'Question required');
@@ -37,10 +37,14 @@ export function validateQuestion(q, mediaDir) {
     speedBonus: q.speedBonus ?? 0, round: typeof q.round === 'string' ? q.round.slice(0, 100) : ''};
   requireValue(integer(result.speedBonus, 0, 100) && (speedTypes.includes(q.type) || result.speedBonus === 0), 'Speed bonus must be 0–100 (zero for this format)');
   if (['text', 'picture', 'audio'].includes(q.type)) result.aliases = aliases;
-  if (q.type === 'choice' || q.type === 'vote') {
+  if (q.type === 'choice' || q.type === 'vote' || q.type === 'multi') {
     requireValue(Array.isArray(q.options) && q.options.length >= 2 && q.options.length <= 8 && q.options.every(o => text(o, 200)) && new Set(q.options).size === q.options.length, 'Supply 2–8 distinct choices');
     result.options = q.options.map(o => o.trim());
     if (q.type === 'vote') result.answer = '';
+    else if (q.type === 'multi') {
+      requireValue(Array.isArray(q.correct) && q.correct.length >= 1 && q.correct.every(c => result.options.includes(c)) && new Set(q.correct).size === q.correct.length, 'Tick at least one correct choice');
+      result.correct = result.options.filter(o => q.correct.includes(o)); result.answer = result.correct.join(', ');
+    }
     else requireValue(!result.answer || result.options.includes(result.answer), 'Correct answer must match a choice');
   }
   if (q.type === 'letter') {
@@ -59,6 +63,17 @@ export function validateQuestion(q, mediaDir) {
     result.items = q.items.map(i => i.trim());
     result.answer = '';
   }
+  if (q.type === 'pinpoint') {
+    const t = q.target, fraction = v => typeof v === 'number' && v >= 0 && v <= 1;
+    requireValue(t && fraction(t.x) && fraction(t.y) && typeof t.r === 'number' && t.r >= 0.01 && t.r <= 0.5, 'Click the picture to set the target area');
+    requireValue(t.aspect === undefined || (typeof t.aspect === 'number' && t.aspect >= 0.1 && t.aspect <= 10), 'Invalid picture shape');
+    result.target = {x: t.x, y: t.y, r: t.r, aspect: t.aspect ?? 1}; result.goWide = q.goWide === true; result.goWidePoints = q.goWidePoints ?? 0;
+    requireValue(integer(result.goWidePoints, 0, 100), 'Go-wide points must be 0–100');
+  }
+  if (q.type === 'bingo') {
+    result.mode = q.mode ?? 'line';
+    requireValue(['line', 'twoLines', 'fullHouse'].includes(result.mode), 'Bingo needs one line, two lines or full house');
+  }
   if (q.type === 'buzzer') {
     result.variation = q.variation ?? 'classic';
     requireValue(['classic', 'advanced'].includes(result.variation), 'Buzzer variation must be classic or advanced');
@@ -74,7 +89,8 @@ export function validateQuestion(q, mediaDir) {
     requireValue(q.type === 'picture' ? pictureExtensions.includes(extension) : q.type === 'audio' ? audioExtensions.includes(extension) : true, 'Media format does not match question type');
     result.media = q.media;
   }
-  requireValue(!['picture', 'audio'].includes(q.type) || result.media, 'Upload or select an existing media file');
+  requireValue(!['picture', 'audio', 'pinpoint'].includes(q.type) || result.media, 'Upload or select an existing media file');
+  requireValue(q.type !== 'pinpoint' || pictureExtensions.includes(path.extname(result.media).toLowerCase()), 'Pinpoint needs a picture');
   if (q.type === 'sheet') {
     requireValue(Array.isArray(q.items) && q.items.length >= 1 && q.items.length <= 50 && q.items.every(i => text(i, 500)), 'Supply 1–50 sheet questions');
     result.items = q.items;
@@ -98,7 +114,16 @@ export function answerValue(value, q, final = true) {
     requireValue(!final || value.length === q.items.length, 'Place every item in order');
     return JSON.stringify(value);
   }
-  requireValue(q.type !== 'buzzer', 'Use the buzzer for this question');
+  if (q.type === 'multi') {
+    requireValue(Array.isArray(value) && value.every(v => q.options.includes(v)) && new Set(value).size === value.length && (!final || value.length), 'Tick at least one choice');
+    return JSON.stringify(q.options.filter(o => value.includes(o)));
+  }
+  if (q.type === 'pinpoint') {
+    const point = p => Array.isArray(p) && p.length === 2 && p.every(v => typeof v === 'number' && v >= 0 && v <= 1);
+    requireValue(Array.isArray(value) && value.length <= (q.goWide ? 2 : 1) && value.every(point) && (!final || value.length), 'Tap the picture');
+    return JSON.stringify(value.map(p => p.map(v => Math.round(v * 10000) / 10000)));
+  }
+  requireValue(q.type !== 'buzzer' && q.type !== 'bingo', 'Use the buttons for this question');
   requireValue(typeof value === 'string' && value.length <= 300 && (!final || value.trim()), 'Answer must contain 1–300 characters');
   if (!final && value === '') return '';
   if (q.type === 'choice' || q.type === 'vote') requireValue(q.options.includes(value), 'Select a valid choice');
@@ -110,11 +135,50 @@ export function answerValue(value, q, final = true) {
 // Whether a single answer is correct, or null when only the quizmaster (or a ranking) can decide.
 export function isCorrect(value, q) {
   if (q.type === 'sequence') return JSON.stringify(JSON.parse(value)) === JSON.stringify(q.items.map((_, i) => i));
-  if (['vote', 'nearest', 'buzzer', 'sheet'].includes(q.type) || !q.answer) return null;
+  if (q.type === 'multi') return JSON.parse(value).join('\n') === q.correct.join('\n');
+  if (q.type === 'pinpoint') return hits(JSON.parse(value)[0], q.target);
+  if (['vote', 'nearest', 'buzzer', 'bingo', 'sheet'].includes(q.type) || !q.answer) return null;
   if (q.type === 'number') return Number(value) === Number(q.answer);
   if (q.type === 'choice' || q.type === 'letter') return value === q.answer;
   return matches(value, [q.answer, ...(q.aliases || [])]);
 }
+
+// Pinpoint coordinates are fractions of the picture; the target circle's radius is a fraction of its width.
+// aspect is the picture's height / width, which turns vertical fractions into width units.
+export const hits = (point, target) => !!point && Math.hypot(point[0] - target.x, (point[1] - target.y) * (target.aspect || 1)) <= target.r;
+
+// Points before any speed bonus. Multi-tap: right picks minus wrong picks, as a share of the points.
+// Pinpoint: full points for the first tap, go-wide points if only the second tap lands.
+export function basePoints(value, q) {
+  if (q.type === 'multi') {
+    const picks = JSON.parse(value), right = picks.filter(p => q.correct.includes(p)).length;
+    return Math.max(0, Math.round(q.points * (right - (picks.length - right)) / q.correct.length));
+  }
+  if (q.type === 'pinpoint') {
+    const [first, second] = JSON.parse(value);
+    return hits(first, q.target) ? q.points : hits(second, q.target) ? q.goWidePoints : 0;
+  }
+  return isCorrect(value, q) ? q.points : 0;
+}
+
+// UK-style 90-ball ticket: 3 rows of 9 columns, 5 numbers per row, column c holds c*10..c*10+9 (1–9, 80–90).
+// Seeded so a team always sees the same ticket for a question without storing it.
+export function bingoCard(seed) {
+  let h = 2166136261; for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  const random = () => {h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16; return (h >>> 0) / 4294967296;};
+  const pick = (list, n) => {const copy = [...list]; for (let i = copy.length - 1; i > 0; i--) {const j = Math.floor(random() * (i + 1)); [copy[i], copy[j]] = [copy[j], copy[i]];} return copy.slice(0, n);};
+  let columns;
+  do columns = [0, 1, 2].map(() => pick([0, 1, 2, 3, 4, 5, 6, 7, 8], 5)); while (new Set(columns.flat()).size < 9);
+  const rows = [[], [], []].map(() => Array(9).fill(null));
+  for (let c = 0; c < 9; c++) {
+    const used = [0, 1, 2].filter(r => columns[r].includes(c)), low = c === 0 ? 1 : c * 10, high = c === 8 ? 90 : c * 10 + 9;
+    const numbers = pick(Array.from({length: high - low + 1}, (_, i) => low + i), used.length).sort((a, b) => a - b);
+    used.forEach((r, i) => {rows[r][c] = numbers[i];});
+  }
+  return rows;
+}
+export const bingoLines = (card, called) => card.filter(row => row.every(n => n === null || called.has(n))).length;
+export const bingoNeeded = mode => ({line: 1, twoLines: 2, fullHouse: 3})[mode];
 
 // Nearest wins: rank by distance, ties to the earlier answer; top places score on a sliding scale.
 export function rankNearest(q, answers) {

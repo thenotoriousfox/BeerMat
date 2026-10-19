@@ -17,7 +17,7 @@ export const isAudio = media => /\.(mp3|ogg|wav)$/i.test(media || '');
 export function renderMedia(container, question) {
   const value = question?.media || '';
   if (container.dataset.media === value) return;
-  container.dataset.media = value; container.replaceChildren();
+  delete container.dataset.pinpoint; container.dataset.media = value; container.replaceChildren();
   if (!value) return;
   const media = element(isAudio(value) ? 'audio' : 'img'); media.src = value;
   if (isAudio(value)) {media.controls = true; media.preload = 'metadata';} else media.alt = 'Quiz picture';
@@ -30,6 +30,7 @@ export function renderBoard(container, teams) {
 }
 export function timeText(question, offset = 0) {
   if (!question) return 'Waiting for the quizmaster';
+  if (question.type === 'bingo') return question.paused ? 'Paused' : question.live ? 'Eyes down — game in progress' : 'Game over';
   if (question.paused) return `Paused · ${Math.ceil(question.remaining / 1000)}s remaining`;
   if (!question.open || question.deadline <= Date.now() + offset) return 'Answers closed';
   return `${Math.max(0, Math.ceil((question.deadline - Date.now() - offset) / 1000))}s remaining`;
@@ -85,13 +86,28 @@ export function live(refresh, key = () => '', slowPoll = 5000) {
 }
 let audio = null;
 export function enableSound() {try {audio ||= new AudioContext(); audio.resume();} catch {}}
-// A short two-tone buzz whose pitch is stable per team name.
-export function buzzSound(name = '') {
+// Synthesised buzzer sounds teams can choose from; no audio files needed.
+export const sounds = [['Classic buzz', 'square', [330, 495]], ['Doorbell', 'sine', [660, 523]], ['Siren', 'sawtooth', [440, 660, 440]], ['Beep beep', 'square', [880, 0, 880]],
+  ['Low horn', 'sawtooth', [147, 147]], ['Chime', 'triangle', [784, 988, 1175]], ['Laser', 'square', [1200, 600, 300]], ['Boing', 'sine', [220, 440]]];
+export function buzzSound(name = '', sound = null) {
   if (!audio || audio.state !== 'running') return;
-  const base = 330 + [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 12 * 40;
-  for (const [offset, freq] of [[0, base], [0.12, base * 1.5]]) {
-    const osc = audio.createOscillator(), gain = audio.createGain(), t = audio.currentTime + offset;
-    osc.type = 'square'; osc.frequency.value = freq; gain.gain.setValueAtTime(0.12, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
-    osc.connect(gain).connect(audio.destination); osc.start(t); osc.stop(t + 0.26);
-  }
+  const [, wave, notes] = sounds[sound ?? [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % sounds.length];
+  notes.forEach((freq, i) => {
+    if (!freq) return;
+    const osc = audio.createOscillator(), gain = audio.createGain(), t = audio.currentTime + i * 0.13;
+    osc.type = wave; osc.frequency.value = freq; gain.gain.setValueAtTime(0.12, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    osc.connect(gain).connect(audio.destination); osc.start(t); osc.stop(t + 0.23);
+  });
+}
+// Picture with tap markers and, once known, the target circle. Coordinates are fractions of the picture.
+export function renderPinpoint(container, question, taps = [], onTap = null) {
+  const key = JSON.stringify([question.media, taps, question.target ?? null, !!onTap]);
+  if (container.dataset.pinpoint === key) return;
+  delete container.dataset.media; container.dataset.pinpoint = key; container.replaceChildren();
+  const frame = element('div', undefined, 'pinpoint'), img = element('img'); img.src = question.media; img.alt = 'Tap the picture'; frame.append(img);
+  const dot = (point, className) => {const d = element('span', undefined, className); d.style.left = `${point[0] * 100}%`; d.style.top = `${point[1] * 100}%`; return d;};
+  if (question.target) {const t = question.target, ring = dot([t.x, t.y], 'target'); ring.style.width = `${t.r * 200}%`; ring.style.aspectRatio = '1'; frame.append(ring);}
+  taps.forEach((point, i) => frame.append(dot(point, i ? 'tap wide' : 'tap')));
+  if (onTap) frame.onclick = e => {const r = img.getBoundingClientRect(); onTap([Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))], img);};
+  container.append(frame);
 }

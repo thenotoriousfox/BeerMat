@@ -40,6 +40,8 @@ Compared against SpeedQuizzing Pro 5.4.11's published game rules and quiz-file f
 - Import of SpeedQuizzing `.sqb`/`.sqq`/`.sqn` rounds and Quick Question files/folders; verified against every sample file shipped with SpeedQuizzing 5.4.11 (all questions convert and validate).
 - Review fixes: host sessions persisted (hashed) across restarts; `ALLOWED_ADDRESSES` / `start.sh --hotspot` restrict the server to the quiz Wi-Fi; hotspot teardown continues past a failed step; login attempts and expired sessions are pruned; server close is idempotent.
 
-Validated: 19 Node tests (integration plus importer), 5 Python hotspot tests, and the browser suite in Chrome with two phone contexts (all 11 sections pass, no JavaScript errors, no external requests).
+Validated: 19 Node tests (integration plus importer), 5 Python hotspot tests, and the browser suite in Chrome with two phone contexts (no JavaScript errors, no external requests).
 
-Not yet covered compared with SpeedQuizzing: bingo/music bingo, spin-the-wheel, pinpoint (tap a picture), multi-tap, team photos/buzzer sound choice, Stream Deck control and internet play.
+Second batch: multi-tap, pinpoint with go wide, 90-ball bingo with seeded per-team tickets and server-checked claims, spin-the-wheel on the projector, per-team buzzer sounds (synthesised, no audio files), and single-key desk shortcuts usable from a Stream Deck. Validated with 22 Node tests and 14 browser sections in Chrome.
+
+Not covered compared with SpeedQuizzing: music bingo (needs a song library), Seven Squares and Word Snake puzzles, team photos, the native Stream Deck plugin (keys work instead), and internet play through a relay server (PubQuiz is offline by design).

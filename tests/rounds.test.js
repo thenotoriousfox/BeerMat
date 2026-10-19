@@ -133,3 +133,52 @@ test('live updates stream to clients and host sessions survive a restart', () =>
 test('allowed local addresses refuse other interfaces', () => fixture(async ({url}) => {
   assert.equal((await fetch(url() + '/')).status, 403);
 }, {allowedAddresses: ['10.42.0.1']}));
+
+test('multi-tap scores right ticks minus wrong ticks; pinpoint scores taps and go-wide', () => fixture(async ({call, teams, score, url}) => {
+  const [a, b, c] = await teams('Alpha', 'Bravo', 'Charlie');
+  await call('host/open', {...base, text: 'Tick the primes', type: 'multi', options: ['2', '3', '4', '5'], correct: ['2', '3', '5'], points: 9, speedBonus: 3});
+  let id = (await call('state', {}, a.secret)).question.id;
+  assert.equal((await call('answer', {question: id, value: ['7']}, a.secret)).status, 400);
+  await call('answer', {question: id, value: ['5', '3', '2']}, a.secret);
+  await call('answer', {question: id, value: ['2', '3', '4']}, b.secret);
+  await call('answer', {question: id, value: ['4']}, c.secret);
+  await call('host/close'); assert.equal(await score(a), 12); assert.equal(await score(b), 3); assert.equal(await score(c), 0);
+  await call('host/reveal', {question: id}); assert.deepEqual((await call('state', {}, c.secret)).question.tally, {2: 2, 3: 2, 4: 2, 5: 1});
+
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF9sAAAAASUVORK5CYII=', 'base64');
+  const media = (await (await fetch(url() + '/api/host/media?name=map.png', {method: 'POST', headers: {Authorization: 'Bearer ' + (await call('login', {key: hostKey})).key}, body: png})).json()).media;
+  assert.equal((await call('host/open', {...base, text: 'Where is Cardiff?', type: 'pinpoint', media})).status, 400, 'target required');
+  await call('host/open', {...base, text: 'Where is Cardiff?', type: 'pinpoint', media, target: {x: 0.5, y: 0.5, r: 0.1, aspect: 2}, goWide: true, goWidePoints: 4});
+  const q = (await call('state', {}, a.secret)).question; id = q.id; assert.equal(q.target, undefined, 'target hidden while live');
+  await call('answer', {question: id, value: [[0.55, 0.52]]}, a.secret);          // inside (dy scaled by aspect: 0.04)
+  await call('answer', {question: id, value: [[0.5, 0.58], [0.5, 0.5]]}, b.secret); // first miss (0.16 > 0.1), second hit
+  assert.equal((await call('answer', {question: id, value: [[0.1, 0.1], [0.2, 0.2], [0.3, 0.3]]}, c.secret)).status, 400);
+  await call('host/close'); assert.equal(await score(a), 22); assert.equal(await score(b), 7);
+}));
+
+test('bingo: seeded tickets, host calls, false and valid claims, first claim bonus', () => fixture(async ({call, teams, score}) => {
+  const [a, b] = await teams('Alpha', 'Bravo');
+  await call('host/open', {...base, text: 'Bingo — one line', type: 'bingo', mode: 'line', points: 5, speedBonus: 3});
+  let s = await call('state', {}, a.secret); const id = s.question.id, card = s.question.bingo.card;
+  assert.deepEqual((await call('state', {}, a.secret)).question.bingo.card, card, 'ticket is stable');
+  assert.equal(card.flat().filter(Boolean).length, 15); assert.ok(card.every(row => row.filter(Boolean).length === 5));
+  assert.equal((await call('bingo', {question: id}, a.secret)).status, 409, 'false claim refused');
+  const row = new Set(card[0].filter(Boolean)); let calls = 0;
+  while ([...row].some(n => !(s.question.bingo.called.includes(n)))) {assert.equal((await call('host/bingo', {question: id})).status, 200); calls++; s = await call('state', {}, a.secret);}
+  assert.equal(new Set(s.question.bingo.called).size, calls);
+  assert.equal((await call('bingo', {question: id}, a.secret)).first, true);
+  assert.equal((await call('bingo', {question: id}, a.secret)).status, 409, 'one claim per team');
+  assert.equal((await call('host/bingo', {question: id})).status, 409, 'no more calls after a winner');
+  assert.deepEqual((await call('state', {}, b.secret)).question.bingo.winners, ['Alpha']);
+  await call('host/close'); assert.equal(await score(a), 8); assert.equal(await score(b), 0);
+}));
+
+test('spin the wheel picks a server-side result and teams can choose a buzzer sound', () => fixture(async ({call, teams, url}) => {
+  const [a] = await teams('Alpha', 'Bravo');
+  assert.equal((await call('host/wheel', {items: ['Only one']})).status, 400);
+  const wheel = await call('host/wheel'); assert.deepEqual([...wheel.items].sort(), ['Alpha', 'Bravo']); assert.ok(wheel.result >= 0 && wheel.result < 2);
+  assert.equal((await call('host/settings', {displayMode: 'wheel'})).displayMode, 'wheel');
+  assert.equal((await (await fetch(url() + '/api/leaderboard')).json()).wheel.id, wheel.id);
+  assert.equal((await call('team/sound', {sound: 9}, a.secret)).status, 400);
+  await call('team/sound', {sound: 3}, a.secret); assert.equal((await call('state', {}, a.secret)).team.sound, 3);
+}));

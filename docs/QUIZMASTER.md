@@ -18,17 +18,26 @@ Questions and rounds are saved to SQLite immediately after **Save**. If another 
 | Format | Phones show | Scoring |
 |---|---|---|
 | Multiple choice | Lettered buttons A–H | Points (+ optional speed bonus) for the right option |
+| Multi-tap | Lettered tick buttons | Each right tick earns a share of the points, each wrong tick removes a share (never below zero); the speed bonus needs every right tick and no wrong ones |
 | Letters | A–Z keypad | First letter of the answer, e.g. “H” for Hedgehog. Put the full answer in the reveal note |
 | Numbers | Number box | Exact numeric match (13 and 13.0 are equal) |
 | Sequence | Shuffled items to tap in order, with undo | All in the right order scores |
 | Nearest wins | Number box | Closest scores; set how many places score on a sliding scale (e.g. 3 places of 9 points → 9, 6, 3). Ties go to the earlier answer |
 | Buzz-in classic | Big BUZZ button | First buzzer answers out loud. ✓ scores the points; ✗ applies the wrong-answer penalty, passes to the next buzzer in the queue, and that team sits out the next buzz-in question |
 | Buzz-in advanced | BUZZ, then an “I agree” button | First buzzer answers. Type what they said and press **Start agree countdown**; other teams tap if they agree. ✓/✗ then scores the buzzer (points or penalty) and gives agreement points to everyone who agreed with a right answer or didn’t agree with a wrong one. **Pass** applies the pass penalty and moves to the next buzzer |
+| Pinpoint | The picture, to tap | Upload a picture and click it in the builder to place the target circle (size slider). A first tap inside scores the points. With **go wide**, a second tap scores the go-wide points if the first missed |
+| Bingo | Their own 90-ball ticket (3 rows × 9 columns, 15 numbers) | Press **Call next number** (or key **B**); teams dab their own tickets and press **BINGO!**. Claims are checked against the numbers called for one line, two lines or full house. The first valid claim gets the points plus the bonus; any other valid claim on the same number gets the points. Calling stops once someone has won |
 | Vote | Lettered buttons | No right answer; the reveal shows the tally |
 | Typed / picture / audio | Text box | Text matching as before, with alternatives |
 | Answer sheet | Several text boxes | One point per item |
 
-Buzz-in questions stay live until you rule on them: the timer only limits buzzing. The projector names the team that buzzed first and, after **Enable buzzer sound** is clicked once, plays a short tone for it (the desk plays it too). After a question closes, **Reveal answer** shows the answer, the full-answer note, how many teams scored and, for choice, letters, numbers and votes, a tally of what teams picked.
+Buzz-in and bingo stay live until you end them: for buzz-in the timer only limits buzzing. Teams can choose their buzzer sound under their recovery-code panel. The projector names the team that buzzed first and, after **Enable buzzer sound** is clicked once, plays a short tone for it (the desk plays it too). After a question closes, **Reveal answer** shows the answer, the full-answer note, how many teams scored and, for choice, letters, numbers and votes, a tally of what teams picked.
+
+## Spin the wheel and keyboard control
+
+**Spin the wheel** (Run quiz → Room controls) switches the projector to the wheel and spins it. Leave the entries blank to spin team names, or type your own (prizes, forfeits, categories). The result is chosen by the server before the animation starts and also shown on the desk.
+
+Single keys work anywhere on the desk except while typing: **N** next question, **C** close/end, **P** pause or resume, **R** reveal, **1** correct, **2** wrong, **3** pass, **A** start agree countdown, **B** call a bingo number, **W** spin the wheel. A Stream Deck, presenter remote or macro pad set to send these keys can drive the quiz.
 
 ## Live play
 

@@ -1,6 +1,7 @@
 // Optional real-browser suite. npm run test:browser after installing Playwright Chromium.
 import assert from 'node:assert/strict';
 import {mkdtempSync, rmSync} from 'node:fs';
+import zlib from 'node:zlib';
 import os from 'node:os';
 import path from 'node:path';
 import {createQuiz} from '../server.js';
@@ -25,6 +26,13 @@ const prompts = [];
 host.on('dialog', async dialog => {await dialog.accept(dialog.type() === 'prompt' ? prompts.shift() || 'Test round' : undefined);});
 player.on('dialog', dialog => dialog.accept());
 const log = text => console.log('PASS:', text);
+// A plain w×h PNG, large enough to click on.
+function makePng(w, h) {
+  const chunk = (type, data) => {const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const body = Buffer.concat([Buffer.from(type), data]); const crc = Buffer.alloc(4); crc.writeUInt32BE(zlib.crc32(body)); return Buffer.concat([len, body, crc]);};
+  const header = Buffer.alloc(13); header.writeUInt32BE(w, 0); header.writeUInt32BE(h, 4); header[8] = 8; header[9] = 2;
+  const raw = Buffer.alloc((w * 3 + 1) * h, 200); for (let y = 0; y < h; y++) raw[y * (w * 3 + 1)] = 0;
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
 async function saveQuestion(type, text, fields = {}) {
   await host.locator('#newQuestion').click(); await host.locator('#qText').fill(text); await host.locator('#qType').selectOption(type); await host.locator('#qSeconds').fill('120');
   if (fields.answer !== undefined) await host.locator('#qAnswer').fill(fields.answer);
@@ -34,8 +42,11 @@ async function saveQuestion(type, text, fields = {}) {
   if (fields.places) await host.locator('#qPlaces').fill(fields.places);
   if (fields.variation) await host.locator('#qVariation').selectOption(fields.variation);
   if (fields.agreePoints) await host.locator('#qAgreePoints').fill(fields.agreePoints);
+  if (fields.correct) await host.locator('#qCorrect').fill(fields.correct);
+  if (fields.mode) await host.locator('#qMode').selectOption(fields.mode);
   if (fields.items) {for (let i = 0; i < fields.items.length; i++) {if (i) await host.locator('#addSheetItem').click(); const row = host.locator('#sheetItems .sheet-row').nth(i); await row.locator('input').nth(0).fill(fields.items[i][0]); await row.locator('input').nth(1).fill(fields.items[i][1]);}}
   if (fields.file) {await host.locator('#mediaUpload').setInputFiles(fields.file); await waitFor(host, () => document.getElementById('qMedia').value.startsWith('/media/'));}
+  if (fields.pinAt) {await waitFor(host, () => document.querySelector('#pinTarget img')?.naturalWidth > 0); await host.locator('#pinTarget img').click({position: fields.pinAt}); await host.locator('#pinTarget .target').waitFor();}
   await host.locator('#saveQuestion').click(); await waitFor(host, () => document.getElementById('editorStatus').textContent === 'Saved question loaded');
   assert.equal(await host.locator('#qText').inputValue(), text);
 }
@@ -123,6 +134,38 @@ try {
   await waitFor(host, () => document.getElementById('message').textContent.startsWith('Imported 3 questions into 2 rounds'));
   assert.ok((await host.locator('#roundSelect').textContent()).includes('Pub keypad'));
   log('SpeedQuizzing .sqq round and Quick Question file import');
+  await host.locator('#roundSelect').selectOption({index: 0});
+  await saveQuestion('multi', 'Tick the primes', {options: '2\n3\n4', correct: '2\n3'});
+  await saveQuestion('pinpoint', 'Tap the middle', {file: {name: 'board.png', mimeType: 'image/png', buffer: makePng(200, 100)}, pinAt: {x: 100, y: 50}});
+  await saveQuestion('bingo', 'Bingo night', {mode: 'line'});
+  await host.locator('[data-tab=teams]').click(); const fox = await scoreOf('Fox team'), owl = await scoreOf('Owl team');
+  await play('Tick the primes'); await player.getByRole('button', {name: 'A. 2'}).click(); await player.getByRole('button', {name: 'B. 3'}).click(); await submitted(player);
+  await rival.getByRole('button', {name: 'C. 4'}).click(); await submitted(rival); await host.locator('#close').click();
+  await play('Tap the middle'); await waitFor(player, () => document.querySelector('#pinArea img')?.naturalWidth > 0);
+  const box = await player.locator('#pinArea img').boundingBox(); await player.locator('#pinArea img').click({position: {x: box.width / 2 + 2, y: box.height / 2}}); await player.locator('#pinArea .tap').waitFor(); await submitted(player);
+  await rival.locator('#pinArea img').click({position: {x: 3, y: 3}}); await submitted(rival); await host.keyboard.press('c');
+  await host.locator('[data-tab=teams]').click(); await waitFor(host, () => !document.getElementById('teamCards').textContent.includes('Loading'));
+  assert.equal(await scoreOf('Fox team'), fox + 2); assert.equal(await scoreOf('Owl team'), owl);
+  log('multi-tap ticks and pinpoint taps scored; C shortcut closes');
+  await player.locator('#game details').first().evaluate(d => d.open = true); await player.locator('#sound').selectOption('3'); await waitFor(player, () => document.getElementById('message').textContent === 'Buzzer sound saved');
+  await play('Bingo night'); await visible(player, '#ticket');
+  const row = (await player.locator('#ticket .ticket-row').first().locator('button').allTextContents()).map(Number);
+  assert.equal((await player.locator('#ticket button').count()), 15);
+  for (let calls = 1; ; calls++) {
+    await host.keyboard.press('b'); await host.waitForFunction(n => document.getElementById('bingoCalls').textContent.split(' · ').filter(Boolean).length === n, calls, {timeout: 12000});
+    const called = (await host.locator('#bingoCalls').textContent()).split(' · ').map(Number);
+    if (row.every(n => called.includes(n))) break;
+  }
+  await waitFor(projector, () => document.getElementById('bingoBoard').querySelectorAll('.called').length > 0);
+  for (const n of row) await player.locator('#ticket button', {hasText: new RegExp(`^${n}$`)}).click();
+  await player.locator('#claimBingo').click(); await waitFor(player, () => document.getElementById('bingoStatus').textContent.includes('counted'));
+  await waitFor(projector, () => document.getElementById('bingoWinners').textContent.includes('Fox team'));
+  assert.equal(await host.locator('#callNumber').isDisabled(), true); await host.keyboard.press('c');
+  log('bingo: ticket dabbing, B shortcut calls numbers, verified claim shown on projector');
+  await host.locator('#wheelItems').fill('Red\nBlue\nGreen'); await host.locator('#wheelItems').evaluate(e => e.blur()); await host.keyboard.press('w');
+  await visible(projector, '#wheelSection'); await waitFor(projector, () => document.getElementById('wheelResult').textContent.startsWith('🎉'));
+  assert.match(await projector.locator('#wheelResult').textContent(), /Red|Blue|Green/);
+  log('spin the wheel on the projector; team buzzer sound choice saved');
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await host.locator('#finish').click(); await waitFor(projector, () => document.getElementById('boardStatus').textContent === 'Final standings'); await waitFor(player, () => document.getElementById('answerState').textContent === 'Quiz finished');
   assert.equal(await player.locator('#submit').isDisabled(), true);
   log('host-assisted recovery retains team identity; paper scoring and final leaderboard');

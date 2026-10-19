@@ -1,10 +1,10 @@
 import http from 'node:http';
 import {DatabaseSync} from 'node:sqlite';
-import {randomBytes, timingSafeEqual, createHash} from 'node:crypto';
+import {randomBytes, randomInt, timingSafeEqual, createHash} from 'node:crypto';
 import {existsSync, mkdirSync, writeFileSync, statSync, createReadStream} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {QuizError, requireValue, validateQuestion, validateLibrary, answerValue, isCorrect, rankNearest, hostDriven, mediaPattern} from './model.js';
+import {QuizError, requireValue, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, hostDriven, bingoCard, bingoLines, bingoNeeded, mediaPattern} from './model.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(24).toString('hex');
@@ -34,11 +34,13 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     CREATE TABLE IF NOT EXISTS buzzes(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),at INTEGER NOT NULL,status TEXT NOT NULL,PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS agrees(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),at INTEGER NOT NULL,PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS host_sessions(hash TEXT PRIMARY KEY,expires INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS bingo_calls(question INTEGER REFERENCES questions(id),seq INTEGER NOT NULL,number INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,seq));
   `);
   function column(table, name, definition) {
     if (!db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
   }
   column('teams', 'enabled', 'INTEGER NOT NULL DEFAULT 1');
+  column('teams', 'sound', 'INTEGER');
   column('questions', 'paused_ms', 'INTEGER');
   column('questions', 'revealed', 'INTEGER NOT NULL DEFAULT 0');
   column('questions', 'settled', 'INTEGER NOT NULL DEFAULT 0');
@@ -61,6 +63,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
   const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'leaderboard', ended: false};
+  const SOUNDS = 8;
   const settings = () => ({...defaultSettings, ...getMeta('settings', {})});
   const library = () => getMeta('library', {revision: 0, title: 'My quiz', rounds: []});
   const latest = () => one('SELECT * FROM questions ORDER BY id DESC LIMIT 1');
@@ -101,16 +104,18 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   ticker.unref(); keepAlive.unref();
 
   function tally(q, data) {
-    if (!['choice', 'vote', 'letter', 'number'].includes(data.type)) return null;
+    if (!['choice', 'multi', 'vote', 'letter', 'number'].includes(data.type)) return null;
     const counts = {};
-    for (const a of rows('SELECT value FROM answers WHERE question=? AND submitted IS NOT NULL', q.id)) counts[a.value] = (counts[a.value] || 0) + 1;
+    for (const a of rows('SELECT value FROM answers WHERE question=? AND submitted IS NOT NULL', q.id)) {
+      for (const value of data.type === 'multi' ? JSON.parse(a.value) : [a.value]) counts[value] = (counts[value] || 0) + 1;
+    }
     return counts;
   }
   function buzzState(q, data, teamId = null) {
     if (data.type !== 'buzzer') return null;
-    const queue = rows(`SELECT b.team,b.at,b.status,t.name FROM buzzes b JOIN teams t ON t.id=b.team WHERE b.question=? ORDER BY b.at,b.rowid`, q.id);
+    const queue = rows(`SELECT b.team,b.at,b.status,t.name,t.sound FROM buzzes b JOIN teams t ON t.id=b.team WHERE b.question=? ORDER BY b.at,b.rowid`, q.id);
     const active = queue.find(b => b.status === 'active');
-    return {variation: data.variation, queue: queue.map(({team, name, status}) => ({team, name, status})), active: active ? {team: active.team, name: active.name} : null,
+    return {variation: data.variation, queue: queue.map(({team, name, status}) => ({team, name, status})), active: active ? {team: active.team, name: active.name, sound: active.sound} : null,
       announced: q.announced || '', agreeOpen: q.agree_deadline > now(), agreeDeadline: q.agree_deadline || null,
       agreeCount: one('SELECT COUNT(*) n FROM agrees WHERE question=?', q.id).n,
       ...(teamId ? {buzzed: queue.find(b => b.team === teamId)?.status || null, agreed: !!one('SELECT 1 FROM agrees WHERE question=? AND team=?', q.id, teamId), lockedOut: lockedOut(q, teamId)} : {})};
@@ -120,15 +125,22 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const previous = rows('SELECT id,data FROM questions WHERE id<? ORDER BY id DESC LIMIT 20', q.id).find(p => dataOf(p).type === 'buzzer');
     return !!previous && dataOf(previous).variation === 'classic' && !!one(`SELECT 1 FROM buzzes WHERE question=? AND team=? AND status='wrong'`, previous.id, teamId);
   }
+  const calledNumbers = q => rows('SELECT number FROM bingo_calls WHERE question=? ORDER BY seq', q.id).map(r => r.number);
+  function bingoState(q, data, teamId) {
+    if (data.type !== 'bingo') return null;
+    const called = calledNumbers(q);
+    return {mode: data.mode, called, last: called.at(-1) ?? null, winners: rows('SELECT t.name FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=? AND a.points>0 ORDER BY a.submitted,a.rowid', q.id).map(w => w.name),
+      ...(teamId ? {card: bingoCard(`${teamId}:${q.id}`), claimed: !!one('SELECT 1 FROM answers WHERE team=? AND question=?', teamId, q.id)} : {})};
+  }
   function publicQuestion(q, host = false, teamId = null) {
     if (!q) return null;
     const data = dataOf(q);
-    const {answer, aliases, itemAnswers, answerNote, ...safe} = data;
+    const {answer, aliases, itemAnswers, answerNote, correct, target, ...safe} = data;
     // Sequence items are shown shuffled; the stored order is the answer.
     const result = {...safe, id: q.id, deadline: q.deadline, open: accepting(q), live: pending(q), paused: pending(q) && q.paused_ms !== null,
-      remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: !!q.revealed, buzz: buzzState(q, data, teamId)};
+      remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: !!q.revealed, buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId)};
     if (data.type === 'sequence') result.order = shuffleOrder(data.items.length, q.id);
-    if (host || q.revealed) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], tally: tally(q, data),
+    if (host || q.revealed) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], correct, target, tally: tally(q, data),
       correctCount: one('SELECT COUNT(*) n FROM answers WHERE question=? AND points>0', q.id).n});
     return result;
   }
@@ -149,7 +161,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function publicScores() {
     return settings().leaderboardVisible ? scores().map(({seen, connected, enabled, ...t}) => t) : [];
   }
-  function publicState() { return {serverTime: now(), settings: settings(), question: publicQuestion(latest()), teams: publicScores()}; }
+  function publicState() { return {serverTime: now(), settings: settings(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null)}; }
 
   // Final scoring once answers stop: nearest-wins needs every answer before it can rank them.
   function settle(q) {
@@ -184,7 +196,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       const marks = data.items.map((_, i) => data.itemAnswers?.[i] ? Number(isCorrect(values[i], {type: 'text', answer: data.itemAnswers[i]})) : null);
       return {points: marks.reduce((a, b) => a + (b ?? 0), 0), marks};
     }
-    if (!isCorrect(value, data)) return {points: 0, marks: null};
+    const base = basePoints(value, data);
+    // Only a fully right answer earns the speed bonus (every right tick for multi-tap, the first tap for pinpoint).
+    if (base !== data.points || !isCorrect(value, data)) return {points: base, marks: null};
     // The bonus decays over the accepted time (a pause extends the deadline). Each team's clock starts
     // when its phone received the question, but never more than a short grace period after opening.
     const delivered = one('SELECT at FROM deliveries WHERE team=? AND question=?', teamId, q.id)?.at ?? q.opened;
@@ -343,7 +357,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const next = {...settings()};
           for (const k of ['registrationOpen', 'leaderboardVisible', 'ended']) if (Object.hasOwn(body, k)) {requireValue(typeof body[k] === 'boolean', 'Invalid setting'); next[k] = body[k];}
           if (Object.hasOwn(body, 'title')) {requireValue(typeof body.title === 'string' && body.title.trim() && body.title.length <= 100, 'Title must contain 1–100 characters'); next.title = body.title.trim();}
-          if (Object.hasOwn(body, 'displayMode')) {requireValue(['leaderboard', 'question', 'blank'].includes(body.displayMode), 'Invalid projector view'); next.displayMode = body.displayMode;}
+          if (Object.hasOwn(body, 'displayMode')) {requireValue(['leaderboard', 'question', 'wheel', 'blank'].includes(body.displayMode), 'Invalid projector view'); next.displayMode = body.displayMode;}
           if (next.ended) {closeQuestion(latest()); next.registrationOpen = false;}
           setMeta('settings', next); return send(200, next);
         }
@@ -370,6 +384,21 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           run('UPDATE questions SET deadline=?,paused_ms=NULL WHERE id=?', now() + q.paused_ms, q.id); return send(200, {ok: true});
         }
         if (p === '/api/host/buzz') {hostBuzz(body); return send(200, {ok: true});}
+        if (p === '/api/host/bingo') {
+          const q = questionById(body.question); requireValue(q && pending(q) && dataOf(q).type === 'bingo', 'No live bingo game', 409);
+          requireValue(q.paused_ms === null, 'Resume the game first', 409);
+          requireValue(!one('SELECT 1 FROM answers WHERE question=? AND points>0', q.id), 'A team has called bingo — end the game', 409);
+          const called = new Set(calledNumbers(q)), remaining = Array.from({length: 90}, (_, i) => i + 1).filter(n => !called.has(n));
+          requireValue(remaining.length, 'Every number has been called', 409);
+          const number = remaining[randomInt(remaining.length)];
+          run('INSERT INTO bingo_calls VALUES(?,?,?,?)', q.id, called.size + 1, number, now()); return send(200, {number});
+        }
+        if (p === '/api/host/wheel') {
+          const items = body.items ?? scores().map(t => t.name);
+          requireValue(Array.isArray(items) && items.length >= 2 && items.length <= 60 && items.every(i => typeof i === 'string' && i.trim() && i.length <= 60), 'The wheel needs 2–60 entries of up to 60 characters');
+          const wheel = {id: (getMeta('wheel', null)?.id || 0) + 1, items: items.map(i => i.trim()), result: randomInt(items.length), spun: now()};
+          setMeta('wheel', wheel); return send(200, wheel);
+        }
         if (p === '/api/host/reveal') {
           const q = questionById(body.question); requireValue(q && !pending(q), 'Close question before revealing', 409);
           run('UPDATE questions SET revealed=? WHERE id=?', body.revealed === false ? 0 : 1, q.id); return send(200, {ok: true});
@@ -424,7 +453,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           }
           return send(200, {ok: true});
         }
-        if (p === '/api/host/export') return send(200, {version: 3, settings: settings(), library: library(), teams: rows('SELECT id,name,enabled FROM teams'), questions: rows('SELECT * FROM questions'), answers: rows('SELECT * FROM answers'), adjustments: rows('SELECT * FROM adjustments'), markingLog: rows('SELECT * FROM marking_log'), buzzes: rows('SELECT * FROM buzzes'), agrees: rows('SELECT * FROM agrees')});
+        if (p === '/api/host/export') return send(200, {version: 3, settings: settings(), library: library(), teams: rows('SELECT id,name,enabled FROM teams'), questions: rows('SELECT * FROM questions'), answers: rows('SELECT * FROM answers'), adjustments: rows('SELECT * FROM adjustments'), markingLog: rows('SELECT * FROM marking_log'), buzzes: rows('SELECT * FROM buzzes'), agrees: rows('SELECT * FROM agrees'), bingoCalls: rows('SELECT * FROM bingo_calls')});
         throw new QuizError('Unknown host action', 404);
       }
       if (p === '/api/join') {
@@ -443,8 +472,22 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         const a = q && one('SELECT value,points,marks,submitted FROM answers WHERE team=? AND question=?', team.id, q.id);
         // Points stay hidden until scoring is final.
         const answer = !a || a.submitted === null && !q.settled && !q.closed ? null : pending(q) ? {value: a.value} : {value: a.value, points: a.points, marks: a.marks};
-        return send(200, {...publicState(), question: publicQuestion(q, false, team.id), team: {id: team.id, name: team.name}, answer,
+        return send(200, {...publicState(), question: publicQuestion(q, false, team.id), team: {id: team.id, name: team.name, sound: team.sound}, answer,
           draft: one('SELECT value FROM drafts WHERE team=? AND question=?', team.id, q?.id || 0) || null});
+      }
+      if (p === '/api/team/sound') {
+        requireValue(Number.isInteger(body.sound) && body.sound >= 0 && body.sound < SOUNDS, 'Unknown buzzer sound');
+        run('UPDATE teams SET sound=? WHERE id=?', body.sound, team.id); return send(200, {ok: true});
+      }
+      if (p === '/api/bingo') {
+        const q = latest(); requireValue(q && body.question === q.id && pending(q) && q.paused_ms === null && dataOf(q).type === 'bingo' && !settings().ended, 'No live bingo game', 409);
+        requireValue(!one('SELECT 1 FROM answers WHERE team=? AND question=?', team.id, q.id), 'Already claimed', 409);
+        const data = dataOf(q), called = new Set(calledNumbers(q));
+        requireValue(bingoLines(bingoCard(`${team.id}:${q.id}`), called) >= bingoNeeded(data.mode), 'Not yet — keep marking your ticket', 409);
+        // The first claim takes the bonus; later claims on the same call score the standard points.
+        const first = !one('SELECT 1 FROM answers WHERE question=? AND points>0', q.id);
+        award(team.id, q, `BINGO on call ${called.size}`, data.points + (first ? data.speedBonus : 0));
+        return send(200, {ok: true, first});
       }
       if (p === '/api/buzz' || p === '/api/agree') {
         const q = latest(); requireValue(q && body.question === q.id && pending(q) && q.paused_ms === null && dataOf(q).type === 'buzzer' && !settings().ended, 'No live buzzer question', 409);
