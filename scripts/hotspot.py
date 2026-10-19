@@ -5,13 +5,17 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import time
 
 PROFILE = 'PubQuiz-offline'
 TABLE = 'pubquiz'
 # With --keep-wifi the hotspot runs on this second, virtual interface while the card stays on your normal Wi-Fi.
+# NetworkManager cannot drive it: it always starts a Wi-Fi interface as a second client, which cards such as the
+# Intel AX200 refuse alongside the existing connection ("Device or resource busy"). wpa_supplicant runs it instead.
 AP_IFACE = 'pq0'
+AP_UNIT = 'pubquiz-ap.service'
 
 def channel_of(freq):
     """2.4 GHz channel for a frequency in MHz, or None for 5/6 GHz."""
@@ -25,6 +29,12 @@ def virtual_mac(mac):
     parts[0] = (parts[0] | 0x02) & 0xFE
     parts[5] ^= 0x01
     return ':'.join(f'{x:02x}' for x in parts)
+
+def ap_config(ssid, channel):
+    """wpa_supplicant access-point settings for an open network. The SSID is written in hex so any name is safe."""
+    commands(AP_IFACE, ssid)
+    freq = 2484 if channel == 14 else 2407 + 5 * channel
+    return f'ap_scan=2\np2p_disabled=1\nnetwork={{\n  ssid={ssid.encode().hex()}\n  mode=2\n  frequency={freq}\n  key_mgmt=NONE\n}}\n'
 
 def commands(interface, ssid, channel=None):
     if not re.fullmatch(r'[a-zA-Z0-9_-]{1,15}', interface):
@@ -72,6 +82,7 @@ def nft_config(interface):
 def teardown():
     return [
         ['systemctl', 'stop', 'pubquiz-dnsmasq.service'],
+        ['systemctl', 'stop', AP_UNIT],
         ['nft', 'delete', 'table', 'inet', TABLE],
         ['nmcli', 'connection', 'down', PROFILE],
         ['nmcli', 'connection', 'delete', PROFILE],
@@ -106,8 +117,9 @@ def main():
     if a.action == 'down':
         # Never kill an arbitrary PID from a stale pidfile. Each step runs even if an earlier one
         # fails (for example dnsmasq already stopped), so a partial setup is still fully removed.
-        steps = teardown() + ([['iw', 'dev', AP_IFACE, 'del']] if a.keep_wifi or Path(f'/sys/class/net/{AP_IFACE}').exists() else [])
-        failed = [' '.join(cmd) for cmd in steps if subprocess.run(cmd, check=False).returncode != 0]
+        profile = PROFILE in subprocess.run(['nmcli', '-g', 'NAME', 'connection', 'show'], check=False, capture_output=True, text=True).stdout.splitlines()
+        steps = [c for c in teardown() if profile or c[0] != 'nmcli'] + ([['iw', 'dev', AP_IFACE, 'del']] if a.keep_wifi or Path(f'/sys/class/net/{AP_IFACE}').exists() else [])
+        failed = [' '.join(cmd) for cmd in steps if subprocess.run(cmd, check=False, capture_output=True).returncode != 0]
         if failed:
             print('Already absent or failed (inspect if unexpected):\n  ' + '\n  '.join(failed))
         return
@@ -121,19 +133,22 @@ def main():
         leftovers.append(f'Wi-Fi profile {PROFILE}')
     if run(['nft', 'list', 'tables'], capture_output=True).stdout.find('table inet pubquiz') >= 0:
         leftovers.append('firewall table inet pubquiz')
-    if subprocess.run(['systemctl', 'is-active', '--quiet', 'pubquiz-dnsmasq.service'], check=False).returncode == 0:
-        leftovers.append('pubquiz-dnsmasq service')
+    for unit in ('pubquiz-dnsmasq.service', AP_UNIT):
+        if subprocess.run(['systemctl', 'is-active', '--quiet', unit], check=False).returncode == 0:
+            leftovers.append(unit.replace('.service', ' service'))
     if leftovers:
         p.error('A previous hotspot is still set up (' + ', '.join(leftovers) + '). Remove it first with:\n'
                 f'  sudo python scripts/hotspot.py down --interface {a.interface} --apply' + (' --keep-wifi' if Path(f'/sys/class/net/{AP_IFACE}').exists() else ''))
-    channel = None
+    channel, connected = None, False
     if a.keep_wifi:
         # One radio can only serve one channel, and this kind of card only hosts on 2.4 GHz while connected.
         link = run(['iw', 'dev', a.interface, 'link'], capture_output=True).stdout
         freq = re.search(r'freq: (\d+)', link)
+        # Not connected: host on channel 6. Joining a network later must then use 2.4 GHz channel 6 too.
+        channel = channel_of(int(float(freq.group(1)))) if freq else 6
+        connected = bool(freq)
         if not freq:
-            p.error(f'{a.interface} is not connected to a Wi-Fi network; connect it first or leave out --keep-wifi')
-        channel = channel_of(int(float(freq.group(1))))
+            print(f'{a.interface} is not connected; hosting on channel 6')
         if channel is None:
             home = run(['nmcli', '-g', 'GENERAL.CONNECTION', 'device', 'show', a.interface], capture_output=True).stdout.strip()
             p.error(f"Your Wi-Fi ({home}) is on 5 GHz, and this card can only host on 2.4 GHz while connected.\n"
@@ -152,17 +167,30 @@ def main():
         if a.keep_wifi:
             run(['iw', 'dev', a.interface, 'interface', 'add', AP_IFACE, 'type', '__ap']); virtual = True
             run(['ip', 'link', 'set', AP_IFACE, 'address', virtual_mac(Path(f'/sys/class/net/{a.interface}/address').read_text().strip())])
-            for _ in range(20):  # NetworkManager needs a moment to notice the new interface
-                if subprocess.run(['nmcli', 'device', 'set', AP_IFACE, 'managed', 'yes'], check=False, capture_output=True).returncode == 0:
+            for _ in range(20):  # keep NetworkManager away from it once it has noticed the new interface
+                if subprocess.run(['nmcli', 'device', 'set', AP_IFACE, 'managed', 'no'], check=False, capture_output=True).returncode == 0:
                     break
                 time.sleep(0.25)
-        run(plan[0]); created = True
-        run(plan[1]); run(plan[2])
+            run(['ip', 'addr', 'add', '10.42.0.1/24', 'dev', AP_IFACE])
+            ap_conf = runtime / 'ap.conf'; ap_conf.write_text(ap_config(a.ssid, channel))
+            run(['systemd-run', f'--unit={AP_UNIT}', '--collect', '--service-type=exec', shutil.which('wpa_supplicant') or '/usr/bin/wpa_supplicant',
+                 '-D', 'nl80211', '-i', AP_IFACE, '-c', str(ap_conf)])
+            for _ in range(40):
+                # The interface is an AP from creation; it is ready once it broadcasts the network name.
+                if '\tssid ' in subprocess.run(['iw', 'dev', AP_IFACE, 'info'], check=False, capture_output=True, text=True).stdout:
+                    break
+                time.sleep(0.25)
+            else:
+                raise RuntimeError(f'The hotspot did not start on {AP_IFACE}; see: journalctl -u {AP_UNIT}')
+        else:
+            run(plan[0]); created = True
+            run(plan[1]); run(plan[2])
         run(['nft', '-f', '-'], input=nft_config(ap)); firewall = True
         run(['systemd-run', '--unit=pubquiz-dnsmasq', '--collect', '--service-type=exec', '/usr/bin/dnsmasq', '--keep-in-foreground', '--conf-file=' + str(config)])
         run(['systemctl', 'is-active', '--quiet', 'pubquiz-dnsmasq.service'])
     except Exception:
         subprocess.run(['systemctl', 'stop', 'pubquiz-dnsmasq.service'], check=False)
+        subprocess.run(['systemctl', 'stop', AP_UNIT], check=False, capture_output=True)
         if firewall:
             subprocess.run(['nft', 'delete', 'table', 'inet', TABLE], check=False)
         if created:
@@ -172,7 +200,7 @@ def main():
         raise
     print('Hotspot ready. Players: http://10.42.0.1 ; host: http://localhost:3000/host')
     if a.keep_wifi:
-        print(f'Sharing 2.4 GHz channel {channel} with your normal Wi-Fi, which stays connected. Stop with: down --keep-wifi --apply')
+        print(f'Hosting on 2.4 GHz channel {channel}' + (' alongside your normal Wi-Fi, which stays connected.' if connected else '.') + ' Stop with: down --keep-wifi --apply')
 
 if __name__ == '__main__':
     main()
