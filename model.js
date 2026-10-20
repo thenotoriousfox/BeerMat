@@ -12,6 +12,9 @@ const integer = (v, min, max) => Number.isInteger(v) && v >= min && v <= max;
 export const normalise = value => value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-GB');
 export const matches = (value, answers) => answers.some(answer => normalise(value) === normalise(answer));
 export const numberPattern = /^-?\d{1,15}(\.\d{1,6})?$/;
+// Moments the TV can play a sound for; the quizmaster supplies the files (e.g. a SpeedQuizzing sound theme).
+export const soundSlots = ['startRound', 'questionStart', 'timerMusic', 'timeUp', 'endRound', 'correct', 'wrong', 'reveal', 'bingoCall', 'bingo', 'wheel', 'applause'];
+export const audioPath = media => typeof media === 'string' && mediaPattern.test(media) && /\.(mp3|ogg|wav)$/i.test(media);
 export const spotifyPattern = /^spotify:track:[A-Za-z0-9]{22}$/;
 export const mediaPattern = /^\/media\/[a-zA-Z0-9_-][a-zA-Z0-9_.-]*\.(png|jpg|jpeg|webp|mp3|ogg|wav)$/i;
 const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = ['.mp3', '.ogg', '.wav'];
@@ -32,6 +35,8 @@ export function validateQuestion(q, mediaDir) {
   requireValue(text(q.text, 1000), 'Question text must be 1–1,000 characters');
   requireValue(types.includes(q.type), 'Unknown question type');
   requireValue(integer(q.seconds, 5, 7200), 'Duration must be 5–7,200 seconds');
+  // A full bingo game's points come from its stage points, so `points` may be left out.
+  if (q.mode === 'progressive' && isBingo(q.type) && q.points === undefined) q = {...q, points: Array.isArray(q.stagePoints) ? q.stagePoints[2] : 3};
   requireValue(integer(q.points, 0, 100), 'Points must be a whole number from 0 to 100');
   requireValue(q.answer === undefined || text(q.answer, 300, false), 'Invalid correct answer');
   requireValue(q.answerNote === undefined || text(q.answerNote, 300, false), 'Answer note must be up to 300 characters');
@@ -121,15 +126,24 @@ export function validateQuestion(q, mediaDir) {
       requireValue(!(media && spotify), 'A song plays either an uploaded file or Spotify, not both');
       return {title: song.title.trim(), media, ...(spotify ? {spotify} : {})};
     });
-    // Spotify songs start this far in (e.g. at the chorus).
-    result.startAt = q.startAt ?? 0;
-    requireValue(integer(result.startAt, 0, 600), 'Spotify start time must be 0–600 seconds');
+    // Each song starts this far in (e.g. at the chorus) and plays for songSeconds (0 = the whole song);
+    // with autoNext the desk then plays the next song by itself.
+    result.startAt = q.startAt ?? 0; result.songSeconds = q.songSeconds ?? 0; result.autoNext = q.autoNext === true;
+    requireValue(integer(result.startAt, 0, 600), 'Song start time must be 0–600 seconds');
+    requireValue(result.songSeconds === 0 || integer(result.songSeconds, 3, 600), 'Play each song for 3–600 seconds, or 0 for the whole song');
+    requireValue(!result.autoNext || result.songSeconds > 0, 'Set how long each song plays to move on automatically');
     requireValue(new Set(result.songs.map(s => s.title.toLowerCase())).size === result.songs.length, 'Song titles must all be different');
     result.revealNow = q.revealNow === true;
   }
   if (isBingo(q.type)) {
     result.mode = q.mode ?? 'line';
-    requireValue(['line', 'twoLines', 'fullHouse'].includes(result.mode), 'Bingo needs one line, two lines or full house');
+    requireValue(['progressive', 'line', 'twoLines', 'fullHouse'].includes(result.mode), 'Bingo needs a full game, one line, two lines or full house');
+    // Full game: points for the line, two lines and full house (the question's points are the full house's).
+    if (result.mode === 'progressive') {
+      result.stagePoints = q.stagePoints ?? [Math.max(1, Math.round(q.points / 3)), Math.max(1, Math.round(q.points * 2 / 3)), q.points];
+      requireValue(Array.isArray(result.stagePoints) && result.stagePoints.length === 3 && result.stagePoints.every(p => integer(p, 0, 100)), 'Set points for the line, two lines and full house (0–100 each)');
+      result.points = result.stagePoints[2];
+    }
   }
   if (q.type === 'buzzer') {
     result.variation = q.variation ?? 'classic';
@@ -290,6 +304,9 @@ export function musicCard(seed, songs) {
 }
 export const bingoLines = (card, called) => card.filter(row => row.every(n => n === null || called.has(n))).length;
 export const bingoNeeded = mode => ({line: 1, twoLines: 2, fullHouse: 3})[mode];
+// A full game plays line, two lines and full house in turn; the other modes are a single prize.
+export const bingoStages = mode => mode === 'progressive' ? ['line', 'twoLines', 'fullHouse'] : [mode];
+export const stagePoints = q => q.mode === 'progressive' ? q.stagePoints : [q.points];
 
 // Nearest wins: rank by distance, ties to the earlier answer; top places score on a sliding scale.
 export function rankNearest(q, answers) {

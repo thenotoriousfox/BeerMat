@@ -7,7 +7,7 @@
 3. Pick a format (see **Round formats** below). Upload images/audio directly in the form; any format except answer sheets can carry an optional picture or clip. Files stay on the laptop. Each upload has a unique filename, so replacing a picture cannot change a question already played.
 4. Add the correct answer and accepted alternatives, or leave it blank for manual marking. Choices must match one of the supplied options exactly. Each sheet item is worth one point and can have its own marking key. For a traditional paper round, print blank sheets and enter its score later.
 5. To reuse SpeedQuizzing material, use **Import SpeedQuizzing files** for `.sqb`, `.sqq`, `.sqn`, `.sqt` (multi-tap) and `.sqw` (word snake) rounds or Quick Question files, or **Import a Quick Questions folder**. Each file or folder becomes a new round; nothing existing is replaced. Pictures referenced inside SpeedQuizzing round files are not embedded in them, so the import lists those questions for you to add the picture by hand. Quick Question picture and sound files are uploaded automatically.
-6. Use **Download quiz JSON** to keep an editable question-bank copy. A quiz import replaces the saved question bank but keeps played history and scores. Media files must still be present locally when importing media questions; JSON does not embed media.
+6. **Download quiz JSON** saves an editable copy of the questions; **Download quiz with media** saves one file with its pictures and sounds inside, to move a quiz to another laptop. **Load a quiz file** starts a fresh quiz with it: if anything has been played, the current quiz's results are saved (in `results/`) and downloaded first, then teams and scores are cleared and phones are asked to join again. `examples/test-quiz.json` is a full rehearsal quiz to load this way.
 7. In **Run quiz**, name the event, choose the projector view and open `/display` on the TV or projector. The projector can show how to join, scores, the current question/media, the wheel, or a blank screen.
    - **Auto** (the default) runs the TV for you: the join QR code before the first question, each question while it runs (and its answer when you reveal it), the leaderboard 10 seconds after the last question of a round is revealed (or 10 seconds after it closes if you don't reveal it), and the winner when you finish. Picking any other view overrides it, for example spinning the wheel; choose **Auto** again to hand back control. The desk shows what Auto is currently showing. A round's end is known from the saved quiz, so questions played outside it never trigger the leaderboard.
    - The TV page always fits the screen without scrolling: long questions, big leaderboards (two columns past 10 teams) and reveals are scaled down to fit any resolution.
@@ -40,7 +40,27 @@ Questions and rounds are saved to SQLite immediately after **Save**. If another 
 | Typed / picture / audio | Text box | Text matching as before, with alternatives |
 | Answer sheet | Several text boxes | One point per item |
 
-Buzz-in and bingo stay live until you end them: for buzz-in the timer only limits buzzing. Teams can choose their buzzer sound under their recovery-code panel. The projector names the team that buzzed first and, after **Enable buzzer sound** is clicked once, plays a short tone for it (the desk plays it too). After a question closes, **Reveal answer** shows the answer, the full-answer note, every team that scored — quickest answer first, with its answer time and points (points are left out when the board shows positions only) — and, for choice, letters, numbers and votes, a tally of what teams picked.
+**Bingo games** (number and music bingo): a **full game** (the default) plays one line, then two lines, then a full house, each with its own points. After a prize is won the game carries on: anyone else who claims on the same number shares that prize, and the next number moves play on to the next prize. The TV and phones show what is being played for and who won each prize; the desk stops calling once the full house is won. You can still choose a single-prize game (one line, two lines or full house only). With fastest fingers first, the first claim of each prize gets the bonus. Music bingo needs at least 15 songs, but use 30 or more: a ticket holds 15, so with fewer songs every team holds nearly the same ones.
+
+**Music bingo timing:** *Start each song at* skips into the song (e.g. to the chorus), *Play each song for* stops it after that many seconds (0 = the whole song), and *Play the next song automatically* moves on after a 2-second gap. Auto-play pauses when a team claims, so you can check it, and stops when the game is paused, won or ended. This works for uploaded songs and Spotify.
+
+Buzz-in and bingo stay live until you end them: for buzz-in the timer only limits buzzing. Teams can choose their buzzer sound under their recovery-code panel. The projector names the team that buzzed first and, after **🔊 Enable sound** is clicked once, plays a short tone for it (the desk plays it too). After a question closes, **Reveal answer** shows the answer, the full-answer note, every team that scored — quickest answer first, with its answer time and points (points are left out when the board shows positions only) — and, for choice, letters, numbers and votes, a tally of what teams picked.
+
+## Sounds and bingo calls
+
+**Sounds out of the box.** PubQuiz ships a CC0 (public-domain) sound set in `sounds/` — jingles, correct/wrong tones, a "time over" voice, drum roll, airhorn, wheel rattle, applause, a music bed for answering, and 42 buzzer sounds. Sources are listed in `sounds/CREDITS.md`.
+
+**Your own sound pack.** A `soundpack/` folder laid out exactly like `SpeedQuizzing Documents/Sounds/` (`general/` with SpeedQuizzing's file names, `buzzers/<pack>/`, `Themes/`), plus `Customisable Bingo Calls.txt` at the top, takes priority over the shipped sounds; its buzzer packs are listed first, and packs with "Offensive" in the name are skipped. `node scripts/sound-pack.mjs` builds it by copying your SpeedQuizzing `Sounds` folder and bingo calls (`./scripts/setup.sh --install` does it automatically when that folder exists); you can also copy the folder in by hand. `soundpack/` is never committed to git, so build or copy it on each laptop, then restart PubQuiz.
+
+**Sound theme** (Build quiz → Sounds & bingo calls) picks one of the pack's themes (`soundpack/Themes/<name>/`, e.g. SpeedQuizzing's Arcade, Classic and Cop Show themes). A theme replaces the moments it has a sound for; the others keep the standard sounds. Changing theme resets the moments to it; added buzzer sounds stay.
+
+**Build quiz → Sounds & bingo calls** changes the defaults for this quiz laptop. Sound effects play on the TV page (click its 🔊 Enable sound button once each night); without a file, PubQuiz uses its built-in beeps or stays quiet.
+
+- **Sound effects:** import a folder and files are matched to moments by name — the SpeedQuizzing names work, so `SpeedQuizzing Documents/Sounds/Themes/Classic Theme` (or `Sounds/general`) sets them all at once. Moments: round starts, question opens, music while answering (loops; not during audio, clips, buzzer or bingo rounds), time's up (also the TV countdown), round ends (Auto leaderboard), correct / wrong buzzer answer, answer reveal, bingo number called, bingo claimed, wheel spin, and winner. You can also pick a file for any moment, play it on the desk, or remove it.
+- **Buzzer sounds:** add a folder or files (e.g. `Sounds/buzzers/Sample Music`); each becomes a choice in the teams' phone menu after the 8 built-in sounds (up to 200). Removing them puts teams back on a built-in sound.
+- **Bingo calls:** import SpeedQuizzing's `Bingo/Customisable Bingo Calls.txt` (or any file with one call per line for 1–90). Numbers without a call (SpeedQuizzing's file stops at 80) use the built-in calls. **Use the built-in calls** switches back.
+
+Files are copied into PubQuiz's media folder on the laptop. Only use sound files you have the right to use; SpeedQuizzing's own sounds are licensed with SpeedQuizzing.
 
 ## Spotify (optional, private quizzes only)
 
@@ -125,8 +145,12 @@ If a code is lost, use **Issue recovery code** for that team and give the new co
 
 ## End and next event
 
-**Finish quiz** closes the current question and registration, and marks the leaderboard as final. Download results to retain teams, played questions, answers, current scores, adjustments and all manual marking changes. Recovery secrets are excluded. You can resume a finished quiz and explicitly reopen registration if required.
+**Finish quiz** closes the current question and registration and shows the winner. You can resume a finished quiz if needed.
 
-For a separate event, stop the server and start it with a different `QUIZ_DB` filename. This preserves the old event intact and gives the new event an empty team list. Import the question-bank JSON and retain the same media folder. To back up a full event, stop the server and copy its SQLite database plus media directory. Results JSON is an archive, not a database restore format.
+**End quiz & start next…** (Run quiz → Room controls) is for the next quiz night:
 
-Host logins expire after 12 hours and survive a server restart. **Lock desk** revokes the current login; teams continue playing. Keep the host key and team recovery codes private. Open HTTP quiz Wi-Fi is not encrypted: use a dedicated trusted local network and do not reuse important passwords.
+1. The results — teams, every question played, answers, scores, adjustments and marking history — download to the desk and are also saved on the laptop in `results/` (named by date and quiz). Recovery codes are never included.
+2. All teams, answers, scores, team photos, the countdown and the wheel are cleared. Phones still open from the last quiz show “A new quiz has started — pick your team name again”.
+3. Choose the questions for the next quiz: keep the current ones, load a quiz file (.json), or start empty (then build it, import SpeedQuizzing rounds, or run `node scripts/load-test-quiz.mjs`).
+
+Settings, join details, Spotify connection and question pictures and sounds are kept, and the TV goes back to Auto (the join screen).

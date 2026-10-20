@@ -1,5 +1,6 @@
-import {$, element, api, message, readStorage, writeStorage, download, renderMedia, renderSolution, timeText, selectOptions, letters, live, enableSound, buzzSound, renderPinpoint, bingoCall, avatar} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, download, renderMedia, renderSolution, timeText, selectOptions, letters, live, enableSound, useSounds, buzzSound, renderPinpoint, bingoCall, avatar} from './app.js';
 import {parseSqRound, parseQuickQuestion} from './sqimport.js';
+import {slotFiles} from './soundnames.js';
 let key = readStorage('pubquiz-host', true), state = null, library = null, editingId = null, tab = 'live', dirty = false, reviewId = '', reviewSignature = '', busy = false;
 const uid = () => 'id-' + crypto.getRandomValues(new Uint32Array(4)).join('-');
 const request = (p, body = {}) => api('host/' + p, body, key);
@@ -7,7 +8,10 @@ let offset = 0, selectedRoundId = '', lastBuzz = '', liveQuestion = null, pinTar
 const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
 // Formats marked right or wrong automatically (with a correct answer set): Evil Mode and a fixed bonus apply to these.
 const markedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio'];
-const modes = {line: 'one line', twoLines: 'two lines', fullHouse: 'full house'};
+const modes = {progressive: 'full game (line, two lines, full house)', line: 'one line', twoLines: 'two lines', fullHouse: 'full house'}, stageNames = {line: 'Line', twoLines: 'Two lines', fullHouse: 'Full house'};
+const isBingoType = type => type === 'bingo' || type === 'musicbingo';
+// The desk's summary of a bingo game: who won the latest prize, and what is being played for now.
+const bingoWins = g => g.mode === 'progressive' ? `${stageNames[g.lastStage]}: ${g.winners.join(', ')}${g.over ? ' — game over, end it when ready' : ` · now playing for ${modes[g.playingFor]}`}` : `BINGO: ${g.winners.join(', ')} — end the game when ready`;
 let actionQueue = Promise.resolve();
 function action(fn, success = 'Saved') {
   const task = actionQueue.then(async () => {
@@ -98,11 +102,12 @@ function formTypes() {
   const type = $('qType').value, show = (id, on) => {$(id).hidden = !on;};
   show('choiceFields', ['choice', 'vote', 'multi'].includes(type)); show('multiFields', type === 'multi'); show('sheetFields', type === 'sheet'); show('sequenceFields', type === 'sequence');
   show('nearestFields', type === 'nearest'); show('buzzerFields', type === 'buzzer'); show('pinpointFields', type === 'pinpoint'); show('goWideFields', type === 'pinpoint' || type === 'wordsnake');
-  $('goWideText').textContent = type === 'wordsnake' ? 'Allow go wide: teams can remove the decoy letters for fewer points' : 'Allow go wide: a second tap scores if the first misses'; show('bingoFields', type === 'bingo' || type === 'musicbingo'); show('musicFields', type === 'musicbingo'); show('clipsFields', type === 'clips');
+  $('goWideText').textContent = type === 'wordsnake' ? 'Allow go wide: teams can remove the decoy letters for fewer points' : 'Allow go wide: a second tap scores if the first misses'; show('bingoFields', type === 'bingo' || type === 'musicbingo'); show('stagePointsFields', (type === 'bingo' || type === 'musicbingo') && $('qMode').value === 'progressive');
+  const songs = $('qSongs').value.split('\n').filter(l => l.trim()).length; $('songCount').textContent = `${songs} songs${songs < 30 ? ' — add at least 30 so each team gets a different mix (a ticket holds 15)' : ''}`; show('musicFields', type === 'musicbingo'); show('clipsFields', type === 'clips');
   show('mediaFields', !['sheet', 'bingo', 'musicbingo', 'clips'].includes(type)); show('answerFields', !['sheet', 'vote', 'sequence', 'multi', 'pinpoint', 'bingo', 'musicbingo', 'clips'].includes(type)); show('aliasesLabel', ['text', 'picture', 'audio'].includes(type)); show('noteLabel', type !== 'sheet');
   // Speed bonus settings only appear once fastest fingers first is ticked.
   const fastest = speedTypes.includes(type) && $('qFastest').checked;
-  show('pointsLabel', type !== 'sheet'); show('fastestLabel', speedTypes.includes(type)); show('speedLabel', fastest);
+  show('pointsLabel', type !== 'sheet' && !(isBingoType(type) && $('qMode').value === 'progressive')); show('fastestLabel', speedTypes.includes(type)); show('speedLabel', fastest);
   show('bonusModeLabel', fastest && markedTypes.includes(type)); show('bonusPlacesLabel', fastest && markedTypes.includes(type) && $('qBonusMode').value === 'fixed'); show('evilLabel', markedTypes.includes(type));
   $('answerLabel').textContent = {choice: 'Correct choice (copy one line from above; blank for manual marking)', letter: 'Correct letter (A–Z)', wordsnake: 'Answer word (letters only, 3–20; spaces are removed)', tiles: 'Answer (4–40 letters; spaces mark separate words)', number: 'Correct number', nearest: 'Correct number', buzzer: 'Expected answer (shown only to you)'}[type] || 'Correct answer (blank for manual marking)';
   $('pointsText').textContent = {nearest: 'Points for the closest team', buzzer: 'Points for a correct buzz', vote: 'Points (votes score nothing)', multi: 'Points for every right tick', pinpoint: 'Points for a first-tap hit', bingo: 'Points for a valid bingo', musicbingo: 'Points for a valid bingo', clips: 'Points for tapping the right clip'}[type] || 'Correct answer points';
@@ -158,10 +163,11 @@ function fillQuestion(q = null) {
   $('qAnswer').value = q?.answer || ''; $('qAliases').value = (q?.aliases || []).join('\n'); $('qOptions').value = (q?.options || []).join('\n'); $('qMedia').value = q?.media || '';
   $('qNote').value = q?.answerNote || ''; $('qItems').value = q?.type === 'sequence' ? q.items.join('\n') : ''; $('qPlaces').value = q?.places ?? 1;
   $('qCorrect').value = (q?.correct || []).join('\n'); pinTarget = q?.target || null; $('qRadius').value = Math.round((q?.target?.r ?? 0.08) * 100);
-  $('qSongs').value = (q?.songs || []).map(s => s.media || s.spotify ? `${s.title} | ${s.media || s.spotify}` : s.title).join('\n'); $('qStartAt').value = q?.startAt ?? 0; $('qClipSeconds').value = q?.clipSeconds ?? 15; $('qRevealNow').checked = !!q?.revealNow;
+  $('qSongs').value = (q?.songs || []).map(s => s.media || s.spotify ? `${s.title} | ${s.media || s.spotify}` : s.title).join('\n'); $('qStartAt').value = q?.startAt ?? 0; $('qSongSeconds').value = q?.songSeconds ?? 0; $('qAutoNext').checked = !!q?.autoNext; $('qClipSeconds').value = q?.clipSeconds ?? 15; $('qRevealNow').checked = !!q?.revealNow;
   clipItems = structuredClone(q?.clips || []); targetClip = q?.targetClip ?? 0; renderClipList();
   $('qFastest').checked = !!q?.fastestFingers; $('qBonusMode').value = q?.bonusMode || 'sliding'; $('qBonusPlaces').value = q?.bonusPlaces ?? 1; $('qEvil').checked = !!q?.evil;
-  $('qGoWide').checked = !!q?.goWide; $('qGoWidePoints').value = q?.goWidePoints ?? 0; $('qMode').value = q?.mode || 'line';
+  $('qGoWide').checked = !!q?.goWide; $('qGoWidePoints').value = q?.goWidePoints ?? 0; $('qMode').value = q?.mode || 'progressive';
+  [$('qLinePoints').value, $('qTwoLinePoints').value, $('qHousePoints').value] = q?.stagePoints || [1, 2, 3];
   $('qVariation').value = q?.variation || 'classic'; $('qPenalty').value = q?.penalty ?? 0; $('qPassPenalty').value = q?.passPenalty ?? 0; $('qAgreePoints').value = q?.agreePoints ?? 1; $('qAgreeSeconds').value = q?.agreeSeconds ?? 10;
   $('sheetItems').replaceChildren(); (q?.type === 'sheet' ? q.items : ['']).forEach((item, i) => addSheetItem(item, q?.itemAnswers?.[i] || ''));
   $('mediaUpload').value = ''; renderMedia($('mediaPreview'), q); formTypes(); dirty = false;
@@ -192,8 +198,9 @@ function readQuestion() {
   if (type === 'multi') q.correct = lines('qCorrect');
   if (type === 'pinpoint') q.target = pinTarget;
   if (type === 'pinpoint' || type === 'wordsnake') Object.assign(q, {goWide: $('qGoWide').checked, goWidePoints: Number($('qGoWidePoints').value)});
-  if (type === 'bingo') Object.assign(q, {mode: $('qMode').value, media: ''});
-  if (type === 'musicbingo') Object.assign(q, {mode: $('qMode').value, revealNow: $('qRevealNow').checked, startAt: Number($('qStartAt').value), media: '', songs: lines('qSongs').map(line => {
+  const stagePoints = $('qMode').value === 'progressive' ? {stagePoints: [Number($('qLinePoints').value), Number($('qTwoLinePoints').value), Number($('qHousePoints').value)]} : {};
+  if (type === 'bingo') Object.assign(q, {mode: $('qMode').value, media: '', ...stagePoints});
+  if (type === 'musicbingo') Object.assign(q, {...stagePoints, mode: $('qMode').value, revealNow: $('qRevealNow').checked, startAt: Number($('qStartAt').value), songSeconds: Number($('qSongSeconds').value), autoNext: $('qAutoNext').checked, media: '', songs: lines('qSongs').map(line => {
     // "Title | /media/file.mp3" plays an uploaded file; "Title | spotify:track:…" plays on Spotify.
     const [title, source = ''] = line.split(/\s*\|\s*(?=\/media\/|spotify:track:)/), file = source.trim();
     return {title: title.trim(), media: file.startsWith('/media/') ? file : null, ...(file.startsWith('spotify:') ? {spotify: file} : {})};
@@ -206,7 +213,7 @@ function readQuestion() {
   return q;
 }
 $('questionForm').oninput = editorChanged;
-$('qType').onchange = $('qVariation').onchange = $('qBonusMode').onchange = $('qFastest').onchange = () => {formTypes(); editorChanged();};
+$('qType').onchange = $('qVariation').onchange = $('qBonusMode').onchange = $('qFastest').onchange = $('qMode').onchange = $('qSongs').onchange = () => {formTypes(); editorChanged();};
 $('clearMedia').onclick = () => {$('qMedia').value = ''; renderMedia($('mediaPreview'), null); pinTarget = null; renderPinTarget(); editorChanged();};
 $('addSheetItem').onclick = () => {addSheetItem(); editorChanged();};
 $('questionForm').onsubmit = e => {e.preventDefault(); action(async () => {
@@ -231,13 +238,61 @@ for (const [id, delta] of [['moveUp', -1], ['moveDown', 1]]) $(id).onclick = () 
 });
 $('saveTitle').onclick = () => action(async () => {if (!guardEditor()) return; const next = cloneLibrary(); next.title = $('quizTitle').value; await saveLibrary(next, round()?.id, editingId);});
 $('reloadLibrary').onclick = () => action(async () => {if (guardEditor()) await loadLibrary();});
-$('importQuiz').onchange = () => action(async () => {
-  const file = $('importQuiz').files[0]; if (!file) return;
-  if (file.size > 1024 * 1024) throw Error('Quiz JSON must be under 1 MB');
-  if (!confirm('Replace the saved quiz with this file? Played history and scores are retained.')) return;
-  await saveLibrary(JSON.parse(await file.text()));
-}, 'Quiz imported');
+// Quiz files can carry their pictures and sounds inside them as data: URLs, so a quiz moves between laptops in one
+// file. Importing uploads each one (once, even if used twice) and swaps in its new /media/ path.
+const mediaTypes = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg', 'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/wave': '.wav'};
+async function unpackMedia(quiz) {
+  const done = new Map();
+  const unpack = async value => {
+    const match = typeof value === 'string' && /^data:([^;,]+);base64,(.*)$/s.exec(value);
+    if (!match) return value;
+    if (!done.has(value)) {
+      if (!mediaTypes[match[1]]) throw Error(`Embedded ${match[1]} files are not supported`);
+      const bytes = Uint8Array.from(atob(match[2]), c => c.charCodeAt(0));
+      done.set(value, await uploadMedia(new File([bytes], `embedded${mediaTypes[match[1]]}`, {type: match[1]})));
+    }
+    return done.get(value);
+  };
+  for (const round of quiz?.rounds || []) for (const q of round.questions || []) {
+    q.media = await unpack(q.media);
+    for (const item of [...(q.clips || []), ...(q.songs || [])]) item.media = await unpack(item.media);
+  }
+  return quiz;
+}
+async function readQuizFile(file) {
+  if (file.size > 50 * 1024 * 1024) throw Error('Quiz files must be under 50 MB');
+  let quiz; try {quiz = JSON.parse(await file.text());} catch {throw Error('That file is not a quiz JSON file');}
+  return unpackMedia(quiz);
+}
+async function packMedia(quiz) {
+  const copy = structuredClone(quiz), done = new Map();
+  const pack = async path => {
+    if (typeof path !== 'string' || !path.startsWith('/media/')) return path;
+    if (!done.has(path)) {
+      const blob = await (await fetch(path)).blob();
+      done.set(path, await new Promise(resolve => {const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.readAsDataURL(blob);}));
+    }
+    return done.get(path);
+  };
+  delete copy.revision;
+  for (const round of copy.rounds) for (const q of round.questions) {
+    q.media = await pack(q.media);
+    for (const item of [...(q.clips || []), ...(q.songs || [])]) item.media = await pack(item.media);
+  }
+  return copy;
+}
+// Loading a quiz file starts a fresh quiz: the current one's results are saved (and downloaded if anything was
+// played), then teams and scores are cleared, as with End quiz & start next.
+$('importQuiz').onchange = () => {const file = $('importQuiz').files[0]; $('importQuiz').value = ''; if (file) action(async () => {
+  const played = state.history.length || state.teams.length;
+  if (played && !confirm('Start a fresh quiz with this file? The current quiz ends: its results are saved and downloaded, and all teams and scores are cleared.')) return;
+  const result = await request('new-event', {questions: 'load', quiz: await readQuizFile(file)});
+  if (played) download(`pubquiz-results-${result.saved.replace(/^results\//, '')}`, result.results);
+  await loadLibrary(); reviewId = '';
+  return `New quiz loaded: ${library.title}${played ? ` — last quiz's results saved in ${result.saved}` : ''}`;
+});};
 $('exportQuiz').onclick = () => download('pubquiz-questions.json', library);
+$('exportQuizMedia').onclick = () => action(async () => download(`${library.title.replace(/[^a-zA-Z0-9]+/g, '-') || 'quiz'}-with-media.json`, await packMedia(library)), 'Quiz downloaded with its pictures and sounds');
 async function uploadMedia(file) {
   if (file.size > 20 * 1024 * 1024) throw Error(`${file.name}: maximum media file size is 20 MB`);
   const response = await fetch('/api/host/media?name=' + encodeURIComponent(file.name), {method: 'POST', headers: {Authorization: 'Bearer ' + key, 'Content-Type': 'application/octet-stream'}, body: file, signal: AbortSignal.timeout(60000)});
@@ -326,13 +381,103 @@ function renderClipsPanel(q) {
 }
 $('playClips').onclick = () => {enableSound(); playClip(0);};
 $('stopClips').onclick = stopClips;
+// Music bingo song timer: each song stops after the question's play time, and with auto-next the next one follows
+// after a short gap, unless someone has called bingo or the game is paused or over. songRun cancels stale timers.
+let songTimer = null, songRun = 0;
+function stopSongTimer() {clearTimeout(songTimer); songTimer = null; songRun++;}
+function timeSong(q, song) {
+  const run = songRun, claims = state.question?.bingo?.claims ?? 0;
+  if (!q.songSeconds) return;
+  songTimer = setTimeout(async () => {
+    if (run !== songRun) return;
+    $('songAudio').pause(); if (song.spotify) await request('spotify/pause').catch(() => {});
+    const live = state.question;
+    // A claim during the song pauses the auto-play so the quizmaster can check it.
+    if (!q.autoNext || run !== songRun || live?.id !== q.id || !live.live || live.paused || live.bingo.over || live.bingo.claims > claims || live.bingo.played >= q.songs.length) return;
+    songTimer = setTimeout(() => {if (run === songRun && !$('callNumber').disabled) $('callNumber').click();}, 2000);
+  }, q.songSeconds * 1000);
+}
+// --- Sounds & bingo calls ---------------------------------------------------------------------------------------
+// Sound files are matched to moments by SpeedQuizzing's file names (soundnames.js; first match wins).
+const soundSlotInfo = Object.entries({startRound: 'Round starts', questionStart: 'Question opens', timerMusic: 'Music while answering (loops)', timeUp: "Time's up",
+  endRound: 'Round ends (leaderboard)', correct: 'Correct buzzer answer', wrong: 'Wrong buzzer answer', reveal: 'Answer reveal', bingoCall: 'Bingo number called',
+  bingo: 'Bingo claimed', wheel: 'Wheel spin', applause: 'Winner'}).map(([slot, label]) => [slot, label, slotFiles[slot]]);
+const audioFile = file => /\.(mp3|ogg|wav)$/i.test(file.name);
+const fileKey = file => (file.webkitRelativePath || file.name).toLowerCase().replace(/\.(mp3|ogg|wav)$/, '');
+let soundsSignature = '';
+function renderSounds(s) {
+  const signature = JSON.stringify([s.sounds, s.bingoCalls?.length, s.soundThemes, s.settings.soundTheme]); if (signature === soundsSignature) return; soundsSignature = signature;
+  // Themes come from the sound pack (SpeedQuizzing's Themes folder); a theme only replaces the moments it has sounds for.
+  selectOptions($('soundTheme'), [['', 'Standard sounds'], ...s.soundThemes.map(name => [name, name])], s.settings.soundTheme);
+  $('soundTheme').disabled = !s.soundThemes.length;
+  $('themeHint').textContent = s.soundThemes.length ? 'A theme replaces the moments it has a sound for; the rest use the standard sounds. Changing theme resets the moments below to it (added buzzer sounds stay).' : 'No themes found. Themes come from a sound pack (soundpack/Themes/<name>/, as in SpeedQuizzing).';
+  $('soundSlots').replaceChildren(...soundSlotInfo.map(([slot, label]) => {
+    const row = element('div', undefined, 'sound-slot'), media = s.sounds.slots[slot], pick = element('input'), play = element('button', '▶', 'subtle'), remove = element('button', 'Remove', 'subtle');
+    pick.type = 'file'; pick.accept = 'audio/mpeg,audio/ogg,audio/wav'; pick.setAttribute('aria-label', `File for ${label}`);
+    pick.onchange = () => {const file = pick.files[0]; if (file) action(async () => {await request('sounds', {slots: {[slot]: await uploadMedia(file)}});}, `${label}: sound saved`);};
+    play.type = remove.type = 'button'; play.disabled = remove.disabled = !media; play.title = 'Play here';
+    play.onclick = () => {new Audio(media).play().catch(() => {});};
+    remove.onclick = () => action(() => request('sounds', {slots: {[slot]: null}}), `${label}: sound removed`);
+    row.append(element('strong', label), element('span', !media ? 'none (built-in beep or silent)' : media.startsWith('/sounds/') ? 'PubQuiz default' : media.startsWith('/pack/') ? 'from your sound pack' : 'your file', 'muted'), pick, play, remove); return row;
+  }));
+  $('buzzerStatus').textContent = s.sounds.buzzers.length ? `${s.sounds.buzzers.length} buzzer sounds added: ${s.sounds.buzzers.slice(0, 8).map(b => b.name).join(', ')}${s.sounds.buzzers.length > 8 ? '…' : ''}` : 'Only the 8 built-in buzzer sounds';
+  $('clearBuzzers').disabled = !s.sounds.buzzers.length;
+  $('callsStatus').textContent = s.bingoCalls ? `Your own bingo calls are in use (e.g. 4: “${s.bingoCalls[3] || bingoCall(4)}”)` : 'Built-in bingo calls';
+  $('defaultCalls').disabled = !s.bingoCalls;
+}
+$('soundTheme').onchange = () => {const soundTheme = $('soundTheme').value; action(() => request('settings', {soundTheme}), soundTheme ? `Sound theme: ${soundTheme}` : 'Standard sounds');};
+$('soundFolder').onchange = () => {const files = [...$('soundFolder').files].filter(audioFile); action(async () => {
+  const slots = {};
+  for (const [slot, , names] of soundSlotInfo) {
+    const file = names.map(name => files.find(f => fileKey(f).endsWith(name) && (fileKey(f) === name || fileKey(f).endsWith('/' + name)))).find(Boolean);
+    if (file) slots[slot] = await uploadMedia(file);
+  }
+  $('soundFolder').value = '';
+  if (!Object.keys(slots).length) throw Error('No sound files with recognised names in that folder — pick a file for each moment instead');
+  await request('sounds', {slots});
+  return `${Object.keys(slots).length} sound effects set: ${soundSlotInfo.filter(([slot]) => slots[slot]).map(([, label]) => label).join(', ')}`;
+});};
+async function addBuzzers(files) {
+  const current = state.sounds.buzzers, names = new Set(current.map(b => b.name.toLowerCase())), added = [];
+  for (const file of files.filter(audioFile)) {
+    const name = file.name.replace(/\.(mp3|ogg|wav)$/i, '').replace(/[_]+/g, ' ').trim().slice(0, 60);
+    if (!name || names.has(name.toLowerCase()) || current.length + added.length >= 200) continue;
+    names.add(name.toLowerCase()); added.push({name, media: await uploadMedia(file)});
+  }
+  await request('sounds', {buzzers: [...current, ...added]});
+  return `${added.length} buzzer sounds added — teams can pick them in their phone menu`;
+}
+$('buzzerFolder').onchange = () => {const files = [...$('buzzerFolder').files]; $('buzzerFolder').value = ''; action(() => addBuzzers(files));};
+$('buzzerFiles').onchange = () => {const files = [...$('buzzerFiles').files]; $('buzzerFiles').value = ''; action(() => addBuzzers(files));};
+$('clearBuzzers').onclick = () => action(async () => {if (confirm('Remove all added buzzer sounds? Teams using one go back to a built-in sound.')) await request('sounds', {buzzers: []});}, 'Buzzer sounds updated');
+// SpeedQuizzing's file is JSON ({"1": "…", …, "90": "…"}); a plain list of 90 lines (optionally "4: …") works too.
+function parseCalls(text) {
+  let calls = Array(90).fill('');
+  try {
+    const data = JSON.parse(text);
+    for (let n = 1; n <= 90; n++) calls[n - 1] = String((Array.isArray(data) ? data[n - 1] : data[n]) ?? '').slice(0, 150);
+  } catch {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    lines.forEach((line, i) => {const m = /^(\d{1,2})\s*[:.)\-–]\s*(.*)$/.exec(line), n = m ? Number(m[1]) : i + 1; if (n >= 1 && n <= 90) calls[n - 1] = (m ? m[2] : line).slice(0, 150);});
+  }
+  if (calls.filter(Boolean).length < 10) throw Error('That file does not look like a list of bingo calls');
+  return calls;
+}
+$('callsFile').onchange = () => {const file = $('callsFile').files[0]; $('callsFile').value = ''; if (file) action(async () => {
+  const calls = parseCalls(await file.text()); await request('bingo-calls', {calls});
+  const missing = calls.map((c, i) => c ? null : i + 1).filter(Boolean);
+  return `${90 - missing.length} bingo calls imported${missing.length ? ` — ${missing.length < 12 ? missing.join(', ') : missing.length + ' numbers'} use the built-in calls` : ''}`;
+});};
+$('defaultCalls').onclick = () => action(() => request('bingo-calls', {calls: null}), 'Back to the built-in bingo calls');
 $('callNumber').onclick = () => action(async () => {
+  stopSongTimer();
   const q = state.question, {number, warning} = await request('bingo', {question: q.id});
   if (q.type !== 'musicbingo') return `Called ${number}`;
   const song = q.songs[number - 1], audio = $('songAudio');
   audio.hidden = !song.media;
-  if (song.spotify) {audio.pause(); return `Song ${q.bingo.played + 1}: ${song.title}${warning ? ` — ⚠ ${warning}` : ' — playing on Spotify'}`;}
-  if (song.media) {audio.src = song.media; audio.play().catch(() => message('Press play on the song player', true));}
+  if (song.spotify) {audio.pause(); if (!warning) timeSong(q, song); return `Song ${q.bingo.played + 1}: ${song.title}${warning ? ` — ⚠ ${warning}` : ' — playing on Spotify'}`;}
+  // A media fragment (#t=) starts an uploaded song at the chosen point.
+  if (song.media) {audio.src = song.media + (q.startAt ? `#t=${q.startAt}` : ''); audio.play().then(() => timeSong(q, song)).catch(() => message('Press play on the song player', true));}
   return `Song ${q.bingo.played + 1}: ${song.title}${song.media ? '' : ' — play it from your own music player'}`;
 });
 $('spinWheel').onclick = () => action(async () => {
@@ -392,6 +537,23 @@ $('adjustForm').onsubmit = e => {e.preventDefault(); action(async () => {
   adjustRequest ||= uid(); await request('adjust', {team: $('adjustTeam').value, points: Number($('adjustPoints').value), reason: $('adjustReason').value, requestId: adjustRequest});
   adjustRequest = null; $('adjustReason').value = '';
 }, 'Adjustment recorded');};
+// End quiz & start next: download the results, then clear the event (the server also keeps a copy).
+$('newEvent').onclick = () => {$('newEventTitle').value = ''; $('newEventFile').value = ''; $('newEventDialog').showModal();};
+$('newEventFile').onchange = () => {document.querySelector('[name=nextQuestions][value=load]').checked = true;};
+$('newEventDialog').onclose = () => {
+  if ($('newEventDialog').returnValue !== 'go') return;
+  const questions = document.querySelector('[name=nextQuestions]:checked').value, file = $('newEventFile').files[0], title = $('newEventTitle').value.trim();
+  action(async () => {
+    const body = {questions, ...(title ? {title} : {})};
+    if (questions === 'load') {
+      if (!file) throw Error('Choose the quiz file to load, then try again');
+      body.quiz = await readQuizFile(file);
+    }
+    const result = await request('new-event', body);
+    download(`pubquiz-results-${result.saved.replace(/^results\//, '')}`, result.results);
+    await loadLibrary(); reviewId = ''; return `New quiz ready. Last quiz's results downloaded and saved in ${result.saved}`;
+  });
+};
 $('exportResults').onclick = () => action(async () => download('pubquiz-results.json', await request('export')), 'Results downloaded');
 $('printSheets').onclick = () => {
   const paper = $('paper'), line = () => element('p', 'Answer: __________________________________________________');
@@ -462,16 +624,16 @@ function renderBingoPanel(q) {
   const g = q?.bingo; $('bingoPanel').hidden = !g || !q.live;
   if (!g) return;
   $('callNumber').textContent = g.music ? 'Play next song' : 'Call next number';
-  if (!q.live) $('songAudio').pause();
+  if (!q.live) {$('songAudio').pause(); stopSongTimer();}
   if (g.music) {
-    $('bingoInfo').textContent = g.winners.length ? `BINGO: ${g.winners.join(', ')} — end the game when ready` : g.current ? `Song ${g.played}: ${g.current.title}` : 'No songs played yet';
-    $('bingoCalls').textContent = `${g.played} of ${q.songs.length} songs played`;
-    $('callNumber').disabled = busy || !!g.winners.length || !!q.paused || g.played >= q.songs.length;
+    $('bingoInfo').textContent = g.winners.length ? bingoWins(g) : g.current ? `Song ${g.played}: ${g.current.title}` : 'No songs played yet';
+    $('bingoCalls').textContent = `${g.played} of ${q.songs.length} songs played${q.songSeconds ? ` · each plays ${q.songSeconds}s${q.startAt ? ` from ${q.startAt}s` : ''}${q.autoNext ? ', then the next starts by itself' : ''}` : q.startAt ? ` · songs start ${q.startAt}s in` : ''}`;
+    $('callNumber').disabled = busy || g.over || !!q.paused || g.played >= q.songs.length;
     return;
   }
-  $('bingoInfo').textContent = g.winners.length ? `BINGO: ${g.winners.join(', ')} — end the game when ready` : g.last ? `Last call: ${g.last}${state.settings.bingoPhrases ? ` — ${bingoCall(g.last)}` : ''} · ${g.called.length} called` : 'No numbers called yet';
+  $('bingoInfo').textContent = g.winners.length ? bingoWins(g) : g.last ? `Last call: ${g.last}${state.settings.bingoPhrases ? ` — ${(g.phrase ?? bingoCall(g.last))}` : ''} · ${g.called.length} called` : 'No numbers called yet';
   $('bingoCalls').textContent = g.called.join(' · ');
-  $('callNumber').disabled = busy || !!g.winners.length || !!q.paused || g.called.length >= 90;
+  $('callNumber').disabled = busy || g.over || !!q.paused || g.called.length >= 90;
 }
 function shownValue(q, value) {
   if (q.type === 'wordsnake') {try {const {path, wide} = JSON.parse(value); return path.map(i => q.grid.letters[i]).join('') + (wide ? ' (went wide)' : '');} catch {return value;}}
@@ -491,7 +653,7 @@ function renderState(s) {
   $('liveRound').textContent = q?.round || ''; $('liveText').textContent = q?.text || 'Ready when you are'; $('liveTimer').textContent = timeText(q, offset);
   $('liveKey').textContent = q ? answerKey(q) : '';
   if (q?.id !== liveQuestion) {liveQuestion = q?.id; $('announced').value = '';}
-  renderBuzzPanel(q); renderBingoPanel(q); showDeskPlayer();
+  renderBuzzPanel(q); renderBingoPanel(q); showDeskPlayer(); renderSounds(s); useSounds(s.sounds);
   if (clipRun && (q?.id !== clipRun.question || !q.live)) stopClips(); else renderClipsPanel(q);
   $('liveCount').textContent = q ? `${s.answers.length} answers received · ${s.teams.filter(t => t.enabled && !t.waiting).length} active teams` : 'Add rounds in Build quiz, then start your first question.';
   renderMedia($('liveMedia'), q); renderSolution($('liveSolution'), q);

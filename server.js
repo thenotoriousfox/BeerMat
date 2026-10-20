@@ -1,12 +1,13 @@
 import http from 'node:http';
 import {DatabaseSync} from 'node:sqlite';
 import {randomBytes, randomInt, timingSafeEqual, createHash} from 'node:crypto';
-import {existsSync, mkdirSync, writeFileSync, statSync, createReadStream, unlinkSync} from 'node:fs';
+import {existsSync, mkdirSync, writeFileSync, statSync, createReadStream, unlinkSync, readdirSync, readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {offensive} from './names.js';
 import {createSpotify} from './spotify.js';
-import {QuizError, requireValue, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, hostDriven, isBingo, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern} from './model.js';
+import {slotFiles, skippedBuzzerPacks, bingoCallsFile} from './soundnames.js';
+import {QuizError, requireValue, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern} from './model.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(24).toString('hex');
@@ -25,7 +26,33 @@ const SESSION_MS = 12 * 60 * 60 * 1000;
 // Read-only routes never notify clients of a change.
 const readOnly = new Set(['/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token']);
 
-export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl} = {}) {
+// Sound packs are laid out like SpeedQuizzing's Sounds folder: general/<name>.mp3 for each moment (soundnames.js),
+// buzzers/<pack>/*.mp3, and optionally its bingo calls file at the top. `prefix` is the URL they are served under.
+function loadPack(dir, prefix) {
+  const audio = f => /\.(mp3|ogg|wav)$/i.test(f), url = relative => prefix + relative.split('/').map(encodeURIComponent).join('/');
+  const list = (folder, dirs = false) => {try {return readdirSync(path.join(dir, folder), {withFileTypes: true}).filter(e => dirs ? e.isDirectory() : e.isFile() && audio(e.name)).map(e => e.name).sort((a, b) => a.localeCompare(b));} catch {return [];}};
+  // Moments found in one folder: general/ for the standard sounds, Themes/<name>/ for a theme.
+  const slotsIn = folder => {
+    const slots = {};
+    for (const [slot, names] of Object.entries(slotFiles)) {
+      const file = names.flatMap(name => ['.mp3', '.ogg', '.wav'].map(ext => `${folder}/${name}${ext}`)).find(f => existsSync(path.join(dir, f)));
+      if (file) slots[slot] = url(file);
+    }
+    return slots;
+  };
+  const slots = slotsIn('general'), themes = Object.fromEntries(list('Themes', true).map(theme => [theme, slotsIn(`Themes/${theme}`)]).filter(([, s]) => Object.keys(s).length));
+  const buzzers = list('buzzers', true).filter(pack => !skippedBuzzerPacks.test(pack))
+    .flatMap(pack => list(`buzzers/${pack}`).map(f => ({name: f.replace(/\.[^.]+$/, '').slice(0, 60), media: url(`buzzers/${pack}/${f}`)})));
+  let calls = null;
+  try {
+    const data = JSON.parse(readFileSync(path.join(dir, bingoCallsFile), 'utf8'));
+    calls = Array.from({length: 90}, (_, i) => {const c = Array.isArray(data) ? data[i] : data[i + 1]; return typeof c === 'string' ? c.trim().slice(0, 150) : '';});
+    if (!calls.some(Boolean)) calls = null;
+  } catch {}
+  return {slots, themes, buzzers, calls};
+}
+
+export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds')} = {}) {
   if (typeof hostKey !== 'string' || hostKey.length < 12) throw Error('HOST_KEY must contain at least 12 characters');
   const db = new DatabaseSync(database);
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
@@ -45,6 +72,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     CREATE TABLE IF NOT EXISTS device_ips(ip TEXT PRIMARY KEY,team TEXT REFERENCES teams(id),seen INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS away(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),ms INTEGER NOT NULL DEFAULT 0,count INTEGER NOT NULL DEFAULT 0,since INTEGER,PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS clip_plays(question INTEGER REFERENCES questions(id),seq INTEGER NOT NULL,clip INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,seq));
+    CREATE TABLE IF NOT EXISTS bingo_claims(question INTEGER REFERENCES questions(id),team TEXT REFERENCES teams(id),stage INTEGER NOT NULL,seq INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,team,stage));
     CREATE TABLE IF NOT EXISTS bingo_calls(question INTEGER REFERENCES questions(id),seq INTEGER NOT NULL,number INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,seq));
   `);
   function column(table, name, definition) {
@@ -81,9 +109,33 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, teamPhotos: true, language: 'en', onlineAfterJoin: true, waitingRoom: false, maxTeams: 0, showScores: true};
+  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, teamPhotos: true, language: 'en', onlineAfterJoin: true, waitingRoom: false, maxTeams: 0, showScores: true, soundTheme: ''};
   const SOUNDS = 8;
+  // Sound effects for the TV and extra buzzer sounds, both from the quizmaster's own files; custom bingo calls (1–90).
+  // This laptop's sound pack (scripts/sound-pack.mjs) supplies the defaults until the desk changes them; a desk choice of
+  // the built-in bingo calls is stored as null.
+  // PubQuiz ships CC0 sounds in sounds/; a laptop's own soundpack/ (same layout) takes priority over them.
+  const shipped = loadPack(soundsDir, '/sounds/'), local = loadPack(packDir, '/pack/');
+  // A sound theme (SpeedQuizzing's Themes/<name>) replaces the moments it has a sound for. Desk choices, stored
+  // separately for moments and buzzers, override the defaults.
+  const themes = {...shipped.themes, ...local.themes};
+  const defaults = theme => ({slots: {...shipped.slots, ...local.slots, ...themes[theme]}, buzzers: [...local.buzzers, ...shipped.buzzers].slice(0, 200)});
+  const soundPack = () => {
+    const saved = getMeta('soundPack', {}), base = defaults(settings().soundTheme);
+    return {slots: saved.slots ?? base.slots, buzzers: saved.buzzers ?? base.buzzers};
+  };
+  const bingoCalls = () => getMeta('bingoCalls', local.calls ?? shipped.calls);
+  // Only audio files inside the two sound folders are ever served.
+  const packFile = p => {
+    const [prefix, dir] = p.startsWith('/pack/') ? ['/pack/', packDir] : p.startsWith('/sounds/') ? ['/sounds/', soundsDir] : [];
+    if (!prefix) return null;
+    let relative; try {relative = decodeURIComponent(p.slice(prefix.length));} catch {return null;}
+    const base = path.resolve(dir), file = path.resolve(base, relative);
+    return file.startsWith(base + path.sep) && /\.(mp3|ogg|wav)$/i.test(file) && existsSync(file) && statSync(file).isFile() ? file : null;
+  };
   const settings = () => ({...defaultSettings, ...getMeta('settings', {})});
+  // Each event has an ID, so phones can tell "a new quiz has started" from a revoked code.
+  if (!getMeta('event', '')) setMeta('event', token().slice(0, 12));
   // Events saved before the automatic TV existed start on it once.
   if (!getMeta('autoTv', false)) {const saved = getMeta('settings', null); if (saved) setMeta('settings', {...saved, displayMode: 'auto'}); setMeta('autoTv', true);}
   const library = () => getMeta('library', {revision: 0, title: 'My quiz', rounds: []});
@@ -152,14 +204,29 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   }
   const calledNumbers = q => rows('SELECT number FROM bingo_calls WHERE question=? ORDER BY seq', q.id).map(r => r.number);
   const ticket = (data, teamId, q) => data.type === 'musicbingo' ? musicCard(`${teamId}:${q.id}`, data.songs.length) : bingoCard(`${teamId}:${q.id}`);
+  // Bingo is played in stages: just one (line, two lines or full house) or, in a full game, all three in turn.
+  // A stage stays open for claims on the number that won it (ties share it); the next number moves play on.
+  function bingoProgress(q, data) {
+    const stages = bingoStages(data.mode), called = calledNumbers(q).length;
+    const claims = rows('SELECT c.team,c.stage,c.seq,t.name FROM bingo_claims c JOIN teams t ON t.id=c.team WHERE c.question=? ORDER BY c.at,c.rowid', q.id);
+    let current = 0;
+    for (; current < stages.length; current++) {const first = claims.find(c => c.stage === current); if (!first || first.seq === called) break;}
+    return {stages, claims, current: current < stages.length ? current : null, over: claims.some(c => c.stage === stages.length - 1)};
+  }
   function bingoState(q, data, teamId, host) {
     if (!isBingo(data.type)) return null;
-    const called = calledNumbers(q), winners = rows('SELECT t.name FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=? AND a.points>0 ORDER BY a.submitted,a.rowid', q.id).map(w => w.name);
-    const mine = teamId ? {claimed: !!one('SELECT 1 FROM answers WHERE team=? AND question=?', teamId, q.id)} : {};
-    if (data.type === 'bingo') return {mode: data.mode, called, last: called.at(-1) ?? null, winners, ...mine, ...(teamId ? {card: ticket(data, teamId, q)} : {})};
+    const called = calledNumbers(q), {stages, claims, current, over} = bingoProgress(q, data);
+    const names = i => claims.filter(c => c.stage === i).map(c => c.name), won = stages.map((_, i) => i).filter(i => names(i).length), last = won.at(-1);
+    // Once a stage has its winner, teams play for the next one (ties on the same number still count for the old one).
+    const next = current === null ? stages.length : current + (names(current).length ? 1 : 0);
+    const progress = {playingFor: over || next >= stages.length ? null : stages[next], stageWins: won.map(i => ({stage: stages[i], names: names(i)})),
+      winners: last === undefined ? [] : names(last), lastStage: last === undefined ? null : stages[last], over, claims: claims.length};
+    const mine = teamId ? {claimed: current !== null && claims.some(c => c.team === teamId && c.stage === current), myWins: claims.filter(c => c.team === teamId).map(c => stages[c.stage])} : {};
+    const winners = progress.winners;
+    if (data.type === 'bingo') return {mode: data.mode, ...progress, called, last: called.at(-1) ?? null, phrase: called.length ? bingoCalls()?.[called.at(-1) - 1] || null : null, winners, ...mine, ...(teamId ? {card: ticket(data, teamId, q)} : {})};
     // Music bingo hides the song now playing (teams must recognise it) unless the host chose to reveal titles straight away.
     const shown = data.revealNow || !pending(q) ? called : called.slice(0, -1);
-    return {mode: data.mode, music: true, played: called.length, titles: shown.map(n => data.songs[n - 1].title), winners, ...mine,
+    return {mode: data.mode, ...progress, music: true, played: called.length, titles: shown.map(n => data.songs[n - 1].title), winners, ...mine,
       ...(teamId ? {card: ticket(data, teamId, q).map(row => row.map(n => data.songs[n - 1].title))} : {}),
       ...(host ? {current: called.length ? {number: called.at(-1), ...data.songs[called.at(-1) - 1]} : null} : {})};
   }
@@ -249,7 +316,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const played = new Set(rows('SELECT data FROM questions').map(p => dataOf(p).sourceId));
     return round.questions.every(x => played.has(x.id));
   }
-  function publicState() { return {serverTime: now(), settings: settings(), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
+  function exportResults() {return {version: 3, settings: settings(), library: library(), teams: rows('SELECT id,name,enabled FROM teams'), questions: rows('SELECT * FROM questions'), answers: rows('SELECT * FROM answers'), adjustments: rows('SELECT * FROM adjustments'), markingLog: rows('SELECT * FROM marking_log'), buzzes: rows('SELECT * FROM buzzes'), agrees: rows('SELECT * FROM agrees'), bingoCalls: rows('SELECT * FROM bingo_calls'), bingoClaims: rows('SELECT * FROM bingo_claims'), clipPlays: rows('SELECT * FROM clip_plays')};}
+  function publicState() { return {serverTime: now(), settings: settings(), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
 
   // Final scoring once answers stop: nearest-wins needs every answer before it can rank them.
   function settle(q) {
@@ -433,7 +501,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       settle(latest());
       if (req.method === 'GET' && p === '/api/events') return openStream(req, res, url);
       if ((req.method === 'GET' || req.method === 'HEAD') && !p.startsWith('/api/')) {
-        const routes = {'/host': 'host.html', '/display': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/sqimport.js': 'sqimport.js', '/qr.js': 'qr.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
+        const routes = {'/host': 'host.html', '/display': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/sqimport.js': 'sqimport.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
         if (p.startsWith('/media/')) {
           requireValue(mediaPattern.test(p), 'Media not found', 404);
           const file = path.join(mediaDir, path.basename(p));
@@ -441,6 +509,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           return sendFile(req, res, file);
         }
         if (p === '/health') return send(200, {ok: true});
+        if (p.startsWith('/pack/') || p.startsWith('/sounds/')) {const file = packFile(p); requireValue(file, 'Sound not found', 404); return sendFile(req, res, file);}
         if (p === '/spotify/callback') {
           // Sign-in only ever finishes in a browser on the laptop itself.
           const page = (title, text) => {res.writeHead(200, {...security, 'Content-Type': 'text/html; charset=utf-8'}); res.end(`<!doctype html><meta charset="utf-8"><title>${title}</title><body style="font:18px system-ui;background:#0c1220;color:#f3f4f6;padding:40px"><h1>${title}</h1><p>${text}</p>`);};
@@ -499,7 +568,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/logout') {run('DELETE FROM host_sessions WHERE hash=?', hash(auth)); return send(200, {ok: true});}
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats();
-          return send(200, {serverTime: now(), settings: settings(), view: tvView(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {serverTime: now(), settings: settings(), sounds: soundPack(), soundThemes: Object.keys(themes), bingoCalls: bingoCalls(), view: tvView(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -516,6 +585,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           // Shown on the projector's join screen; the Wi-Fi name should match the hotspot's --ssid.
           if (Object.hasOwn(body, 'joinSsid')) {requireValue(typeof body.joinSsid === 'string' && body.joinSsid.trim() && Buffer.byteLength(body.joinSsid.trim()) <= 32, 'Wi-Fi name must be 1–32 bytes'); next.joinSsid = body.joinSsid.trim();}
           if (Object.hasOwn(body, 'joinUrl')) {requireValue(typeof body.joinUrl === 'string' && /^https?:\/\/[^\s]{1,150}$/.test(body.joinUrl.trim()), 'Join address must start with http:// and have no spaces'); next.joinUrl = body.joinUrl.trim();}
+          // Picking a theme puts every moment back to that theme's sounds; added buzzer sounds stay.
+          if (Object.hasOwn(body, 'soundTheme')) {
+            requireValue(body.soundTheme === '' || Object.hasOwn(themes, body.soundTheme), 'Unknown sound theme');
+            next.soundTheme = body.soundTheme; const saved = getMeta('soundPack', {}); delete saved.slots; setMeta('soundPack', saved);
+          }
           if (Object.hasOwn(body, 'maxTeams')) {requireValue(Number.isInteger(body.maxTeams) && body.maxTeams >= 0 && body.maxTeams <= 250, 'Maximum teams must be 0 (no limit) to 250'); next.maxTeams = body.maxTeams;}
           if (Object.hasOwn(body, 'language')) {requireValue(['en', 'fr', 'es'].includes(body.language), 'Unknown language'); next.language = body.language;}
           if (Object.hasOwn(body, 'displayMode')) {requireValue(['auto', 'join', 'leaderboard', 'question', 'wheel', 'winner', 'blank'].includes(body.displayMode), 'Invalid projector view'); next.displayMode = body.displayMode;}
@@ -553,7 +627,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/bingo') {
           const q = questionById(body.question); requireValue(q && pending(q) && isBingo(dataOf(q).type), 'No live bingo game', 409);
           requireValue(q.paused_ms === null, 'Resume the game first', 409);
-          requireValue(!one('SELECT 1 FROM answers WHERE question=? AND points>0', q.id), 'A team has called bingo — end the game', 409);
+          requireValue(!bingoProgress(q, dataOf(q)).over, 'The game has been won — end it when ready', 409);
           const data = dataOf(q), called = new Set(calledNumbers(q));
           const remaining = Array.from({length: data.type === 'musicbingo' ? data.songs.length : 90}, (_, i) => i + 1).filter(n => !called.has(n));
           requireValue(remaining.length, data.type === 'musicbingo' ? 'Every song has been played' : 'Every number has been called', 409);
@@ -589,6 +663,25 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const clip = dataOf(q).clips[body.clip]; requireValue(Number.isInteger(body.clip) && clip?.spotify, 'Not a Spotify clip');
           await spotify.play(clip.spotify, clip.start);
           run('INSERT INTO clip_plays VALUES(?,?,?,?)', q.id, (nowPlaying(q)?.seq || 0) + 1, body.clip, now()); return send(200, {ok: true});
+        }
+        if (p === '/api/host/sounds') {
+          const pack = structuredClone(soundPack()), exists = media => typeof media === 'string' && (/^\/(pack|sounds)\//.test(media) ? !!packFile(media) : audioPath(media) && existsSync(path.join(mediaDir, path.basename(media))));
+          if (Object.hasOwn(body, 'slots')) {
+            requireValue(body.slots && typeof body.slots === 'object' && Object.entries(body.slots).every(([slot, media]) => soundSlots.includes(slot) && (media === null || exists(media))), 'Each sound needs an uploaded MP3, Ogg or WAV');
+            pack.slots = Object.fromEntries(Object.entries({...pack.slots, ...body.slots}).filter(([, media]) => media));
+          }
+          if (Object.hasOwn(body, 'buzzers')) {
+            requireValue(Array.isArray(body.buzzers) && body.buzzers.length <= 200 && body.buzzers.every(b => b && typeof b.name === 'string' && b.name.trim() && b.name.length <= 60 && exists(b.media)), 'Buzzer sounds need a name (up to 60 characters) and an uploaded audio file; 200 at most');
+            pack.buzzers = body.buzzers.map(b => ({name: b.name.trim(), media: b.media}));
+            // Teams whose custom sound no longer exists go back to the default.
+            run('UPDATE teams SET sound=NULL WHERE sound>=?', SOUNDS + pack.buzzers.length);
+          }
+          setMeta('soundPack', {...getMeta('soundPack', {}), ...(Object.hasOwn(body, 'slots') ? {slots: pack.slots} : {}), ...(Object.hasOwn(body, 'buzzers') ? {buzzers: pack.buzzers} : {})});
+          return send(200, pack);
+        }
+        if (p === '/api/host/bingo-calls') {
+          requireValue(body.calls === null || (Array.isArray(body.calls) && body.calls.length === 90 && body.calls.every(c => typeof c === 'string' && c.length <= 150)), 'Bingo calls need 90 entries of up to 150 characters');
+          setMeta('bingoCalls', body.calls && body.calls.map(c => c.trim())); return send(200, {ok: true});
         }
         if (p === '/api/host/admit') {run('UPDATE teams SET waiting=0 WHERE waiting=1 AND enabled=1'); return send(200, {ok: true});}
         // A countdown on the TV, separate from question timers (e.g. "5 minutes to hand in sheets").
@@ -673,7 +766,26 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           }
           return send(200, {ok: true});
         }
-        if (p === '/api/host/export') return send(200, {version: 3, settings: settings(), library: library(), teams: rows('SELECT id,name,enabled FROM teams'), questions: rows('SELECT * FROM questions'), answers: rows('SELECT * FROM answers'), adjustments: rows('SELECT * FROM adjustments'), markingLog: rows('SELECT * FROM marking_log'), buzzes: rows('SELECT * FROM buzzes'), agrees: rows('SELECT * FROM agrees'), bingoCalls: rows('SELECT * FROM bingo_calls'), clipPlays: rows('SELECT * FROM clip_plays')});
+        if (p === '/api/host/export') return send(200, exportResults());
+        // End this quiz and start the next: the results are kept on the laptop (and returned for download),
+        // then teams, answers and scores are cleared. Settings, join details and question media stay.
+        if (p === '/api/host/new-event') {
+          requireValue(['keep', 'empty', 'load'].includes(body.questions), 'Choose which questions the next quiz uses');
+          const nextLibrary = body.questions === 'load' ? validateLibrary(body.quiz, mediaDir) : body.questions === 'empty' ? {title: 'My quiz', rounds: []} : null;
+          requireValue(body.title === undefined || (typeof body.title === 'string' && body.title.trim() && body.title.length <= 100), 'Event name must be 1–100 characters');
+          const results = exportResults(), folder = path.join(path.dirname(path.resolve(database)), 'results');
+          const file = `${new Date(now()).toISOString().replace(/[:.]/g, '-').slice(0, 19)}-${settings().title.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'quiz'}.json`;
+          mkdirSync(folder, {recursive: true}); writeFileSync(path.join(folder, file), JSON.stringify(results, null, 2), {mode: 0o600});
+          const photos = rows('SELECT photo FROM teams WHERE photo IS NOT NULL').map(t => t.photo);
+          transaction(() => {
+            for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'away', 'clip_plays', 'bingo_claims', 'bingo_calls', 'marking_log', 'adjustments', 'device_ips', 'actions', 'questions', 'teams']) run(`DELETE FROM ${table}`);
+            if (nextLibrary) setMeta('library', {...nextLibrary, revision: library().revision + 1});
+            setMeta('timer', null); setMeta('wheel', null); setMeta('event', token().slice(0, 12));
+            setMeta('settings', {...settings(), title: body.title?.trim() || nextLibrary?.title || library().title, ended: false, registrationOpen: true, displayMode: 'auto'});
+          });
+          for (const photo of photos) try {unlinkSync(path.join(mediaDir, path.basename(photo)));} catch {}
+          return send(200, {saved: path.join('results', file), results});
+        }
         throw new QuizError('Unknown host action', 404);
       }
       if (p === '/api/transfer') {
@@ -721,18 +833,22 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           draft: one('SELECT value FROM drafts WHERE team=? AND question=?', team.id, q?.id || 0) || null});
       }
       if (p === '/api/team/sound') {
-        requireValue(Number.isInteger(body.sound) && body.sound >= 0 && body.sound < SOUNDS, 'Unknown buzzer sound');
+        requireValue(Number.isInteger(body.sound) && body.sound >= 0 && body.sound < SOUNDS + soundPack().buzzers.length, 'Unknown buzzer sound');
         run('UPDATE teams SET sound=? WHERE id=?', body.sound, team.id); return send(200, {ok: true});
       }
       if (p === '/api/bingo') {
         const q = latest(); requireValue(q && body.question === q.id && pending(q) && q.paused_ms === null && isBingo(dataOf(q).type) && !settings().ended, 'No live bingo game', 409);
-        requireValue(!one('SELECT 1 FROM answers WHERE team=? AND question=?', team.id, q.id), 'Already claimed', 409);
-        const data = dataOf(q), called = new Set(calledNumbers(q));
-        requireValue(bingoLines(ticket(data, team.id, q), called) >= bingoNeeded(data.mode), 'Not yet — keep marking your ticket', 409);
-        // The first claim takes the bonus; later claims on the same call score the standard points.
-        const first = !one('SELECT 1 FROM answers WHERE question=? AND points>0', q.id);
-        award(team.id, q, `BINGO on call ${called.size}`, data.points + (first ? speedBonusOf(data) : 0));
-        return send(200, {ok: true, first});
+        const data = dataOf(q), called = new Set(calledNumbers(q)), {stages, claims, current} = bingoProgress(q, data);
+        requireValue(current !== null, 'The game is over', 409);
+        requireValue(!claims.some(c => c.team === team.id && c.stage === current), 'Already claimed', 409);
+        requireValue(bingoLines(ticket(data, team.id, q), called) >= bingoNeeded(stages[current]), 'Not yet — keep marking your ticket', 409);
+        // Each stage pays its own points; the first claim of a stage also takes the bonus (with fastest fingers first).
+        const first = !claims.some(c => c.stage === current), points = stagePoints(data)[current] + (first ? speedBonusOf(data) : 0);
+        const label = {line: 'Line', twoLines: 'Two lines', fullHouse: 'Full house'}[stages[current]];
+        run('INSERT INTO bingo_claims VALUES(?,?,?,?,?)', q.id, team.id, current, called.size, now());
+        const previous = one('SELECT value,points FROM answers WHERE team=? AND question=?', team.id, q.id);
+        award(team.id, q, `${previous ? previous.value + '; ' : ''}${label} on call ${called.size}`, (previous?.points || 0) + points);
+        return send(200, {ok: true, first, stage: stages[current]});
       }
       // Phones report leaving the quiz page (switching app, locking) while a question is open.
       if (p === '/api/away') {

@@ -1,6 +1,6 @@
 // Optional real-browser suite. npm run test:browser after installing Playwright Chromium.
 import assert from 'node:assert/strict';
-import {mkdtempSync, rmSync} from 'node:fs';
+import {mkdtempSync, rmSync, readFileSync} from 'node:fs';
 import zlib from 'node:zlib';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,7 +15,7 @@ const errors = [], external = [];
 async function context(options) {
   const c = await browser.newContext(options); c.on('page', page => {page.on('pageerror', e => errors.push(e.message)); page.on('request', r => {if (!r.url().startsWith(base) && !r.url().startsWith('blob:')) external.push(r.url());});}); return c;
 }
-async function waitFor(page, fn) {await page.waitForFunction(fn, null, {timeout: 12000});}
+async function waitFor(page, fn, timeout = 12000) {await page.waitForFunction(fn, null, {timeout});}
 async function visible(page, selector) {await page.locator(selector).waitFor({state: 'visible', timeout: 12000});}
 const hostContext = await context({viewport: {width: 1360, height: 900}});
 const playerContext = await context({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});
@@ -73,7 +73,10 @@ try {
   await player.goto(base + '/hotspot-detect.html'); await player.locator('#name').fill('Fox team'); await player.locator('#joinButton').click(); await visible(player, '#game'); const recovery = await player.locator('#code').textContent(); assert.equal(recovery.length, 48);
   // The TV starts in Auto: before the first question it shows how to join.
   await projector.goto(base + '/display'); await visible(projector, '#joinSection');
-  await host.locator('[data-tab=live]').click(); assert.equal(await host.locator('#displayMode').inputValue(), 'auto'); await waitFor(host, () => document.getElementById('autoView').textContent === '(now: join screen)');
+  await host.locator('[data-tab=live]').click(); assert.equal(await host.locator('#displayMode').inputValue(), 'auto');
+  // Later updates with no question open must keep the TV connected (a drawing error shows as a lost connection).
+  await host.locator('#visibility').click(); await host.locator('#visibility').click();
+  await waitFor(projector, () => document.getElementById('connection').textContent.includes('Connected')); await waitFor(host, () => document.getElementById('autoView').textContent === '(now: join screen)');
   await waitFor(projector, () => document.querySelector('#wifiQr svg')?.getAttribute('aria-label') === 'QR code: WIFI:T:nopass;S:PubQuiz;;');
   assert.equal(await projector.locator('.qr').count(), 1, 'one code to scan'); assert.match(await projector.locator('#joinStepWifi').textContent(), /“PubQuiz”/);
   assert.match(await projector.locator('#joinFallback').textContent(), /10\.42\.0\.1/); assert.match(await projector.locator('#joinStatus').textContent(), /1 team has joined/);
@@ -315,6 +318,28 @@ try {
   await player.screenshot({path: '/tmp/pubquiz-player-review.png', fullPage: true});
   await host.screenshot({path: '/tmp/pubquiz-host-review.png', fullPage: true});
   log('server restart preserves the event, host session and player identity; blank sheets are printable');
+  // The test quiz file carries its pictures and sounds; importing uploads them, and exporting packs them back in.
+  // Loading a quiz file starts a fresh quiz: the night so far is saved and downloaded, and phones are asked to rejoin.
+  await host.locator('[data-tab=build]').click();
+  const [nightOne] = await Promise.all([host.waitForEvent('download', {timeout: 60000}), host.locator('#importQuiz').setInputFiles('examples/test-quiz.json')]);
+  assert.match(nightOne.suggestedFilename(), /^pubquiz-results-/);
+  await waitFor(host, () => document.getElementById('message').textContent.startsWith('New quiz loaded: Test quiz'), 60000);
+  await waitFor(player, () => !document.getElementById('join').hidden && document.getElementById('message').textContent === 'A new quiz has started — pick your team name again.');
+  assert.deepEqual((await hostApi('state')).teams, []);
+  const imported = await hostApi('library'), importedMedia = imported.rounds.flatMap(r => r.questions.flatMap(q => [q.media, ...(q.clips || []).map(c => c.media), ...(q.songs || []).map(x => x.media)])).filter(Boolean);
+  assert.deepEqual([imported.title, imported.rounds.length, importedMedia.length > 30, importedMedia.every(m => /^\/media\/[a-f0-9]+\.(png|wav)$/.test(m))], ['Test quiz', 6, true, true]);
+  const [packed] = await Promise.all([host.waitForEvent('download'), host.locator('#exportQuizMedia').click()]);
+  const bundle = JSON.parse(readFileSync(await packed.path(), 'utf8'));
+  assert.match(bundle.rounds[1].questions[1].media, /^data:image\/png;base64,/); assert.equal(bundle.revision, undefined);
+  log('loading a quiz file starts a fresh quiz; quiz files carry their media in and out');
+  await host.locator('[data-tab=live]').click(); await host.locator('#newEvent').click(); await visible(host, '#newEventDialog');
+  await host.locator('#newEventTitle').fill('Second night');
+  const [results] = await Promise.all([host.waitForEvent('download'), host.locator('#newEventConfirm').click()]);
+  assert.match(results.suggestedFilename(), /^pubquiz-results-.*\.json$/);
+  await waitFor(host, () => document.getElementById('message').textContent.startsWith('New quiz ready'));
+  await waitFor(player, () => !document.getElementById('join').hidden && document.getElementById('message').textContent === 'A new quiz has started — pick your team name again.');
+  await visible(projector, '#joinSection'); await waitFor(projector, () => document.getElementById('title').textContent === 'Second night');
+  log('end quiz & start next: results downloaded, phones asked to join again, TV back on the join screen');
   assert.deepEqual(errors, []); assert.deepEqual(external, []);
   log('no browser JavaScript errors and no external network requests');
 } catch (error) {

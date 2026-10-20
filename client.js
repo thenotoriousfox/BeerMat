@@ -1,6 +1,6 @@
 import {qrMatrix, wifiCode} from './qr.js';
 import {t, setLanguage, language, languages, translatePage} from './i18n.js';
-import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, sounds, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, stopSound, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('pubquiz-team'), current = null, renderedQuestion = 'unset', offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
 let localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0, winnerShown = '';
@@ -8,7 +8,14 @@ const inputs = () => [...$('inputs').querySelectorAll('input,select')];
 const draftKey = id => `pubquiz-draft:${secret}:${id}`;
 const keypad = type => ['choice', 'vote', 'letter'].includes(type);
 const listValue = type => ['sequence', 'multi', 'pinpoint', 'wordsnake', 'tiles'].includes(type);
-const modes = {line: 'One line', twoLines: 'Two lines', fullHouse: 'Full house'}, mode = m => t(modes[m]);
+const modes = {progressive: 'Full game', line: 'One line', twoLines: 'Two lines', fullHouse: 'Full house'}, mode = m => t(modes[m]);
+// What the bingo game is playing for now, and who won the latest prize.
+const stageText = g => g.over ? t('Game over') : g.mode === 'progressive' ? t('Playing for {stage}', {stage: mode(g.playingFor)}) : mode(g.mode);
+const winText = g => {
+  const names = g.winners.join(', ');
+  if (g.mode !== 'progressive') return t('BINGO! {names}', {names});
+  return t('{stage}: {names}', {stage: mode(g.lastStage), names}) + (g.over ? ' 🎉' : ' · ' + t('Playing for {stage}', {stage: mode(g.playingFor)}));
+};
 function saveIdentity(code) {
   secret = code; current = null; renderedQuestion = 'unset'; localDraft = null; inputRevision = 0;
   if (!writeStorage('pubquiz-team', code)) $('storageWarning').textContent = t('Browser storage is unavailable. Write down your recovery code before closing this window.');
@@ -194,17 +201,17 @@ function buildTicket(q) {
 function renderBingo(q) {
   const b = q.bingo;
   if (b.music) {
-    $('bingoMode').textContent = t('Music bingo · {mode} · {n} played', {mode: mode(b.mode), n: b.played});
+    $('bingoMode').textContent = t('Music bingo · {mode} · {n} played', {mode: stageText(b), n: b.played});
     $('bingoLast').textContent = b.played ? t('Song {n}', {n: b.played}) : '–'; $('bingoPhrase').textContent = b.titles.length ? t('Revealed: {title}', {title: b.titles.at(-1)}) : '';
   } else {
-    $('bingoMode').textContent = t('{mode} · {n} called', {mode: mode(b.mode), n: b.called.length});
-    $('bingoLast').textContent = b.last ?? '–'; $('bingoPhrase').textContent = current.settings.bingoPhrases && b.last ? bingoCall(b.last) : '';
+    $('bingoMode').textContent = t('{mode} · {n} called', {mode: stageText(b), n: b.called.length});
+    $('bingoLast').textContent = b.last ?? '–'; $('bingoPhrase').textContent = current.settings.bingoPhrases && b.last ? b.phrase ?? bingoCall(b.last) : '';
   }
-  $('claimBingo').disabled = !(online && q.live && !q.paused && !b.claimed && !current.settings.ended);
-  $('bingoStatus').textContent = b.claimed ? t('✓ Bingo! Your claim was checked and counted.') : b.winners.length ? t('Bingo called by {names} — claim now only if you have it on this number', {names: b.winners.join(', ')}) : '';
+  $('claimBingo').disabled = !(online && q.live && !q.paused && !b.claimed && !b.over && !current.settings.ended);
+  $('bingoStatus').textContent = b.claimed ? t('✓ Bingo! Your claim was checked and counted.') : b.winners.length ? winText(b) : '';
 }
 function playerState(s) {
-  current = s; offset = s.serverTime - Date.now(); $('join').hidden = true; $('game').hidden = false;
+  current = s; writeStorage('pubquiz-event', s.event || ''); offset = s.serverTime - Date.now(); $('join').hidden = true; $('game').hidden = false;
   $('team').textContent = s.team.name; $('code').textContent = secret; const q = s.question;
   // A team in the waiting room sees only a holding screen until the quizmaster lets it in.
   const shown = s.team.waiting ? 'waiting' : q?.id;
@@ -229,7 +236,7 @@ function playerState(s) {
   $('photoDetails').hidden = !s.settings.teamPhotos; $('myPhoto').hidden = !s.team.photo;
   if (s.team.photo && $('myPhoto').getAttribute('src') !== s.team.photo) $('myPhoto').src = s.team.photo;
   $('photoStatus').textContent = !s.team.photo ? t('Add a team photo to appear on the big screen. The quizmaster approves it first.') : s.team.photoStatus === 'approved' ? t('✓ Approved — showing on the big screen') : t('Waiting for the quizmaster to approve it');
-  selectOptions($('sound'), sounds.map(([label], i) => [String(i), label]), document.activeElement === $('sound') ? undefined : String(s.team.sound ?? ''));
+  selectOptions($('sound'), buzzerNames().map((label, i) => [String(i), label]), document.activeElement === $('sound') ? undefined : String(s.team.sound ?? ''));
   if (s.answer && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? t('Your final answer is safely stored on the quiz laptop.') : ''; localDraft = null; writeStorage(draftKey(q.id), '');}
   renderResult(s);
   // Between questions the phone shows the leaderboard; during one, only the question.
@@ -251,6 +258,7 @@ function renderResult(s) {
   $('resultPoints').textContent = !a ? t('No answer this time') : points > 0 ? (points === 1 ? t('+1 point') : t('+{n} points', {n: points})) : points < 0 ? t('{n} points', {n: points}) : t('No points this time');
 }
 function sharedState(s) {
+  useSounds(s.sounds);
   $('title').textContent = s.settings.title; document.title = s.settings.title + ' — ' + (role === 'player' ? 'Team' : 'Projector');
   renderBoard($('leaderboard'), s.teams);
   $('boardStatus').textContent = !s.settings.leaderboardVisible ? t('The quizmaster has hidden scores for now.') : s.settings.ended ? t('Final standings') : s.teams.length ? t('Ties share the same rank.') : t('Waiting for teams');
@@ -295,18 +303,18 @@ function displayState(s) {
     $('bingoBoard').classList.toggle('music', !!g.music);
     if (g.music) {
       $('bingoBig').textContent = g.played ? '🎵 ' + t('Song {n}', {n: g.played}) : '🎵'; $('bingoCallText').textContent = g.titles.length ? t('Last revealed: {title}', {title: g.titles.at(-1)}) : '';
-      $('bingoWinners').textContent = g.winners.length ? t('BINGO! {names}', {names: g.winners.join(', ')}) : t('Music bingo · {mode}', {mode: mode(g.mode)});
+      $('bingoWinners').textContent = g.winners.length ? winText(g) : t('Music bingo · {mode}', {mode: stageText(g)});
       $('bingoBoard').replaceChildren(...[...g.titles].reverse().map(title => element('span', title, 'called')));
     } else {
-      $('bingoBig').textContent = g.last ?? '–'; $('bingoCallText').textContent = s.settings.bingoPhrases && g.last ? bingoCall(g.last) : '';
-      $('bingoWinners').textContent = g.winners.length ? t('BINGO! {names}', {names: g.winners.join(', ')}) : t('{mode} · {n} called', {mode: mode(g.mode), n: g.called.length});
+      $('bingoBig').textContent = g.last ?? '–'; $('bingoCallText').textContent = s.settings.bingoPhrases && g.last ? g.phrase ?? bingoCall(g.last) : '';
+      $('bingoWinners').textContent = g.winners.length ? winText(g) : t('{mode} · {n} called', {mode: stageText(g), n: g.called.length});
       if ($('bingoBoard').children.length !== 90 || $('bingoBoard').firstChild.textContent !== '1') $('bingoBoard').replaceChildren(...Array.from({length: 90}, (_, i) => element('span', String(i + 1))));
       [...$('bingoBoard').children].forEach((cell, i) => cell.classList.toggle('called', g.called.includes(i + 1)));
     }
   }
   $('wheelSection').hidden = s.view !== 'wheel';
   $('leaderboard').classList.toggle('cols', s.teams.length > 10);
-  renderCountdown(); fitStage();
+  renderCountdown(); fitStage(); soundCues(s);
   $('winnerSection').hidden = s.view !== 'winner';
   if (s.view === 'winner') renderWinner(s); else winnerShown = '';
   if (s.view === 'wheel' && s.wheel) renderWheel(s.wheel, s.serverTime - s.wheel.spun < 3000);
@@ -338,6 +346,27 @@ function renderWheel(wheel, fresh) {
   requestAnimationFrame(() => requestAnimationFrame(() => {spin.style.transform = `rotate(${wheelTurn}deg)`;}));
   if (!first) setTimeout(() => {if (wheelId === wheel.id) $('wheelResult').textContent = `🎉 ${wheel.items[wheel.result]}`;}, 6100);
 }
+// Sound effects on the TV, from the quizmaster's imported files: each plays when the quiz state changes, never on
+// first load. Music loops while a question without its own audio is open.
+let heard = null, musicOn = false;
+const silentTypes = ['audio', 'clips', 'musicbingo', 'buzzer', 'bingo'];
+function soundCues(s) {
+  const q = s.question, before = heard;
+  heard = {id: q?.id, round: q?.round, open: !!q?.open, revealed: !!q?.revealed, calls: q?.bingo?.called?.length ?? 0, winners: q?.bingo?.winners.length ?? 0,
+    buzz: Object.fromEntries((q?.buzz?.queue || []).map(b => [b.team, b.status])), view: s.view, wheel: s.wheel?.id};
+  const music = !!q?.open && !q.paused && !silentTypes.includes(q.type) && !/\.(mp3|ogg|wav)$/i.test(q.media || '');
+  if (music !== musicOn) {musicOn = music; if (music) playSound('timerMusic', true); else stopSound('timerMusic');}
+  if (!before) return;
+  if (q && q.id !== before.id && q.live) {if (!(q.round && q.round !== before.round && playSound('startRound'))) playSound('questionStart');}
+  if (q?.id !== before.id) return;
+  if (before.open && !heard.open && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q.type)) playSound('timeUp');
+  if (heard.revealed && !before.revealed) playSound('reveal');
+  for (const [team, status] of Object.entries(heard.buzz)) if (status !== before.buzz[team]) {if (status === 'correct') playSound('correct'); if (status === 'wrong') playSound('wrong');}
+  if (q?.type === 'bingo' && heard.calls > before.calls) playSound('bingoCall');
+  if (heard.winners > before.winners) playSound('bingo');
+  if (heard.wheel !== before.wheel && s.view === 'wheel') playSound('wheel');
+  if (s.view === 'leaderboard' && before.view === 'question' && s.settings.displayMode === 'auto') playSound('endRound');
+}
 // The TV never scrolls: the visible view is scaled down until it fits the space under the header.
 // A narrower scale makes the view wider, so text reflows shorter; a few rounds settle it.
 function fitStage() {
@@ -363,7 +392,7 @@ function renderCountdown() {
   $('countdownLabel').textContent = timer.label;
   $('countdownTime').textContent = left > 0 ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : t('Time’s up!');
   box.classList.toggle('paused', timer.endsAt === null); box.classList.toggle('low', left > 0 && left <= 10000); box.classList.toggle('done', left <= 0);
-  if (left <= 0 && countdownDone !== timer.id) {countdownDone = timer.id; if (timer.endsAt !== null && Date.now() + offset - timer.endsAt < 3000) buzzSound('', 3);}
+  if (left <= 0 && countdownDone !== timer.id) {countdownDone = timer.id; if (timer.endsAt !== null && Date.now() + offset - timer.endsAt < 3000 && !playSound('timeUp')) buzzSound('', 3);}
   else if (left > 0 && countdownDone === timer.id) countdownDone = null;
 }
 function renderWinner(s) {
@@ -416,9 +445,14 @@ async function refresh() {
       $('joinButton').disabled = !s.settings.registrationOpen || s.settings.ended; $('registrationState').textContent = s.settings.ended ? t('This quiz has finished.') : s.settings.registrationOpen ? t('Registration is open') : t('Registration closed — existing teams can still recover below.');}
     if (role === 'player' && online && localDraft !== null) flushDraft();
   } catch (e) {
+    // A bug while drawing the page would otherwise look like a lost connection; log it for the browser console.
+    if (!e.status && !(e instanceof TypeError && /fetch|network/i.test(e.message))) console.error(e);
     online = false; $('connection').textContent = t('● Connection lost — retrying'); $('connection').classList.add('offline');
     if (role === 'player') {
-      if (e.status === 401) {secret = ''; writeStorage('pubquiz-team', ''); current = null; $('join').hidden = false; $('game').hidden = true; $('menuButton').hidden = true; $('myScore').textContent = ''; message('Your old recovery code is no longer valid. Ask the quizmaster for a new one.', true); updates.reconnect();}
+      if (e.status === 401) {secret = ''; writeStorage('pubquiz-team', ''); current = null; $('join').hidden = false; $('game').hidden = true; $('menuButton').hidden = true; $('myScore').textContent = ''; updates.reconnect();
+        // After the quizmaster starts the next quiz, every team joins afresh.
+        const joined = readStorage('pubquiz-event');
+        publicState().then(s => message(joined && s.event !== joined ? t('A new quiz has started — pick your team name again.') : t('Your old recovery code is no longer valid. Ask the quizmaster for a new one.'), !(joined && s.event !== joined))).catch(() => {});}
       else if (e.status === 403) message(e.message, true);
       updateControls();
     }

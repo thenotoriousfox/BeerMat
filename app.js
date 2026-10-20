@@ -124,8 +124,27 @@ export function enableSound() {try {audio ||= new AudioContext(); audio.resume()
 // Synthesised buzzer sounds teams can choose from; no audio files needed.
 export const sounds = [['Classic buzz', 'square', [330, 495]], ['Doorbell', 'sine', [660, 523]], ['Siren', 'sawtooth', [440, 660, 440]], ['Beep beep', 'square', [880, 0, 880]],
   ['Low horn', 'sawtooth', [147, 147]], ['Chime', 'triangle', [784, 988, 1175]], ['Laser', 'square', [1200, 600, 300]], ['Boing', 'sine', [220, 440]]];
+// The quizmaster's own sound files: effects for moments in the quiz (slots) and extra buzzer sounds after the
+// synthesised ones. Nothing plays until the page has been clicked once (enableSound), as browsers require.
+let pack = {slots: {}, buzzers: []};
+const players = new Map();
+export function useSounds(next) {if (next) pack = next;}
+export const buzzerNames = () => [...sounds.map(([label]) => label), ...pack.buzzers.map(b => b.name)];
+function playFile(src, loop = false) {
+  let player = players.get(src);
+  if (!player) {player = new Audio(src); player.preload = 'auto'; players.set(src, player);}
+  player.loop = loop; player.currentTime = 0; player.play().catch(() => {}); return player;
+}
+// Plays the file for a moment, if one was imported; returns false so callers can fall back to a built-in sound.
+export function playSound(slot, loop = false) {
+  const src = pack.slots?.[slot];
+  if (!src || !audio || audio.state !== 'running') return false;
+  playFile(src, loop); return true;
+}
+export function stopSound(slot) {players.get(pack.slots?.[slot])?.pause();}
 export function buzzSound(name = '', sound = null) {
   if (!audio || audio.state !== 'running') return;
+  if (sound >= sounds.length) {const custom = pack.buzzers[sound - sounds.length]; if (custom) playFile(custom.media); return;}
   const [, wave, notes] = sounds[sound ?? [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % sounds.length];
   notes.forEach((freq, i) => {
     if (!freq) return;
@@ -165,7 +184,7 @@ export function seededOrder(length, seed) {
   return order;
 }
 export function fanfare() {
-  if (!audio || audio.state !== 'running') return;
+  if (playSound('applause') || !audio || audio.state !== 'running') return;
   [[523, 0], [659, 0.15], [784, 0.3], [1047, 0.45], [784, 0.7], [1047, 0.85]].forEach(([freq, offset]) => {
     const osc = audio.createOscillator(), gain = audio.createGain(), t = audio.currentTime + offset;
     osc.type = 'triangle'; osc.frequency.value = freq; gain.gain.setValueAtTime(0.15, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);

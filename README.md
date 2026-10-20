@@ -49,7 +49,13 @@ Round formats follow the usual pub-quiz handset games: multiple choice, multi-ta
 
 Players reconnect automatically and retain the same identity, final answers and drafts. They can also recover from another browser using their private code. A quizmaster can rotate a lost code without losing the team's score. The server enforces deadlines, schemas, first-answer locking and host permissions. Scores for an open/paused question are withheld until closure or expiry.
 
-See the [complete quizmaster guide](docs/QUIZMASTER.md) for authoring, live play, scoring, recovery and backups. A [small demo quiz](examples/demo-quiz.json) is included for rehearsal; it uses simple instruction questions so you can test without writing a quiz first.
+See the [complete quizmaster guide](docs/QUIZMASTER.md) for authoring, live play, scoring, recovery and backups. For a full rehearsal, load the test quiz into the running server (it asks for the quizmaster key):
+
+```bash
+node scripts/load-test-quiz.mjs            # or: node scripts/load-test-quiz.mjs http://localhost:3000
+```
+
+It adds six rounds (21 questions) that use every format and the main options (Evil Mode, fastest fingers first, go wide, both buzzers, bingo, sound clips, music bingo and an answer sheet), with generated pictures and sounds. Your own rounds are kept; running it again replaces only the test rounds. A [small demo quiz](examples/demo-quiz.json) is also included.
 
 ## Optional internet check
 

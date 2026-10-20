@@ -9,7 +9,7 @@ import {createQuiz} from '../server.js';
 const hostKey = 'a-secure-rounds-test-key';
 async function fixture(fn, options = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-rounds-')); let time = 5000000; let quiz, host;
-  const start = async () => {quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, now: () => time, ...options}); await new Promise(r => quiz.server.listen(0, '127.0.0.1', r)); host = (await call('login', {key: hostKey})).key;};
+  const start = async () => {quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'no-pack'), soundsDir: path.join(dir, 'no-pack'), now: () => time, ...options}); await new Promise(r => quiz.server.listen(0, '127.0.0.1', r)); host = (await call('login', {key: hostKey})).key;};
   const url = () => `http://127.0.0.1:${quiz.server.address().port}`;
   const call = async (route, body = {}, key = route.startsWith('host/') ? host : '') => {
     const response = await fetch(url() + '/api/' + route, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body)});
@@ -323,3 +323,43 @@ test('joined phones get "online" answers to OS checks, can continue in another b
   await post('away', {question: id, state: 'left'}, '10.42.0.50', team.secret); tick(1000); await call('host/close'); tick(9000);
   away = (await call('host/review', {question: id})).away; assert.deepEqual(away, [{name: 'Phone team', count: 2, ms: 5000, awayNow: false}], 'stops counting when the question closes');
 }, {clientAddress: req => req.headers['x-test-ip'] || '127.0.0.1'}));
+
+test('music bingo song timing: start time, play time and auto-next are validated and kept', async () => {
+  const {validateQuestion} = await import('../model.js');
+  const songs = Array.from({length: 15}, (_, i) => ({title: `Song ${i + 1}`}));
+  const base = {text: 'Music bingo', type: 'musicbingo', seconds: 600, points: 1, songs, mode: 'line'};
+  const q = validateQuestion({...base, startAt: 30, songSeconds: 20, autoNext: true}, '.');
+  assert.deepEqual([q.startAt, q.songSeconds, q.autoNext], [30, 20, true]);
+  assert.deepEqual((({startAt, songSeconds, autoNext}) => [startAt, songSeconds, autoNext])(validateQuestion(base, '.')), [0, 0, false]);
+  assert.throws(() => validateQuestion({...base, autoNext: true}, '.'), /move on automatically/);
+  assert.throws(() => validateQuestion({...base, songSeconds: 2}, '.'), /3–600 seconds/);
+});
+
+test('full bingo game: line, then two lines, then full house, each paying its own points', () => fixture(async ({call, teams, score}) => {
+  const players = await teams('Alpha', 'Bravo', 'Charlie');
+  assert.equal((await call('host/open', {...base, text: 'Bingo', type: 'bingo', mode: 'progressive', stagePoints: [1, 2]})).status, 400);
+  const {id} = await call('host/open', {...base, text: 'Full game', type: 'bingo', mode: 'progressive', stagePoints: [1, 2, 5]});
+  const cards = await Promise.all(players.map(async p => (await call('state', {}, p.secret)).question.bingo.card));
+  const lines = (card, called) => card.filter(row => row.every(n => n === null || called.includes(n))).length;
+  const need = {line: 1, twoLines: 2, fullHouse: 3}, won = [], expected = new Map(players.map(p => [p.id, 0]));
+  let skipped = false;
+  for (let calls = 0; calls < 90; calls++) {
+    assert.equal((await call('host/bingo', {question: id})).status, 200);
+    const b = (await call('state', {}, players[0].secret)).question.bingo;
+    for (const [i, p] of players.entries()) {
+      if (lines(cards[i], b.called) < need[b.playingFor]) continue;
+      // Bravo misses the first line it could claim: once the next number is called, that stage has moved on.
+      if (i === 1 && b.playingFor === 'line' && !skipped && !b.stageWins.length) {skipped = true; continue;}
+      const result = await call('bingo', {question: id}, p.secret);
+      assert.equal(result.ok, true); won.push(result.stage); expected.set(p.id, expected.get(p.id) + {line: 1, twoLines: 2, fullHouse: 5}[result.stage]);
+      assert.equal((await call('bingo', {question: id}, p.secret)).status, 409, 'one claim per stage');
+    }
+    if ((await call('state', {}, players[0].secret)).question.bingo.over) break;
+  }
+  const b = (await call('state', {}, players[2].secret)).question.bingo;
+  assert.deepEqual([...new Set(won)], ['line', 'twoLines', 'fullHouse'], 'stages are won in order');
+  assert.deepEqual(b.stageWins.map(w => w.stage), ['line', 'twoLines', 'fullHouse']); assert.equal(b.over, true); assert.equal(b.playingFor, null);
+  assert.equal((await call('host/bingo', {question: id})).status, 409, 'no calls after the full house');
+  await call('host/close');
+  for (const p of players) assert.equal(await score(p), expected.get(p.id));
+}));

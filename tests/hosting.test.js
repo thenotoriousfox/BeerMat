@@ -9,7 +9,7 @@ const hostKey = 'a-secure-quiz-test-key';
 const question = (fields = {}) => ({text: 'What is the capital of Wales?', type: 'text', seconds: 30, points: 2, answer: 'Cardiff', ...fields});
 async function fixture(fn) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-hosting-')); let time = 1000000;
-  const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, now: () => time});
+  const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'no-pack'), soundsDir: path.join(dir, 'no-pack'), now: () => time});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const call = async (route, body = {}, key = route.startsWith('host/') ? host : '') => {
     const response = await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/${route}`, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body)});
@@ -17,7 +17,8 @@ async function fixture(fn) {
   };
   const host = (await call('login', {key: hostKey})).key;
   const board = async () => (await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/leaderboard`)).json();
-  try {await fn({call, board, tick: ms => time += ms});} finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
+  const upload = async (name, data) => (await (await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/host/media?name=${name}`, {method: 'POST', headers: {Authorization: 'Bearer ' + host}, body: data})).json()).media;
+  try {await fn({call, board, upload, tick: ms => time += ms});} finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
 }
 const score = (s, name) => s.teams.find(t => t.name === name).score;
 
@@ -144,4 +145,58 @@ test('no speed bonus unless fastest fingers first is on', () => fixture(async ({
     await call('state', {}, team.secret); await call('answer', {question: id, value: 'Cardiff'}, team.secret); await call('host/close');
     assert.equal((await call('state', {}, team.secret)).answer.points, expected);
   }
+}));
+
+test('end quiz and start next: results kept on the laptop, teams and scores cleared, questions kept or replaced', () => fixture(async ({call, board}) => {
+  const team = await call('join', {name: 'Fox'});
+  await call('host/library/save', {revision: 0, quiz: {title: 'Night one', rounds: [{id: 'r', title: 'R', questions: [{id: 'a', ...question()}]}]}});
+  await call('host/settings', {title: 'Night one', joinSsid: 'Pub WiFi'});
+  const {id} = await call('host/next', {expectedQuestion: null}); await call('answer', {question: id, value: 'Cardiff'}, team.secret);
+  await call('host/close');
+  // A bingo claim too, so every table that refers to teams is cleared.
+  const bingo = await call('host/open', {text: 'Bingo', type: 'bingo', seconds: 600, mode: 'progressive', stagePoints: [1, 2, 3]});
+  const row = (await call('state', {}, team.secret)).question.bingo.card[0].filter(Boolean);
+  for (let called = []; !row.every(n => called.includes(n));) {await call('host/bingo', {question: bingo.id}); called = (await call('state', {}, team.secret)).question.bingo.called;}
+  assert.equal((await call('bingo', {question: bingo.id}, team.secret)).stage, 'line');
+  await call('host/close'); await call('host/settings', {ended: true}); await call('host/timer', {action: 'start', seconds: 60});
+  const before = (await board()).event;
+  const ended = await call('host/new-event', {questions: 'keep', title: 'Night two'});
+  assert.match(ended.saved, /^results\/.*Night-one\.json$/); assert.equal(ended.results.teams[0].name, 'Fox'); assert.equal(ended.results.answers.length, 2);
+  const after = await board();
+  assert.deepEqual([after.teams, after.question, after.timer, after.settings.ended, after.settings.registrationOpen, after.settings.title, after.settings.joinSsid, after.view], [[], null, null, false, true, 'Night two', 'Pub WiFi', 'join']);
+  assert.notEqual(after.event, before);
+  assert.equal((await call('state', {}, team.secret)).status, 401, 'old phones must join again');
+  assert.equal((await call('join', {name: 'Fox'})).secret.length > 0, true, 'names are free again');
+  assert.equal((await call('host/library')).rounds[0].questions[0].id, 'a');
+  // Next quiz from a file, or empty.
+  await call('host/new-event', {questions: 'load', quiz: {title: 'Night three', rounds: [{id: 'n', title: 'New', questions: [{id: 'b', ...question({text: 'New one'})}]}]}});
+  assert.deepEqual([(await call('host/library')).title, (await board()).settings.title], ['Night three', 'Night three']);
+  assert.equal((await call('host/new-event', {questions: 'load', quiz: {title: 'Bad', rounds: [{id: 'x', title: 'X', questions: [{id: 'c', type: 'nope'}]}]}})).status, 400);
+  await call('host/new-event', {questions: 'empty'}); assert.equal((await call('host/library')).rounds.length, 0);
+  // Question ids keep counting up so screens never mistake a new question for an old one.
+  assert.ok((await call('host/open', question())).id > bingo.id);
+}));
+
+
+test('sound effects, extra buzzer sounds and custom bingo calls', () => fixture(async ({call, board, upload}) => {
+  const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WAVEfmt '), Buffer.alloc(32)]);
+  const [airhorn, quack, honk] = [await upload('airhorn.wav', wav), await upload('quack.wav', wav), await upload('honk.wav', wav)];
+  await call('host/sounds', {slots: {bingo: airhorn, wheel: airhorn}});
+  await call('host/sounds', {slots: {wheel: null}, buzzers: [{name: 'Quack', media: quack}, {name: 'Honk', media: honk}]});
+  assert.deepEqual((await board()).sounds, {slots: {bingo: airhorn}, buzzers: [{name: 'Quack', media: quack}, {name: 'Honk', media: honk}]});
+  assert.equal((await call('host/sounds', {slots: {nope: airhorn}})).status, 400);
+  assert.equal((await call('host/sounds', {slots: {bingo: '/media/missing.mp3'}})).status, 400);
+  // Teams can pick an added buzzer sound (after the 8 built-in ones); removing the sounds resets them.
+  const team = await call('join', {name: 'Fox'});
+  assert.equal((await call('team/sound', {sound: 9}, team.secret)).ok, true);
+  assert.equal((await call('team/sound', {sound: 10}, team.secret)).status, 400);
+  await call('host/sounds', {buzzers: []}); assert.equal((await call('state', {}, team.secret)).team.sound, null);
+  // Custom bingo calls: the phrase for the last number comes from the quizmaster's list.
+  const calls = Array.from({length: 90}, (_, i) => `Call for ${i + 1}`);
+  assert.equal((await call('host/bingo-calls', {calls: calls.slice(1)})).status, 400);
+  await call('host/bingo-calls', {calls});
+  const {id} = await call('host/open', {text: 'Bingo', type: 'bingo', seconds: 600, points: 1, mode: 'line'});
+  const {number} = await call('host/bingo', {question: id});
+  assert.equal((await board()).question.bingo.phrase, `Call for ${number}`);
+  await call('host/bingo-calls', {calls: null}); assert.equal((await board()).question.bingo.phrase, null);
 }));

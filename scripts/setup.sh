@@ -8,4 +8,6 @@ fi
 sudo pacman -S --needed nodejs npm networkmanager dnsmasq nftables python
 node -e 'if(Number(process.versions.node.split(".")[0])<24)process.exit(1)'
 npm test
+# Sounds, buzzers and bingo calls from SpeedQuizzing on this laptop become PubQuiz's defaults (kept out of git).
+if [[ -d "${SQ_DOCUMENTS:-$HOME/SpeedQuizzing Documents}/Sounds" ]]; then node scripts/sound-pack.mjs; fi
 printf '%s\n' 'Setup complete. No network settings changed. See README.md before starting a hotspot.'
