@@ -4,7 +4,9 @@ let key = readStorage('pubquiz-host', true), state = null, library = null, editi
 const uid = () => 'id-' + crypto.getRandomValues(new Uint32Array(4)).join('-');
 const request = (p, body = {}) => api('host/' + p, body, key);
 let offset = 0, selectedRoundId = '', lastBuzz = '', liveQuestion = null, pinTarget = null, clipItems = [], targetClip = 0, clipRun = null;
-const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'picture', 'audio', 'bingo', 'clips'];
+const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
+// Formats marked right or wrong automatically (with a correct answer set): Evil Mode and a fixed bonus apply to these.
+const markedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio'];
 const modes = {line: 'one line', twoLines: 'two lines', fullHouse: 'full house'};
 let actionQueue = Promise.resolve();
 function action(fn, success = 'Saved') {
@@ -38,6 +40,7 @@ function formTypes() {
   $('goWideText').textContent = type === 'wordsnake' ? 'Allow go wide: teams can remove the decoy letters for fewer points' : 'Allow go wide: a second tap scores if the first misses'; show('bingoFields', type === 'bingo' || type === 'musicbingo'); show('musicFields', type === 'musicbingo'); show('clipsFields', type === 'clips');
   show('mediaFields', !['sheet', 'bingo', 'musicbingo', 'clips'].includes(type)); show('answerFields', !['sheet', 'vote', 'sequence', 'multi', 'pinpoint', 'bingo', 'musicbingo', 'clips'].includes(type)); show('aliasesLabel', ['text', 'picture', 'audio'].includes(type)); show('noteLabel', type !== 'sheet');
   show('pointsLabel', type !== 'sheet'); show('speedLabel', speedTypes.includes(type));
+  show('bonusModeLabel', markedTypes.includes(type)); show('bonusPlacesLabel', markedTypes.includes(type) && $('qBonusMode').value === 'fixed'); show('evilLabel', markedTypes.includes(type));
   $('answerLabel').textContent = {choice: 'Correct choice (copy one line from above; blank for manual marking)', letter: 'Correct letter (A–Z)', wordsnake: 'Answer word (letters only, 3–20; spaces are removed)', tiles: 'Answer (4–40 letters; spaces mark separate words)', number: 'Correct number', nearest: 'Correct number', buzzer: 'Expected answer (shown only to you)'}[type] || 'Correct answer (blank for manual marking)';
   $('pointsText').textContent = {nearest: 'Points for the closest team', buzzer: 'Points for a correct buzz', vote: 'Points (votes score nothing)', multi: 'Points for every right tick', pinpoint: 'Points for a first-tap hit', bingo: 'Points for a valid bingo', musicbingo: 'Points for a valid bingo', clips: 'Points for tapping the right clip'}[type] || 'Correct answer points';
   $('speedText').textContent = type === 'bingo' || type === 'musicbingo' ? 'Bonus for the first claim' : 'Maximum speed bonus';
@@ -91,6 +94,7 @@ function fillQuestion(q = null) {
   $('qCorrect').value = (q?.correct || []).join('\n'); pinTarget = q?.target || null; $('qRadius').value = Math.round((q?.target?.r ?? 0.08) * 100);
   $('qSongs').value = (q?.songs || []).map(s => s.media ? `${s.title} | ${s.media}` : s.title).join('\n'); $('qRevealNow').checked = !!q?.revealNow;
   clipItems = structuredClone(q?.clips || []); targetClip = q?.targetClip ?? 0; renderClipList();
+  $('qBonusMode').value = q?.bonusMode || 'sliding'; $('qBonusPlaces').value = q?.bonusPlaces ?? 1; $('qEvil').checked = !!q?.evil;
   $('qGoWide').checked = !!q?.goWide; $('qGoWidePoints').value = q?.goWidePoints ?? 0; $('qMode').value = q?.mode || 'line';
   $('qVariation').value = q?.variation || 'classic'; $('qPenalty').value = q?.penalty ?? 0; $('qPassPenalty').value = q?.passPenalty ?? 0; $('qAgreePoints').value = q?.agreePoints ?? 1; $('qAgreeSeconds').value = q?.agreeSeconds ?? 10;
   $('sheetItems').replaceChildren(); (q?.type === 'sheet' ? q.items : ['']).forEach((item, i) => addSheetItem(item, q?.itemAnswers?.[i] || ''));
@@ -117,6 +121,7 @@ function readQuestion() {
   const type = $('qType').value, rows = [...$('sheetItems').children], lines = id => $(id).value.split('\n').map(s => s.trim()).filter(Boolean);
   const q = {id: editingId || uid(), text: $('qText').value.trim(), type, seconds: Number($('qSeconds').value), points: Number($('qPoints').value),
     speedBonus: speedTypes.includes(type) ? Number($('qSpeed').value) : 0, answer: $('qAnswer').value.trim(), answerNote: $('qNote').value.trim(), aliases: lines('qAliases'), media: $('qMedia').value};
+  if (markedTypes.includes(type)) Object.assign(q, {evil: $('qEvil').checked, bonusMode: $('qBonusMode').value, bonusPlaces: Number($('qBonusPlaces').value)});
   if (['choice', 'vote', 'multi'].includes(type)) q.options = lines('qOptions');
   if (type === 'multi') q.correct = lines('qCorrect');
   if (type === 'pinpoint') q.target = pinTarget;
@@ -133,7 +138,7 @@ function readQuestion() {
   return q;
 }
 $('questionForm').oninput = editorChanged;
-$('qType').onchange = $('qVariation').onchange = () => {formTypes(); editorChanged();};
+$('qType').onchange = $('qVariation').onchange = $('qBonusMode').onchange = () => {formTypes(); editorChanged();};
 $('clearMedia').onclick = () => {$('qMedia').value = ''; renderMedia($('mediaPreview'), null); pinTarget = null; renderPinTarget(); editorChanged();};
 $('addSheetItem').onclick = () => {addSheetItem(); editorChanged();};
 $('questionForm').onsubmit = e => {e.preventDefault(); action(async () => {
@@ -257,7 +262,7 @@ $('spinWheel').onclick = () => action(async () => {
   $('wheelLast').textContent = `Last spin: ${wheel.items[wheel.result]}`; return 'Wheel spinning on the projector';
 });
 // Single-key shortcuts, also usable from a Stream Deck or presenter remote that sends key presses.
-const shortcuts = {n: 'next', c: 'close', r: 'reveal', 1: 'buzzCorrect', 2: 'buzzWrong', 3: 'buzzPass', a: 'startAgree', b: 'callNumber', w: 'spinWheel'};
+const shortcuts = {n: 'next', c: 'close', r: 'reveal', 1: 'buzzCorrect', 2: 'buzzWrong', 3: 'buzzPass', a: 'startAgree', b: 'callNumber', w: 'spinWheel', t: 'timerPause', s: 'showScores'};
 document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || $('panel').hidden || e.target.closest('input,textarea,select,dialog')) return;
   const key = e.key.toLowerCase(), id = key === 'p' ? (state?.question?.paused ? 'resume' : 'pause') : shortcuts[key];
@@ -266,17 +271,31 @@ document.addEventListener('keydown', e => {
   e.preventDefault(); if (tab !== 'live') chooseTab('live'); button.click();
 });
 $('reveal').onclick = () => action(() => request('reveal', {question: state.question.id, revealed: !state.question.revealed}), 'Reveal updated');
-$('joinDetails').onsubmit = e => {e.preventDefault(); action(() => request('settings', {joinSsid: $('joinSsidInput').value, joinUrl: $('joinUrlInput').value}), 'Join details saved — shown on the projector join screen');};
-$('titleForm').onsubmit = e => {e.preventDefault(); action(() => request('settings', {title: $('eventName').value}));};
+// Queued actions run later, after a refresh may have reset the form, so each handler reads its values straight away.
+$('joinDetails').onsubmit = e => {e.preventDefault(); const body = {joinSsid: $('joinSsidInput').value, joinUrl: $('joinUrlInput').value}; action(() => request('settings', body), 'Join details saved — shown on the projector join screen');};
+$('titleForm').onsubmit = e => {e.preventDefault(); const title = $('eventName').value; action(() => request('settings', {title}));};
 $('registration').onclick = () => action(() => request('settings', {registrationOpen: !state.settings.registrationOpen}));
 $('visibility').onclick = () => action(() => request('settings', {leaderboardVisible: !state.settings.leaderboardVisible}));
 $('scramble').onclick = () => action(() => request('settings', {scrambleKeypads: !state.settings.scrambleKeypads}), 'Keypad scrambling updated — applies from the next question');
 $('phrases').onclick = () => action(() => request('settings', {bingoPhrases: !state.settings.bingoPhrases}));
 $('online').onclick = () => action(() => request('settings', {onlineAfterJoin: !state.settings.onlineAfterJoin}));
+$('waitingRoom').onclick = () => action(() => request('settings', {waitingRoom: !state.settings.waitingRoom}), 'Waiting room updated — applies to teams joining from now on');
+$('admitAll').onclick = () => action(() => request('admit'), 'Everyone waiting has been let in');
+$('showScores').onclick = () => action(() => request('settings', {showScores: !state.settings.showScores}), 'Leaderboard updated');
+$('maxTeamsForm').onsubmit = e => {e.preventDefault(); const maxTeams = Number($('maxTeams').value); action(() => request('settings', {maxTeams}), 'Team limit saved');};
+$('timerForm').onsubmit = e => {e.preventDefault(); const body = {action: 'start', seconds: Number($('timerMinutes').value) * 60 + Number($('timerSeconds').value), label: $('timerLabel').value}; action(() => request('timer', body), 'Countdown started on the TV');};
+$('timerPause').onclick = () => action(() => request('timer', {action: state.timer?.endsAt === null ? 'resume' : 'pause'}), 'Countdown updated');
+$('timerStop').onclick = () => action(() => request('timer', {action: 'stop'}), 'Countdown removed from the TV');
+function renderTimer() {
+  const timer = state?.timer; if (!timer) {$('timerNow').textContent = ''; $('timerPause').disabled = $('timerStop').disabled = true; return;}
+  const left = timer.endsAt === null ? timer.remaining : Math.max(0, timer.endsAt - Date.now() - offset), secs = Math.ceil(left / 1000);
+  $('timerNow').textContent = left <= 0 ? `⏰ ${timer.label || 'Countdown'}: time’s up` : `⏱ ${timer.label || 'Countdown'}: ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}${timer.endsAt === null ? ' (paused)' : ''}`;
+  $('timerPause').textContent = timer.endsAt === null ? 'Resume' : 'Pause'; $('timerPause').disabled = busy || left <= 0; $('timerStop').disabled = busy;
+}
 $('photos').onclick = () => action(() => request('settings', {teamPhotos: !state.settings.teamPhotos}));
-$('blockedForm').onsubmit = e => {e.preventDefault(); action(() => request('settings', {blockedWords: $('blockedWords').value}), 'Blocked words saved');};
-$('tvLanguage').onchange = () => action(() => request('settings', {language: $('tvLanguage').value}), 'TV language updated (phones use their own language)');
-$('displayMode').onchange = () => action(() => request('settings', {displayMode: $('displayMode').value}));
+$('blockedForm').onsubmit = e => {e.preventDefault(); const blockedWords = $('blockedWords').value; action(() => request('settings', {blockedWords}), 'Blocked words saved');};
+$('tvLanguage').onchange = () => {const language = $('tvLanguage').value; action(() => request('settings', {language}), 'TV language updated (phones use their own language)');};
+$('displayMode').onchange = () => {const displayMode = $('displayMode').value; action(() => request('settings', {displayMode}));};
 $('finish').onclick = () => action(async () => {
   if (!state.settings.ended && !confirm('Finish this quiz and close answers and registration? You can resume it later.')) return;
   // Finishing goes straight to the winner celebration on the projector.
@@ -309,7 +328,7 @@ $('printSheets').onclick = () => {
   }} window.print();
 };
 function teamControls(team) {
-  const box = element('article', undefined, 'card'); box.append(element('h3', team.name), element('p', `${team.score} pts · ${team.enabled ? team.connected ? 'Connected' : 'Disconnected' : 'Disabled'}`));
+  const box = element('article', undefined, 'card'); box.append(element('h3', team.name), element('p', `${team.score} pts · ${!team.enabled ? 'Disabled' : team.waiting ? '🚪 In the waiting room' : team.connected ? 'Connected' : 'Disconnected'}`));
   const photoActions = team.photo ? (team.photo_status === 'pending' ? [['Approve photo', 'approvePhoto'], ['Reject photo', 'rejectPhoto']] : [['Remove photo', 'rejectPhoto']]) : [];
   if (team.photo) box.append(avatar(team.photo), element('p', team.photo_status === 'pending' ? 'Photo waiting for approval' : 'Photo approved', 'muted'));
   const {answered, scored, fastest} = team.stats;
@@ -318,7 +337,8 @@ function teamControls(team) {
   note.setAttribute('aria-label', `Notes for ${team.name}`);
   note.onchange = () => action(() => request('team', {id: team.id, action: 'note', note: note.value}), 'Note saved');
   box.append(note);
-  for (const [label, actionName] of [...photoActions, ['Rename', 'rename'], ['Move to a new phone', 'transfer'], ['Issue recovery code', 'recover'], [team.enabled ? 'Disable' : 'Restore', team.enabled ? 'disable' : 'restore']]) {
+  const admit = team.enabled && team.waiting ? [['Let in', 'admit']] : [];
+  for (const [label, actionName] of [...admit, ...photoActions, ['Rename', 'rename'], ['Move to a new phone', 'transfer'], ['Issue recovery code', 'recover'], [team.enabled ? team.waiting ? 'Turn away' : 'Disable' : 'Restore', team.enabled ? 'disable' : 'restore']]) {
     const button = element('button', label, 'subtle'); button.onclick = () => action(async () => {
       const body = {id: team.id, action: actionName};
       if (actionName === 'rename') {body.name = prompt('Team name', team.name); if (!body.name) return;}
@@ -393,7 +413,7 @@ function renderState(s) {
   if (q?.id !== liveQuestion) {liveQuestion = q?.id; $('announced').value = '';}
   renderBuzzPanel(q); renderBingoPanel(q);
   if (clipRun && (q?.id !== clipRun.question || !q.live)) stopClips(); else renderClipsPanel(q);
-  $('liveCount').textContent = q ? `${s.answers.length} answers received · ${s.teams.filter(t => t.enabled).length} active teams` : 'Add rounds in Build quiz, then start your first question.';
+  $('liveCount').textContent = q ? `${s.answers.length} answers received · ${s.teams.filter(t => t.enabled && !t.waiting).length} active teams` : 'Add rounds in Build quiz, then start your first question.';
   renderMedia($('liveMedia'), q); renderSolution($('liveSolution'), q);
   $('next').disabled = !!q?.live || s.settings.ended; $('close').textContent = ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type) ? 'End game' : 'Close answers'; $('close').disabled = !pending; $('pause').disabled = !q?.open; $('resume').disabled = !q?.paused; $('reveal').disabled = !q || !!pending;
   $('reveal').textContent = q?.revealed ? 'Hide answer reveal' : 'Reveal answer';
@@ -403,10 +423,17 @@ function renderState(s) {
   $('online').textContent = `Keep phones on quiz Wi-Fi: ${s.settings.onlineAfterJoin ? 'on' : 'off'}`;
   $('online').title = 'After a team joins, tell its phone the Wi-Fi is online so it stays on the quiz Wi-Fi instead of mobile data.';
   $('liveAway').textContent = awayText(s.away);
+  const waiting = s.teams.filter(t => t.enabled && t.waiting);
+  $('waitingRoom').textContent = `Waiting room: ${s.settings.waitingRoom ? 'on' : 'off'}`;
+  $('waitingRoom').title = 'New teams wait on their phone until you let them in (here or in Teams & results).';
+  $('admitAll').hidden = !waiting.length; $('admitAll').textContent = `Let everyone in (${waiting.length})`;
+  $('showScores').textContent = `Board shows: ${s.settings.showScores ? 'scores' : 'positions only'}`;
+  if (!$('maxTeamsForm').contains(document.activeElement)) $('maxTeams').value = s.settings.maxTeams;
+  renderTimer();
   $('scramble').textContent = `Scramble keypads: ${s.settings.scrambleKeypads ? 'on' : 'off'}`; $('phrases').textContent = `Bingo phrases: ${s.settings.bingoPhrases ? 'on' : 'off'}`;
   if (!$('blockedForm').contains(document.activeElement)) $('blockedWords').value = s.blockedWords.join('\n'); $('displayMode').value = s.settings.displayMode; $('tvLanguage').value = s.settings.language; $('finish').textContent = s.settings.ended ? 'Resume quiz' : 'Finish quiz';
-  const offline = s.teams.filter(t => t.enabled && !t.connected), photos = s.teams.filter(t => t.photo_status === 'pending').length;
-  $('alerts').textContent = [offline.length ? `⚠ Disconnected: ${offline.map(t => t.name).join(', ')}` : '', photos ? `📷 ${photos} team ${photos === 1 ? 'photo' : 'photos'} waiting for approval in Teams & results` : ''].filter(Boolean).join(' · ');
+  const offline = s.teams.filter(t => t.enabled && !t.waiting && !t.connected), photos = s.teams.filter(t => t.photo_status === 'pending').length;
+  $('alerts').textContent = [waiting.length ? `🚪 Waiting room: ${waiting.map(t => t.name).join(', ')}` : '', offline.length ? `⚠ Disconnected: ${offline.map(t => t.name).join(', ')}` : '', photos ? `📷 ${photos} team ${photos === 1 ? 'photo' : 'photos'} waiting for approval in Teams & results` : ''].filter(Boolean).join(' · ');
   const played = new Set(s.history.map(q => q.sourceId)); const all = library?.rounds.flatMap(r => r.questions) || [];
   $('progress').textContent = `${all.filter(q => played.has(q.id)).length} of ${all.length} saved questions played`;
   if (library && library.revision !== s.libraryRevision) $('libraryStatus').textContent = 'Saved quiz changed in another window. Reload before editing.';
@@ -464,5 +491,5 @@ async function refresh() {
   }
 }
 window.addEventListener('beforeunload', e => {if (dirty) {e.preventDefault(); e.returnValue = '';}});
-setInterval(() => {if (state) $('liveTimer').textContent = timeText(state.question, offset);}, 200);
+setInterval(() => {if (state) {$('liveTimer').textContent = timeText(state.question, offset); renderTimer();}}, 200);
 const updates = live(refresh, () => key);

@@ -38,7 +38,7 @@ export function renderBoard(container, teams) {
   container.replaceChildren(...teams.map(team => {
     const li = element('li'), name = element('span', `${team.rank}. ${team.name}`, 'team-name');
     if (team.photo) name.prepend(avatar(team.photo));
-    li.append(name, element('strong', `${team.score} pts`)); li.dataset.team = team.id; return li;
+    li.append(name, element('strong', team.score === null ? '' : `${team.score} pts`)); li.dataset.team = team.id; return li;
   }));
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   for (const li of container.children) {

@@ -5,7 +5,7 @@ import {existsSync, mkdirSync, writeFileSync, statSync, createReadStream, unlink
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {offensive} from './names.js';
-import {QuizError, requireValue, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, hostDriven, isBingo, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern} from './model.js';
+import {QuizError, requireValue, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, hostDriven, isBingo, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern} from './model.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(24).toString('hex');
@@ -51,6 +51,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   column('teams', 'note', 'TEXT');
   column('teams', 'transfer_code', 'TEXT');
   column('teams', 'transfer_expires', 'INTEGER');
+  column('teams', 'waiting', 'INTEGER NOT NULL DEFAULT 0');
   column('questions', 'paused_ms', 'INTEGER');
   column('questions', 'revealed', 'INTEGER NOT NULL DEFAULT 0');
   column('questions', 'settled', 'INTEGER NOT NULL DEFAULT 0');
@@ -72,7 +73,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'leaderboard', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, teamPhotos: true, language: 'en', onlineAfterJoin: true};
+  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'leaderboard', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, teamPhotos: true, language: 'en', onlineAfterJoin: true, waitingRoom: false, maxTeams: 0, showScores: true};
   const SOUNDS = 8;
   const settings = () => ({...defaultSettings, ...getMeta('settings', {})});
   const library = () => getMeta('library', {revision: 0, title: 'My quiz', rounds: []});
@@ -181,9 +182,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   }
   function scores(includeDisabled = false) {
     const live = liveTeams();
-    const teams = rows(`SELECT id,name,seen,enabled,photo,photo_status,note,
+    const teams = rows(`SELECT id,name,seen,enabled,waiting,photo,photo_status,note,
       COALESCE((SELECT SUM(a.points) FROM answers a JOIN questions q ON a.question=q.id WHERE a.team=teams.id AND (q.closed=1 OR q.settled=1)),0)
-      +COALESCE((SELECT SUM(points) FROM adjustments WHERE team=teams.id),0) score FROM teams ${includeDisabled ? '' : 'WHERE enabled=1'} ORDER BY score DESC,name`);
+      +COALESCE((SELECT SUM(points) FROM adjustments WHERE team=teams.id),0) score FROM teams ${includeDisabled ? '' : 'WHERE enabled=1 AND waiting=0'} ORDER BY score DESC,name`);
     let rank = 0, previous;
     return teams.map((t, i) => {if (previous !== t.score) rank = i + 1; previous = t.score; return {...t, rank, connected: !!t.enabled && (live.has(t.id) || now() - t.seen < 15000)};});
   }
@@ -194,7 +195,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     run('UPDATE teams SET photo=NULL,photo_status=NULL WHERE id=?', team.id);
   }
   function publicScores() {
-    return settings().leaderboardVisible ? scores().map(({seen, connected, enabled, photo, photo_status, note, ...t}) => ({...t, photo: publicPhoto({photo, photo_status})})) : [];
+    // With scores switched off, the board shows positions only.
+    const shown = settings().showScores;
+    return settings().leaderboardVisible ? scores().map(({seen, connected, enabled, waiting, photo, photo_status, note, ...t}) => ({...t, score: shown ? t.score : null, photo: publicPhoto({photo, photo_status})})) : [];
   }
   // Desk-only statistics: answers given, answers that scored, and the quickest scoring answer.
   function teamStats() {
@@ -203,7 +206,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       FROM answers a JOIN questions q ON q.id=a.question WHERE a.submitted IS NOT NULL GROUP BY a.team`)) stats[row.team] = {answered: row.answered, scored: row.scored, fastest: row.fastest};
     return stats;
   }
-  function publicState() { return {serverTime: now(), settings: settings(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null)}; }
+  function publicState() { return {serverTime: now(), settings: settings(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
 
   // Final scoring once answers stop: nearest-wins needs every answer before it can rank them.
   function settle(q) {
@@ -213,6 +216,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       if (data.type === 'nearest') {
         const ranked = rankNearest(data, rows('SELECT team,value,submitted FROM answers WHERE question=? AND submitted IS NOT NULL', q.id));
         for (const r of ranked) run('UPDATE answers SET points=? WHERE team=? AND question=?', r.points, r.team, q.id);
+      }
+      // Fixed speed bonus: once answers stop, the quickest fully right answers get it.
+      if (data.bonusMode === 'fixed' && data.speedBonus) {
+        const right = rows('SELECT team,value,submitted FROM answers WHERE question=? AND submitted IS NOT NULL', q.id)
+          .filter(a => basePoints(a.value, data) === data.points && isCorrect(a.value, data))
+          .map(a => ({team: a.team, ms: a.submitted - q.opened - lateness(q, a.team), submitted: a.submitted}))
+          .sort((a, b) => a.ms - b.ms || a.submitted - b.submitted);
+        for (const a of right.slice(0, data.bonusPlaces)) run('UPDATE answers SET points=points+? WHERE team=? AND question=?', data.speedBonus, a.team, q.id);
       }
       run('UPDATE questions SET settled=1 WHERE id=?', q.id);
       endAway(q);
@@ -245,14 +256,19 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       return {points: marks.reduce((a, b) => a + (b ?? 0), 0), marks};
     }
     const base = basePoints(value, data);
+    // Evil Mode: an answer that scores nothing loses the question's points.
+    if (data.evil && base === 0 && autoMarked(data)) return {points: -data.points, marks: null};
     // Only a fully right answer earns the speed bonus (every right tick for multi-tap, the first tap for pinpoint).
-    if (base !== data.points || !isCorrect(value, data)) return {points: base, marks: null};
-    // The bonus decays over the accepted time (a pause extends the deadline). Each team's clock starts
-    // when its phone received the question, but never more than a short grace period after opening.
-    const delivered = one('SELECT at FROM deliveries WHERE team=? AND question=?', teamId, q.id)?.at ?? q.opened;
-    const lateness = Math.min(DELIVERY_GRACE_MS, Math.max(0, delivered - q.opened));
-    const fraction = Math.min(1, Math.max(0, q.deadline - now() + lateness) / (data.seconds * 1000));
+    // A fixed bonus is handed out when the question settles.
+    if (base !== data.points || !isCorrect(value, data) || data.bonusMode === 'fixed') return {points: base, marks: null};
+    // The bonus decays over the accepted time (a pause extends the deadline).
+    const fraction = Math.min(1, Math.max(0, q.deadline - now() + lateness(q, teamId)) / (data.seconds * 1000));
     return {points: data.points + Math.floor((data.speedBonus || 0) * fraction), marks: null};
+  }
+  // Each team's clock starts when its phone received the question, but never more than a short grace period after opening.
+  function lateness(q, teamId) {
+    const delivered = one('SELECT at FROM deliveries WHERE team=? AND question=?', teamId, q.id)?.at ?? q.opened;
+    return Math.min(DELIVERY_GRACE_MS, Math.max(0, delivered - q.opened));
   }
   function award(teamId, q, value, points) {
     run(`INSERT INTO answers(team,question,value,points,submitted) VALUES(?,?,?,?,?)
@@ -291,7 +307,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         award(active.team, q, `${q.announced || '(spoken answer)'} — ${correct ? 'correct' : 'wrong'}`, correct ? data.points : -data.penalty);
         // Everyone else scores for agreeing with a right answer or not agreeing with a wrong one.
         const agreed = new Set(rows('SELECT team FROM agrees WHERE question=?', q.id).map(a => a.team));
-        for (const t of rows('SELECT id FROM teams WHERE enabled=1 AND id<>?', active.team)) {
+        for (const t of rows('SELECT id FROM teams WHERE enabled=1 AND waiting=0 AND id<>?', active.team)) {
           if (one(`SELECT 1 FROM buzzes WHERE question=? AND team=? AND status IN ('passed','wrong','correct')`, q.id, t.id)) continue;
           award(t.id, q, agreed.has(t.id) ? 'agreed' : 'did not agree', agreed.has(t.id) === correct ? data.agreePoints : 0);
         }
@@ -430,7 +446,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/logout') {run('DELETE FROM host_sessions WHERE hash=?', hash(auth)); return send(200, {ok: true});}
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats();
-          return send(200, {serverTime: now(), settings: settings(), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {serverTime: now(), settings: settings(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -442,11 +458,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         }
         if (p === '/api/host/settings') {
           const next = {...settings()};
-          for (const k of ['registrationOpen', 'leaderboardVisible', 'ended', 'scrambleKeypads', 'bingoPhrases', 'teamPhotos', 'onlineAfterJoin']) if (Object.hasOwn(body, k)) {requireValue(typeof body[k] === 'boolean', 'Invalid setting'); next[k] = body[k];}
+          for (const k of ['registrationOpen', 'leaderboardVisible', 'ended', 'scrambleKeypads', 'bingoPhrases', 'teamPhotos', 'onlineAfterJoin', 'waitingRoom', 'showScores']) if (Object.hasOwn(body, k)) {requireValue(typeof body[k] === 'boolean', 'Invalid setting'); next[k] = body[k];}
           if (Object.hasOwn(body, 'title')) {requireValue(typeof body.title === 'string' && body.title.trim() && body.title.length <= 100, 'Title must contain 1–100 characters'); next.title = body.title.trim();}
           // Shown on the projector's join screen; the Wi-Fi name should match the hotspot's --ssid.
           if (Object.hasOwn(body, 'joinSsid')) {requireValue(typeof body.joinSsid === 'string' && body.joinSsid.trim() && Buffer.byteLength(body.joinSsid.trim()) <= 32, 'Wi-Fi name must be 1–32 bytes'); next.joinSsid = body.joinSsid.trim();}
           if (Object.hasOwn(body, 'joinUrl')) {requireValue(typeof body.joinUrl === 'string' && /^https?:\/\/[^\s]{1,150}$/.test(body.joinUrl.trim()), 'Join address must start with http:// and have no spaces'); next.joinUrl = body.joinUrl.trim();}
+          if (Object.hasOwn(body, 'maxTeams')) {requireValue(Number.isInteger(body.maxTeams) && body.maxTeams >= 0 && body.maxTeams <= 250, 'Maximum teams must be 0 (no limit) to 250'); next.maxTeams = body.maxTeams;}
           if (Object.hasOwn(body, 'language')) {requireValue(['en', 'fr', 'es'].includes(body.language), 'Unknown language'); next.language = body.language;}
           if (Object.hasOwn(body, 'displayMode')) {requireValue(['join', 'leaderboard', 'question', 'wheel', 'winner', 'blank'].includes(body.displayMode), 'Invalid projector view'); next.displayMode = body.displayMode;}
           // Extra blocked team-name words stay private to the desk.
@@ -501,6 +518,23 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const wheel = {id: (getMeta('wheel', null)?.id || 0) + 1, items: items.map(i => i.trim()), result: randomInt(items.length), spun: now()};
           setMeta('wheel', wheel); return send(200, wheel);
         }
+        if (p === '/api/host/admit') {run('UPDATE teams SET waiting=0 WHERE waiting=1 AND enabled=1'); return send(200, {ok: true});}
+        // A countdown on the TV, separate from question timers (e.g. "5 minutes to hand in sheets").
+        if (p === '/api/host/timer') {
+          const timer = getMeta('timer', null);
+          requireValue(['start', 'pause', 'resume', 'stop'].includes(body.action), 'Unknown timer action');
+          if (body.action === 'start') {
+            requireValue(Number.isInteger(body.seconds) && body.seconds >= 1 && body.seconds <= 7200, 'Timer must be 1 second to 2 hours');
+            requireValue(body.label === undefined || (typeof body.label === 'string' && body.label.length <= 100), 'Timer label must be up to 100 characters');
+            const next = {id: (timer?.id || 0) + 1, seconds: body.seconds, label: body.label?.trim() || '', endsAt: now() + body.seconds * 1000, remaining: null};
+            setMeta('timer', next); return send(200, next);
+          }
+          if (body.action === 'stop') {setMeta('timer', null); return send(200, {ok: true});}
+          requireValue(timer, 'No timer running', 409);
+          if (body.action === 'pause') {requireValue(timer.endsAt !== null && timer.endsAt > now(), 'Timer is not running', 409); setMeta('timer', {...timer, endsAt: null, remaining: timer.endsAt - now()});}
+          else {requireValue(timer.endsAt === null, 'Timer is not paused', 409); setMeta('timer', {...timer, endsAt: now() + timer.remaining, remaining: null});}
+          return send(200, getMeta('timer', null));
+        }
         if (p === '/api/host/reveal') {
           const q = questionById(body.question); requireValue(q && !pending(q), 'Close question before revealing', 409);
           run('UPDATE questions SET revealed=? WHERE id=?', body.revealed === false ? 0 : 1, q.id); return send(200, {ok: true});
@@ -546,6 +580,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const team = one('SELECT * FROM teams WHERE id=?', body.id); requireValue(team, 'Team not found', 404);
           if (body.action === 'approvePhoto') {requireValue(team.photo, 'No photo to approve', 409); run(`UPDATE teams SET photo_status='approved' WHERE id=?`, team.id); return send(200, {ok: true});}
           if (body.action === 'rejectPhoto') {removePhoto(team); return send(200, {ok: true});}
+          if (body.action === 'admit') {run('UPDATE teams SET waiting=0 WHERE id=?', team.id); return send(200, {ok: true});}
           if (body.action === 'note') {
             requireValue(typeof body.note === 'string' && body.note.length <= 500, 'Notes must be up to 500 characters');
             run('UPDATE teams SET note=? WHERE id=?', body.note.trim() || null, team.id); return send(200, {ok: true});
@@ -584,8 +619,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         requireValue(!offensive(body.name, getMeta('blockedWords', [])), 'Please choose a different team name', 400);
         requireValue(!one('SELECT id FROM teams WHERE name=? COLLATE NOCASE', body.name.trim()), 'Name taken. Use your recovery code to reconnect.', 409);
         requireValue(one('SELECT COUNT(*) n FROM teams').n < 250, 'Team limit reached. Ask the quizmaster.', 409);
-        const id = token(), secret = token(); run('INSERT INTO teams(id,name,secret,seen) VALUES(?,?,?,?)', id, body.name.trim(), secret, now());
-        rememberDevice(req, id); return send(200, {id, secret});
+        const {maxTeams, waitingRoom} = settings();
+        requireValue(!maxTeams || one('SELECT COUNT(*) n FROM teams WHERE enabled=1').n < maxTeams, 'The quiz is full. Ask the quizmaster.', 409);
+        // With the waiting room on, a new team waits until the quizmaster lets it in.
+        const id = token(), secret = token(); run('INSERT INTO teams(id,name,secret,seen,waiting) VALUES(?,?,?,?,?)', id, body.name.trim(), secret, now(), Number(waitingRoom));
+        rememberDevice(req, id); return send(200, {id, secret, waiting: waitingRoom});
       }
       // A phone that already played (e.g. in the Wi-Fi sign-in window) can carry on in its normal browser.
       if (p === '/api/device') {const team = deviceTeam(req); return send(200, {team: team ? {name: team.name} : null});}
@@ -596,13 +634,18 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       const team = one('SELECT * FROM teams WHERE secret=?', auth || ''); requireValue(team, 'Team recovery code required', 401);
       requireValue(team.enabled, 'This team is disabled. Ask the quizmaster.', 403);
       run('UPDATE teams SET seen=? WHERE id=?', now(), team.id); rememberDevice(req, team.id);
+      const teamInfo = {id: team.id, name: team.name, sound: team.sound, photo: team.photo, photoStatus: team.photo_status, waiting: !!team.waiting};
+      if (team.waiting) {
+        requireValue(p === '/api/state' || p === '/api/team/sound', 'Waiting for the quizmaster to let you in', 403);
+        if (p === '/api/state') return send(200, {...publicState(), question: null, team: teamInfo, answer: null, draft: null});
+      }
       if (p === '/api/state') {
         const q = latest();
         if (q && pending(q)) run('INSERT OR IGNORE INTO deliveries VALUES(?,?,?)', team.id, q.id, now());
         const a = q && one('SELECT value,points,marks,submitted FROM answers WHERE team=? AND question=?', team.id, q.id);
         // Points stay hidden until scoring is final.
         const answer = !a || a.submitted === null && !q.settled && !q.closed ? null : pending(q) ? {value: a.value} : {value: a.value, points: a.points, marks: a.marks};
-        return send(200, {...publicState(), question: publicQuestion(q, false, team.id), team: {id: team.id, name: team.name, sound: team.sound, photo: team.photo, photoStatus: team.photo_status}, answer,
+        return send(200, {...publicState(), question: publicQuestion(q, false, team.id), team: teamInfo, answer,
           draft: one('SELECT value FROM drafts WHERE team=? AND question=?', team.id, q?.id || 0) || null});
       }
       if (p === '/api/team/sound') {

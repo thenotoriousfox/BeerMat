@@ -20,6 +20,8 @@ const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = 
 export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet'];
 export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
 // Buzzer questions stay open until the quizmaster rules on them; the timer only limits buzzing.
+// Formats the server marks right or wrong by itself: these can use Evil Mode and a fixed speed bonus.
+export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio'].includes(q.type) && !!q.answer);
 export const hostDriven = type => ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(type);
 export const isBingo = type => type === 'bingo' || type === 'musicbingo';
 
@@ -37,6 +39,12 @@ export function validateQuestion(q, mediaDir) {
     answer: q.answer?.trim() || '', answerNote: q.answerNote?.trim() || '', aliases: [], options: [], items: [], itemAnswers: [], media: null,
     speedBonus: q.speedBonus ?? 0, round: typeof q.round === 'string' ? q.round.slice(0, 100) : ''};
   requireValue(integer(result.speedBonus, 0, 100) && (speedTypes.includes(q.type) || result.speedBonus === 0), 'Speed bonus must be 0–100 (zero for this format)');
+  // Speed bonus: sliding (fades over the time allowed) or fixed (only the fastest correct answers get it).
+  result.bonusMode = q.bonusMode ?? 'sliding'; result.bonusPlaces = q.bonusPlaces ?? 1;
+  requireValue(['sliding', 'fixed'].includes(result.bonusMode), 'Speed bonus must be sliding or fixed');
+  requireValue(integer(result.bonusPlaces, 1, 50), 'Fastest answers given the fixed bonus must be 1–50');
+  // Evil Mode: a wrong answer loses the question's points.
+  result.evil = q.evil === true;
   if (['text', 'picture', 'audio'].includes(q.type)) result.aliases = aliases;
   if (q.type === 'choice' || q.type === 'vote' || q.type === 'multi') {
     requireValue(Array.isArray(q.options) && q.options.length >= 2 && q.options.length <= 8 && q.options.every(o => text(o, 200)) && new Set(q.options).size === q.options.length, 'Supply 2–8 distinct choices');
@@ -134,6 +142,8 @@ export function validateQuestion(q, mediaDir) {
     // Every sheet item is worth one point. Missing keys are left for the host to mark.
     result.points = q.items.length;
   }
+  requireValue(!result.evil || autoMarked(result), 'Evil Mode needs a format with a correct answer set, so wrong answers can be spotted');
+  requireValue(result.bonusMode === 'sliding' || autoMarked(result), 'A fixed speed bonus needs a format with a correct answer set');
   return result;
 }
 

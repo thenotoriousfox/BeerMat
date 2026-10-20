@@ -206,10 +206,12 @@ function renderBingo(q) {
 function playerState(s) {
   current = s; offset = s.serverTime - Date.now(); $('join').hidden = true; $('game').hidden = false;
   $('team').textContent = s.team.name; $('code').textContent = secret; const q = s.question;
-  if (q?.id !== renderedQuestion) {
+  // A team in the waiting room sees only a holding screen until the quizmaster lets it in.
+  const shown = s.team.waiting ? 'waiting' : q?.id;
+  if (shown !== renderedQuestion) {
     clearTimeout(draftTimer); draftGeneration++; localDraft = null; inputRevision = 0;
-    renderedQuestion = q?.id; $('inputs').replaceChildren(); $('draftStatus').textContent = '';
-    $('question').textContent = q?.text || t('Waiting for the next question…'); $('round').textContent = q?.round || '';
+    renderedQuestion = shown; $('inputs').replaceChildren(); $('draftStatus').textContent = '';
+    $('question').textContent = s.team.waiting ? t('You’re in the waiting room — the quizmaster will let you in shortly') : q?.text || t('Waiting for the next question…'); $('round').textContent = q?.round || '';
     $('game').classList.toggle('idle', !q);
     renderMedia($('media'), q?.type === 'pinpoint' ? null : q);
     const bingo = q?.type === 'bingo' || q?.type === 'musicbingo';
@@ -233,7 +235,7 @@ function playerState(s) {
   // Between questions the phone shows the leaderboard; during one, only the question.
   $('boardSection').hidden = !!q?.live;
   const me = s.teams.find(team => team.id === s.team.id);
-  $('myScore').textContent = me ? t('#{rank} · {score} pts', {rank: me.rank, score: me.score}) : '';
+  $('myScore').textContent = !me ? '' : me.score === null ? t('#{rank}', {rank: me.rank}) : t('#{rank} · {score} pts', {rank: me.rank, score: me.score});
   $('menuButton').hidden = false;
   if (q && listValue(q.type)) syncPicks();
   renderSolution($('solution'), q); updateControls();
@@ -303,6 +305,7 @@ function displayState(s) {
     }
   }
   $('wheelSection').hidden = s.settings.displayMode !== 'wheel';
+  renderCountdown();
   $('winnerSection').hidden = s.settings.displayMode !== 'winner';
   if (s.settings.displayMode === 'winner') renderWinner(s); else winnerShown = '';
   if (s.settings.displayMode === 'wheel' && s.wheel) renderWheel(s.wheel, s.serverTime - s.wheel.spun < 3000);
@@ -334,12 +337,25 @@ function renderWheel(wheel, fresh) {
   requestAnimationFrame(() => requestAnimationFrame(() => {spin.style.transform = `rotate(${wheelTurn}deg)`;}));
   if (!first) setTimeout(() => {if (wheelId === wheel.id) $('wheelResult').textContent = `🎉 ${wheel.items[wheel.result]}`;}, 6100);
 }
+// The quizmaster's countdown sits over every TV view; at zero it says so and beeps once.
+let countdownDone = null;
+function renderCountdown() {
+  const timer = current?.timer, box = $('countdown');
+  box.hidden = !timer;
+  if (!timer) return;
+  const left = timer.endsAt === null ? timer.remaining : Math.max(0, timer.endsAt - Date.now() - offset), secs = Math.ceil(left / 1000);
+  $('countdownLabel').textContent = timer.label;
+  $('countdownTime').textContent = left > 0 ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : t('Time’s up!');
+  box.classList.toggle('paused', timer.endsAt === null); box.classList.toggle('low', left > 0 && left <= 10000); box.classList.toggle('done', left <= 0);
+  if (left <= 0 && countdownDone !== timer.id) {countdownDone = timer.id; if (timer.endsAt !== null && Date.now() + offset - timer.endsAt < 3000) buzzSound('', 3);}
+  else if (left > 0 && countdownDone === timer.id) countdownDone = null;
+}
 function renderWinner(s) {
   const top = s.teams.filter(t => t.rank === 1), names = top.map(t => t.name).join(' & ');
   $('winnerName').textContent = !s.settings.leaderboardVisible ? t('Scores are hidden for now') : names || t('No teams yet');
   $('winnerPhotos').replaceChildren(...(s.settings.leaderboardVisible ? top.filter(t => t.photo).map(t => avatar(t.photo)) : []));
-  $('winnerScore').textContent = top.length && s.settings.leaderboardVisible ? t(top.length > 1 ? '{n} points — a tie!' : '{n} points', {n: top[0].score}) : '';
-  $('podium').replaceChildren(...s.teams.filter(t => t.rank > 1 && t.rank <= 3).map(t => {const li = element('li'); li.append(element('span', `${t.rank === 2 ? '🥈' : '🥉'} ${t.name}`), element('strong', `${t.score} pts`)); return li;}));
+  $('winnerScore').textContent = top.length && s.settings.leaderboardVisible && top[0].score !== null ? t(top.length > 1 ? '{n} points — a tie!' : '{n} points', {n: top[0].score}) : '';
+  $('podium').replaceChildren(...s.teams.filter(t => t.rank > 1 && t.rank <= 3).map(t => {const li = element('li'); li.append(element('span', `${t.rank === 2 ? '🥈' : '🥉'} ${t.name}`), element('strong', t.score === null ? '' : `${t.score} pts`)); return li;}));
   if (names && names !== winnerShown) {
     winnerShown = names; fanfare();
     // Confetti pieces fall once; reduced-motion users see a still screen (see style.css).
@@ -407,7 +423,7 @@ if (role === 'player') {
     e.preventDefault(); $('joinButton').disabled = true;
     try {
       const team = await api('join', {name: $('name').value}); saveIdentity(team.secret);
-      message(t('You’re in! Keep this window open to play. If it closes, open {url} in your browser to carry on.', {url: (lastSettings?.joinUrl || 'http://10.42.0.1').replace(/^http:\/\//, '')}));
+      message(team.waiting ? t('Nearly there! The quizmaster will let you in shortly. Keep this window open.') : t('You’re in! Keep this window open to play. If it closes, open {url} in your browser to carry on.', {url: (lastSettings?.joinUrl || 'http://10.42.0.1').replace(/^http:\/\//, '')}));
       await refresh();
     } catch (e) {message(e.message, true);} finally {if (!secret) $('joinButton').disabled = false;}
   };
@@ -494,5 +510,5 @@ if (role === 'display') {
   for (const event of ['mousemove', 'pointerdown', 'keydown']) document.addEventListener(event, wake);
   wake();
 }
-setInterval(() => {if (role === 'player') updateControls(); else if (current) $('status').textContent = timeText(current.question, offset);}, 200);
+setInterval(() => {if (role === 'player') updateControls(); else if (current) {$('status').textContent = timeText(current.question, offset); renderCountdown();}}, 200);
 const updates = live(refresh, () => role === 'player' ? secret : '');
