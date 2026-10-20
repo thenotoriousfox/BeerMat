@@ -28,22 +28,22 @@ export function parseSqRound(text, fileName = 'SpeedQuizzing round') {
     if (ext === 'sqp' || game.includes('pinpoint')) {skipped.push(`question ${n + 1} is a pinpoint question — upload its picture and set the target in Build quiz`); return null;}
     if (ext === 'sqw' || game.replace(/\s/g, '').includes('wordsnake')) {
       const word = short.toUpperCase().replace(/[^A-Z]/g, '');
-      if (word.length >= 3 && word.length <= 20) return {...common, type: 'wordsnake', seconds: 45, speedBonus, answer: word, answerNote: clip(long && long.toUpperCase().replace(/[^A-Z]/g, '') !== word ? long : '', 300)};
+      if (word.length >= 3 && word.length <= 20) return {...common, type: 'wordsnake', seconds: 45, speedBonus, fastestFingers: speedBonus > 0, answer: word, answerNote: clip(long && long.toUpperCase().replace(/[^A-Z]/g, '') !== word ? long : '', 300)};
     }
     if ((ext === 'sqt' || game.replace(/[\s-]/g, '').includes('multitap')) && options.length >= 2) {
       const correct = [...new Set((short.toUpperCase().match(/[A-H]/g) || []).map(l => options[l.charCodeAt(0) - 65]).filter(Boolean))];
-      if (correct.length) return {...common, type: 'multi', seconds: 30, speedBonus, options: [...new Set(options)], correct};
+      if (correct.length) return {...common, type: 'multi', seconds: 30, speedBonus, fastestFingers: speedBonus > 0, options: [...new Set(options)], correct};
     }
     if (game === 'buzzin') return {...common, type: 'buzzer', variation: variation === 'advanced' ? 'advanced' : 'classic', seconds: 60, answer: clip(long || short, 300), answerNote: '', agreePoints: Math.max(1, Math.round(points / 2))};
     if (game.startsWith('nearest')) return numeric(short) ? {...common, type: 'nearest', seconds: 20, answer: short.replace(/,/g, '')} : {...common, type: 'text', seconds: 30, answer: clip(long || short, 300)};
     if (view === 'multi' && options.length >= 2) {
       const index = letter(short) ? short.toUpperCase().charCodeAt(0) - 65 : -1;
-      return {...common, type: 'choice', seconds: 30, speedBonus, options: [...new Set(options)], answer: options[index] ?? ''};
+      return {...common, type: 'choice', seconds: 30, speedBonus, fastestFingers: speedBonus > 0, options: [...new Set(options)], answer: options[index] ?? ''};
     }
-    if (view === 'sequence' || (!short && options.length >= 2)) return {...common, type: 'sequence', seconds: 45, speedBonus, items: [...new Set(options)]};
-    if (view === 'letters' && letter(short)) return {...common, type: 'letter', seconds: 30, speedBonus, answer: short.toUpperCase()};
-    if (view === 'numbers' && numeric(short)) return {...common, type: 'number', seconds: 30, speedBonus, answer: short.replace(/,/g, '')};
-    return {...common, type: 'text', seconds: 30, speedBonus, answer: clip(long || short, 300), answerNote: ''};
+    if (view === 'sequence' || (!short && options.length >= 2)) return {...common, type: 'sequence', seconds: 45, speedBonus, fastestFingers: speedBonus > 0, items: [...new Set(options)]};
+    if (view === 'letters' && letter(short)) return {...common, type: 'letter', seconds: 30, speedBonus, fastestFingers: speedBonus > 0, answer: short.toUpperCase()};
+    if (view === 'numbers' && numeric(short)) return {...common, type: 'number', seconds: 30, speedBonus, fastestFingers: speedBonus > 0, answer: short.replace(/,/g, '')};
+    return {...common, type: 'text', seconds: 30, speedBonus, fastestFingers: speedBonus > 0, answer: clip(long || short, 300), answerNote: ''};
   }).filter(Boolean);
   return {title: clip(tag(xml, 'title') && !/^Generated from/i.test(tag(xml, 'title')) ? tag(xml, 'title') : fileName.replace(/\.[^.]+$/, ''), 100), questions, skipped};
 }

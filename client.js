@@ -266,9 +266,9 @@ function renderQr(container, text) {
 function displayState(s) {
   current = s; offset = s.serverTime - Date.now();
   const {joinSsid, joinUrl, registrationOpen, ended} = s.settings, joining = registrationOpen && !ended;
-  $('projection').hidden = s.settings.displayMode === 'blank';
-  $('joinSection').hidden = s.settings.displayMode !== 'join';
-  if (s.settings.displayMode === 'join') {
+  $('projection').hidden = s.view === 'blank';
+  $('joinSection').hidden = s.view !== 'join';
+  if (s.view === 'join') {
     // One code does it all: it joins the quiz Wi-Fi, and the phone's sign-in window then opens the quiz.
     renderQr($('wifiQr'), wifiCode(joinSsid));
     $('joinStepWifi').textContent = t('Join the “{ssid}” Wi-Fi when your phone offers it', {ssid: joinSsid});
@@ -277,7 +277,7 @@ function displayState(s) {
     $('joinStatus').textContent = !joining ? t('Registration is closed — ask the quizmaster to join') : s.teams.length ? (s.teams.length === 1 ? t('1 team has joined') : t('{n} teams have joined', {n: s.teams.length})) : t('Be the first team to join!');
   }
   $('joinHint').textContent = joining ? t('Join: Wi-Fi “{ssid}” → {url}', {ssid: joinSsid, url: joinUrl.replace(/^http:\/\//, '')}) : '';
-  $('boardSection').hidden = s.settings.displayMode !== 'leaderboard'; $('projectQuestion').hidden = s.settings.displayMode !== 'question';
+  $('boardSection').hidden = s.view !== 'leaderboard'; $('projectQuestion').hidden = s.view !== 'question';
   const q = s.question; $('question').textContent = q?.text || t('Waiting for the quizmaster'); $('round').textContent = q?.round || ''; $('status').textContent = timeText(q, offset);
   if (q?.type === 'pinpoint') renderPinpoint($('media'), q); else renderMedia($('media'), q);
   renderSolution($('solution'), q);
@@ -304,11 +304,12 @@ function displayState(s) {
       [...$('bingoBoard').children].forEach((cell, i) => cell.classList.toggle('called', g.called.includes(i + 1)));
     }
   }
-  $('wheelSection').hidden = s.settings.displayMode !== 'wheel';
-  renderCountdown();
-  $('winnerSection').hidden = s.settings.displayMode !== 'winner';
-  if (s.settings.displayMode === 'winner') renderWinner(s); else winnerShown = '';
-  if (s.settings.displayMode === 'wheel' && s.wheel) renderWheel(s.wheel, s.serverTime - s.wheel.spun < 3000);
+  $('wheelSection').hidden = s.view !== 'wheel';
+  $('leaderboard').classList.toggle('cols', s.teams.length > 10);
+  renderCountdown(); fitStage();
+  $('winnerSection').hidden = s.view !== 'winner';
+  if (s.view === 'winner') renderWinner(s); else winnerShown = '';
+  if (s.view === 'wheel' && s.wheel) renderWheel(s.wheel, s.serverTime - s.wheel.spun < 3000);
   const b = q?.buzz; $('projectBuzz').hidden = !b;
   if (b) {
     $('buzzLeader').textContent = b.active ? `🔔 ${b.active.name}` : q.open ? t('Buzzers open') : '';
@@ -336,6 +337,21 @@ function renderWheel(wheel, fresh) {
   spin.style.transition = first ? 'none' : 'transform 6s cubic-bezier(.12,.6,.15,1)';
   requestAnimationFrame(() => requestAnimationFrame(() => {spin.style.transform = `rotate(${wheelTurn}deg)`;}));
   if (!first) setTimeout(() => {if (wheelId === wheel.id) $('wheelResult').textContent = `🎉 ${wheel.items[wheel.result]}`;}, 6100);
+}
+// The TV never scrolls: the visible view is scaled down until it fits the space under the header.
+// A narrower scale makes the view wider, so text reflows shorter; a few rounds settle it.
+function fitStage() {
+  const stage = $('stage'), section = stage && [...stage.children].find(s => !s.hidden);
+  if (!section) return;
+  let fit = 1;
+  for (let i = 0; i < 4; i++) {
+    section.style.setProperty('--fit', fit);
+    const next = Math.min(1, Math.floor(stage.clientHeight / section.offsetHeight * 1000) / 1000);
+    if (Math.abs(next - fit) < 0.005) break;
+    fit = next;
+  }
+  section.style.setProperty('--fit', fit);
+  while (section.offsetHeight * fit > stage.clientHeight && fit > 0.2) section.style.setProperty('--fit', fit -= 0.02);
 }
 // The quizmaster's countdown sits over every TV view; at zero it says so and beeps once.
 let countdownDone = null;
@@ -509,6 +525,9 @@ if (role === 'display') {
   const wake = () => {document.body.classList.remove('idle'); clearTimeout(idleTimer); idleTimer = setTimeout(() => document.body.classList.add('idle'), 3000);};
   for (const event of ['mousemove', 'pointerdown', 'keydown']) document.addEventListener(event, wake);
   wake();
+  // Refit when the screen or header changes size, and when a picture or font finishes loading.
+  new ResizeObserver(fitStage).observe($('stage'));
+  $('stage').addEventListener('load', fitStage, true); document.fonts?.ready.then(fitStage);
 }
-setInterval(() => {if (role === 'player') updateControls(); else if (current) {$('status').textContent = timeText(current.question, offset); renderCountdown();}}, 200);
+setInterval(() => {if (role === 'player') updateControls(); else if (current) {$('status').textContent = timeText(current.question, offset); renderCountdown(); fitStage();}}, 200);
 const updates = live(refresh, () => role === 'player' ? secret : '');

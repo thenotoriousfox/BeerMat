@@ -67,7 +67,7 @@ test('nearest wins ranks by distance, breaks ties by time and scores on a slidin
 
 test('speed bonus starts each team clock on delivery, capped by a grace period', () => fixture(async ({call, teams, tick}) => {
   const [early, late, sleepy] = await teams('Early', 'Late', 'Sleepy');
-  await call('host/open', {...base, text: 'Capital of Wales?', type: 'text', answer: 'Cardiff', speedBonus: 30});
+  await call('host/open', {...base, text: 'Capital of Wales?', type: 'text', answer: 'Cardiff', fastestFingers: true, speedBonus: 30});
   const id = (await call('state', {}, early.secret)).question.id;
   tick(1500); await call('state', {}, late.secret);
   tick(8500); await call('state', {}, sleepy.secret);
@@ -136,7 +136,7 @@ test('allowed local addresses refuse other interfaces', () => fixture(async ({ur
 
 test('multi-tap scores right ticks minus wrong ticks; pinpoint scores taps and go-wide', () => fixture(async ({call, teams, score, url}) => {
   const [a, b, c] = await teams('Alpha', 'Bravo', 'Charlie');
-  await call('host/open', {...base, text: 'Tick the primes', type: 'multi', options: ['2', '3', '4', '5'], correct: ['2', '3', '5'], points: 9, speedBonus: 3});
+  await call('host/open', {...base, text: 'Tick the primes', type: 'multi', options: ['2', '3', '4', '5'], correct: ['2', '3', '5'], points: 9, fastestFingers: true, speedBonus: 3});
   let id = (await call('state', {}, a.secret)).question.id;
   assert.equal((await call('answer', {question: id, value: ['7']}, a.secret)).status, 400);
   await call('answer', {question: id, value: ['5', '3', '2']}, a.secret);
@@ -158,7 +158,7 @@ test('multi-tap scores right ticks minus wrong ticks; pinpoint scores taps and g
 
 test('bingo: seeded tickets, host calls, false and valid claims, first claim bonus', () => fixture(async ({call, teams, score}) => {
   const [a, b] = await teams('Alpha', 'Bravo');
-  await call('host/open', {...base, text: 'Bingo — one line', type: 'bingo', mode: 'line', points: 5, speedBonus: 3});
+  await call('host/open', {...base, text: 'Bingo — one line', type: 'bingo', mode: 'line', points: 5, fastestFingers: true, speedBonus: 3});
   let s = await call('state', {}, a.secret); const id = s.question.id, card = s.question.bingo.card;
   assert.deepEqual((await call('state', {}, a.secret)).question.bingo.card, card, 'ticket is stable');
   assert.equal(card.flat().filter(Boolean).length, 15); assert.ok(card.every(row => row.filter(Boolean).length === 5));
@@ -225,7 +225,7 @@ test('sound clips: taps score only during the right clip, with a fading bonus', 
   const key = (await call('login', {key: hostKey})).key, clips = [];
   for (let i = 0; i < 3; i++) clips.push({media: (await (await fetch(url() + `/api/host/media?name=c${i}.wav`, {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: wav})).json()).media, label: `Song ${i}`});
   assert.equal((await call('host/open', {...base, text: 'Tap for Song 1', type: 'clips', clips, targetClip: 5})).status, 400);
-  await call('host/open', {...base, text: 'Tap for Song 1', type: 'clips', clips, targetClip: 1, points: 5, speedBonus: 5});
+  await call('host/open', {...base, text: 'Tap for Song 1', type: 'clips', clips, targetClip: 1, points: 5, fastestFingers: true, speedBonus: 5});
   const q = (await call('state', {}, a.secret)).question;
   assert.equal(q.clips, undefined, 'clip files and labels hidden from phones'); assert.equal(q.clipGame.count, 3);
   assert.equal((await call('tap', {question: q.id}, a.secret)).status, 409, 'nothing playing yet');
@@ -244,7 +244,7 @@ test('music bingo: song-title tickets, hidden current song, verified claims', ()
   const [a] = await teams('Alpha');
   const songs = Array.from({length: 16}, (_, i) => ({title: `Song title ${i + 1}`}));
   assert.equal((await call('host/open', {...base, text: 'Music bingo', type: 'musicbingo', songs: songs.slice(0, 10)})).status, 400, 'needs 15 songs');
-  await call('host/open', {...base, text: 'Music bingo', type: 'musicbingo', songs, mode: 'line', points: 4, speedBonus: 2});
+  await call('host/open', {...base, text: 'Music bingo', type: 'musicbingo', songs, mode: 'line', points: 4, fastestFingers: true, speedBonus: 2});
   let s = await call('state', {}, a.secret); const id = s.question.id, card = s.question.bingo.card;
   assert.equal(s.question.songs, undefined); assert.equal(card.length, 3); assert.equal(new Set(card.flat()).size, 15);
   const row = card[0]; let played = [];

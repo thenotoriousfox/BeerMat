@@ -28,7 +28,68 @@ function chooseTab(name) {
   document.querySelectorAll('[data-pane]').forEach(el => el.hidden = el.dataset.pane !== name);
   document.querySelectorAll('[data-tab]').forEach(el => el.classList.toggle('selected', el.dataset.tab === name));
   if (name === 'mark') loadReview().catch(e => message(e.message, true));
+  if (name === 'build') loadSpotify();
 }
+// Spotify: optional, for private quizzes. The server talks to Spotify; the desk only shows status and starts sign-in.
+let spotify = null;
+async function loadSpotify() {
+  try {spotify = await request('spotify/status');} catch (e) {$('spotifyStatus').textContent = e.message; return;}
+  $('spotifyRedirect').textContent = spotify.redirectUri;
+  if (document.activeElement !== $('spotifyClientId')) $('spotifyClientId').value = spotify.clientId;
+  $('spotifyStatus').textContent = spotify.connected ? `✓ Connected${spotify.user ? ' as ' + spotify.user : ''}${spotify.devices.length ? '' : ' · no player found: open the Spotify app on this laptop and play any song once, then Refresh players'}` : 'Not connected';
+  $('spotifyDisconnect').disabled = !spotify.connected; $('spotifyDevice').disabled = $('spotifyRefresh').disabled = !spotify.connected;
+  selectOptions($('spotifyDevice'), [['', 'Whichever Spotify player is active'], ...spotify.devices.map(d => [d.id, `${d.name} (${d.type})${d.active ? ' — active' : ''}`])], spotify.device);
+  for (const id of ['spotifySongs', 'spotifyClips']) $(id).disabled = !spotify.connected;
+  $('spotifyStartPlayer').disabled = !spotify.deskPlayer; showDeskPlayer();
+}
+$('spotifyForm').onsubmit = e => {e.preventDefault(); const clientId = $('spotifyClientId').value.trim(); action(async () => {
+  const {url} = await request('spotify/connect', {clientId});
+  if (!window.open(url, '_blank')) location.assign(url);
+  return 'Finish signing in to Spotify in the new tab, then come back here';
+});};
+// Web Playback SDK: makes this desk tab a Spotify player called "PubQuiz desk". Spotify's script is only fetched when
+// the quizmaster presses Start, and the click also unlocks audio in the browser.
+let deskPlayer = null, deskReady = false;
+function startDeskPlayer() {
+  if (!spotify?.connected) return message('Connect Spotify first (Build quiz → Spotify)', true);
+  if (!spotify.deskPlayer) return message('Press Connect Spotify again to allow playing on this desk (a permission was added)', true);
+  if (deskPlayer) {deskPlayer.activateElement?.(); deskPlayer.connect(); return;}
+  window.onSpotifyWebPlaybackSDKReady = () => {
+    deskPlayer = new window.Spotify.Player({name: 'PubQuiz desk', volume: 0.9,
+      getOAuthToken: done => request('spotify/token').then(t => done(t.accessToken)).catch(e => message(e.message, true))});
+    deskPlayer.addListener('ready', ({device_id: id}) => {deskReady = true; request('spotify/device', {id}).then(loadSpotify).then(() => message('🎵 Spotify is playing through this desk')).catch(e => message(e.message, true)); showDeskPlayer();});
+    deskPlayer.addListener('not_ready', () => {deskReady = false; showDeskPlayer(); message('The Spotify desk player went offline — check this laptop’s internet', true);});
+    deskPlayer.addListener('initialization_error', () => message('This browser cannot play Spotify (it needs protected-media support). Use Chrome, Firefox or Edge, or the Spotify app.', true));
+    deskPlayer.addListener('authentication_error', ({message: text}) => message(`Spotify sign-in problem: ${text}. Press Connect Spotify again.`, true));
+    deskPlayer.addListener('account_error', () => message('Playing on the desk needs Spotify Premium.', true));
+    deskPlayer.addListener('playback_error', ({message: text}) => message(`Spotify could not play: ${text}`, true));
+    deskPlayer.activateElement?.(); deskPlayer.connect();
+  };
+  const script = element('script'); script.src = 'https://sdk.scdn.co/spotify-player.js';
+  script.onerror = () => {window.onSpotifyWebPlaybackSDKReady = null; message('Could not load Spotify’s player. Is this laptop online?', true);};
+  document.head.append(script); $('spotifyPlayerState').textContent = 'Starting…';
+}
+function showDeskPlayer() {
+  $('spotifyPlayerState').textContent = deskReady ? '✓ Ready — playing through this desk' : '';
+  const q = state?.question, wanted = spotify?.deskPlayer && !deskReady && q?.live && (q.songs || q.clips || []).some(x => x.spotify);
+  $('spotifyStartLive').hidden = !wanted;
+}
+$('spotifyStartPlayer').onclick = $('spotifyStartLive').onclick = startDeskPlayer;
+$('spotifyDisconnect').onclick = () => action(async () => {await request('spotify/disconnect'); await loadSpotify();}, 'Spotify disconnected');
+$('spotifyRefresh').onclick = () => action(loadSpotify, 'Spotify players refreshed');
+$('spotifyDevice').onchange = () => {const id = $('spotifyDevice').value; action(() => request('spotify/device', {id}), 'Spotify player chosen');};
+window.addEventListener('focus', () => {if (tab === 'build') loadSpotify();});
+const spotifyLinks = id => $(id).value.split('\n').map(s => s.trim()).filter(Boolean);
+$('spotifySongs').onclick = () => {const links = spotifyLinks('spotifySongLinks'); action(async () => {
+  const {songs} = await request('spotify/import', {links});
+  $('qSongs').value = [$('qSongs').value.trim(), ...songs.map(s => `${s.title} | ${s.spotify}`)].filter(Boolean).join('\n'); $('spotifySongLinks').value = ''; editorChanged();
+  return `${songs.length} songs added from Spotify — save the question to keep them`;
+});};
+$('spotifyClips').onclick = () => {const links = spotifyLinks('spotifyClipLinks'), start = Number($('spotifyClipStart').value); action(async () => {
+  const {songs} = await request('spotify/import', {links});
+  clipItems.push(...songs.map(s => ({spotify: s.spotify, start, label: s.title}))); $('spotifyClipLinks').value = ''; renderClipList(); editorChanged();
+  return `${songs.length} Spotify clips added — pick the right one, then save the question`;
+});};
 document.querySelectorAll('[data-tab]').forEach(el => el.onclick = () => chooseTab(el.dataset.tab));
 function round() {return library?.rounds.find(r => r.id === $('roundSelect').value);}
 function savedQuestion() {return round()?.questions.find(q => q.id === editingId);}
@@ -39,8 +100,10 @@ function formTypes() {
   show('nearestFields', type === 'nearest'); show('buzzerFields', type === 'buzzer'); show('pinpointFields', type === 'pinpoint'); show('goWideFields', type === 'pinpoint' || type === 'wordsnake');
   $('goWideText').textContent = type === 'wordsnake' ? 'Allow go wide: teams can remove the decoy letters for fewer points' : 'Allow go wide: a second tap scores if the first misses'; show('bingoFields', type === 'bingo' || type === 'musicbingo'); show('musicFields', type === 'musicbingo'); show('clipsFields', type === 'clips');
   show('mediaFields', !['sheet', 'bingo', 'musicbingo', 'clips'].includes(type)); show('answerFields', !['sheet', 'vote', 'sequence', 'multi', 'pinpoint', 'bingo', 'musicbingo', 'clips'].includes(type)); show('aliasesLabel', ['text', 'picture', 'audio'].includes(type)); show('noteLabel', type !== 'sheet');
-  show('pointsLabel', type !== 'sheet'); show('speedLabel', speedTypes.includes(type));
-  show('bonusModeLabel', markedTypes.includes(type)); show('bonusPlacesLabel', markedTypes.includes(type) && $('qBonusMode').value === 'fixed'); show('evilLabel', markedTypes.includes(type));
+  // Speed bonus settings only appear once fastest fingers first is ticked.
+  const fastest = speedTypes.includes(type) && $('qFastest').checked;
+  show('pointsLabel', type !== 'sheet'); show('fastestLabel', speedTypes.includes(type)); show('speedLabel', fastest);
+  show('bonusModeLabel', fastest && markedTypes.includes(type)); show('bonusPlacesLabel', fastest && markedTypes.includes(type) && $('qBonusMode').value === 'fixed'); show('evilLabel', markedTypes.includes(type));
   $('answerLabel').textContent = {choice: 'Correct choice (copy one line from above; blank for manual marking)', letter: 'Correct letter (A–Z)', wordsnake: 'Answer word (letters only, 3–20; spaces are removed)', tiles: 'Answer (4–40 letters; spaces mark separate words)', number: 'Correct number', nearest: 'Correct number', buzzer: 'Expected answer (shown only to you)'}[type] || 'Correct answer (blank for manual marking)';
   $('pointsText').textContent = {nearest: 'Points for the closest team', buzzer: 'Points for a correct buzz', vote: 'Points (votes score nothing)', multi: 'Points for every right tick', pinpoint: 'Points for a first-tap hit', bingo: 'Points for a valid bingo', musicbingo: 'Points for a valid bingo', clips: 'Points for tapping the right clip'}[type] || 'Correct answer points';
   $('speedText').textContent = type === 'bingo' || type === 'musicbingo' ? 'Bonus for the first claim' : 'Maximum speed bonus';
@@ -52,10 +115,13 @@ function formTypes() {
 }
 function renderClipList() {
   $('clipList').replaceChildren(...clipItems.map((clip, i) => {
-    const li = element('li', undefined, 'clip-row'), pick = element('input'), name = element('input'), play = element('audio'), remove = element('button', 'Remove', 'subtle');
+    const li = element('li', undefined, 'clip-row'), pick = element('input'), name = element('input'), remove = element('button', 'Remove', 'subtle');
+    // Uploaded clips get a player; Spotify clips get their start time.
+    const play = clip.spotify ? element('label', 'Spotify · start (s)') : element('audio');
     pick.type = 'radio'; pick.name = 'targetClip'; pick.checked = i === targetClip; pick.title = 'The right clip'; pick.onchange = () => {targetClip = i; editorChanged();};
     name.value = clip.label; name.maxLength = 100; name.oninput = () => {clip.label = name.value;}; name.setAttribute('aria-label', `Clip ${i + 1} name`);
-    play.src = clip.media; play.controls = true; play.preload = 'none';
+    if (clip.spotify) {const start = element('input'); start.type = 'number'; start.min = '0'; start.max = '3600'; start.value = clip.start ?? 0; start.oninput = () => {clip.start = Number(start.value);}; play.append(start);}
+    else {play.src = clip.media; play.controls = true; play.preload = 'none';}
     remove.type = 'button'; remove.onclick = () => {clipItems.splice(i, 1); targetClip = Math.min(targetClip, Math.max(0, clipItems.length - 1)); renderClipList(); editorChanged();};
     li.append(pick, name, play, remove); return li;
   }));
@@ -92,9 +158,9 @@ function fillQuestion(q = null) {
   $('qAnswer').value = q?.answer || ''; $('qAliases').value = (q?.aliases || []).join('\n'); $('qOptions').value = (q?.options || []).join('\n'); $('qMedia').value = q?.media || '';
   $('qNote').value = q?.answerNote || ''; $('qItems').value = q?.type === 'sequence' ? q.items.join('\n') : ''; $('qPlaces').value = q?.places ?? 1;
   $('qCorrect').value = (q?.correct || []).join('\n'); pinTarget = q?.target || null; $('qRadius').value = Math.round((q?.target?.r ?? 0.08) * 100);
-  $('qSongs').value = (q?.songs || []).map(s => s.media ? `${s.title} | ${s.media}` : s.title).join('\n'); $('qRevealNow').checked = !!q?.revealNow;
+  $('qSongs').value = (q?.songs || []).map(s => s.media || s.spotify ? `${s.title} | ${s.media || s.spotify}` : s.title).join('\n'); $('qStartAt').value = q?.startAt ?? 0; $('qClipSeconds').value = q?.clipSeconds ?? 15; $('qRevealNow').checked = !!q?.revealNow;
   clipItems = structuredClone(q?.clips || []); targetClip = q?.targetClip ?? 0; renderClipList();
-  $('qBonusMode').value = q?.bonusMode || 'sliding'; $('qBonusPlaces').value = q?.bonusPlaces ?? 1; $('qEvil').checked = !!q?.evil;
+  $('qFastest').checked = !!q?.fastestFingers; $('qBonusMode').value = q?.bonusMode || 'sliding'; $('qBonusPlaces').value = q?.bonusPlaces ?? 1; $('qEvil').checked = !!q?.evil;
   $('qGoWide').checked = !!q?.goWide; $('qGoWidePoints').value = q?.goWidePoints ?? 0; $('qMode').value = q?.mode || 'line';
   $('qVariation').value = q?.variation || 'classic'; $('qPenalty').value = q?.penalty ?? 0; $('qPassPenalty').value = q?.passPenalty ?? 0; $('qAgreePoints').value = q?.agreePoints ?? 1; $('qAgreeSeconds').value = q?.agreeSeconds ?? 10;
   $('sheetItems').replaceChildren(); (q?.type === 'sheet' ? q.items : ['']).forEach((item, i) => addSheetItem(item, q?.itemAnswers?.[i] || ''));
@@ -120,17 +186,19 @@ const cloneLibrary = () => structuredClone(library);
 function readQuestion() {
   const type = $('qType').value, rows = [...$('sheetItems').children], lines = id => $(id).value.split('\n').map(s => s.trim()).filter(Boolean);
   const q = {id: editingId || uid(), text: $('qText').value.trim(), type, seconds: Number($('qSeconds').value), points: Number($('qPoints').value),
-    speedBonus: speedTypes.includes(type) ? Number($('qSpeed').value) : 0, answer: $('qAnswer').value.trim(), answerNote: $('qNote').value.trim(), aliases: lines('qAliases'), media: $('qMedia').value};
+    speedBonus: speedTypes.includes(type) ? Number($('qSpeed').value) : 0, fastestFingers: speedTypes.includes(type) && $('qFastest').checked, answer: $('qAnswer').value.trim(), answerNote: $('qNote').value.trim(), aliases: lines('qAliases'), media: $('qMedia').value};
   if (markedTypes.includes(type)) Object.assign(q, {evil: $('qEvil').checked, bonusMode: $('qBonusMode').value, bonusPlaces: Number($('qBonusPlaces').value)});
   if (['choice', 'vote', 'multi'].includes(type)) q.options = lines('qOptions');
   if (type === 'multi') q.correct = lines('qCorrect');
   if (type === 'pinpoint') q.target = pinTarget;
   if (type === 'pinpoint' || type === 'wordsnake') Object.assign(q, {goWide: $('qGoWide').checked, goWidePoints: Number($('qGoWidePoints').value)});
   if (type === 'bingo') Object.assign(q, {mode: $('qMode').value, media: ''});
-  if (type === 'musicbingo') Object.assign(q, {mode: $('qMode').value, revealNow: $('qRevealNow').checked, media: '', songs: lines('qSongs').map(line => {
-    const [title, media] = line.split(/\s*\|\s*(?=\/media\/)/); return {title: title.trim(), media: media?.trim() || null};
+  if (type === 'musicbingo') Object.assign(q, {mode: $('qMode').value, revealNow: $('qRevealNow').checked, startAt: Number($('qStartAt').value), media: '', songs: lines('qSongs').map(line => {
+    // "Title | /media/file.mp3" plays an uploaded file; "Title | spotify:track:…" plays on Spotify.
+    const [title, source = ''] = line.split(/\s*\|\s*(?=\/media\/|spotify:track:)/), file = source.trim();
+    return {title: title.trim(), media: file.startsWith('/media/') ? file : null, ...(file.startsWith('spotify:') ? {spotify: file} : {})};
   })});
-  if (type === 'clips') Object.assign(q, {clips: clipItems.map(c => ({media: c.media, label: c.label.trim()})), targetClip, media: ''});
+  if (type === 'clips') Object.assign(q, {clips: clipItems.map(c => c.spotify ? {spotify: c.spotify, start: c.start ?? 0, label: c.label.trim()} : {media: c.media, label: c.label.trim()}), targetClip, clipSeconds: Number($('qClipSeconds').value), media: ''});
   if (type === 'sequence') q.items = lines('qItems');
   if (type === 'sheet') Object.assign(q, {items: rows.map(row => row.querySelectorAll('input')[0].value.trim()), itemAnswers: rows.map(row => row.querySelectorAll('input')[1].value.trim()), answerNote: '', media: ''});
   if (type === 'nearest') q.places = Number($('qPlaces').value);
@@ -138,7 +206,7 @@ function readQuestion() {
   return q;
 }
 $('questionForm').oninput = editorChanged;
-$('qType').onchange = $('qVariation').onchange = $('qBonusMode').onchange = () => {formTypes(); editorChanged();};
+$('qType').onchange = $('qVariation').onchange = $('qBonusMode').onchange = $('qFastest').onchange = () => {formTypes(); editorChanged();};
 $('clearMedia').onclick = () => {$('qMedia').value = ''; renderMedia($('mediaPreview'), null); pinTarget = null; renderPinTarget(); editorChanged();};
 $('addSheetItem').onclick = () => {addSheetItem(); editorChanged();};
 $('questionForm').onsubmit = e => {e.preventDefault(); action(async () => {
@@ -221,12 +289,23 @@ for (const [id, act, done] of [['buzzCorrect', 'correct', 'Marked correct'], ['b
 // The desk plays the clips in order and tells the server when each one starts and ends.
 function stopClips() {
   $('clipAudio').pause();
+  if (clipRun?.spotify) request('spotify/pause').catch(() => {});
   if (clipRun) request('clip', {question: clipRun.question, clip: -1}).catch(() => {});
   clipRun = null; if (state) renderClipsPanel(state.question);
 }
 function playClip(i) {
   const q = state.question;
   if (!q?.live || q.type !== 'clips' || i >= q.clips.length) return stopClips();
+  // A Spotify clip plays on the laptop's Spotify app for the question's clip length; the server logs its start.
+  if (q.clips[i].spotify) {
+    const run = clipRun = {question: q.id, index: i, spotify: true};
+    request('spotify/play', {question: q.id, clip: i}).then(() => setTimeout(async () => {
+      if (clipRun !== run) return;
+      await request('spotify/pause').catch(() => {}); await request('clip', {question: q.id, clip: -1}).catch(() => {});
+      setTimeout(() => {if (clipRun === run) playClip(i + 1);}, 1500);
+    }, q.clipSeconds * 1000)).catch(e => {message(e.message, true); if (clipRun === run) stopClips();});
+    return renderClipsPanel(q);
+  }
   const run = clipRun = {question: q.id, index: i}, audio = $('clipAudio'); let started = false;
   audio.src = q.clips[i].media;
   audio.onplaying = () => {if (!started && clipRun === run) {started = true; request('clip', {question: q.id, clip: i}).catch(e => message(e.message, true));}};
@@ -248,10 +327,11 @@ function renderClipsPanel(q) {
 $('playClips').onclick = () => {enableSound(); playClip(0);};
 $('stopClips').onclick = stopClips;
 $('callNumber').onclick = () => action(async () => {
-  const q = state.question, {number} = await request('bingo', {question: q.id});
+  const q = state.question, {number, warning} = await request('bingo', {question: q.id});
   if (q.type !== 'musicbingo') return `Called ${number}`;
   const song = q.songs[number - 1], audio = $('songAudio');
   audio.hidden = !song.media;
+  if (song.spotify) {audio.pause(); return `Song ${q.bingo.played + 1}: ${song.title}${warning ? ` — ⚠ ${warning}` : ' — playing on Spotify'}`;}
   if (song.media) {audio.src = song.media; audio.play().catch(() => message('Press play on the song player', true));}
   return `Song ${q.bingo.played + 1}: ${song.title}${song.media ? '' : ' — play it from your own music player'}`;
 });
@@ -259,7 +339,7 @@ $('spinWheel').onclick = () => action(async () => {
   const items = $('wheelItems').value.split('\n').map(s => s.trim()).filter(Boolean);
   if (state.settings.displayMode !== 'wheel') await request('settings', {displayMode: 'wheel'});
   const wheel = await request('wheel', items.length ? {items} : {});
-  $('wheelLast').textContent = `Last spin: ${wheel.items[wheel.result]}`; return 'Wheel spinning on the projector';
+  $('wheelLast').textContent = `Last spin: ${wheel.items[wheel.result]}`; return 'Wheel spinning on the projector — set Projector view back to Auto when you are done';
 });
 // Single-key shortcuts, also usable from a Stream Deck or presenter remote that sends key presses.
 const shortcuts = {n: 'next', c: 'close', r: 'reveal', 1: 'buzzCorrect', 2: 'buzzWrong', 3: 'buzzPass', a: 'startAgree', b: 'callNumber', w: 'spinWheel', t: 'timerPause', s: 'showScores'};
@@ -299,7 +379,7 @@ $('displayMode').onchange = () => {const displayMode = $('displayMode').value; a
 $('finish').onclick = () => action(async () => {
   if (!state.settings.ended && !confirm('Finish this quiz and close answers and registration? You can resume it later.')) return;
   // Finishing goes straight to the winner celebration on the projector.
-  await request('settings', state.settings.ended ? {ended: false} : {ended: true, displayMode: 'winner'});
+  await request('settings', state.settings.ended ? {ended: false} : {ended: true, ...(state.settings.displayMode === 'auto' ? {} : {displayMode: 'winner'})});
 }, 'Quiz status updated');
 document.addEventListener('pointerdown', enableSound);
 $('loginForm').onsubmit = async e => {e.preventDefault(); await action(async () => {
@@ -411,7 +491,7 @@ function renderState(s) {
   $('liveRound').textContent = q?.round || ''; $('liveText').textContent = q?.text || 'Ready when you are'; $('liveTimer').textContent = timeText(q, offset);
   $('liveKey').textContent = q ? answerKey(q) : '';
   if (q?.id !== liveQuestion) {liveQuestion = q?.id; $('announced').value = '';}
-  renderBuzzPanel(q); renderBingoPanel(q);
+  renderBuzzPanel(q); renderBingoPanel(q); showDeskPlayer();
   if (clipRun && (q?.id !== clipRun.question || !q.live)) stopClips(); else renderClipsPanel(q);
   $('liveCount').textContent = q ? `${s.answers.length} answers received · ${s.teams.filter(t => t.enabled && !t.waiting).length} active teams` : 'Add rounds in Build quiz, then start your first question.';
   renderMedia($('liveMedia'), q); renderSolution($('liveSolution'), q);
@@ -431,7 +511,7 @@ function renderState(s) {
   if (!$('maxTeamsForm').contains(document.activeElement)) $('maxTeams').value = s.settings.maxTeams;
   renderTimer();
   $('scramble').textContent = `Scramble keypads: ${s.settings.scrambleKeypads ? 'on' : 'off'}`; $('phrases').textContent = `Bingo phrases: ${s.settings.bingoPhrases ? 'on' : 'off'}`;
-  if (!$('blockedForm').contains(document.activeElement)) $('blockedWords').value = s.blockedWords.join('\n'); $('displayMode').value = s.settings.displayMode; $('tvLanguage').value = s.settings.language; $('finish').textContent = s.settings.ended ? 'Resume quiz' : 'Finish quiz';
+  if (!$('blockedForm').contains(document.activeElement)) $('blockedWords').value = s.blockedWords.join('\n'); $('displayMode').value = s.settings.displayMode; $('autoView').textContent = s.settings.displayMode === 'auto' ? `(now: ${{join: 'join screen', leaderboard: 'leaderboard', question: 'question', winner: 'winner'}[s.view] || s.view})` : ''; $('tvLanguage').value = s.settings.language; $('finish').textContent = s.settings.ended ? 'Resume quiz' : 'Finish quiz';
   const offline = s.teams.filter(t => t.enabled && !t.waiting && !t.connected), photos = s.teams.filter(t => t.photo_status === 'pending').length;
   $('alerts').textContent = [waiting.length ? `🚪 Waiting room: ${waiting.map(t => t.name).join(', ')}` : '', offline.length ? `⚠ Disconnected: ${offline.map(t => t.name).join(', ')}` : '', photos ? `📷 ${photos} team ${photos === 1 ? 'photo' : 'photos'} waiting for approval in Teams & results` : ''].filter(Boolean).join(' · ');
   const played = new Set(s.history.map(q => q.sourceId)); const all = library?.rounds.flatMap(r => r.questions) || [];
@@ -481,7 +561,7 @@ async function refresh() {
   if (busy) return;
   if (!key) {$('connection').textContent = 'Desk locked'; return;}
   try {
-    const s = await request('state'); if (busy) return; if (!library) await loadLibrary();
+    const s = await request('state'); if (busy) return; if (!library) {await loadLibrary(); loadSpotify();}
     $('login').hidden = true; $('panel').hidden = false; $('connection').textContent = '● Server connected'; renderState(s);
     if (tab === 'mark') await loadReview();
   } catch (e) {

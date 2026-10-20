@@ -38,7 +38,7 @@ test('Evil Mode: wrong answers lose the points, no answer loses nothing', () => 
 test('fixed speed bonus goes only to the fastest correct answers', () => fixture(async ({call, tick}) => {
   const teams = [];
   for (const name of ['First', 'Second', 'Third', 'Wrong']) teams.push(await call('join', {name}));
-  const {id} = await call('host/open', question({speedBonus: 5, bonusMode: 'fixed', bonusPlaces: 2}));
+  const {id} = await call('host/open', question({fastestFingers: true, speedBonus: 5, bonusMode: 'fixed', bonusPlaces: 2}));
   for (const t of teams) await call('state', {}, t.secret);
   await call('answer', {question: id, value: 'Swansea'}, teams[3].secret); tick(1000);
   for (const t of teams.slice(0, 3)) {await call('answer', {question: id, value: 'Cardiff'}, t.secret); tick(1000);}
@@ -102,4 +102,46 @@ test('TV countdown: start, pause, resume, stop', () => fixture(async ({call, boa
   await call('host/timer', {action: 'stop'});
   assert.equal((await board()).timer, null);
   assert.equal((await call('host/timer', {action: 'start', seconds: 0})).status, 400);
+}));
+
+test('automatic TV: join, question, leaderboard after a round, winner; a manual view overrides it', () => fixture(async ({call, board, tick}) => {
+  const view = async () => (await board()).view;
+  assert.equal(await view(), 'join');
+  const saved = id => ({id, ...question({text: `Question ${id}`})});
+  await call('host/library/save', {revision: 0, quiz: {title: 'Auto', rounds: [{id: 'r1', title: 'Round 1', questions: [saved('a'), saved('b')]}, {id: 'r2', title: 'Round 2', questions: [saved('c')]}]}});
+  await call('host/next', {expectedQuestion: null}); assert.equal(await view(), 'question');
+  await call('host/close'); tick(60000); assert.equal(await view(), 'question'); // round 1 not over yet
+  await call('host/next', {expectedQuestion: 1}); await call('host/close');
+  assert.equal(await view(), 'question'); tick(5000);
+  await call('host/reveal', {question: 2}); tick(9000); assert.equal(await view(), 'question');
+  tick(1500); assert.equal(await view(), 'leaderboard');
+  await call('host/next', {expectedQuestion: 2}); assert.equal(await view(), 'question');
+  tick(31000); assert.equal(await view(), 'question'); // expired unrevealed: board 10 s after the deadline
+  tick(10000); assert.equal(await view(), 'leaderboard');
+  await call('host/settings', {displayMode: 'wheel'}); assert.equal(await view(), 'wheel');
+  await call('host/settings', {displayMode: 'auto', ended: true}); assert.equal(await view(), 'winner');
+}));
+
+test('reveal lists who scored, quickest answer first, with their time', () => fixture(async ({call, tick}) => {
+  const [slow, fast, wrong] = [await call('join', {name: 'Slow'}), await call('join', {name: 'Fast'}), await call('join', {name: 'Wrong'})];
+  const {id} = await call('host/open', question({fastestFingers: true, speedBonus: 30}));
+  for (const t of [slow, fast, wrong]) await call('state', {}, t.secret);
+  tick(1200); await call('answer', {question: id, value: 'Cardiff'}, fast.secret);
+  await call('answer', {question: id, value: 'Swansea'}, wrong.secret);
+  tick(3000); await call('answer', {question: id, value: 'cardiff'}, slow.secret);
+  await call('host/close'); await call('host/reveal', {question: id});
+  const q = (await call('state', {}, wrong.secret)).question;
+  assert.deepEqual(q.scorers.map(s => [s.name, s.ms]), [['Fast', 1200], ['Slow', 4200]]);
+  assert.ok(q.scorers[0].points > q.scorers[1].points);
+  await call('host/settings', {showScores: false});
+  assert.equal((await call('state', {}, wrong.secret)).question.scorers[0].points, null);
+}));
+
+test('no speed bonus unless fastest fingers first is on', () => fixture(async ({call}) => {
+  const team = await call('join', {name: 'Quick'});
+  for (const [fastestFingers, expected] of [[false, 2], [true, 7]]) {
+    const {id} = await call('host/open', question({speedBonus: 5, fastestFingers}));
+    await call('state', {}, team.secret); await call('answer', {question: id, value: 'Cardiff'}, team.secret); await call('host/close');
+    assert.equal((await call('state', {}, team.secret)).answer.points, expected);
+  }
 }));

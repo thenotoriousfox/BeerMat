@@ -5,7 +5,8 @@ import {existsSync, mkdirSync, writeFileSync, statSync, createReadStream, unlink
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {offensive} from './names.js';
-import {QuizError, requireValue, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, hostDriven, isBingo, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern} from './model.js';
+import {createSpotify} from './spotify.js';
+import {QuizError, requireValue, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, hostDriven, isBingo, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern} from './model.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(24).toString('hex');
@@ -13,13 +14,18 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 const equal = (a, b) => typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav'};
 const security = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; media-src 'self'; img-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"};
+// Only the quiz desk may load Spotify's Web Playback SDK (its script, its hidden player frame and the audio it streams).
+// Phones and the TV keep the strict, local-only policy.
+const deskSecurity = {...security, 'Content-Security-Policy': security['Content-Security-Policy']
+  .replace("script-src 'self'", "script-src 'self' https://sdk.scdn.co").replace("media-src 'self'", "media-src 'self' blob: https://*.scdn.co https://*.spotifycdn.com")
+  .replace("connect-src 'self'", "connect-src 'self' https://*.spotify.com wss://*.spotify.com https://*.scdn.co https://*.spotifycdn.com") + '; frame-src https://sdk.scdn.co'};
 // A late phone may not gain more than this much speed-bonus time over the moment the question opened.
 const DELIVERY_GRACE_MS = 2000;
 const SESSION_MS = 12 * 60 * 60 * 1000;
 // Read-only routes never notify clients of a change.
-const readOnly = new Set(['/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device']);
+const readOnly = new Set(['/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token']);
 
-export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null} = {}) {
+export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl} = {}) {
   if (typeof hostKey !== 'string' || hostKey.length < 12) throw Error('HOST_KEY must contain at least 12 characters');
   const db = new DatabaseSync(database);
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
@@ -58,6 +64,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   column('questions', 'agree_deadline', 'INTEGER');
   column('questions', 'announced', 'TEXT');
   column('answers', 'submitted', 'INTEGER');
+  column('questions', 'closed_at', 'INTEGER');
+  column('questions', 'revealed_at', 'INTEGER');
   column('answers', 'marks', 'TEXT');
   const rows = (sql, ...params) => db.prepare(sql).all(...params);
   const one = (sql, ...params) => db.prepare(sql).get(...params);
@@ -73,10 +81,16 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'leaderboard', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, teamPhotos: true, language: 'en', onlineAfterJoin: true, waitingRoom: false, maxTeams: 0, showScores: true};
+  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, teamPhotos: true, language: 'en', onlineAfterJoin: true, waitingRoom: false, maxTeams: 0, showScores: true};
   const SOUNDS = 8;
   const settings = () => ({...defaultSettings, ...getMeta('settings', {})});
+  // Events saved before the automatic TV existed start on it once.
+  if (!getMeta('autoTv', false)) {const saved = getMeta('settings', null); if (saved) setMeta('settings', {...saved, displayMode: 'auto'}); setMeta('autoTv', true);}
   const library = () => getMeta('library', {revision: 0, title: 'My quiz', rounds: []});
+  const spotify = createSpotify({getMeta, setMeta, now, accountsUrl: spotifyAccountsUrl, apiUrl: spotifyApiUrl});
+  // Spotify only accepts loopback redirect addresses written as an IP, so sign-in returns to 127.0.0.1 on this port.
+  const spotifyRedirect = () => `http://127.0.0.1:${server.address().port}/spotify/callback`;
+  const usesSpotify = data => (data.songs || data.clips || []).some(x => x.spotify);
   const latest = () => one('SELECT * FROM questions ORDER BY id DESC LIMIT 1');
   const questionById = id => Number.isSafeInteger(id) && id > 0 ? one('SELECT * FROM questions WHERE id=?', id) : null;
   const dataOf = q => JSON.parse(q.data);
@@ -107,7 +121,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const liveTeams = () => new Set([...streams].map(s => s.team).filter(Boolean));
   const ticker = setInterval(() => {
     // Expiry is time-driven, so announce it as soon as it happens.
-    const q = latest(), state = q ? `${q.id}:${pending(q)}:${accepting(q)}:${q.agree_deadline > now()}` : '';
+    const q = latest(), state = (q ? `${q.id}:${pending(q)}:${accepting(q)}:${q.agree_deadline > now()}` : '') + ':' + tvView();
     if (state !== lastPending) {lastPending = state; if (q) settle(q); notify();}
     if (++ticks % 60 === 0) for (const stream of streams) stream.res.write(': keep-alive\n\n');
   }, 250);
@@ -171,8 +185,16 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       if (teamId && one('SELECT 1 FROM go_wide WHERE team=? AND question=?', teamId, q.id)) result.wideCells = snake.path;
     }
     if (host || q.revealed) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], correct, target, clips, targetClip, songs, snakePath: snake?.path, tiles, tally: tally(q, data),
-      correctCount: one('SELECT COUNT(*) n FROM answers WHERE question=? AND points>0', q.id).n});
+      correctCount: one('SELECT COUNT(*) n FROM answers WHERE question=? AND points>0', q.id).n, scorers: scorers(q)});
     return result;
+  }
+  // Teams that scored, quickest answer first (each team's clock starts as for the speed bonus).
+  // Answers the quizmaster marked by hand have no answer time and come last.
+  function scorers(q) {
+    const shown = settings().showScores;
+    return rows('SELECT a.team,a.points,a.submitted,t.name FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=? AND a.points>0 AND t.enabled=1', q.id)
+      .map(a => ({name: a.name, points: shown ? a.points : null, ms: a.submitted === null ? null : Math.max(0, a.submitted - q.opened - lateness(q, a.team))}))
+      .sort((a, b) => (a.ms ?? Infinity) - (b.ms ?? Infinity) || a.name.localeCompare(b.name));
   }
   function shuffleOrder(length, seed) {
     const order = Array.from({length}, (_, i) => i); let s = seed * 9301 + 49297;
@@ -206,7 +228,28 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       FROM answers a JOIN questions q ON q.id=a.question WHERE a.submitted IS NOT NULL GROUP BY a.team`)) stats[row.team] = {answered: row.answered, scored: row.scored, fastest: row.fastest};
     return stats;
   }
-  function publicState() { return {serverTime: now(), settings: settings(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
+  // Automatic TV: join screen before the first question, the question while it runs and after it closes,
+  // the leaderboard once a round's last question has been revealed (or closed unrevealed) for a few seconds,
+  // and the winner when the quiz is finished. Any other projector view chosen on the desk overrides it.
+  const ROUND_BOARD_MS = 10000;
+  function tvView() {
+    const s = settings();
+    if (s.displayMode !== 'auto') return s.displayMode;
+    if (s.ended) return 'winner';
+    const q = latest();
+    if (!q) return s.registrationOpen ? 'join' : 'leaderboard';
+    if (pending(q) || !roundOver(q)) return 'question';
+    const since = q.revealed ? q.revealed_at : q.closed_at ?? q.deadline;
+    return since && now() - since >= ROUND_BOARD_MS ? 'leaderboard' : 'question';
+  }
+  // A saved question ends its round when every question in that round has been played.
+  function roundOver(q) {
+    const id = dataOf(q).sourceId, round = id && library().rounds.find(r => r.questions.some(x => x.id === id));
+    if (!round) return false;
+    const played = new Set(rows('SELECT data FROM questions').map(p => dataOf(p).sourceId));
+    return round.questions.every(x => played.has(x.id));
+  }
+  function publicState() { return {serverTime: now(), settings: settings(), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
 
   // Final scoring once answers stop: nearest-wins needs every answer before it can rank them.
   function settle(q) {
@@ -218,12 +261,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         for (const r of ranked) run('UPDATE answers SET points=? WHERE team=? AND question=?', r.points, r.team, q.id);
       }
       // Fixed speed bonus: once answers stop, the quickest fully right answers get it.
-      if (data.bonusMode === 'fixed' && data.speedBonus) {
+      if (data.bonusMode === 'fixed' && speedBonusOf(data)) {
         const right = rows('SELECT team,value,submitted FROM answers WHERE question=? AND submitted IS NOT NULL', q.id)
           .filter(a => basePoints(a.value, data) === data.points && isCorrect(a.value, data))
           .map(a => ({team: a.team, ms: a.submitted - q.opened - lateness(q, a.team), submitted: a.submitted}))
           .sort((a, b) => a.ms - b.ms || a.submitted - b.submitted);
-        for (const a of right.slice(0, data.bonusPlaces)) run('UPDATE answers SET points=points+? WHERE team=? AND question=?', data.speedBonus, a.team, q.id);
+        for (const a of right.slice(0, data.bonusPlaces)) run('UPDATE answers SET points=points+? WHERE team=? AND question=?', speedBonusOf(data), a.team, q.id);
       }
       run('UPDATE questions SET settled=1 WHERE id=?', q.id);
       endAway(q);
@@ -246,7 +289,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   }
   function closeQuestion(q) {
     if (!q) return;
-    run('UPDATE questions SET closed=1,paused_ms=NULL,agree_deadline=NULL WHERE id=?', q.id); endAway(q);
+    run('UPDATE questions SET closed=1,closed_at=COALESCE(closed_at,?),paused_ms=NULL,agree_deadline=NULL WHERE id=?', now(), q.id); endAway(q);
+    if (usesSpotify(dataOf(q)) && spotify.connected()) spotify.pause();
     settle(questionById(q.id));
   }
   function autoMark(value, data, q, teamId) {
@@ -263,7 +307,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (base !== data.points || !isCorrect(value, data) || data.bonusMode === 'fixed') return {points: base, marks: null};
     // The bonus decays over the accepted time (a pause extends the deadline).
     const fraction = Math.min(1, Math.max(0, q.deadline - now() + lateness(q, teamId)) / (data.seconds * 1000));
-    return {points: data.points + Math.floor((data.speedBonus || 0) * fraction), marks: null};
+    return {points: data.points + Math.floor(speedBonusOf(data) * fraction), marks: null};
   }
   // Each team's clock starts when its phone received the question, but never more than a short grace period after opening.
   function lateness(q, teamId) {
@@ -324,9 +368,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     }
     return Buffer.concat(chunks);
   }
-  function sendFile(req, res, location) {
+  function sendFile(req, res, location, policy = security) {
     const size = statSync(location).size;
-    const headers = {...security, 'Content-Type': types[path.extname(location).toLowerCase()], 'Accept-Ranges': 'bytes'};
+    const headers = {...policy, 'Content-Type': types[path.extname(location).toLowerCase()], 'Accept-Ranges': 'bytes'};
     if (req.headers.range) {
       const match = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range);
       if (!match || (!match[1] && !match[2])) {res.writeHead(416, {...headers, 'Content-Range': `bytes */${size}`}); return res.end();}
@@ -397,9 +441,18 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           return sendFile(req, res, file);
         }
         if (p === '/health') return send(200, {ok: true});
+        if (p === '/spotify/callback') {
+          // Sign-in only ever finishes in a browser on the laptop itself.
+          const page = (title, text) => {res.writeHead(200, {...security, 'Content-Type': 'text/html; charset=utf-8'}); res.end(`<!doctype html><meta charset="utf-8"><title>${title}</title><body style="font:18px system-ui;background:#0c1220;color:#f3f4f6;padding:40px"><h1>${title}</h1><p>${text}</p>`);};
+          if (!loopback(clientIp(req))) return page('Not here', 'Connect Spotify from the quiz laptop.');
+          if (url.searchParams.get('error')) return page('Spotify not connected', 'Spotify sign-in was cancelled. Close this tab and try again from the quiz desk.');
+          try {await spotify.callback(url.searchParams.get('code'), url.searchParams.get('state'));}
+          catch (e) {return page('Spotify not connected', (e instanceof QuizError ? e.message : 'Something went wrong.').replace(/[<>&]/g, ''));}
+          return page('Spotify connected', 'Close this tab and go back to the quiz desk.');
+        }
         if (answerProbe(req, res, p)) return;
         // OS HTTP probes and arbitrary HTTP landing URLs get registration.
-        return sendFile(req, res, path.join(root, routes[p] || 'player.html'));
+        return sendFile(req, res, path.join(root, routes[p] || 'player.html'), p === '/host' ? deskSecurity : security);
       }
       if (req.method === 'GET' && p === '/api/leaderboard') return send(200, publicState());
       requireValue(req.method === 'POST', 'POST required', 405);
@@ -446,7 +499,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/logout') {run('DELETE FROM host_sessions WHERE hash=?', hash(auth)); return send(200, {ok: true});}
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats();
-          return send(200, {serverTime: now(), settings: settings(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {serverTime: now(), settings: settings(), view: tvView(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -465,7 +518,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           if (Object.hasOwn(body, 'joinUrl')) {requireValue(typeof body.joinUrl === 'string' && /^https?:\/\/[^\s]{1,150}$/.test(body.joinUrl.trim()), 'Join address must start with http:// and have no spaces'); next.joinUrl = body.joinUrl.trim();}
           if (Object.hasOwn(body, 'maxTeams')) {requireValue(Number.isInteger(body.maxTeams) && body.maxTeams >= 0 && body.maxTeams <= 250, 'Maximum teams must be 0 (no limit) to 250'); next.maxTeams = body.maxTeams;}
           if (Object.hasOwn(body, 'language')) {requireValue(['en', 'fr', 'es'].includes(body.language), 'Unknown language'); next.language = body.language;}
-          if (Object.hasOwn(body, 'displayMode')) {requireValue(['join', 'leaderboard', 'question', 'wheel', 'winner', 'blank'].includes(body.displayMode), 'Invalid projector view'); next.displayMode = body.displayMode;}
+          if (Object.hasOwn(body, 'displayMode')) {requireValue(['auto', 'join', 'leaderboard', 'question', 'wheel', 'winner', 'blank'].includes(body.displayMode), 'Invalid projector view'); next.displayMode = body.displayMode;}
           // Extra blocked team-name words stay private to the desk.
           if (Object.hasOwn(body, 'blockedWords')) {
             requireValue(typeof body.blockedWords === 'string' && body.blockedWords.length <= 2000, 'Blocked words must be up to 2,000 characters');
@@ -505,7 +558,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const remaining = Array.from({length: data.type === 'musicbingo' ? data.songs.length : 90}, (_, i) => i + 1).filter(n => !called.has(n));
           requireValue(remaining.length, data.type === 'musicbingo' ? 'Every song has been played' : 'Every number has been called', 409);
           const number = remaining[randomInt(remaining.length)];
-          run('INSERT INTO bingo_calls VALUES(?,?,?,?)', q.id, called.size + 1, number, now()); return send(200, {number});
+          run('INSERT INTO bingo_calls VALUES(?,?,?,?)', q.id, called.size + 1, number, now());
+          // A Spotify song starts on the laptop's Spotify app; if that fails the call still stands and the desk is told why.
+          const song = data.type === 'musicbingo' && data.songs[number - 1];
+          if (song?.spotify) try {await spotify.play(song.spotify, data.startAt);} catch (e) {if (!(e instanceof QuizError)) throw e; return send(200, {number, warning: e.message});}
+          return send(200, {number});
         }
         if (p === '/api/host/clip') {
           const q = questionById(body.question); requireValue(q && pending(q) && dataOf(q).type === 'clips', 'No live sound clips game', 409);
@@ -517,6 +574,21 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           requireValue(Array.isArray(items) && items.length >= 2 && items.length <= 60 && items.every(i => typeof i === 'string' && i.trim() && i.length <= 60), 'The wheel needs 2–60 entries of up to 60 characters');
           const wheel = {id: (getMeta('wheel', null)?.id || 0) + 1, items: items.map(i => i.trim()), result: randomInt(items.length), spun: now()};
           setMeta('wheel', wheel); return send(200, wheel);
+        }
+        if (p === '/api/host/spotify/status') return send(200, {...await spotify.status(), redirectUri: spotifyRedirect()});
+        if (p === '/api/host/spotify/connect') return send(200, {url: spotify.authorizeUrl(body.clientId, spotifyRedirect())});
+        // The desk's Spotify player needs a current access token; the long-lived sign-in token never leaves the server.
+        if (p === '/api/host/spotify/token') return send(200, await spotify.accessToken());
+        if (p === '/api/host/spotify/disconnect') {spotify.disconnect(); return send(200, {ok: true});}
+        if (p === '/api/host/spotify/device') {spotify.device(body.id); return send(200, {ok: true});}
+        if (p === '/api/host/spotify/import') return send(200, {songs: await spotify.tracks(body.links)});
+        if (p === '/api/host/spotify/pause') {await spotify.pause(); return send(200, {ok: true});}
+        // A Spotify sound clip: start it, then log it as playing so taps count against it.
+        if (p === '/api/host/spotify/play') {
+          const q = questionById(body.question); requireValue(q && pending(q) && dataOf(q).type === 'clips', 'No live sound clips game', 409);
+          const clip = dataOf(q).clips[body.clip]; requireValue(Number.isInteger(body.clip) && clip?.spotify, 'Not a Spotify clip');
+          await spotify.play(clip.spotify, clip.start);
+          run('INSERT INTO clip_plays VALUES(?,?,?,?)', q.id, (nowPlaying(q)?.seq || 0) + 1, body.clip, now()); return send(200, {ok: true});
         }
         if (p === '/api/host/admit') {run('UPDATE teams SET waiting=0 WHERE waiting=1 AND enabled=1'); return send(200, {ok: true});}
         // A countdown on the TV, separate from question timers (e.g. "5 minutes to hand in sheets").
@@ -537,7 +609,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         }
         if (p === '/api/host/reveal') {
           const q = questionById(body.question); requireValue(q && !pending(q), 'Close question before revealing', 409);
-          run('UPDATE questions SET revealed=? WHERE id=?', body.revealed === false ? 0 : 1, q.id); return send(200, {ok: true});
+          run('UPDATE questions SET revealed=?,revealed_at=? WHERE id=?', body.revealed === false ? 0 : 1, body.revealed === false ? null : now(), q.id); return send(200, {ok: true});
         }
         if (p === '/api/host/review') {
           const q = questionById(body.question); requireValue(q, 'Question not found', 404);
@@ -659,7 +731,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         requireValue(bingoLines(ticket(data, team.id, q), called) >= bingoNeeded(data.mode), 'Not yet — keep marking your ticket', 409);
         // The first claim takes the bonus; later claims on the same call score the standard points.
         const first = !one('SELECT 1 FROM answers WHERE question=? AND points>0', q.id);
-        award(team.id, q, `BINGO on call ${called.size}`, data.points + (first ? data.speedBonus : 0));
+        award(team.id, q, `BINGO on call ${called.size}`, data.points + (first ? speedBonusOf(data) : 0));
         return send(200, {ok: true, first});
       }
       // Phones report leaving the quiz page (switching app, locking) while a question is open.
@@ -682,7 +754,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         requireValue(!one('SELECT 1 FROM answers WHERE team=? AND question=?', team.id, q.id), 'You have already tapped', 409);
         // Full points for tapping during the right clip, plus a bonus that fades over its first five seconds.
         const right = playing.clip === data.targetClip, elapsed = now() - playing.at;
-        const points = right ? data.points + Math.floor((data.speedBonus || 0) * Math.max(0, 1 - elapsed / 5000)) : 0;
+        const points = right ? data.points + Math.floor(speedBonusOf(data) * Math.max(0, 1 - elapsed / 5000)) : 0;
         award(team.id, q, playing.clip >= 0 ? `Clip ${playing.clip + 1}` : 'Between clips', points);
         return send(200, {ok: true, clip: playing.clip >= 0 ? playing.clip + 1 : null});
       }

@@ -57,7 +57,7 @@ export function timeText(question, offset = 0) {
 export const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 export function renderSolution(container, question) {
   // Only rebuild when the reveal changes, so its entrance animation plays once.
-  const key = question?.revealed ? JSON.stringify([question.id, question.answer, question.tally, question.correctCount, question.answerNote]) : '';
+  const key = question?.revealed ? JSON.stringify([question.id, question.answer, question.tally, question.scorers, question.answerNote]) : '';
   if (container.dataset.reveal === key) return;
   container.dataset.reveal = key; container.replaceChildren();
   if (!question?.revealed) return;
@@ -78,7 +78,19 @@ export function renderSolution(container, question) {
     }
     container.append(list);
   }
-  if (question.type !== 'vote' && question.correctCount !== undefined) container.append(element('p', question.correctCount === 1 ? t('1 team scored') : t('{n} teams scored', {n: question.correctCount}), 'muted'));
+  // Who scored, fastest answer first.
+  if (question.type !== 'vote' && question.scorers) {
+    const n = question.scorers.length;
+    container.append(element('p', !n ? t('Nobody scored this time') : n === 1 ? t('1 team scored') : t('{n} teams scored — fastest first', {n}), 'muted scorers-title'));
+    const list = element('ol', undefined, 'scorers');
+    list.append(...question.scorers.map(s => {
+      const li = element('li'); li.append(element('span', s.name, 'team-name'));
+      const detail = [s.ms === null ? '' : t('{s}s', {s: (s.ms / 1000).toFixed(1)}), s.points === null ? '' : `+${s.points}`].filter(Boolean).join(' · ');
+      if (detail) li.append(element('strong', detail));
+      return li;
+    }));
+    if (n) container.append(list);
+  }
 }
 export function selectOptions(select, entries, chosen) {
   const signature = JSON.stringify(entries);

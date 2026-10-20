@@ -71,15 +71,16 @@ try {
   await host.reload(); await visible(host, '#panel'); await host.locator('[data-tab=build]').click(); await waitFor(host, () => document.getElementById('questionSelect').options.length === 6);
   log('form authoring: text, choice, one-item sheet, picture and audio upload; saved quiz survives reload');
   await player.goto(base + '/hotspot-detect.html'); await player.locator('#name').fill('Fox team'); await player.locator('#joinButton').click(); await visible(player, '#game'); const recovery = await player.locator('#code').textContent(); assert.equal(recovery.length, 48);
-  await projector.goto(base + '/display'); await projector.getByText('1. Fox team').waitFor();
-  await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('join'); await visible(projector, '#joinSection');
+  // The TV starts in Auto: before the first question it shows how to join.
+  await projector.goto(base + '/display'); await visible(projector, '#joinSection');
+  await host.locator('[data-tab=live]').click(); assert.equal(await host.locator('#displayMode').inputValue(), 'auto'); await waitFor(host, () => document.getElementById('autoView').textContent === '(now: join screen)');
   await waitFor(projector, () => document.querySelector('#wifiQr svg')?.getAttribute('aria-label') === 'QR code: WIFI:T:nopass;S:PubQuiz;;');
   assert.equal(await projector.locator('.qr').count(), 1, 'one code to scan'); assert.match(await projector.locator('#joinStepWifi').textContent(), /“PubQuiz”/);
   assert.match(await projector.locator('#joinFallback').textContent(), /10\.42\.0\.1/); assert.match(await projector.locator('#joinStatus').textContent(), /1 team has joined/);
   await host.locator('#joinSsidInput').fill('Fox Quiz'); await host.locator('#joinDetails button').click(); await waitFor(projector, () => document.getElementById('joinStepWifi').textContent.includes('Fox Quiz'));
   await projector.mouse.move(5, 5); await projector.mouse.move(20, 20); await projector.locator('#fullscreen').click(); await waitFor(projector, () => !!document.fullscreenElement && document.getElementById('fullscreen').textContent.includes('Exit'));
   await projector.keyboard.press('f'); await waitFor(projector, () => !document.fullscreenElement);
-  await host.locator('#displayMode').selectOption('leaderboard'); await waitFor(projector, () => document.getElementById('joinHint').textContent.includes('Fox Quiz'));
+  await host.locator('#displayMode').selectOption('leaderboard'); await waitFor(projector, () => document.getElementById('joinHint').textContent.includes('Fox Quiz')); await projector.getByText('1. Fox team').waitFor();
   log('projector join screen with Wi-Fi and address QR codes, editable join details, full-screen toggle');
   await host.locator('[data-tab=live]').click(); await host.locator('#next').click(); await player.getByRole('heading', {name: 'Type hello', exact: true}).waitFor();
   await player.locator('#inputs input').fill('hi'); await waitFor(player, () => document.getElementById('draftStatus').textContent.includes('Draft saved'));
@@ -289,13 +290,16 @@ try {
   await waitFor(player, () => /^#\d+$/.test(document.getElementById('myScore').textContent)); await host.locator('#showScores').click();
   await waitFor(projector, () => document.querySelector('#leaderboard strong').textContent.endsWith('pts'));
   log('TV countdown over the leaderboard; board switches between scores and positions only');
-  await host.locator('[data-tab=build]').click(); await host.locator('#questionSelect').selectOption(''); await host.locator('#qType').selectOption('vote');
+  await host.locator('[data-tab=build]').click(); await waitFor(host, () => document.getElementById('spotifyStatus').textContent === 'Not connected' && /^http:\/\/127\.0\.0\.1:\d+\/spotify\/callback$/.test(document.getElementById('spotifyRedirect').textContent));
+  assert.equal(await host.locator('#spotifySongs').isDisabled(), true);
+  await host.locator('#questionSelect').selectOption(''); await host.locator('#qType').selectOption('vote');
   assert.equal(await host.locator('#evilLabel').isHidden(), true); await host.locator('#qType').selectOption('text'); assert.equal(await host.locator('#evilLabel').isVisible(), true);
+  assert.equal(await host.locator('#speedLabel').isHidden(), true); await host.locator('#qFastest').check(); assert.equal(await host.locator('#speedLabel').isVisible(), true);
   assert.equal(await host.locator('#bonusPlacesLabel').isHidden(), true); await host.locator('#qBonusMode').selectOption('fixed'); assert.equal(await host.locator('#bonusPlacesLabel').isVisible(), true);
   await host.locator('#qText').fill('Evil capital'); await host.locator('#qAnswer').fill('Cardiff'); await host.locator('#qEvil').check(); await host.locator('#qSpeed').fill('3'); await host.locator('#qBonusPlaces').fill('2');
   await host.locator('#saveQuestion').click(); await waitFor(host, () => document.getElementById('editorStatus').textContent === 'Saved question loaded');
   const saved = (await hostApi('library')).rounds.flatMap(r => r.questions).find(q => q.text === 'Evil capital');
-  assert.deepEqual([saved.evil, saved.bonusMode, saved.bonusPlaces, saved.speedBonus], [true, 'fixed', 2, 3]);
+  assert.deepEqual([saved.evil, saved.fastestFingers, saved.bonusMode, saved.bonusPlaces, saved.speedBonus], [true, true, 'fixed', 2, 3]);
   log('builder: Evil Mode and fixed speed bonus fields save with the question');
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await host.locator('#finish').click(); await waitFor(projector, () => document.getElementById('boardStatus').textContent === 'Final standings');
   await visible(projector, '#winnerSection'); await waitFor(projector, () => document.getElementById('winnerName').textContent === 'Fox team' && document.querySelectorAll('#confetti span').length === 80);

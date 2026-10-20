@@ -12,6 +12,7 @@ const integer = (v, min, max) => Number.isInteger(v) && v >= min && v <= max;
 export const normalise = value => value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-GB');
 export const matches = (value, answers) => answers.some(answer => normalise(value) === normalise(answer));
 export const numberPattern = /^-?\d{1,15}(\.\d{1,6})?$/;
+export const spotifyPattern = /^spotify:track:[A-Za-z0-9]{22}$/;
 export const mediaPattern = /^\/media\/[a-zA-Z0-9_-][a-zA-Z0-9_.-]*\.(png|jpg|jpeg|webp|mp3|ogg|wav)$/i;
 const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = ['.mp3', '.ogg', '.wav'];
 
@@ -22,6 +23,7 @@ export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'seque
 // Buzzer questions stay open until the quizmaster rules on them; the timer only limits buzzing.
 // Formats the server marks right or wrong by itself: these can use Evil Mode and a fixed speed bonus.
 export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio'].includes(q.type) && !!q.answer);
+export const speedBonusOf = q => q.fastestFingers ? q.speedBonus || 0 : 0;
 export const hostDriven = type => ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(type);
 export const isBingo = type => type === 'bingo' || type === 'musicbingo';
 
@@ -39,6 +41,8 @@ export function validateQuestion(q, mediaDir) {
     answer: q.answer?.trim() || '', answerNote: q.answerNote?.trim() || '', aliases: [], options: [], items: [], itemAnswers: [], media: null,
     speedBonus: q.speedBonus ?? 0, round: typeof q.round === 'string' ? q.round.slice(0, 100) : ''};
   requireValue(integer(result.speedBonus, 0, 100) && (speedTypes.includes(q.type) || result.speedBonus === 0), 'Speed bonus must be 0–100 (zero for this format)');
+  // Fastest fingers first: without it, answering quickly earns nothing extra (the bonus value is kept but unused).
+  result.fastestFingers = q.fastestFingers === true;
   // Speed bonus: sliding (fades over the time allowed) or fixed (only the fastest correct answers get it).
   result.bonusMode = q.bonusMode ?? 'sliding'; result.bonusPlaces = q.bonusPlaces ?? 1;
   requireValue(['sliding', 'fixed'].includes(result.bonusMode), 'Speed bonus must be sliding or fixed');
@@ -93,11 +97,17 @@ export function validateQuestion(q, mediaDir) {
   }
   if (q.type === 'clips') {
     requireValue(Array.isArray(q.clips) && q.clips.length >= 2 && q.clips.length <= 30, 'Add 2–30 audio clips');
+    // A clip is an uploaded audio file, or a Spotify track played from a start time for clipSeconds.
     result.clips = q.clips.map(c => {
-      requireValue(c && typeof c.media === 'string' && mediaPattern.test(c.media) && audioExtensions.includes(path.extname(c.media).toLowerCase()) && existsSync(path.join(mediaDir, path.basename(c.media))), 'Each clip needs an uploaded audio file');
+      requireValue(c && typeof c === 'object', 'Invalid clip');
+      if (c.spotify) {
+        requireValue(spotifyPattern.test(c.spotify) && integer(c.start ?? 0, 0, 3600), 'Spotify clips need a track and a start time of 0–3,600 seconds');
+      } else requireValue(typeof c.media === 'string' && mediaPattern.test(c.media) && audioExtensions.includes(path.extname(c.media).toLowerCase()) && existsSync(path.join(mediaDir, path.basename(c.media))), 'Each clip needs an uploaded audio file or a Spotify track');
       requireValue(c.label === undefined || text(c.label, 100, false), 'Clip names must be up to 100 characters');
-      return {media: c.media, label: c.label?.trim() || ''};
+      return c.spotify ? {spotify: c.spotify, start: c.start ?? 0, label: c.label?.trim() || ''} : {media: c.media, label: c.label?.trim() || ''};
     });
+    result.clipSeconds = q.clipSeconds ?? 15;
+    requireValue(integer(result.clipSeconds, 3, 60), 'Spotify clip length must be 3–60 seconds');
     result.targetClip = q.targetClip;
     requireValue(integer(q.targetClip, 0, result.clips.length - 1), 'Pick which clip teams should tap for');
   }
@@ -105,10 +115,15 @@ export function validateQuestion(q, mediaDir) {
     requireValue(Array.isArray(q.songs) && q.songs.length >= 15 && q.songs.length <= 300, 'Music bingo needs 15–300 songs');
     result.songs = q.songs.map(song => {
       requireValue(song && text(song.title, 100), 'Every song needs a title of up to 100 characters');
-      const media = song.media || null;
+      const media = song.media || null, spotify = song.spotify || null;
       requireValue(!media || (typeof media === 'string' && mediaPattern.test(media) && audioExtensions.includes(path.extname(media).toLowerCase()) && existsSync(path.join(mediaDir, path.basename(media)))), 'Song audio must be an uploaded MP3, Ogg or WAV');
-      return {title: song.title.trim(), media};
+      requireValue(!spotify || (typeof spotify === 'string' && spotifyPattern.test(spotify)), 'Invalid Spotify track');
+      requireValue(!(media && spotify), 'A song plays either an uploaded file or Spotify, not both');
+      return {title: song.title.trim(), media, ...(spotify ? {spotify} : {})};
     });
+    // Spotify songs start this far in (e.g. at the chorus).
+    result.startAt = q.startAt ?? 0;
+    requireValue(integer(result.startAt, 0, 600), 'Spotify start time must be 0–600 seconds');
     requireValue(new Set(result.songs.map(s => s.title.toLowerCase())).size === result.songs.length, 'Song titles must all be different');
     result.revealNow = q.revealNow === true;
   }

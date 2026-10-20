@@ -38,7 +38,7 @@ test('saved quiz: revisions, ordering, start/next protection and restart persist
 
 test('pause, expiry, speed scoring, hidden keys, explicit reveal and finish/resume', () => fixture(async ({call, tick, restart, url}) => {
   const team = await call('join', {name: 'Fox'});
-  await call('host/open', question('q', {speedBonus: 10, aliases: ['Caerdydd']}));
+  await call('host/open', question('q', {fastestFingers: true, speedBonus: 10, aliases: ['Caerdydd']}));
   const qid = (await call('state', {}, team.secret)).question.id;
   tick(5000); await call('host/pause'); tick(60000);
   let s = await call('state', {}, team.secret); assert.equal(s.question.paused, true); assert.equal(s.question.remaining, 25000);
