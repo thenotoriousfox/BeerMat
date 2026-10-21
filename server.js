@@ -113,7 +113,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, teamPhotos: true, language: 'en', onlineAfterJoin: true, waitingRoom: false, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {}};
+  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, bingoBoard: false, teamPhotos: true, language: 'en', onlineAfterJoin: true, waitingRoom: false, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {}};
   const SOUNDS = 8;
   // Sound effects for the TV and extra buzzer sounds, both from the quizmaster's own files; custom bingo calls (1–90).
   // This laptop's sound pack (scripts/sound-pack.mjs) supplies the defaults until the desk changes them; a desk choice of
@@ -290,10 +290,13 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       // After a wrong call a team waits for the next number before calling again.
       myShout: myShout ? {status: myShout.status, seq: myShout.seq} : null} : {};
     const winners = progress.winners;
-    if (data.type === 'bingo') return {mode: data.mode, ...progress, colours: bingoColours(), called, last: called.at(-1) ?? null, phrase: called.length ? bingoCalls()?.[called.at(-1) - 1] || null : null, voice: called.length ? bingoVoice(called.at(-1)) : null, winners, ...mine, ...(teamId ? {card: ticket(data, teamId, q)} : {})};
+    // Teams have to listen: unless the quizmaster puts the board on, phones and the TV get only the latest call and how
+    // many there have been, until the game ends. The desk always has the full list.
+    const board = host || settings().bingoBoard || !pending(q);
+    if (data.type === 'bingo') return {mode: data.mode, ...progress, board, colours: bingoColours(), called: board ? called : null, count: called.length, last: called.at(-1) ?? null, phrase: called.length ? bingoCalls()?.[called.at(-1) - 1] || null : null, voice: called.length ? bingoVoice(called.at(-1)) : null, winners, ...mine, ...(teamId ? {card: ticket(data, teamId, q)} : {})};
     // Music bingo hides the song now playing (teams must recognise it) unless the host chose to reveal titles straight away.
     const shown = data.revealNow || !pending(q) ? called : called.slice(0, -1);
-    return {mode: data.mode, ...progress, music: true, played: called.length, titles: shown.map(n => data.songs[n - 1].title), winners, ...mine,
+    return {mode: data.mode, ...progress, music: true, board, played: called.length, titles: (board ? shown : shown.slice(-1)).map(n => data.songs[n - 1].title), winners, ...mine,
       ...(teamId ? {card: ticket(data, teamId, q).map(row => row.map(n => data.songs[n - 1].title))} : {}),
       ...(host ? {current: called.length ? {number: called.at(-1), ...data.songs[called.at(-1) - 1]} : null} : {})};
   }
@@ -667,7 +670,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         }
         if (p === '/api/host/settings') {
           const next = {...settings()};
-          for (const k of ['registrationOpen', 'leaderboardVisible', 'ended', 'scrambleKeypads', 'bingoPhrases', 'bingoVoice', 'teamPhotos', 'onlineAfterJoin', 'waitingRoom', 'showScores']) if (Object.hasOwn(body, k)) {requireValue(typeof body[k] === 'boolean', 'Invalid setting'); next[k] = body[k];}
+          for (const k of ['registrationOpen', 'leaderboardVisible', 'ended', 'scrambleKeypads', 'bingoPhrases', 'bingoVoice', 'bingoBoard', 'teamPhotos', 'onlineAfterJoin', 'waitingRoom', 'showScores']) if (Object.hasOwn(body, k)) {requireValue(typeof body[k] === 'boolean', 'Invalid setting'); next[k] = body[k];}
           if (Object.hasOwn(body, 'title')) {requireValue(typeof body.title === 'string' && body.title.trim() && body.title.length <= 100, 'Title must contain 1–100 characters'); next.title = body.title.trim();}
           // Shown on the projector's join screen; the Wi-Fi name should match the hotspot's --ssid.
           if (Object.hasOwn(body, 'joinSsid')) {requireValue(typeof body.joinSsid === 'string' && body.joinSsid.trim() && Buffer.byteLength(body.joinSsid.trim()) <= 32, 'Wi-Fi name must be 1–32 bytes'); next.joinSsid = body.joinSsid.trim();}

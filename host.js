@@ -550,6 +550,7 @@ $('visibility').onclick = () => action(() => request('settings', {leaderboardVis
 $('scramble').onclick = () => action(() => request('settings', {scrambleKeypads: !state.settings.scrambleKeypads}), 'Keypad scrambling updated — applies from the next question');
 $('phrases').onclick = () => action(() => request('settings', {bingoPhrases: !state.settings.bingoPhrases}));
 $('caller').onclick = () => action(() => request('settings', {bingoVoice: !state.settings.bingoVoice}));
+$('board').onclick = () => action(() => request('settings', {bingoBoard: !state.settings.bingoBoard}));
 $('online').onclick = () => action(() => request('settings', {onlineAfterJoin: !state.settings.onlineAfterJoin}));
 $('waitingRoom').onclick = () => action(() => request('settings', {waitingRoom: !state.settings.waitingRoom}), 'Waiting room updated — applies to teams joining from now on');
 $('admitAll').onclick = () => action(() => request('admit'), 'Everyone waiting has been let in');
@@ -735,7 +736,7 @@ function renderState(s) {
   $('showScores').textContent = `Board shows: ${s.settings.showScores ? 'scores' : 'positions only'}`;
   if (!$('maxTeamsForm').contains(document.activeElement)) $('maxTeams').value = s.settings.maxTeams;
   renderTimer();
-  $('scramble').textContent = `Scramble keypads: ${s.settings.scrambleKeypads ? 'on' : 'off'}`; $('phrases').textContent = `Bingo phrases: ${s.settings.bingoPhrases ? 'on' : 'off'}`; $('caller').textContent = `Bingo caller voice: ${s.settings.bingoVoice ? 'on' : 'off'}`;
+  $('scramble').textContent = `Scramble keypads: ${s.settings.scrambleKeypads ? 'on' : 'off'}`; $('phrases').textContent = `Bingo phrases: ${s.settings.bingoPhrases ? 'on' : 'off'}`; $('caller').textContent = `Bingo caller voice: ${s.settings.bingoVoice ? 'on' : 'off'}`; $('board').textContent = `TV shows called numbers: ${s.settings.bingoBoard ? 'on' : 'off'}`;
   if (!$('blockedForm').contains(document.activeElement)) $('blockedWords').value = s.blockedWords.join('\n'); $('displayMode').value = s.settings.displayMode; $('autoView').textContent = s.settings.displayMode === 'auto' ? `(now: ${{join: 'join screen', leaderboard: 'leaderboard', question: 'question', winner: 'winner'}[s.view] || s.view})` : ''; $('tvLanguage').value = s.settings.language; $('finish').textContent = s.settings.ended ? 'Resume quiz' : 'Finish quiz';
   const offline = s.teams.filter(t => t.enabled && !t.waiting && !t.connected), photos = s.teams.filter(t => t.photo_status === 'pending').length;
   $('alerts').textContent = [waiting.length ? `🚪 Waiting room: ${waiting.map(t => t.name).join(', ')}` : '', offline.length ? `⚠ Disconnected: ${offline.map(t => t.name).join(', ')}` : '', photos ? `📷 ${photos} team ${photos === 1 ? 'photo' : 'photos'} waiting for approval in Teams & results` : ''].filter(Boolean).join(' · ');

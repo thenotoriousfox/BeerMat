@@ -17,7 +17,7 @@ const winText = g => {
   return t('{stage}: {names}', {stage: mode(g.lastStage), names}) + (g.over ? ' 🎉' : ' · ' + t('Playing for {stage}', {stage: mode(g.playingFor)}));
 };
 // Calls of "bingo!" waiting for the quizmaster, or one just turned down (until the next number), take over the status line.
-const callCount = g => g.music ? g.played : g.called.length;
+const callCount = g => g.music ? g.played : g.count;
 const shoutText = g => {
   const waiting = g.shouts.filter(x => x.status === 'pending').map(x => x.name);
   if (waiting.length) return t('🔔 {names} called BINGO! Checking…', {names: waiting.join(', ')});
@@ -212,7 +212,7 @@ function renderBingo(q) {
     $('bingoMode').textContent = t('Music bingo · {mode} · {n} played', {mode: stageText(b), n: b.played});
     delete $('bingoLast').dataset.colour; $('bingoLast').textContent = b.played ? t('Song {n}', {n: b.played}) : '–'; $('bingoPhrase').textContent = b.titles.length ? t('Revealed: {title}', {title: b.titles.at(-1)}) : '';
   } else {
-    $('bingoMode').textContent = t('{mode} · {n} called', {mode: stageText(b), n: b.called.length});
+    $('bingoMode').textContent = t('{mode} · {n} called', {mode: stageText(b), n: b.count});
     $('bingoLast').dataset.colour = b.last && b.colours?.[b.last - 1] || ''; $('bingoLast').textContent = b.last ?? '–'; $('bingoPhrase').textContent = current.settings.bingoPhrases && b.last ? b.phrase ?? bingoCall(b.last) : '';
   }
   const mine = b.myShout, checking = mine?.status === 'pending', turnedDown = mine?.status === 'wrong' && mine.seq === callCount(b);
@@ -317,16 +317,16 @@ function displayState(s) {
   if (c) {$('clipNow').textContent = c.playing ? t('🎵 Clip {n} of {count}', {n: c.playing, count: c.count}) : q.live ? t('Listen carefully…') : t('Clips finished'); $('clipTaps').textContent = t('{n} teams have tapped', {n: c.taps});}
   const g = q?.bingo; $('projectBingo').hidden = !g;
   if (g) {
-    $('bingoBoard').classList.toggle('music', !!g.music);
+    $('bingoBoard').classList.toggle('music', !!g.music); $('bingoBoard').hidden = !g.board;
     if (g.music) {
       delete $('bingoBig').dataset.colour; $('bingoBig').textContent = g.played ? '🎵 ' + t('Song {n}', {n: g.played}) : '🎵'; $('bingoCallText').textContent = g.titles.length ? t('Last revealed: {title}', {title: g.titles.at(-1)}) : '';
       $('bingoWinners').textContent = shoutText(g) || (g.winners.length ? winText(g) : t('Music bingo · {mode}', {mode: stageText(g)}));
       $('bingoBoard').replaceChildren(...[...g.titles].reverse().map(title => element('span', title, 'called')));
     } else {
       $('bingoBig').dataset.colour = g.last && g.colours?.[g.last - 1] || ''; $('bingoBig').textContent = g.last ?? '–'; $('bingoCallText').textContent = s.settings.bingoPhrases && g.last ? g.phrase ?? bingoCall(g.last) : '';
-      $('bingoWinners').textContent = shoutText(g) || (g.winners.length ? winText(g) : t('{mode} · {n} called', {mode: stageText(g), n: g.called.length}));
+      $('bingoWinners').textContent = shoutText(g) || (g.winners.length ? winText(g) : t('{mode} · {n} called', {mode: stageText(g), n: g.count}));
       if ($('bingoBoard').children.length !== 90 || $('bingoBoard').firstChild.textContent !== '1') $('bingoBoard').replaceChildren(...Array.from({length: 90}, (_, i) => element('span', String(i + 1))));
-      [...$('bingoBoard').children].forEach((cell, i) => {cell.classList.toggle('called', g.called.includes(i + 1)); cell.dataset.colour = g.colours?.[i] || '';});
+      [...$('bingoBoard').children].forEach((cell, i) => {cell.classList.toggle('called', !!g.called?.includes(i + 1)); cell.dataset.colour = g.colours?.[i] || '';});
     }
   }
   $('wheelSection').hidden = s.view !== 'wheel';
@@ -413,7 +413,7 @@ function countdownCue() {
 const silentTypes = ['audio', 'clips', 'musicbingo', 'buzzer', 'bingo'];
 function soundCues(s) {
   const q = s.question, before = heard;
-  heard = {id: q?.id, round: q?.round, open: !!q?.open, revealing: !!q?.revealing, revealed: !!q?.revealed, calls: q?.bingo?.called?.length ?? 0, shouts: Object.fromEntries((q?.bingo?.shouts || []).map(x => [x.id, x.status])),
+  heard = {id: q?.id, round: q?.round, open: !!q?.open, revealing: !!q?.revealing, revealed: !!q?.revealed, calls: q?.bingo?.count ?? 0, shouts: Object.fromEntries((q?.bingo?.shouts || []).map(x => [x.id, x.status])),
     buzz: Object.fromEntries((q?.buzz?.queue || []).map(b => [b.team, b.status])), view: s.view};
   const music = !!q?.open && !q.paused && !silentTypes.includes(q.type) && !/\.(mp3|ogg|wav)$/i.test(q.media || '') && countdownFor !== q.id;
   if (music !== musicOn) {musicOn = music; if (music) playSound('timerMusic', true); else stopSound('timerMusic');}

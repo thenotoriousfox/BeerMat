@@ -182,9 +182,13 @@ test('bingo: seeded tickets, host calls, false and valid claims, first claim bon
   assert.equal((await call('host/bingo-verdict', {shout: shouts[0].id, correct: true})).status, 409, 'one verdict per call');
   assert.deepEqual((await call('state', {}, a.secret)).question.bingo.myShout, {status: 'wrong', seq: 1});
   assert.equal((await call('bingo', {question: id}, a.secret)).status, 409, 'after a wrong call, wait for the next number');
-  const row = new Set(card[0].filter(Boolean)); let calls = 1; s = await call('state', {}, a.secret);
-  while ([...row].some(n => !(s.question.bingo.called.includes(n)))) {assert.equal((await call('host/bingo', {question: id})).status, 200); calls++; s = await call('state', {}, a.secret);}
-  assert.equal(new Set(s.question.bingo.called).size, calls);
+  // Teams have to listen: they get the latest number and a count, not the list, unless the board is switched on.
+  s = await call('state', {}, a.secret); assert.deepEqual([s.question.bingo.called, s.question.bingo.count, s.question.bingo.board], [null, 1, false]);
+  await call('host/settings', {bingoBoard: true}); assert.equal((await call('state', {}, a.secret)).question.bingo.called.length, 1);
+  await call('host/settings', {bingoBoard: false});
+  const row = new Set(card[0].filter(Boolean)); let calls = 1, h = await call('host/state');
+  while ([...row].some(n => !(h.question.bingo.called.includes(n)))) {assert.equal((await call('host/bingo', {question: id})).status, 200); calls++; h = await call('host/state');}
+  assert.equal(new Set(h.question.bingo.called).size, calls);
   await call('bingo', {question: id}, a.secret); shouts = (await call('host/state')).question.bingo.shouts;
   assert.equal(shouts.at(-1).checks, true);
   assert.equal((await call('host/bingo-verdict', {shout: shouts.at(-1).id, correct: true})).first, true);
@@ -272,7 +276,7 @@ test('music bingo: song-title tickets, hidden current song, verified claims', ()
   while (!row.every(t => played.includes(t))) {
     const {number} = await call('host/bingo', {question: id}); played.push(songs[number - 1].title);
     s = await call('state', {}, a.secret);
-    assert.deepEqual(s.question.bingo.titles, played.slice(0, -1), 'the song now playing stays hidden');
+    assert.deepEqual(s.question.bingo.titles, played.slice(-2, -1), 'the song now playing stays hidden, and only the last one is shown');
     assert.equal((await call('host/state')).question.bingo.current.title, played.at(-1));
   }
   await call('bingo', {question: id}, a.secret);
@@ -367,7 +371,7 @@ test('full bingo game: line, then two lines, then full house, each paying its ow
   let skipped = false;
   for (let calls = 0; calls < 90; calls++) {
     assert.equal((await call('host/bingo', {question: id})).status, 200);
-    const b = (await call('state', {}, players[0].secret)).question.bingo;
+    const b = (await call('host/state')).question.bingo;
     for (const [i, p] of players.entries()) {
       if (lines(cards[i], b.called) < need[b.playingFor]) continue;
       // Bravo misses the first line it could claim: once the next number is called, that stage has moved on.

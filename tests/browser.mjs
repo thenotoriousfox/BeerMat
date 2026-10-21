@@ -197,7 +197,8 @@ try {
       await waitFor(host, () => !document.getElementById('callNumber').disabled);
     }
   }
-  await waitFor(projector, () => document.getElementById('bingoBoard').querySelectorAll('.called').length > 0 && document.getElementById('bingoCallText').textContent.length > 1);
+  // Teams have to listen: the TV shows the latest ball and its call, not the board of called numbers.
+  await waitFor(projector, () => document.getElementById('bingoBoard').hidden && document.getElementById('bingoCallText').textContent.length > 1);
   for (const n of row) await player.locator('#ticket button', {hasText: new RegExp(`^${n}$`)}).click();
   await player.locator('#claimBingo').click(); await waitFor(host, () => document.getElementById('bingoShouts').textContent.includes('checks out for Line'));
   await host.keyboard.press('1'); await waitFor(player, () => document.getElementById('bingoStatus').textContent.includes('says yes'));
@@ -271,6 +272,8 @@ try {
   await host.locator('#saveQuestion').click(); await waitFor(host, () => document.getElementById('editorStatus').textContent === 'Saved question loaded');
   await play('Name that tune bingo'); await visible(player, '#ticket');
   assert.equal(await player.locator('#ticket button').count(), 15);
+  // With the board switched on, the TV lists the songs played so far.
+  await host.locator('#board').click(); await waitFor(host, () => document.getElementById('board').textContent.endsWith('on'));
   for (let i = 0; i < 15; i++) {
     await host.locator('#callNumber').click(); await host.waitForFunction(n => document.getElementById('bingoCalls').textContent.startsWith(`${n} of`), i + 1, {timeout: 12000});
     if (/Final Track/.test(await host.locator('#bingoInfo').textContent())) await waitFor(host, () => !document.getElementById('songAudio').hidden && document.getElementById('songAudio').currentSrc.includes('/media/'));
