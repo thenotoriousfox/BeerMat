@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';
 import http from 'node:http';
 import {promisify} from 'node:util';
-import {mkdtempSync, mkdirSync, rmSync, writeFileSync, readdirSync, existsSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, rmSync, writeFileSync, readdirSync, existsSync, readFileSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import {createQuiz} from '../server.js';
@@ -14,13 +14,15 @@ test('a sound pack built from a SpeedQuizzing folder becomes the default; desk c
   const mp3 = Buffer.from([0xff, 0xfb, 0x90, 0x00, 1, 2, 3]), put = (file, data = mp3) => {mkdirSync(path.dirname(path.join(sq, file)), {recursive: true}); writeFileSync(path.join(sq, file), data);};
   for (const name of ['correct', 'incorrect', 'airhorn', 'bingo_call', 'start_round', 'end_clunk', 'applause/1']) put(`Sounds/general/${name}.mp3`);
   put('Sounds/buzzers/Sample Music/Barnyard Jig.mp3'); put('Sounds/buzzers/Impersonations/Ahaaa.mp3'); put('Sounds/buzzers/Impersonations (Offensive)/Rude.mp3');
-  put('Bingo/Customisable Bingo Calls.txt', JSON.stringify({1: 'Kelly’s eye, number 1', 4: 'Knock at the door, 4'}));
+  put('Bingo/Customisable Bingo Calls.txt', JSON.stringify({1: 'Kelly’s eye, number 1', 4: 'Knock at the door, 4', 80: 'As high as we go, yellow 80'}));
   const {stdout} = await promisify(execFile)(process.execPath, ['scripts/sound-pack.mjs', sq, '--out', pack]);
   assert.match(stdout, /6 of 12 sound effects, 2 buzzer sounds from Impersonations, Sample Music, bingo calls/);
   // Rebuilding keeps a recorded bingo caller, which isn't part of SpeedQuizzing's folder.
   mkdirSync(path.join(pack, 'bingo_voice')); writeFileSync(path.join(pack, 'bingo_voice', '4.mp3'), mp3);
   await promisify(execFile)(process.execPath, ['scripts/sound-pack.mjs', sq, '--out', pack]);
   assert.ok(existsSync(path.join(pack, 'bingo_voice', '4.mp3')) && readdirSync(dir).every(f => !f.startsWith('.voice-')));
+  // SpeedQuizzing's 80-ball call for 80 becomes the 90-ball one.
+  assert.equal(JSON.parse(readFileSync(path.join(pack, 'Customisable Bingo Calls.txt'), 'utf8'))[80], 'Eight and blank, yellow 80');
   // The pack is SpeedQuizzing's Sounds folder, copied as it is.
   assert.deepEqual(readdirSync(path.join(pack, 'buzzers')).sort(), ['Impersonations', 'Impersonations (Offensive)', 'Sample Music']);
   assert.ok(existsSync(path.join(pack, 'general', 'end_clunk.mp3')) && existsSync(path.join(pack, 'general', 'applause', '1.mp3')) && existsSync(path.join(pack, 'Customisable Bingo Calls.txt')));

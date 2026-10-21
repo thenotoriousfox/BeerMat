@@ -6,7 +6,7 @@
 //   node scripts/sound-pack.mjs ["~/SpeedQuizzing Documents"] [--out soundpack]
 //
 // Running it again replaces the pack. Sounds chosen on the quiz desk still override it.
-import {copyFileSync, cpSync, existsSync, mkdtempSync, readdirSync, renameSync, rmSync} from 'node:fs';
+import {cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -25,7 +25,9 @@ rmSync(out, {recursive: true, force: true});
 cpSync(path.join(source, 'Sounds'), out, {recursive: true});
 if (kept) {renameSync(kept, voice); rmSync(path.dirname(kept), {recursive: true, force: true});}
 const calls = path.join(source, 'Bingo', bingoCallsFile);
-if (existsSync(calls)) copyFileSync(calls, path.join(out, bingoCallsFile));
+// SpeedQuizzing plays 80-ball bingo, so its call for 80 is "As high as we go"; in PubQuiz's 90-ball game that is
+// "Eight and blank". Everything else in the file is kept as it is.
+if (existsSync(calls)) writeFileSync(path.join(out, bingoCallsFile), readFileSync(calls, 'utf8').replace(/As high as we go,?\s*/i, 'Eight and blank, '));
 
 // Report what PubQuiz will pick up from it.
 const effects = Object.values(slotFiles).filter(names => names.some(name => existsSync(path.join(out, 'general', name + '.mp3')))).length;
