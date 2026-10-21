@@ -15,3 +15,14 @@ export const slotFiles = {
 // Buzzer packs with these words in their folder name are never used by default.
 export const skippedBuzzerPacks = /offensive/i;
 export const bingoCallsFile = 'Customisable Bingo Calls.txt';
+// Calls that name a colour ("red number 5") colour that number's ball. A number whose call names none takes its
+// nearest neighbour's colour (below first), so the colour bands stay whole. Null when no call names a colour.
+export const ballColours = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink'];
+export function callColours(calls) {
+  const named = Array.from({length: 90}, (_, i) => ballColours.find(c => new RegExp(`\\b${c}\\b`, 'i').test(calls?.[i] || '')) ?? null);
+  if (!named.some(Boolean)) return null;
+  return named.map((c, i) => {
+    for (let d = 1; !c && d < 90; d++) c = named[i - d] ?? named[i + d] ?? null;
+    return c;
+  });
+}

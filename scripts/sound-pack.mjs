@@ -10,7 +10,8 @@ import {cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, renameSync, 
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {slotFiles, skippedBuzzerPacks, bingoCallsFile} from '../soundnames.js';
+import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from '../soundnames.js';
+import {bingoCall} from '../app.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2), outAt = args.indexOf('--out');
@@ -25,9 +26,13 @@ rmSync(out, {recursive: true, force: true});
 cpSync(path.join(source, 'Sounds'), out, {recursive: true});
 if (kept) {renameSync(kept, voice); rmSync(path.dirname(kept), {recursive: true, force: true});}
 const calls = path.join(source, 'Bingo', bingoCallsFile);
-// SpeedQuizzing plays 80-ball bingo, so its call for 80 is "As high as we go"; in PubQuiz's 90-ball game that is
-// "Eight and blank". Everything else in the file is kept as it is.
-if (existsSync(calls)) writeFileSync(path.join(out, bingoCallsFile), readFileSync(calls, 'utf8').replace(/As high as we go,?\s*/i, 'Eight and blank, '));
+// SpeedQuizzing's calls are for its own 80-ball game and mostly read the digits out ("Red, one and four 14"), so the
+// pack gets the traditional 90-ball calls instead, keeping SpeedQuizzing's ball colours: "Kelly's eye, red 1".
+if (existsSync(calls)) {
+  const data = JSON.parse(readFileSync(calls, 'utf8').replace(/^\uFEFF/, '')), colours = callColours(Array.from({length: 90}, (_, i) => Array.isArray(data) ? data[i] : data[i + 1]));
+  const proper = Object.fromEntries(Array.from({length: 90}, (_, i) => [i + 1, `${bingoCall(i + 1)}, ${colours ? colours[i] : 'number'} ${i + 1}`]));
+  writeFileSync(path.join(out, bingoCallsFile), JSON.stringify(proper, null, 1) + '\n');
+}
 
 // Report what PubQuiz will pick up from it.
 const effects = Object.values(slotFiles).filter(names => names.some(name => existsSync(path.join(out, 'general', name + '.mp3')))).length;

@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {offensive} from './names.js';
 import {createSpotify} from './spotify.js';
-import {slotFiles, skippedBuzzerPacks, bingoCallsFile} from './soundnames.js';
+import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from './soundnames.js';
 import {looks, typeGroups} from './looks.js';
 import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern} from './model.js';
 
@@ -171,17 +171,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const voice = saved === undefined ? (local.calls ? local.voice : shipped.voice) : saved === null ? shipped.voice : null;
     return voice?.[n - 1] ?? null;
   }
-  // Calls that name a colour ("red number 5") colour that number's ball and squares. A number whose call names none
-  // takes its nearest neighbour's colour (below first), so the colour bands stay whole. No colours named: none used.
-  const ballColours = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink'];
-  function bingoColours() {
-    const calls = bingoCalls() || [], named = Array.from({length: 90}, (_, i) => ballColours.find(c => new RegExp(`\\b${c}\\b`, 'i').test(calls[i] || '')) ?? null);
-    if (!named.some(Boolean)) return null;
-    return named.map((c, i) => {
-      for (let d = 1; !c && d < 90; d++) c = named[i - d] ?? named[i + d] ?? null;
-      return c;
-    });
-  }
+  const bingoColours = () => callColours(bingoCalls());
   // Only audio files inside the two sound folders are ever served.
   const packFile = p => {
     const [prefix, dir] = p.startsWith('/pack/') ? ['/pack/', packDir] : p.startsWith('/sounds/') ? ['/sounds/', soundsDir] : [];

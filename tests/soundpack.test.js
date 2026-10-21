@@ -21,8 +21,9 @@ test('a sound pack built from a SpeedQuizzing folder becomes the default; desk c
   mkdirSync(path.join(pack, 'bingo_voice')); writeFileSync(path.join(pack, 'bingo_voice', '4.mp3'), mp3);
   await promisify(execFile)(process.execPath, ['scripts/sound-pack.mjs', sq, '--out', pack]);
   assert.ok(existsSync(path.join(pack, 'bingo_voice', '4.mp3')) && readdirSync(dir).every(f => !f.startsWith('.voice-')));
-  // SpeedQuizzing's 80-ball call for 80 becomes the 90-ball one.
-  assert.equal(JSON.parse(readFileSync(path.join(pack, 'Customisable Bingo Calls.txt'), 'utf8'))[80], 'Eight and blank, yellow 80');
+  // SpeedQuizzing's calls become the traditional 90-ball calls, keeping its ball colours.
+  const packCalls = JSON.parse(readFileSync(path.join(pack, 'Customisable Bingo Calls.txt'), 'utf8'));
+  assert.deepEqual([packCalls[1], packCalls[80], packCalls[90]], ['Kelly\'s eye, yellow 1', 'Eight and blank, yellow 80', 'Top of the shop, yellow 90']);
   // The pack is SpeedQuizzing's Sounds folder, copied as it is.
   assert.deepEqual(readdirSync(path.join(pack, 'buzzers')).sort(), ['Impersonations', 'Impersonations (Offensive)', 'Sample Music']);
   assert.ok(existsSync(path.join(pack, 'general', 'end_clunk.mp3')) && existsSync(path.join(pack, 'general', 'applause', '1.mp3')) && existsSync(path.join(pack, 'Customisable Bingo Calls.txt')));
@@ -61,8 +62,8 @@ test('a sound pack built from a SpeedQuizzing folder becomes the default; desk c
     // Pack bingo calls are the default; "use the built-in calls" switches them off.
     const {id} = await call('host/open', {text: 'Bingo', type: 'bingo', seconds: 600, points: 1, mode: 'line'}, key);
     let phrase; for (let n = 0; n < 90 && phrase === undefined; n++) {const {number} = await call('host/bingo', {question: id}, key); if (number === 4) phrase = (await board()).question.bingo.phrase;}
-    assert.equal(phrase, 'Knock at the door, 4');
-    assert.equal((await call('host/state', {}, key)).bingoCalls[0], 'Kelly’s eye, number 1');
+    assert.equal(phrase, 'Knock at the door, yellow 4');
+    assert.equal((await call('host/state', {}, key)).bingoCalls[0], 'Kelly\'s eye, yellow 1');
     // The spoken caller matches the calls in use: the pack's with the pack's calls, the shipped one with the built-in calls.
     const voice = async () => (await board()).question.bingo.voice;
     assert.equal(await voice(), '/pack/bingo_voice/4.mp3');
