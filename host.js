@@ -400,9 +400,9 @@ function timeSong(q, song) {
 }
 // --- Sounds & bingo calls ---------------------------------------------------------------------------------------
 // Sound files are matched to moments by SpeedQuizzing's file names (soundnames.js; first match wins).
-const soundSlotInfo = Object.entries({startRound: 'Round starts', questionStart: 'Question opens', timerMusic: 'Music while answering (loops)', countdown: 'Final countdown (timed to end at time up)', timeUp: "Time's up",
+const soundSlotInfo = Object.entries({startRound: 'Round starts', questionStart: 'Question opens', timerMusic: 'Music while answering (loops)', countdown: 'Final countdown (hits zero at time up)', timeUp: "Time's up",
   endRound: 'Round ends (leaderboard)', correct: 'Correct buzzer answer', wrong: 'Wrong buzzer answer', reveal: 'Answer reveal', bingoCall: 'Bingo number called',
-  bingo: 'Bingo claimed', applause: 'Winner'}).map(([slot, label]) => [slot, label, slotFiles[slot]]);
+  bingo: 'Bingo claimed', bingoMusic: 'Bingo background music (loops; without one, the pack\'s bingo pads play)', applause: 'Winner'}).map(([slot, label]) => [slot, label, slotFiles[slot]]);
 const audioFile = file => /\.(mp3|ogg|wav)$/i.test(file.name);
 const fileKey = file => (file.webkitRelativePath || file.name).toLowerCase().replace(/\.(mp3|ogg|wav)$/, '');
 let soundsSignature = '';

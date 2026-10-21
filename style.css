@@ -259,6 +259,15 @@ button.buzzer.clip { font-size: 1.8rem; background: radial-gradient(circle at 35
 .bingo-board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; margin-top: 10px; }
 .bingo-board span { text-align: center; padding: 0; line-height: 1.6; border-radius: 8px; background: var(--surface); color: rgba(255, 255, 255, .3); font-size: clamp(.8rem, 2.2vh, 1.3rem); font-variant-numeric: tabular-nums; font-weight: 700; }
 .bingo-board span.called { background: linear-gradient(180deg, var(--gold-hi), var(--gold-2)); color: var(--on-accent); box-shadow: 0 0 12px color-mix(in srgb, var(--gold) 45%, transparent); }
+/* Ball colours named in the bingo calls ("red number 5"): the TV board, the called ball and the phone tickets. */
+[data-colour=red] { --ball: #ff4d5e; --ball-ink: #fff; } [data-colour=orange] { --ball: #ff8a3d; --ball-ink: #fff; }
+[data-colour=yellow] { --ball: #ffcb3d; --ball-ink: #2a1a00; } [data-colour=green] { --ball: #2fcf7a; --ball-ink: #00210f; }
+[data-colour=blue] { --ball: #3d8bff; --ball-ink: #fff; } [data-colour=purple] { --ball: #a66bff; --ball-ink: #fff; } [data-colour=pink] { --ball: #ff5fae; --ball-ink: #fff; }
+.bingo-board span[data-colour]:not([data-colour=""]) { background: color-mix(in srgb, var(--ball) 18%, transparent); color: color-mix(in srgb, var(--ball) 55%, #fff); }
+.bingo-board span.called[data-colour]:not([data-colour=""]) { background: linear-gradient(180deg, color-mix(in srgb, var(--ball) 70%, #fff), var(--ball)); color: var(--ball-ink); box-shadow: 0 0 12px color-mix(in srgb, var(--ball) 55%, transparent); }
+.bingo-big[data-colour]:not([data-colour=""]), .bingo-last[data-colour]:not([data-colour=""]) { color: var(--ball-ink); background: radial-gradient(circle at 35% 30%, #fff, color-mix(in srgb, var(--ball) 55%, #fff) 40%, var(--ball) 75%, color-mix(in srgb, var(--ball) 75%, #000)); box-shadow: 0 0 0 .08em rgba(255, 255, 255, .5), 0 0 50px color-mix(in srgb, var(--ball) 55%, transparent); }
+.ticket-row button[data-colour] { background: color-mix(in srgb, var(--ball) 28%, #fffaf0); }
+.ticket-row button.dabbed[data-colour] { background: radial-gradient(circle, color-mix(in srgb, var(--ball) 60%, #fff), var(--ball)); color: var(--ball-ink); box-shadow: inset 0 0 0 3px rgba(255, 255, 255, .6), 0 0 14px color-mix(in srgb, var(--ball) 55%, transparent); }
 .bingo-board.music { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .bingo-board.music span { padding: 4px 10px; text-align: left; }
 #songAudio { margin-top: 10px; }

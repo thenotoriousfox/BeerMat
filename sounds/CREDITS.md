@@ -14,7 +14,7 @@ sound was shortened with a fade.
 | `general/time_up.mp3` | Kenney, *Voiceover Pack* — male `time_over` (https://kenney.nl/assets/voiceover-pack) | CC0 |
 | `general/correct.mp3` | Kenney, *Interface Sounds* — `confirmation_002` (https://kenney.nl/assets/interface-sounds) | CC0 |
 | `general/incorrect.mp3` | Kenney, *Interface Sounds* — `error_006` | CC0 |
-| `general/bingo_call.mp3` | Kenney, *Interface Sounds* — `bong_001` | CC0 |
+| `general/bingo_number.mp3` | Kenney, *Interface Sounds* — `bong_001` | CC0 |
 | `general/question_music.mp3` | aqrezes, “arcade background music” (https://opengameart.org/content/arcade-background-music) | CC0 |
 | `general/drum_roll.mp3` | Joseph Sardin, BigSoundBank #2402 “Drum Roll 1 L” (https://bigsoundbank.com/sound-s2402.html) | CC0 |
 | `general/airhorn.mp3` | Joseph Sardin, BigSoundBank #1048 “Gas fog horn #1” (https://bigsoundbank.com/sound-s1048.html) | CC0 |

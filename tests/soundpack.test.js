@@ -12,11 +12,11 @@ const hostKey = 'a-secure-quiz-test-key';
 test('a sound pack built from a SpeedQuizzing folder becomes the default; desk choices override it', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-pack-')), sq = path.join(dir, 'SpeedQuizzing Documents'), pack = path.join(dir, 'soundpack');
   const mp3 = Buffer.from([0xff, 0xfb, 0x90, 0x00, 1, 2, 3]), put = (file, data = mp3) => {mkdirSync(path.dirname(path.join(sq, file)), {recursive: true}); writeFileSync(path.join(sq, file), data);};
-  for (const name of ['correct', 'incorrect', 'airhorn', 'start_round', 'end_clunk', 'applause/1']) put(`Sounds/general/${name}.mp3`);
+  for (const name of ['correct', 'incorrect', 'airhorn', 'bingo_call', 'start_round', 'end_clunk', 'applause/1', 'bingo_pads/chord1', 'bingo_pads/chord2']) put(`Sounds/general/${name}.mp3`);
   put('Sounds/buzzers/Sample Music/Barnyard Jig.mp3'); put('Sounds/buzzers/Impersonations/Ahaaa.mp3'); put('Sounds/buzzers/Impersonations (Offensive)/Rude.mp3');
   put('Bingo/Customisable Bingo Calls.txt', JSON.stringify({1: 'Kelly’s eye, number 1', 4: 'Knock at the door, 4'}));
   const {stdout} = await promisify(execFile)(process.execPath, ['scripts/sound-pack.mjs', sq, '--out', pack]);
-  assert.match(stdout, /6 of 12 sound effects, 2 buzzer sounds from Impersonations, Sample Music, bingo calls/);
+  assert.match(stdout, /6 of 13 sound effects, 2 buzzer sounds from Impersonations, Sample Music, bingo calls/);
   // The pack is SpeedQuizzing's Sounds folder, copied as it is.
   assert.deepEqual(readdirSync(path.join(pack, 'buzzers')).sort(), ['Impersonations', 'Impersonations (Offensive)', 'Sample Music']);
   assert.ok(existsSync(path.join(pack, 'general', 'end_clunk.mp3')) && existsSync(path.join(pack, 'general', 'applause', '1.mp3')) && existsSync(path.join(pack, 'Customisable Bingo Calls.txt')));
@@ -34,6 +34,8 @@ test('a sound pack built from a SpeedQuizzing folder becomes the default; desk c
     assert.deepEqual(Object.keys(sounds.slots).sort(), ['applause', 'bingo', 'correct', 'reveal', 'startRound', 'timeUp', 'wrong']);
     assert.equal(sounds.slots.correct, '/pack/general/correct.mp3'); assert.equal(sounds.slots.reveal, '/sounds/general/drum_roll.mp3');
     assert.equal(sounds.slots.applause, '/pack/general/applause/1.mp3');
+    assert.equal(sounds.slots.bingo, '/pack/general/bingo_call.mp3', 'SpeedQuizzing\'s bingo_call is for a claim, ahead of the airhorn'); assert.equal(sounds.slots.bingoCall, undefined);
+    assert.deepEqual(sounds.pads, ['/pack/general/bingo_pads/chord1.mp3', '/pack/general/bingo_pads/chord2.mp3'], 'bingo pads play behind bingo games');
     assert.deepEqual(sounds.buzzers.map(b => b.name), ['Ahaaa', 'Barnyard Jig', 'Sax'], 'pack buzzers first, offensive pack skipped, then the shipped ones');
     const served = await fetch(base + sounds.buzzers[1].media);
     assert.equal(served.status, 200); assert.equal(served.headers.get('content-type'), 'audio/mpeg');

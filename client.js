@@ -1,9 +1,9 @@
 import {qrMatrix, wifiCode} from './qr.js';
 import {t, setLanguage, language, languages, translatePage} from './i18n.js';
-import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playEnding, stopSound, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playEnding, stopSound, startPads, stopPads, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('pubquiz-team'), current = null, renderedQuestion = 'unset', offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
-let build = null, firstArmed = null, firstTimer, localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0, winnerShown = '';
+let build = null, reloading = false, firstArmed = null, firstTimer, localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0, winnerShown = '';
 const inputs = () => [...$('inputs').querySelectorAll('input,select')];
 const draftKey = id => `pubquiz-draft:${secret}:${id}`;
 const keypad = type => ['choice', 'vote', 'letter'].includes(type);
@@ -191,7 +191,7 @@ function buildTicket(q) {
     const tr = element('div', undefined, 'ticket-row');
     tr.append(...row.map(n => {
       if (n === null) return element('span', '', 'blank');
-      const b = element('button', String(n)); b.type = 'button'; b.classList.toggle('dabbed', dabs.includes(n));
+      const b = element('button', String(n)); b.type = 'button'; if (q.bingo.colours) b.dataset.colour = q.bingo.colours[n - 1]; b.classList.toggle('dabbed', dabs.includes(n));
       b.onclick = () => {dabs = dabs.includes(n) ? dabs.filter(x => x !== n) : [...dabs, n]; writeStorage(dabKey(q.id), JSON.stringify(dabs)); b.classList.toggle('dabbed', dabs.includes(n));};
       return b;
     }));
@@ -202,10 +202,10 @@ function renderBingo(q) {
   const b = q.bingo;
   if (b.music) {
     $('bingoMode').textContent = t('Music bingo · {mode} · {n} played', {mode: stageText(b), n: b.played});
-    $('bingoLast').textContent = b.played ? t('Song {n}', {n: b.played}) : '–'; $('bingoPhrase').textContent = b.titles.length ? t('Revealed: {title}', {title: b.titles.at(-1)}) : '';
+    delete $('bingoLast').dataset.colour; $('bingoLast').textContent = b.played ? t('Song {n}', {n: b.played}) : '–'; $('bingoPhrase').textContent = b.titles.length ? t('Revealed: {title}', {title: b.titles.at(-1)}) : '';
   } else {
     $('bingoMode').textContent = t('{mode} · {n} called', {mode: stageText(b), n: b.called.length});
-    $('bingoLast').textContent = b.last ?? '–'; $('bingoPhrase').textContent = current.settings.bingoPhrases && b.last ? b.phrase ?? bingoCall(b.last) : '';
+    $('bingoLast').dataset.colour = b.last && b.colours?.[b.last - 1] || ''; $('bingoLast').textContent = b.last ?? '–'; $('bingoPhrase').textContent = current.settings.bingoPhrases && b.last ? b.phrase ?? bingoCall(b.last) : '';
   }
   $('claimBingo').disabled = !(online && q.live && !q.paused && !b.claimed && !b.over && !current.settings.ended);
   $('bingoStatus').textContent = b.claimed ? t('✓ Bingo! Your claim was checked and counted.') : b.winners.length ? winText(b) : '';
@@ -259,7 +259,7 @@ function renderResult(s) {
 }
 function sharedState(s) {
   // Phones may be on a sign-in probe address (hotspot-detect.html and the like), so they come back to the quiz's own page.
-  if (build && s.build !== build) {if (role === 'player') location.replace('/'); else location.reload(); return;}
+  if (build && s.build !== build) {if (!reloading) {reloading = true; if (role === 'player') location.replace('/'); else location.reload();} return;}
   build = s.build;
   useSounds(s.sounds);
   // The quizmaster's look for this question (colours only; see style.css).
@@ -310,14 +310,14 @@ function displayState(s) {
   if (g) {
     $('bingoBoard').classList.toggle('music', !!g.music);
     if (g.music) {
-      $('bingoBig').textContent = g.played ? '🎵 ' + t('Song {n}', {n: g.played}) : '🎵'; $('bingoCallText').textContent = g.titles.length ? t('Last revealed: {title}', {title: g.titles.at(-1)}) : '';
+      delete $('bingoBig').dataset.colour; $('bingoBig').textContent = g.played ? '🎵 ' + t('Song {n}', {n: g.played}) : '🎵'; $('bingoCallText').textContent = g.titles.length ? t('Last revealed: {title}', {title: g.titles.at(-1)}) : '';
       $('bingoWinners').textContent = g.winners.length ? winText(g) : t('Music bingo · {mode}', {mode: stageText(g)});
       $('bingoBoard').replaceChildren(...[...g.titles].reverse().map(title => element('span', title, 'called')));
     } else {
-      $('bingoBig').textContent = g.last ?? '–'; $('bingoCallText').textContent = s.settings.bingoPhrases && g.last ? g.phrase ?? bingoCall(g.last) : '';
+      $('bingoBig').dataset.colour = g.last && g.colours?.[g.last - 1] || ''; $('bingoBig').textContent = g.last ?? '–'; $('bingoCallText').textContent = s.settings.bingoPhrases && g.last ? g.phrase ?? bingoCall(g.last) : '';
       $('bingoWinners').textContent = g.winners.length ? winText(g) : t('{mode} · {n} called', {mode: stageText(g), n: g.called.length});
       if ($('bingoBoard').children.length !== 90 || $('bingoBoard').firstChild.textContent !== '1') $('bingoBoard').replaceChildren(...Array.from({length: 90}, (_, i) => element('span', String(i + 1))));
-      [...$('bingoBoard').children].forEach((cell, i) => cell.classList.toggle('called', g.called.includes(i + 1)));
+      [...$('bingoBoard').children].forEach((cell, i) => {cell.classList.toggle('called', g.called.includes(i + 1)); cell.dataset.colour = g.colours?.[i] || '';});
     }
   }
   $('wheelSection').hidden = s.view !== 'wheel';
@@ -392,7 +392,7 @@ function renderWheel(wheel, fresh) {
 }
 // Sound effects on the TV, from the quizmaster's imported files: each plays when the quiz state changes, never on
 // first load. Music loops while a question without its own audio is open.
-let heard = null, musicOn = false, countdownFor = null;
+let heard = null, musicOn = false, padsOn = false, countdownFor = null;
 // The final countdown is timed to end at the deadline; the answering music stops when it starts.
 function countdownCue() {
   const q = current?.question, timed = !!q?.open && !q.paused && !silentTypes.includes(q.type) && !/\.(mp3|ogg|wav)$/i.test(q.media || '');
@@ -408,6 +408,9 @@ function soundCues(s) {
     buzz: Object.fromEntries((q?.buzz?.queue || []).map(b => [b.team, b.status])), view: s.view};
   const music = !!q?.open && !q.paused && !silentTypes.includes(q.type) && !/\.(mp3|ogg|wav)$/i.test(q.media || '') && countdownFor !== q.id;
   if (music !== musicOn) {musicOn = music; if (music) playSound('timerMusic', true); else stopSound('timerMusic');}
+  // Bingo games have their own background music while numbers are being called.
+  const bingoPads = q?.type === 'bingo' && !!q.live && !q.paused && !q.bingo?.over;
+  if (bingoPads && !padsOn) padsOn = startPads(); else if (!bingoPads && padsOn) {stopPads(); padsOn = false;}
   if (!before) return;
   if (q && q.id !== before.id && q.live) {if (!(q.round && q.round !== before.round && playSound('startRound'))) playSound('questionStart');}
   if (q?.id !== before.id) return;

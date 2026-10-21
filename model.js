@@ -13,7 +13,7 @@ export const normalise = value => value.normalize('NFKC').trim().replace(/\s+/g,
 export const matches = (value, answers) => answers.some(answer => normalise(value) === normalise(answer));
 export const numberPattern = /^-?\d{1,15}(\.\d{1,6})?$/;
 // Moments the TV can play a sound for; the quizmaster supplies the files (e.g. a SpeedQuizzing sound theme).
-export const soundSlots = ['startRound', 'questionStart', 'timerMusic', 'countdown', 'timeUp', 'endRound', 'correct', 'wrong', 'reveal', 'bingoCall', 'bingo', 'applause'];
+export const soundSlots = ['startRound', 'questionStart', 'timerMusic', 'countdown', 'timeUp', 'endRound', 'correct', 'wrong', 'reveal', 'bingoCall', 'bingo', 'bingoMusic', 'applause'];
 export const audioPath = media => typeof media === 'string' && mediaPattern.test(media) && /\.(mp3|ogg|wav)$/i.test(media);
 export const spotifyPattern = /^spotify:track:[A-Za-z0-9]{22}$/;
 export const mediaPattern = /^\/media\/[a-zA-Z0-9_-][a-zA-Z0-9_.-]*\.(png|jpg|jpeg|webp|mp3|ogg|wav)$/i;

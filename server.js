@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {offensive} from './names.js';
 import {createSpotify} from './spotify.js';
-import {slotFiles, skippedBuzzerPacks, bingoCallsFile} from './soundnames.js';
+import {slotFiles, skippedBuzzerPacks, bingoCallsFile, bingoPadsFolder} from './soundnames.js';
 import {looks, typeGroups} from './looks.js';
 import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern} from './model.js';
 
@@ -44,13 +44,14 @@ function loadPack(dir, prefix) {
   const slots = slotsIn('general'), themes = Object.fromEntries(list('Themes', true).map(theme => [theme, slotsIn(`Themes/${theme}`)]).filter(([, s]) => Object.keys(s).length));
   const buzzers = list('buzzers', true).filter(pack => !skippedBuzzerPacks.test(pack))
     .flatMap(pack => list(`buzzers/${pack}`).map(f => ({name: f.replace(/\.[^.]+$/, '').slice(0, 60), media: url(`buzzers/${pack}/${f}`)})));
+  const pads = list(bingoPadsFolder).map(f => url(`${bingoPadsFolder}/${f}`));
   let calls = null;
   try {
     const data = JSON.parse(readFileSync(path.join(dir, bingoCallsFile), 'utf8'));
     calls = Array.from({length: 90}, (_, i) => {const c = Array.isArray(data) ? data[i] : data[i + 1]; return typeof c === 'string' ? c.trim().slice(0, 150) : '';});
     if (!calls.some(Boolean)) calls = null;
   } catch {}
-  return {slots, themes, buzzers, calls};
+  return {slots, themes, buzzers, pads, calls};
 }
 
 export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds')} = {}) {
@@ -156,9 +157,21 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const soundPack = (q = latest()) => {
     const saved = getMeta('soundPack', {}), base = defaults(themeFor(q));
     const slots = Object.fromEntries(Object.entries({...base.slots, ...saved.slots}).filter(([slot, media]) => media && soundSlots.includes(slot)));
-    return {slots, buzzers: saved.buzzers ?? base.buzzers};
+    const pads = local.pads.length ? local.pads : shipped.pads;
+    return {slots, buzzers: saved.buzzers ?? base.buzzers, ...pads.length && {pads}};
   };
   const bingoCalls = () => getMeta('bingoCalls', local.calls ?? shipped.calls);
+  // Calls that name a colour ("red number 5") colour that number's ball and squares. A number whose call names none
+  // takes its nearest neighbour's colour (below first), so the colour bands stay whole. No colours named: none used.
+  const ballColours = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink'];
+  function bingoColours() {
+    const calls = bingoCalls() || [], named = Array.from({length: 90}, (_, i) => ballColours.find(c => new RegExp(`\\b${c}\\b`, 'i').test(calls[i] || '')) ?? null);
+    if (!named.some(Boolean)) return null;
+    return named.map((c, i) => {
+      for (let d = 1; !c && d < 90; d++) c = named[i - d] ?? named[i + d] ?? null;
+      return c;
+    });
+  }
   // Only audio files inside the two sound folders are ever served.
   const packFile = p => {
     const [prefix, dir] = p.startsWith('/pack/') ? ['/pack/', packDir] : p.startsWith('/sounds/') ? ['/sounds/', soundsDir] : [];
@@ -259,7 +272,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       winners: last === undefined ? [] : names(last), lastStage: last === undefined ? null : stages[last], over, claims: claims.length};
     const mine = teamId ? {claimed: current !== null && claims.some(c => c.team === teamId && c.stage === current), myWins: claims.filter(c => c.team === teamId).map(c => stages[c.stage])} : {};
     const winners = progress.winners;
-    if (data.type === 'bingo') return {mode: data.mode, ...progress, called, last: called.at(-1) ?? null, phrase: called.length ? bingoCalls()?.[called.at(-1) - 1] || null : null, winners, ...mine, ...(teamId ? {card: ticket(data, teamId, q)} : {})};
+    if (data.type === 'bingo') return {mode: data.mode, ...progress, colours: bingoColours(), called, last: called.at(-1) ?? null, phrase: called.length ? bingoCalls()?.[called.at(-1) - 1] || null : null, winners, ...mine, ...(teamId ? {card: ticket(data, teamId, q)} : {})};
     // Music bingo hides the song now playing (teams must recognise it) unless the host chose to reveal titles straight away.
     const shown = data.revealNow || !pending(q) ? called : called.slice(0, -1);
     return {mode: data.mode, ...progress, music: true, played: called.length, titles: shown.map(n => data.songs[n - 1].title), winners, ...mine,

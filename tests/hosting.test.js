@@ -203,6 +203,12 @@ test('sound effects, extra buzzer sounds and custom bingo calls', () => fixture(
   const {id} = await call('host/open', {text: 'Bingo', type: 'bingo', seconds: 600, points: 1, mode: 'line'});
   const {number} = await call('host/bingo', {question: id});
   assert.equal((await board()).question.bingo.phrase, `Call for ${number}`);
+  assert.equal((await board()).question.bingo.colours, null, 'calls that name no colours leave the balls plain');
+  // A colour named in a call colours that number; one that names none takes its neighbour's.
+  const coloured = calls.map((c, i) => i === 5 ? 'Half a dozen, number 6' : `${i < 20 ? 'Red' : i < 40 ? 'blue' : 'Green'} number ${i + 1}`);
+  await call('host/bingo-calls', {calls: coloured});
+  const colours = (await board()).question.bingo.colours;
+  assert.deepEqual([colours[0], colours[5], colours[19], colours[20], colours[89]], ['red', 'red', 'red', 'blue', 'green']);
   await call('host/bingo-calls', {calls: null}); assert.equal((await board()).question.bingo.phrase, null);
 }));
 
