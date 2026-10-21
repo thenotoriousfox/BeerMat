@@ -17,13 +17,18 @@ test('a sound pack built from a SpeedQuizzing folder becomes the default; desk c
   put('Bingo/Customisable Bingo Calls.txt', JSON.stringify({1: 'Kelly’s eye, number 1', 4: 'Knock at the door, 4'}));
   const {stdout} = await promisify(execFile)(process.execPath, ['scripts/sound-pack.mjs', sq, '--out', pack]);
   assert.match(stdout, /6 of 12 sound effects, 2 buzzer sounds from Impersonations, Sample Music, bingo calls/);
+  // Rebuilding keeps a recorded bingo caller, which isn't part of SpeedQuizzing's folder.
+  mkdirSync(path.join(pack, 'bingo_voice')); writeFileSync(path.join(pack, 'bingo_voice', '4.mp3'), mp3);
+  await promisify(execFile)(process.execPath, ['scripts/sound-pack.mjs', sq, '--out', pack]);
+  assert.ok(existsSync(path.join(pack, 'bingo_voice', '4.mp3')) && readdirSync(dir).every(f => !f.startsWith('.voice-')));
   // The pack is SpeedQuizzing's Sounds folder, copied as it is.
   assert.deepEqual(readdirSync(path.join(pack, 'buzzers')).sort(), ['Impersonations', 'Impersonations (Offensive)', 'Sample Music']);
   assert.ok(existsSync(path.join(pack, 'general', 'end_clunk.mp3')) && existsSync(path.join(pack, 'general', 'applause', '1.mp3')) && existsSync(path.join(pack, 'Customisable Bingo Calls.txt')));
 
   // The shipped CC0 sounds fill in the moments the pack lacks; the pack wins where both have one.
   const shipped = path.join(dir, 'shipped'); mkdirSync(path.join(shipped, 'general'), {recursive: true}); mkdirSync(path.join(shipped, 'buzzers', 'Jingles'), {recursive: true});
-  for (const f of ['general/correct.mp3', 'general/drum_roll.mp3', 'buzzers/Jingles/Sax.mp3']) writeFileSync(path.join(shipped, f), mp3);
+  mkdirSync(path.join(shipped, 'bingo_voice'));
+  for (const f of ['general/correct.mp3', 'general/drum_roll.mp3', 'buzzers/Jingles/Sax.mp3', 'bingo_voice/4.mp3']) writeFileSync(path.join(shipped, f), mp3);
   const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: pack, soundsDir: shipped});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${quiz.server.address().port}`;
@@ -56,7 +61,14 @@ test('a sound pack built from a SpeedQuizzing folder becomes the default; desk c
     let phrase; for (let n = 0; n < 90 && phrase === undefined; n++) {const {number} = await call('host/bingo', {question: id}, key); if (number === 4) phrase = (await board()).question.bingo.phrase;}
     assert.equal(phrase, 'Knock at the door, 4');
     assert.equal((await call('host/state', {}, key)).bingoCalls[0], 'Kelly’s eye, number 1');
+    // The spoken caller matches the calls in use: the pack's with the pack's calls, the shipped one with the built-in calls.
+    const voice = async () => (await board()).question.bingo.voice;
+    assert.equal(await voice(), '/pack/bingo_voice/4.mp3');
     await call('host/bingo-calls', {calls: null}, key); assert.equal((await call('host/state', {}, key)).bingoCalls, null);
+    assert.equal(await voice(), '/sounds/bingo_voice/4.mp3');
+    await call('host/settings', {bingoPhrases: false}, key); assert.equal(await voice(), null, 'no caller with phrases off');
+    await call('host/settings', {bingoPhrases: true}, key);
+    await call('host/bingo-calls', {calls: Array.from({length: 90}, (_, i) => `Call ${i + 1}`)}, key); assert.equal(await voice(), null, 'the desk\'s own calls have no recordings');
   } finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
 });
 

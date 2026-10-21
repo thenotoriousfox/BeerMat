@@ -150,6 +150,9 @@ export function playSound(slot, loop = false) {
   if (!src || !audio || audio.state !== 'running') return false;
   playFile(src, loop); return true;
 }
+// Plays one file (not a moment's sound), if sound is on, cutting off the previous one so they never talk over each other.
+let clip = null;
+export function playClip(src) {if (src && audio?.state === 'running') {if (clip && clip.src !== new URL(src, location.href).href) clip.pause(); clip = playFile(src);}}
 export function stopSound(slot) {players.get(pack.slots?.[slot])?.pause();}
 // The wheel's pegs: a short wooden knock at each of `times` (ms from now), scheduled on the audio clock so they keep
 // pace with the spin. A new spin, or stopWheelTicks, cancels any still to come.

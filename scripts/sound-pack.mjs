@@ -6,7 +6,7 @@
 //   node scripts/sound-pack.mjs ["~/SpeedQuizzing Documents"] [--out soundpack]
 //
 // Running it again replaces the pack. Sounds chosen on the quiz desk still override it.
-import {copyFileSync, cpSync, existsSync, readdirSync, rmSync} from 'node:fs';
+import {copyFileSync, cpSync, existsSync, mkdtempSync, readdirSync, renameSync, rmSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -18,8 +18,12 @@ const out = path.resolve(outAt >= 0 ? args.splice(outAt, 2)[1] : path.join(root,
 const source = path.resolve(args[0] || process.env.SQ_DOCUMENTS || path.join(os.homedir(), 'SpeedQuizzing Documents'));
 if (!existsSync(path.join(source, 'Sounds'))) {console.error(`No SpeedQuizzing sounds found in ${source}. Pass the "SpeedQuizzing Documents" folder.`); process.exit(1);}
 
+// The spoken bingo caller (scripts/bingo-voice.mjs) isn't from SpeedQuizzing, so it is kept.
+const voice = path.join(out, 'bingo_voice'), kept = existsSync(voice) && path.join(mkdtempSync(path.join(path.dirname(out), '.voice-')), 'bingo_voice');
+if (kept) renameSync(voice, kept);
 rmSync(out, {recursive: true, force: true});
 cpSync(path.join(source, 'Sounds'), out, {recursive: true});
+if (kept) {renameSync(kept, voice); rmSync(path.dirname(kept), {recursive: true, force: true});}
 const calls = path.join(source, 'Bingo', bingoCallsFile);
 if (existsSync(calls)) copyFileSync(calls, path.join(out, bingoCallsFile));
 

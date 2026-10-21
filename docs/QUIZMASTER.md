@@ -62,6 +62,19 @@ Buzz-in and bingo stay live until you end them: for buzz-in the timer only limit
 
 Files are copied into PubQuiz's media folder on the laptop. Only use sound files you have the right to use; SpeedQuizzing's own sounds are licensed with SpeedQuizzing.
 
+### A spoken bingo caller
+
+When a number is called, the TV plays its chime and then a voice reading the call ("Two little ducks, number 22"). PubQuiz ships recordings of its own calls in `sounds/bingo_voice/`. A SpeedQuizzing calls file in `soundpack/` gets its own recordings, made on the laptop with [Piper](https://pypi.org/project/piper-tts/), a free offline text-to-speech voice:
+
+```sh
+python3 -m venv ~/.local/opt/piper && ~/.local/opt/piper/bin/pip install piper-tts
+mkdir -p ~/.local/share/piper && cd ~/.local/share/piper
+for f in en_GB-cori-high.onnx en_GB-cori-high.onnx.json; do curl -LO "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/cori/high/$f"; done
+cd - && node scripts/bingo-voice.mjs   # about 30 seconds; writes soundpack/bingo_voice/1.mp3 … 90.mp3
+```
+
+`./scripts/setup.sh` does the last step for you once Piper is installed. Run `node scripts/bingo-voice.mjs` again after changing the calls file, then restart PubQuiz; rebuilding the sound pack keeps the recordings. The caller only speaks the calls it was recorded for: calls typed on the desk have no voice, and nothing is spoken while **Bingo phrases** is off.
+
 ## Spotify (optional, private quizzes only)
 
 Music bingo and sound clips can play songs from Spotify instead of uploaded files. **Use this only for private quizzes**: Spotify's terms cover personal listening, so playing it to a pub audience breaks them, and a pub also needs its own music licence. For pub nights, upload audio files.

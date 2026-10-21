@@ -1,6 +1,6 @@
 import {qrMatrix, wifiCode} from './qr.js';
 import {t, setLanguage, language, languages, translatePage} from './i18n.js';
-import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playEnding, stopSound, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('pubquiz-team'), current = null, renderedQuestion = 'unset', offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
 let build = null, reloading = false, firstArmed = null, firstTimer, localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0, winnerShown = '';
@@ -416,7 +416,8 @@ function soundCues(s) {
   // The drum roll plays while the reveal is held back; the answer appears as it ends.
   if (heard.revealing && !before.revealing) playSound('reveal');
   for (const [team, status] of Object.entries(heard.buzz)) if (status !== before.buzz[team]) {if (status === 'correct') playSound('correct'); if (status === 'wrong') playSound('wrong');}
-  if (q?.type === 'bingo' && heard.calls > before.calls) playSound('bingoCall');
+  // A called number: its chime, then the caller saying the call.
+  if (q?.type === 'bingo' && heard.calls > before.calls) {playSound('bingoCall'); const voice = q.bingo.voice; if (voice) setTimeout(() => playClip(voice), 250);}
   if (heard.winners > before.winners) playSound('bingo');
   if (s.view === 'leaderboard' && before.view === 'question' && s.settings.displayMode === 'auto') playSound('endRound');
 }

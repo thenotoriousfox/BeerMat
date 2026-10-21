@@ -44,13 +44,15 @@ function loadPack(dir, prefix) {
   const slots = slotsIn('general'), themes = Object.fromEntries(list('Themes', true).map(theme => [theme, slotsIn(`Themes/${theme}`)]).filter(([, s]) => Object.keys(s).length));
   const buzzers = list('buzzers', true).filter(pack => !skippedBuzzerPacks.test(pack))
     .flatMap(pack => list(`buzzers/${pack}`).map(f => ({name: f.replace(/\.[^.]+$/, '').slice(0, 60), media: url(`buzzers/${pack}/${f}`)})));
+  // A spoken caller: bingo_voice/<n>.mp3 says number n's call (scripts/bingo-voice.mjs records them).
+  const voice = Array.from({length: 90}, (_, i) => existsSync(path.join(dir, 'bingo_voice', `${i + 1}.mp3`)) ? url(`bingo_voice/${i + 1}.mp3`) : null);
   let calls = null;
   try {
     const data = JSON.parse(readFileSync(path.join(dir, bingoCallsFile), 'utf8'));
     calls = Array.from({length: 90}, (_, i) => {const c = Array.isArray(data) ? data[i] : data[i + 1]; return typeof c === 'string' ? c.trim().slice(0, 150) : '';});
     if (!calls.some(Boolean)) calls = null;
   } catch {}
-  return {slots, themes, buzzers, calls};
+  return {slots, themes, buzzers, calls, voice: voice.some(Boolean) ? voice : null};
 }
 
 export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds')} = {}) {
@@ -159,6 +161,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return {slots, buzzers: saved.buzzers ?? base.buzzers};
   };
   const bingoCalls = () => getMeta('bingoCalls', local.calls ?? shipped.calls);
+  // The spoken caller has to say the calls on screen: the pack's recordings go with the pack's calls file, the shipped
+  // ones with PubQuiz's own calls, and calls typed on the desk have none. Silent while bingo phrases are switched off.
+  function bingoVoice(n) {
+    if (!settings().bingoPhrases) return null;
+    const saved = getMeta('bingoCalls', undefined);
+    const voice = saved === undefined ? (local.calls ? local.voice : shipped.voice) : saved === null ? shipped.voice : null;
+    return voice?.[n - 1] ?? null;
+  }
   // Calls that name a colour ("red number 5") colour that number's ball and squares. A number whose call names none
   // takes its nearest neighbour's colour (below first), so the colour bands stay whole. No colours named: none used.
   const ballColours = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink'];
@@ -270,7 +280,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       winners: last === undefined ? [] : names(last), lastStage: last === undefined ? null : stages[last], over, claims: claims.length};
     const mine = teamId ? {claimed: current !== null && claims.some(c => c.team === teamId && c.stage === current), myWins: claims.filter(c => c.team === teamId).map(c => stages[c.stage])} : {};
     const winners = progress.winners;
-    if (data.type === 'bingo') return {mode: data.mode, ...progress, colours: bingoColours(), called, last: called.at(-1) ?? null, phrase: called.length ? bingoCalls()?.[called.at(-1) - 1] || null : null, winners, ...mine, ...(teamId ? {card: ticket(data, teamId, q)} : {})};
+    if (data.type === 'bingo') return {mode: data.mode, ...progress, colours: bingoColours(), called, last: called.at(-1) ?? null, phrase: called.length ? bingoCalls()?.[called.at(-1) - 1] || null : null, voice: called.length ? bingoVoice(called.at(-1)) : null, winners, ...mine, ...(teamId ? {card: ticket(data, teamId, q)} : {})};
     // Music bingo hides the song now playing (teams must recognise it) unless the host chose to reveal titles straight away.
     const shown = data.revealNow || !pending(q) ? called : called.slice(0, -1);
     return {mode: data.mode, ...progress, music: true, played: called.length, titles: shown.map(n => data.songs[n - 1].title), winners, ...mine,
