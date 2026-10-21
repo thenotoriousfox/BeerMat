@@ -8,7 +8,7 @@ import {offensive} from './names.js';
 import {createSpotify} from './spotify.js';
 import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from './soundnames.js';
 import {looks, typeGroups} from './looks.js';
-import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern} from './model.js';
+import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern, sheetPoints} from './model.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(24).toString('hex');
@@ -471,7 +471,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (data.type === 'sheet') {
       const values = JSON.parse(value);
       const marks = data.items.map((_, i) => data.itemAnswers?.[i] ? Number(isCorrect(values[i], {type: 'text', answer: data.itemAnswers[i], aliases: data.itemAliases?.[i] || []})) : null);
-      return {points: marks.reduce((a, b) => a + (b ?? 0), 0), marks};
+      return {points: sheetPoints(marks, data), marks};
     }
     const base = basePoints(value, data);
     // Evil Mode: an answer that scores nothing loses the question's points.
@@ -798,7 +798,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/spotify/play') {
           const q = questionById(body.question), data = q && dataOf(q);
           // An audio question's Spotify clip, played when it opens (and again on request).
-          if (data?.type === 'audio') {requireValue(pending(q) && data.clip, 'No live Spotify audio question', 409); await spotify.play(data.clip.spotify, data.clip.start); return send(200, {ok: true, seconds: data.clip.seconds});}
+          if (data?.clip) {requireValue(pending(q), 'No live Spotify audio question', 409); await spotify.play(data.clip.spotify, data.clip.start); return send(200, {ok: true, seconds: data.clip.seconds});}
           requireValue(q && pending(q) && data.type === 'clips', 'No live sound clips game', 409);
           const clip = dataOf(q).clips[body.clip]; requireValue(Number.isInteger(body.clip) && clip?.spotify, 'Not a Spotify clip');
           await spotify.play(clip.spotify, clip.start);
@@ -855,7 +855,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const data = dataOf(q); let points = body.points; let marks = null;
           if (Object.hasOwn(body, 'marks')) {
             requireValue(data.type === 'sheet' && Array.isArray(body.marks) && body.marks.length === data.items.length && body.marks.every(m => m === 0 || m === 1), 'Each sheet item needs a zero or one mark');
-            marks = body.marks; points = marks.reduce((a, b) => a + b, 0);
+            marks = body.marks; points = sheetPoints(marks, data);
           }
           requireValue(Number.isInteger(points) && Math.abs(points) <= 200, 'Points must be a whole number between −200 and 200');
           requireValue(typeof body.team === 'string' && one('SELECT id FROM teams WHERE id=?', body.team), 'Team not found', 404);

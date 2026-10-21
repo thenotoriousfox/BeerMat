@@ -99,11 +99,19 @@ Optional on most types:
   - `targetClip` is the index of the correct clip, counting from 0; `text` says what to tap for.
 
 **Paper:**
-- `sheet`: an answer sheet. `items`: 1–50 questions; `itemAnswers`: the answers, in the same order and the same number; optional `itemAliases`: a list per item of other accepted answers (up to 20 each), e.g. `[["William Shakespeare"], []]`. Each item is worth 1 point, whatever `points` says. No `media`.
+- `sheet`: several answer boxes in one question, each marked separately. `items`: 1–50 box labels or questions; `itemAnswers`: the answers, in the same order and the same number; optional `itemAliases`: a list per item of other accepted answers (up to 20 each), e.g. `[["William Shakespeare"], []]`.
+  - `partScoring`: `"each"` (default: 1 point per right item; `points` is ignored), `"split"` (the question's `points` shared equally between the items, e.g. ½ each for two items worth 1), or `"all"` (the question's `points` only when every item is right).
+  - A sheet can carry `media` (a picture or sound) or a Spotify `clip` like an `audio` question. One song with the artist and the title marked separately is a sheet:
+
+    ```json
+    {"id": "r5-q1", "type": "sheet", "text": "Name the artist and the song", "seconds": 30, "points": 1, "partScoring": "split",
+     "clip": {"spotify": "https://open.spotify.com/track/<id>", "start": 50, "seconds": 20},
+     "items": ["Artist", "Title"], "itemAnswers": ["Queen", "Bohemian Rhapsody"], "itemAliases": [[], []]}
+    ```
 
 ## Media
 
-`picture`, `audio` (unless it has a Spotify `clip`) and `pinpoint` questions, `clips` and music-bingo songs can carry a file as a **data URL** in `media`, e.g. `"data:image/png;base64,…"`.
+`picture`, `audio` (unless it has a Spotify `clip`), `pinpoint` and `sheet` questions, `clips` and music-bingo songs can carry a file as a **data URL** in `media`, e.g. `"data:image/png;base64,…"`.
 - Allowed types are PNG, JPEG, WebP, MP3, Ogg and WAV, each up to 20 MB.
 - PubQuiz uploads them when the file is loaded.
 - Media must be real files; a `picture` or `pinpoint` question without one, or an `audio` question with neither a file nor a `clip`, won't load.
@@ -154,4 +162,4 @@ Spotify links must be real tracks: PubQuiz plays whatever track the id points to
 - [ ] `evil` and `"bonusMode": "fixed"` only appear on questions PubQuiz marks itself.
 - [ ] Music bingo has 15–300 songs with different titles, each with `title`, `spotify`, `start` and `seconds`.
 - [ ] Every clip has `spotify`, `start` and `seconds` (or real `media`); every `audio` question has a `clip` or real `media`.
-- [ ] Any `itemAliases` has one list per sheet item.
+- [ ] Any `itemAliases` has one list per sheet item; `partScoring` is `each`, `split` or `all`.

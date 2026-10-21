@@ -426,3 +426,23 @@ test('audio questions can play a Spotify clip instead of a file', async () => {
   assert.throws(() => validateQuestion({...base, clip: {spotify: 'https://example.com/x'}}, '.'), /Spotify clip/);
   assert.throws(() => validateQuestion({...base, clip: {spotify: `spotify:track:${id}`, seconds: 1}}, '.'), /Spotify clip/);
 });
+
+test('one song, artist and title marked separately: each part a point, the points shared, or all-or-nothing', () => fixture(async ({call, teams, score}) => {
+  const [a, b] = await teams('Alpha', 'Bravo'), clip = {spotify: 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC', start: 50, seconds: 20};
+  const song = scoring => ({text: 'Name the artist and the song', type: 'sheet', seconds: 30, points: 1, clip, items: ['Artist', 'Title'], itemAnswers: ['Queen', 'Bohemian Rhapsody'], itemAliases: [[], ['Bohemian Rhapsody (Remastered)']], partScoring: scoring});
+  const play = async (scoring, answers) => {
+    const before = [await score(a), await score(b)], {id} = await call('host/open', song(scoring));
+    for (const [team, value] of [[a, answers[0]], [b, answers[1]]]) {await call('state', {}, team.secret); await call('answer', {question: id, value}, team.secret);}
+    await call('host/close');
+    return [(await score(a)) - before[0], (await score(b)) - before[1]];
+  };
+  assert.deepEqual(await play('each', [['queen', 'Bohemian Rhapsody'], ['Queen', 'We Will Rock You']]), [2, 1]);
+  assert.deepEqual(await play('split', [['queen', 'bohemian rhapsody (remastered)'], ['Queen', 'We Will Rock You']]), [1, 0.5]);
+  assert.deepEqual(await play('all', [['Queen', 'Bohemian Rhapsody'], ['Queen', 'Radio Ga Ga']]), [1, 0]);
+  // The desk can correct a part by hand; the question's scoring still applies.
+  const {id} = await call('host/open', song('split'));
+  await call('state', {}, b.secret); await call('answer', {question: id, value: ['Freddie Mercury', 'Bohemian Rhapsody']}, b.secret); await call('host/close');
+  const before = await score(b); await call('host/mark', {question: id, team: b.id, marks: [1, 1]});
+  assert.equal(await score(b), before + 0.5);
+  assert.equal((await call('state', {}, a.secret)).question.clip, undefined, 'phones never see the track');
+}));

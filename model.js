@@ -167,14 +167,14 @@ export function validateQuestion(q, mediaDir) {
     }
   }
   if (q.media !== undefined && q.media !== null && q.media !== '') {
-    requireValue(q.type !== 'sheet', 'Answer sheets cannot have media');
     requireValue(typeof q.media === 'string' && mediaPattern.test(q.media) && existsSync(path.join(mediaDir, path.basename(q.media))), 'Upload or select an existing media file');
     const extension = path.extname(q.media).toLowerCase();
     requireValue(q.type === 'picture' ? pictureExtensions.includes(extension) : q.type === 'audio' ? audioExtensions.includes(extension) : true, 'Media format does not match question type');
     result.media = q.media;
   }
-  // An audio question can play a Spotify track instead of a file: the desk plays it from `start` for `seconds`.
-  if (q.type === 'audio' && q.clip !== undefined && q.clip !== null) {
+  // An audio question (or a sheet, e.g. "artist" and "title" for one song) can play a Spotify track instead of a
+  // file: the desk plays it from `start` for `seconds`.
+  if (['audio', 'sheet'].includes(q.type) && q.clip !== undefined && q.clip !== null) {
     const c = q.clip, spotify = c && spotifyTrack(c.spotify);
     requireValue(spotify && integer(c.start ?? 0, 0, 3600) && integer(c.seconds ?? 30, 3, 600), 'A Spotify clip needs a track, a start time of 0–3,600 seconds and a play time of 3–600 seconds');
     requireValue(!result.media, 'An audio question plays either a file or Spotify, not both');
@@ -192,12 +192,24 @@ export function validateQuestion(q, mediaDir) {
     const itemAliases = q.itemAliases ?? q.items.map(() => []);
     requireValue(Array.isArray(itemAliases) && itemAliases.length === q.items.length && itemAliases.every(list => Array.isArray(list) && list.length <= 20 && list.every(a => text(a, 300))), 'Sheet alternative answers must match its questions (up to 20 each)');
     result.itemAliases = itemAliases.map(list => list.map(a => a.trim()));
-    // Every sheet item is worth one point. Missing keys are left for the host to mark.
-    result.points = q.items.length;
+    // How the parts score: a point for each (the default), the question's points shared between them, or the
+    // question's points only when every part is right.
+    result.partScoring = q.partScoring ?? 'each';
+    requireValue(['each', 'split', 'all'].includes(result.partScoring), 'Part scoring must be each, split or all');
+    // Missing keys are left for the host to mark.
+    if (result.partScoring === 'each') result.points = q.items.length;
   }
   requireValue(!result.evil || autoMarked(result), 'Evil Mode needs a format with a correct answer set, so wrong answers can be spotted');
   requireValue(result.bonusMode === 'sliding' || autoMarked(result), 'A fixed speed bonus needs a format with a correct answer set');
   return result;
+}
+
+// A sheet's points from its per-item marks (1 right, 0 wrong, null not marked yet).
+export function sheetPoints(marks, q) {
+  const right = marks.filter(m => m === 1).length;
+  if (q.partScoring === 'split') return Math.round(q.points * right / marks.length * 100) / 100;
+  if (q.partScoring === 'all') return right === marks.length ? q.points : 0;
+  return right;
 }
 
 // Parses and checks a submitted value. Drafts (final=false) may be incomplete.
