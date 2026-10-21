@@ -138,19 +138,6 @@ export function useSounds(next) {
   // The final countdown's length must be known before it is due, so load it early.
   if (pack.slots?.countdown && !players.has(pack.slots.countdown)) {const player = new Audio(pack.slots.countdown); player.preload = 'auto'; players.set(pack.slots.countdown, player);}
 }
-// Background music for a bingo game: the bingoMusic file on a loop, or else the pack's bingo pads one after another
-// in a shuffled order. Played quieter than effects so the calls stay clear. False if there is nothing to play yet.
-let pads = null;
-export function startPads() {
-  if (pads) return true;
-  if (!audio || audio.state !== 'running') return false;
-  const list = pack.slots?.bingoMusic ? [pack.slots.bingoMusic] : [...(pack.pads || [])].sort(() => Math.random() - .5);
-  if (!list.length) return false;
-  let i = 0; const player = new Audio(list[0]); player.volume = 0.5; player.loop = list.length === 1;
-  player.onended = () => {i = (i + 1) % list.length; player.src = list[i]; player.play().catch(() => {});};
-  player.play().catch(() => {}); pads = player; return true;
-}
-export function stopPads() {if (pads) {pads.onended = null; pads.pause(); pads = null;}}
 export const buzzerNames = () => [...sounds.map(([label]) => label), ...pack.buzzers.map(b => b.name)];
 function playFile(src, loop = false) {
   let player = players.get(src);

@@ -1,6 +1,6 @@
 import {qrMatrix, wifiCode} from './qr.js';
 import {t, setLanguage, language, languages, translatePage} from './i18n.js';
-import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playEnding, stopSound, startPads, stopPads, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playEnding, stopSound, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('pubquiz-team'), current = null, renderedQuestion = 'unset', offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
 let build = null, reloading = false, firstArmed = null, firstTimer, localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0, winnerShown = '';
@@ -392,7 +392,7 @@ function renderWheel(wheel, fresh) {
 }
 // Sound effects on the TV, from the quizmaster's imported files: each plays when the quiz state changes, never on
 // first load. Music loops while a question without its own audio is open.
-let heard = null, musicOn = false, padsOn = false, countdownFor = null;
+let heard = null, musicOn = false, countdownFor = null;
 // The final countdown is timed to end at the deadline; the answering music stops when it starts.
 function countdownCue() {
   const q = current?.question, timed = !!q?.open && !q.paused && !silentTypes.includes(q.type) && !/\.(mp3|ogg|wav)$/i.test(q.media || '');
@@ -408,9 +408,6 @@ function soundCues(s) {
     buzz: Object.fromEntries((q?.buzz?.queue || []).map(b => [b.team, b.status])), view: s.view};
   const music = !!q?.open && !q.paused && !silentTypes.includes(q.type) && !/\.(mp3|ogg|wav)$/i.test(q.media || '') && countdownFor !== q.id;
   if (music !== musicOn) {musicOn = music; if (music) playSound('timerMusic', true); else stopSound('timerMusic');}
-  // Bingo games have their own background music while numbers are being called.
-  const bingoPads = q?.type === 'bingo' && !!q.live && !q.paused && !q.bingo?.over;
-  if (bingoPads && !padsOn) padsOn = startPads(); else if (!bingoPads && padsOn) {stopPads(); padsOn = false;}
   if (!before) return;
   if (q && q.id !== before.id && q.live) {if (!(q.round && q.round !== before.round && playSound('startRound'))) playSound('questionStart');}
   if (q?.id !== before.id) return;

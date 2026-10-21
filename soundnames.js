@@ -9,11 +9,9 @@ export const slotFiles = {
   startRound: ['start_round'], questionStart: ['question_start'], timerMusic: ['question_music'],
   countdown: ['new_game_end_timer', 'alt_game_timer1', 'audio_question_timer'],
   timeUp: ['time_up', 'stopwatch_timer_end', 'five_second_end_timer', 'end_clunk'], endRound: ['end_round'],
-  correct: ['correct', 'accept'], wrong: ['incorrect'], reveal: ['drum_roll'], bingoCall: ['bingo_number'], bingo: ['bingo_call', 'airhorn'], bingoMusic: ['bingo_music'],
+  correct: ['correct', 'accept'], wrong: ['incorrect'], reveal: ['drum_roll'], bingoCall: ['bingo_number'], bingo: ['bingo_call', 'airhorn'],
   applause: ['your_applause', 'applause/1'],
 };
 // Buzzer packs with these words in their folder name are never used by default.
-// Background pads for bingo games, played one after another unless a bingoMusic file is chosen.
-export const bingoPadsFolder = 'general/bingo_pads';
 export const skippedBuzzerPacks = /offensive/i;
 export const bingoCallsFile = 'Customisable Bingo Calls.txt';

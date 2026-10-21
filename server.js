@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {offensive} from './names.js';
 import {createSpotify} from './spotify.js';
-import {slotFiles, skippedBuzzerPacks, bingoCallsFile, bingoPadsFolder} from './soundnames.js';
+import {slotFiles, skippedBuzzerPacks, bingoCallsFile} from './soundnames.js';
 import {looks, typeGroups} from './looks.js';
 import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern} from './model.js';
 
@@ -44,14 +44,13 @@ function loadPack(dir, prefix) {
   const slots = slotsIn('general'), themes = Object.fromEntries(list('Themes', true).map(theme => [theme, slotsIn(`Themes/${theme}`)]).filter(([, s]) => Object.keys(s).length));
   const buzzers = list('buzzers', true).filter(pack => !skippedBuzzerPacks.test(pack))
     .flatMap(pack => list(`buzzers/${pack}`).map(f => ({name: f.replace(/\.[^.]+$/, '').slice(0, 60), media: url(`buzzers/${pack}/${f}`)})));
-  const pads = list(bingoPadsFolder).map(f => url(`${bingoPadsFolder}/${f}`));
   let calls = null;
   try {
     const data = JSON.parse(readFileSync(path.join(dir, bingoCallsFile), 'utf8'));
     calls = Array.from({length: 90}, (_, i) => {const c = Array.isArray(data) ? data[i] : data[i + 1]; return typeof c === 'string' ? c.trim().slice(0, 150) : '';});
     if (!calls.some(Boolean)) calls = null;
   } catch {}
-  return {slots, themes, buzzers, pads, calls};
+  return {slots, themes, buzzers, calls};
 }
 
 export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds')} = {}) {
@@ -157,8 +156,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const soundPack = (q = latest()) => {
     const saved = getMeta('soundPack', {}), base = defaults(themeFor(q));
     const slots = Object.fromEntries(Object.entries({...base.slots, ...saved.slots}).filter(([slot, media]) => media && soundSlots.includes(slot)));
-    const pads = local.pads.length ? local.pads : shipped.pads;
-    return {slots, buzzers: saved.buzzers ?? base.buzzers, ...pads.length && {pads}};
+    return {slots, buzzers: saved.buzzers ?? base.buzzers};
   };
   const bingoCalls = () => getMeta('bingoCalls', local.calls ?? shipped.calls);
   // Calls that name a colour ("red number 5") colour that number's ball and squares. A number whose call names none
