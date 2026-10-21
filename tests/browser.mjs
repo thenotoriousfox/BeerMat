@@ -187,15 +187,25 @@ try {
     await host.keyboard.press('b'); await host.waitForFunction(n => document.getElementById('bingoCalls').textContent.split(' · ').filter(Boolean).length === n, calls, {timeout: 12000});
     const called = (await host.locator('#bingoCalls').textContent()).split(' · ').map(Number);
     if (row.every(n => called.includes(n))) break;
+    if (calls === 1) {
+      // Calling too early: the TV announces it, the desk shows the ticket doesn't check out, and 2 turns it down.
+      await player.locator('#claimBingo').click(); await waitFor(projector, () => document.getElementById('bingoWinners').textContent.includes('Fox team called BINGO'));
+      await waitFor(host, () => document.getElementById('bingoShouts').textContent.includes('does not check out'));
+      assert.equal(await host.locator('#callNumber').isDisabled(), true, 'no numbers while a call is checked');
+      await host.keyboard.press('2'); await waitFor(projector, () => document.getElementById('bingoWinners').textContent.includes('not a bingo'));
+      await waitFor(player, () => document.getElementById('bingoStatus').textContent.includes('Not a bingo') && document.getElementById('claimBingo').disabled);
+      await waitFor(host, () => !document.getElementById('callNumber').disabled);
+    }
   }
   await waitFor(projector, () => document.getElementById('bingoBoard').querySelectorAll('.called').length > 0 && document.getElementById('bingoCallText').textContent.length > 1);
   for (const n of row) await player.locator('#ticket button', {hasText: new RegExp(`^${n}$`)}).click();
-  await player.locator('#claimBingo').click(); await waitFor(player, () => document.getElementById('bingoStatus').textContent.includes('counted'));
+  await player.locator('#claimBingo').click(); await waitFor(host, () => document.getElementById('bingoShouts').textContent.includes('checks out for Line'));
+  await host.keyboard.press('1'); await waitFor(player, () => document.getElementById('bingoStatus').textContent.includes('says yes'));
   await waitFor(projector, () => document.getElementById('bingoWinners').textContent.includes('Fox team'));
   assert.equal(await host.locator('#callNumber').isDisabled(), true); await host.keyboard.press('c');
   // Every desk action briefly disables the buttons; wait for the close to finish before the next shortcut.
   await waitFor(host, () => !document.getElementById('next').disabled && !document.getElementById('spinWheel').disabled);
-  log('bingo: ticket dabbing, B shortcut calls numbers, call phrases, verified claim shown on projector');
+  log('bingo: ticket dabbing, B shortcut calls numbers, call phrases; BINGO calls checked by the quizmaster (2 turns one down, 1 accepts), shown on projector');
   // The wheel clicks as each segment edge passes the pointer: on the audio clock, slowing down, all within the spin.
   // A frame-by-frame record of the wheel's angle checks that each click lands on an edge.
   await projector.evaluate(() => {
@@ -266,7 +276,7 @@ try {
     if (/Final Track/.test(await host.locator('#bingoInfo').textContent())) await waitFor(host, () => !document.getElementById('songAudio').hidden && document.getElementById('songAudio').currentSrc.includes('/media/'));
   }
   await waitFor(projector, () => document.getElementById('bingoBig').textContent.includes('Song 15') && document.querySelectorAll('#bingoBoard span').length === 14);
-  await player.locator('#claimBingo').click(); await waitFor(player, () => document.getElementById('bingoStatus').textContent.includes('counted'));
+  await player.locator('#claimBingo').click(); await host.locator('#shoutCorrect').click(); await waitFor(player, () => document.getElementById('bingoStatus').textContent.includes('says yes'));
   await host.keyboard.press('c');
   log('music bingo: song titles and uploaded audio, desk plays songs, TV hides the current title, claim verified');
   const hostApi = async (route, body = {}) => {const key = (await (await fetch(base + '/api/login', {method: 'POST', body: JSON.stringify({key: 'browser-test-private-key'})})).json()).key; return (await fetch(base + '/api/host/' + route, {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: JSON.stringify(body)})).json();};

@@ -268,6 +268,10 @@ button.buzzer.clip { font-size: 1.8rem; background: radial-gradient(circle at 35
 .bingo-big[data-colour]:not([data-colour=""]), .bingo-last[data-colour]:not([data-colour=""]) { color: var(--ball-ink); background: radial-gradient(circle at 35% 30%, #fff, color-mix(in srgb, var(--ball) 55%, #fff) 40%, var(--ball) 75%, color-mix(in srgb, var(--ball) 75%, #000)); box-shadow: 0 0 0 .08em rgba(255, 255, 255, .5), 0 0 50px color-mix(in srgb, var(--ball) 55%, transparent); }
 .ticket-row button[data-colour] { background: color-mix(in srgb, var(--ball) 28%, #fffaf0); }
 .ticket-row button.dabbed[data-colour] { background: radial-gradient(circle, color-mix(in srgb, var(--ball) 60%, #fff), var(--ball)); color: var(--ball-ink); box-shadow: inset 0 0 0 3px rgba(255, 255, 255, .6), 0 0 14px color-mix(in srgb, var(--ball) 55%, transparent); }
+.shouts { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
+.shouts li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 14px; border-radius: 14px; background: color-mix(in srgb, var(--gold) 16%, transparent); border: 1px solid color-mix(in srgb, var(--gold) 55%, transparent); animation: pop .35s ease-out; }
+.shouts li strong { font-size: 1.15rem; } .shouts .good { color: var(--good); font-weight: 700; } .shouts .bad { color: var(--bad); font-weight: 700; }
+.shouts li button { margin: 0; }
 .bingo-board.music { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .bingo-board.music span { padding: 4px 10px; text-align: left; }
 #songAudio { margin-top: 10px; }

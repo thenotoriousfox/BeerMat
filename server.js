@@ -75,6 +75,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     CREATE TABLE IF NOT EXISTS device_ips(ip TEXT PRIMARY KEY,team TEXT REFERENCES teams(id),seen INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS away(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),ms INTEGER NOT NULL DEFAULT 0,count INTEGER NOT NULL DEFAULT 0,since INTEGER,PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS clip_plays(question INTEGER REFERENCES questions(id),seq INTEGER NOT NULL,clip INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,seq));
+    CREATE TABLE IF NOT EXISTS bingo_shouts(id INTEGER PRIMARY KEY,question INTEGER REFERENCES questions(id),team TEXT REFERENCES teams(id),stage INTEGER NOT NULL,seq INTEGER NOT NULL,at INTEGER NOT NULL,status TEXT NOT NULL DEFAULT 'pending');
     CREATE TABLE IF NOT EXISTS bingo_claims(question INTEGER REFERENCES questions(id),team TEXT REFERENCES teams(id),stage INTEGER NOT NULL,seq INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,team,stage));
     CREATE TABLE IF NOT EXISTS bingo_calls(question INTEGER REFERENCES questions(id),seq INTEGER NOT NULL,number INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,seq));
   `);
@@ -279,7 +280,15 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const next = current === null ? stages.length : current + (names(current).length ? 1 : 0);
     const progress = {playingFor: over || next >= stages.length ? null : stages[next], stageWins: won.map(i => ({stage: stages[i], names: names(i)})),
       winners: last === undefined ? [] : names(last), lastStage: last === undefined ? null : stages[last], over, claims: claims.length};
-    const mine = teamId ? {claimed: current !== null && claims.some(c => c.team === teamId && c.stage === current), myWins: claims.filter(c => c.team === teamId).map(c => stages[c.stage])} : {};
+    // Shouts of "bingo!" wait for the quizmaster's verdict. The desk also sees whether each ticket checks out.
+    const shouts = rows('SELECT s.id,s.team,s.stage,s.seq,s.status,t.name FROM bingo_shouts s JOIN teams t ON t.id=s.team WHERE s.question=? ORDER BY s.id', q.id);
+    const checks = s => bingoLines(ticket(data, s.team, q), new Set(called.slice(0, s.seq))) >= bingoNeeded(stages[s.stage]);
+    progress.shouts = shouts.map(s => ({id: s.id, name: s.name, status: s.status, seq: s.seq, ...host && s.status === 'pending' && {stage: stages[s.stage], checks: checks(s)}}));
+    progress.pending = shouts.filter(s => s.status === 'pending').length;
+    const myShout = teamId && shouts.filter(s => s.team === teamId).at(-1);
+    const mine = teamId ? {claimed: current !== null && claims.some(c => c.team === teamId && c.stage === current), myWins: claims.filter(c => c.team === teamId).map(c => stages[c.stage]),
+      // After a wrong call a team waits for the next number before calling again.
+      myShout: myShout ? {status: myShout.status, seq: myShout.seq} : null} : {};
     const winners = progress.winners;
     if (data.type === 'bingo') return {mode: data.mode, ...progress, colours: bingoColours(), called, last: called.at(-1) ?? null, phrase: called.length ? bingoCalls()?.[called.at(-1) - 1] || null : null, voice: called.length ? bingoVoice(called.at(-1)) : null, winners, ...mine, ...(teamId ? {card: ticket(data, teamId, q)} : {})};
     // Music bingo hides the song now playing (teams must recognise it) unless the host chose to reveal titles straight away.
@@ -394,7 +403,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const played = new Set(rows('SELECT data FROM questions').map(p => dataOf(p).sourceId));
     return round.questions.every(x => played.has(x.id));
   }
-  function exportResults() {return {version: 3, settings: settings(), library: library(), teams: rows('SELECT id,name,enabled FROM teams'), questions: rows('SELECT * FROM questions'), answers: rows('SELECT * FROM answers'), adjustments: rows('SELECT * FROM adjustments'), markingLog: rows('SELECT * FROM marking_log'), buzzes: rows('SELECT * FROM buzzes'), agrees: rows('SELECT * FROM agrees'), bingoCalls: rows('SELECT * FROM bingo_calls'), bingoClaims: rows('SELECT * FROM bingo_claims'), clipPlays: rows('SELECT * FROM clip_plays')};}
+  function exportResults() {return {version: 3, settings: settings(), library: library(), teams: rows('SELECT id,name,enabled FROM teams'), questions: rows('SELECT * FROM questions'), answers: rows('SELECT * FROM answers'), adjustments: rows('SELECT * FROM adjustments'), markingLog: rows('SELECT * FROM marking_log'), buzzes: rows('SELECT * FROM buzzes'), agrees: rows('SELECT * FROM agrees'), bingoCalls: rows('SELECT * FROM bingo_calls'), bingoClaims: rows('SELECT * FROM bingo_claims'), bingoShouts: rows('SELECT * FROM bingo_shouts'), clipPlays: rows('SELECT * FROM clip_plays')};}
   function publicState() { return {serverTime: now(), build, settings: settings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
 
   // Final scoring once answers stop: nearest-wins needs every answer before it can rank them.
@@ -713,10 +722,30 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           run('UPDATE questions SET deadline=?,paused_ms=NULL WHERE id=?', now() + q.paused_ms, q.id); return send(200, {ok: true});
         }
         if (p === '/api/host/buzz') {hostBuzz(body); return send(200, {ok: true});}
+        // The quizmaster's verdict on a shout of "bingo!". Correct wins the prize being played for, as at the moment of the call.
+        if (p === '/api/host/bingo-verdict') {
+          const shout = one('SELECT * FROM bingo_shouts WHERE id=?', body.shout), q = shout && questionById(shout.question);
+          requireValue(q && shout.status === 'pending' && typeof body.correct === 'boolean', 'That bingo call has already been dealt with', 409);
+          const data = dataOf(q), {stages, claims, current} = bingoProgress(q, data);
+          if (!body.correct || current === null || claims.some(c => c.team === shout.team && c.stage === current)) {
+            run(`UPDATE bingo_shouts SET status='wrong' WHERE id=?`, shout.id); return send(200, {ok: true, correct: false});
+          }
+          // Each stage pays its own points; the first claim of a stage also takes the bonus (with fastest fingers first).
+          const first = !claims.some(c => c.stage === current), points = stagePoints(data)[current] + (first ? speedBonusOf(data) : 0);
+          const label = {line: 'Line', twoLines: 'Two lines', fullHouse: 'Full house'}[stages[current]];
+          transaction(() => {
+            run(`UPDATE bingo_shouts SET status='correct' WHERE id=?`, shout.id);
+            run('INSERT INTO bingo_claims VALUES(?,?,?,?,?)', q.id, shout.team, current, shout.seq, now());
+            const previous = one('SELECT value,points FROM answers WHERE team=? AND question=?', shout.team, q.id);
+            award(shout.team, q, `${previous ? previous.value + '; ' : ''}${label} on call ${shout.seq}`, (previous?.points || 0) + points);
+          });
+          return send(200, {ok: true, correct: true, first, stage: stages[current]});
+        }
         if (p === '/api/host/bingo') {
           const q = questionById(body.question); requireValue(q && pending(q) && isBingo(dataOf(q).type), 'No live bingo game', 409);
           requireValue(q.paused_ms === null, 'Resume the game first', 409);
           requireValue(!bingoProgress(q, dataOf(q)).over, 'The game has been won — end it when ready', 409);
+          requireValue(!one(`SELECT 1 FROM bingo_shouts WHERE question=? AND status='pending'`, q.id), 'Someone has called bingo — say whether it is correct first', 409);
           const data = dataOf(q), called = new Set(calledNumbers(q));
           const remaining = Array.from({length: data.type === 'musicbingo' ? data.songs.length : 90}, (_, i) => i + 1).filter(n => !called.has(n));
           requireValue(remaining.length, data.type === 'musicbingo' ? 'Every song has been played' : 'Every number has been called', 409);
@@ -869,7 +898,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           mkdirSync(folder, {recursive: true}); writeFileSync(path.join(folder, file), JSON.stringify(results, null, 2), {mode: 0o600});
           const photos = rows('SELECT photo FROM teams WHERE photo IS NOT NULL').map(t => t.photo);
           transaction(() => {
-            for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'away', 'clip_plays', 'bingo_claims', 'bingo_calls', 'marking_log', 'adjustments', 'device_ips', 'actions', 'questions', 'teams']) run(`DELETE FROM ${table}`);
+            for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'marking_log', 'adjustments', 'device_ips', 'actions', 'questions', 'teams']) run(`DELETE FROM ${table}`);
             if (nextLibrary) setMeta('library', {...nextLibrary, revision: library().revision + 1});
             setMeta('timer', null); setMeta('wheel', null); setMeta('event', token().slice(0, 12));
             setMeta('settings', {...settings(), title: body.title?.trim() || nextLibrary?.title || library().title, ended: false, registrationOpen: true, displayMode: 'auto'});
@@ -932,14 +961,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         const data = dataOf(q), called = new Set(calledNumbers(q)), {stages, claims, current} = bingoProgress(q, data);
         requireValue(current !== null, 'The game is over', 409);
         requireValue(!claims.some(c => c.team === team.id && c.stage === current), 'Already claimed', 409);
-        requireValue(bingoLines(ticket(data, team.id, q), called) >= bingoNeeded(stages[current]), 'Not yet — keep marking your ticket', 409);
-        // Each stage pays its own points; the first claim of a stage also takes the bonus (with fastest fingers first).
-        const first = !claims.some(c => c.stage === current), points = stagePoints(data)[current] + (first ? speedBonusOf(data) : 0);
-        const label = {line: 'Line', twoLines: 'Two lines', fullHouse: 'Full house'}[stages[current]];
-        run('INSERT INTO bingo_claims VALUES(?,?,?,?,?)', q.id, team.id, current, called.size, now());
-        const previous = one('SELECT value,points FROM answers WHERE team=? AND question=?', team.id, q.id);
-        award(team.id, q, `${previous ? previous.value + '; ' : ''}${label} on call ${called.size}`, (previous?.points || 0) + points);
-        return send(200, {ok: true, first, stage: stages[current]});
+        // A team can shout whenever it likes; the quizmaster checks the ticket and says whether it's a bingo.
+        const last = one('SELECT status,seq FROM bingo_shouts WHERE question=? AND team=? ORDER BY id DESC LIMIT 1', q.id, team.id);
+        requireValue(last?.status !== 'pending', 'The quizmaster is checking your call', 409);
+        requireValue(!(last?.status === 'wrong' && last.seq === called.size), 'Wait for the next number before calling again', 409);
+        run('INSERT INTO bingo_shouts(question,team,stage,seq,at) VALUES(?,?,?,?,?)', q.id, team.id, current, called.size, now());
+        return send(200, {ok: true, pending: true});
       }
       // Phones report leaving the quiz page (switching app, locking) while a question is open.
       if (p === '/api/away') {

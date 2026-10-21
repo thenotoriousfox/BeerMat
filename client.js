@@ -16,6 +16,14 @@ const winText = g => {
   if (g.mode !== 'progressive') return t('BINGO! {names}', {names});
   return t('{stage}: {names}', {stage: mode(g.lastStage), names}) + (g.over ? ' 🎉' : ' · ' + t('Playing for {stage}', {stage: mode(g.playingFor)}));
 };
+// Calls of "bingo!" waiting for the quizmaster, or one just turned down (until the next number), take over the status line.
+const callCount = g => g.music ? g.played : g.called.length;
+const shoutText = g => {
+  const waiting = g.shouts.filter(x => x.status === 'pending').map(x => x.name);
+  if (waiting.length) return t('🔔 {names} called BINGO! Checking…', {names: waiting.join(', ')});
+  const last = g.shouts.at(-1);
+  return last?.status === 'wrong' && last.seq === callCount(g) ? t('✗ {name}: not a bingo — eyes down, play on', {name: last.name}) : '';
+};
 function saveIdentity(code) {
   secret = code; current = null; renderedQuestion = 'unset'; localDraft = null; inputRevision = 0;
   if (!writeStorage('pubquiz-team', code)) $('storageWarning').textContent = t('Browser storage is unavailable. Write down your recovery code before closing this window.');
@@ -207,8 +215,9 @@ function renderBingo(q) {
     $('bingoMode').textContent = t('{mode} · {n} called', {mode: stageText(b), n: b.called.length});
     $('bingoLast').dataset.colour = b.last && b.colours?.[b.last - 1] || ''; $('bingoLast').textContent = b.last ?? '–'; $('bingoPhrase').textContent = current.settings.bingoPhrases && b.last ? b.phrase ?? bingoCall(b.last) : '';
   }
-  $('claimBingo').disabled = !(online && q.live && !q.paused && !b.claimed && !b.over && !current.settings.ended);
-  $('bingoStatus').textContent = b.claimed ? t('✓ Bingo! Your claim was checked and counted.') : b.winners.length ? winText(b) : '';
+  const mine = b.myShout, checking = mine?.status === 'pending', turnedDown = mine?.status === 'wrong' && mine.seq === callCount(b);
+  $('claimBingo').disabled = !(online && q.live && !q.paused && !b.claimed && !b.over && !current.settings.ended && !checking && !turnedDown);
+  $('bingoStatus').textContent = b.claimed ? t('✓ Bingo! The quizmaster says yes.') : checking ? t('Your BINGO call is being checked…') : turnedDown ? t('Not a bingo this time — keep playing') : shoutText(b) || (b.winners.length ? winText(b) : '');
 }
 function playerState(s) {
   current = s; writeStorage('pubquiz-event', s.event || ''); offset = s.serverTime - Date.now(); $('join').hidden = true; $('game').hidden = false;
@@ -311,11 +320,11 @@ function displayState(s) {
     $('bingoBoard').classList.toggle('music', !!g.music);
     if (g.music) {
       delete $('bingoBig').dataset.colour; $('bingoBig').textContent = g.played ? '🎵 ' + t('Song {n}', {n: g.played}) : '🎵'; $('bingoCallText').textContent = g.titles.length ? t('Last revealed: {title}', {title: g.titles.at(-1)}) : '';
-      $('bingoWinners').textContent = g.winners.length ? winText(g) : t('Music bingo · {mode}', {mode: stageText(g)});
+      $('bingoWinners').textContent = shoutText(g) || (g.winners.length ? winText(g) : t('Music bingo · {mode}', {mode: stageText(g)}));
       $('bingoBoard').replaceChildren(...[...g.titles].reverse().map(title => element('span', title, 'called')));
     } else {
       $('bingoBig').dataset.colour = g.last && g.colours?.[g.last - 1] || ''; $('bingoBig').textContent = g.last ?? '–'; $('bingoCallText').textContent = s.settings.bingoPhrases && g.last ? g.phrase ?? bingoCall(g.last) : '';
-      $('bingoWinners').textContent = g.winners.length ? winText(g) : t('{mode} · {n} called', {mode: stageText(g), n: g.called.length});
+      $('bingoWinners').textContent = shoutText(g) || (g.winners.length ? winText(g) : t('{mode} · {n} called', {mode: stageText(g), n: g.called.length}));
       if ($('bingoBoard').children.length !== 90 || $('bingoBoard').firstChild.textContent !== '1') $('bingoBoard').replaceChildren(...Array.from({length: 90}, (_, i) => element('span', String(i + 1))));
       [...$('bingoBoard').children].forEach((cell, i) => {cell.classList.toggle('called', g.called.includes(i + 1)); cell.dataset.colour = g.colours?.[i] || '';});
     }
@@ -404,7 +413,7 @@ function countdownCue() {
 const silentTypes = ['audio', 'clips', 'musicbingo', 'buzzer', 'bingo'];
 function soundCues(s) {
   const q = s.question, before = heard;
-  heard = {id: q?.id, round: q?.round, open: !!q?.open, revealing: !!q?.revealing, revealed: !!q?.revealed, calls: q?.bingo?.called?.length ?? 0, winners: q?.bingo?.winners.length ?? 0,
+  heard = {id: q?.id, round: q?.round, open: !!q?.open, revealing: !!q?.revealing, revealed: !!q?.revealed, calls: q?.bingo?.called?.length ?? 0, shouts: Object.fromEntries((q?.bingo?.shouts || []).map(x => [x.id, x.status])),
     buzz: Object.fromEntries((q?.buzz?.queue || []).map(b => [b.team, b.status])), view: s.view};
   const music = !!q?.open && !q.paused && !silentTypes.includes(q.type) && !/\.(mp3|ogg|wav)$/i.test(q.media || '') && countdownFor !== q.id;
   if (music !== musicOn) {musicOn = music; if (music) playSound('timerMusic', true); else stopSound('timerMusic');}
@@ -418,7 +427,10 @@ function soundCues(s) {
   for (const [team, status] of Object.entries(heard.buzz)) if (status !== before.buzz[team]) {if (status === 'correct') playSound('correct'); if (status === 'wrong') playSound('wrong');}
   // A called number: its chime, then the caller saying the call.
   if (q?.type === 'bingo' && heard.calls > before.calls) {playSound('bingoCall'); const voice = q.bingo.voice; if (voice) setTimeout(() => playClip(voice), 250);}
-  if (heard.winners > before.winners) playSound('bingo');
+  // A shout of "bingo!" sounds straight away; the quizmaster's verdict then sounds right or wrong.
+  for (const [id, status] of Object.entries(heard.shouts)) if (status !== before.shouts[id]) {
+    if (status === 'pending') playSound('bingo'); else {stopSound('bingo'); playSound(status === 'correct' ? 'correct' : 'wrong');}
+  }
   if (s.view === 'leaderboard' && before.view === 'question' && s.settings.displayMode === 'auto') playSound('endRound');
 }
 // The TV never scrolls: the visible view is scaled down until it fits the space under the header.
@@ -559,7 +571,7 @@ if (role === 'player') {
     catch (e) {message(e.status ? e.message : t('Could not confirm submission. Reconnecting will check whether it was received.'), true); await refresh();}
     finally {submitting = false; updateControls();}
   };
-  for (const [id, route, done] of [['buzz', 'buzz', t('Buzzed!')], ['agree', 'agree', t('Agreement recorded')], ['claimBingo', 'bingo', t('BINGO! Checked and counted')], ['tap', 'tap', t('Tap recorded')]]) $(id).onclick = async () => {
+  for (const [id, route, done] of [['buzz', 'buzz', t('Buzzed!')], ['agree', 'agree', t('Agreement recorded')], ['claimBingo', 'bingo', t('BINGO called — the quizmaster is checking')], ['tap', 'tap', t('Tap recorded')]]) $(id).onclick = async () => {
     $(id).disabled = true; enableSound();
     try {await api(route, {question: current.question.id}, secret); message(done); navigator.vibrate?.(80); if (id === 'buzz') buzzSound(current.team.name, current.team.sound);} catch (e) {message(e.message, true);}
     await updates.update();

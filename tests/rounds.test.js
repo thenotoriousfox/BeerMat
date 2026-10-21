@@ -170,11 +170,24 @@ test('bingo: seeded tickets, host calls, false and valid claims, first claim bon
   let s = await call('state', {}, a.secret); const id = s.question.id, card = s.question.bingo.card;
   assert.deepEqual((await call('state', {}, a.secret)).question.bingo.card, card, 'ticket is stable');
   assert.equal(card.flat().filter(Boolean).length, 15); assert.ok(card.every(row => row.filter(Boolean).length === 5));
-  assert.equal((await call('bingo', {question: id}, a.secret)).status, 409, 'false claim refused');
-  const row = new Set(card[0].filter(Boolean)); let calls = 0;
+  // A team can call bingo at any time; the quizmaster checks the ticket and says whether it is right.
+  await call('host/bingo', {question: id});
+  assert.equal((await call('bingo', {question: id}, a.secret)).pending, true);
+  let shouts = (await call('host/state')).question.bingo.shouts;
+  assert.deepEqual(shouts.map(x => [x.name, x.status, x.stage, x.checks]), [['Alpha', 'pending', 'line', false]], 'the desk sees the ticket does not check out');
+  assert.deepEqual((await call('state', {}, b.secret)).question.bingo.shouts.map(x => [x.name, x.status, x.checks]), [['Alpha', 'pending', undefined]], 'teams see the call, not the check');
+  assert.equal((await call('bingo', {question: id}, a.secret)).status, 409, 'one call at a time');
+  assert.equal((await call('host/bingo', {question: id})).status, 409, 'no numbers while a call is checked');
+  assert.equal((await call('host/bingo-verdict', {shout: shouts[0].id, correct: false})).correct, false);
+  assert.equal((await call('host/bingo-verdict', {shout: shouts[0].id, correct: true})).status, 409, 'one verdict per call');
+  assert.deepEqual((await call('state', {}, a.secret)).question.bingo.myShout, {status: 'wrong', seq: 1});
+  assert.equal((await call('bingo', {question: id}, a.secret)).status, 409, 'after a wrong call, wait for the next number');
+  const row = new Set(card[0].filter(Boolean)); let calls = 1; s = await call('state', {}, a.secret);
   while ([...row].some(n => !(s.question.bingo.called.includes(n)))) {assert.equal((await call('host/bingo', {question: id})).status, 200); calls++; s = await call('state', {}, a.secret);}
   assert.equal(new Set(s.question.bingo.called).size, calls);
-  assert.equal((await call('bingo', {question: id}, a.secret)).first, true);
+  await call('bingo', {question: id}, a.secret); shouts = (await call('host/state')).question.bingo.shouts;
+  assert.equal(shouts.at(-1).checks, true);
+  assert.equal((await call('host/bingo-verdict', {shout: shouts.at(-1).id, correct: true})).first, true);
   assert.equal((await call('bingo', {question: id}, a.secret)).status, 409, 'one claim per team');
   assert.equal((await call('host/bingo', {question: id})).status, 409, 'no more calls after a winner');
   assert.deepEqual((await call('state', {}, b.secret)).question.bingo.winners, ['Alpha']);
@@ -262,7 +275,8 @@ test('music bingo: song-title tickets, hidden current song, verified claims', ()
     assert.deepEqual(s.question.bingo.titles, played.slice(0, -1), 'the song now playing stays hidden');
     assert.equal((await call('host/state')).question.bingo.current.title, played.at(-1));
   }
-  assert.equal((await call('bingo', {question: id}, a.secret)).first, true);
+  await call('bingo', {question: id}, a.secret);
+  assert.equal((await call('host/bingo-verdict', {shout: (await call('host/state')).question.bingo.shouts[0].id, correct: true})).first, true);
   await call('host/close'); assert.equal(await score(a), 6);
   assert.deepEqual((await call('state', {}, a.secret)).question.bingo.titles, played, 'all titles shown once the game ends');
 }));
@@ -358,8 +372,9 @@ test('full bingo game: line, then two lines, then full house, each paying its ow
       if (lines(cards[i], b.called) < need[b.playingFor]) continue;
       // Bravo misses the first line it could claim: once the next number is called, that stage has moved on.
       if (i === 1 && b.playingFor === 'line' && !skipped && !b.stageWins.length) {skipped = true; continue;}
-      const result = await call('bingo', {question: id}, p.secret);
-      assert.equal(result.ok, true); won.push(result.stage); expected.set(p.id, expected.get(p.id) + {line: 1, twoLines: 2, fullHouse: 5}[result.stage]);
+      assert.equal((await call('bingo', {question: id}, p.secret)).pending, true);
+      const result = await call('host/bingo-verdict', {shout: (await call('host/state')).question.bingo.shouts.at(-1).id, correct: true});
+      assert.equal(result.correct, true); won.push(result.stage); expected.set(p.id, expected.get(p.id) + {line: 1, twoLines: 2, fullHouse: 5}[result.stage]);
       assert.equal((await call('bingo', {question: id}, p.secret)).status, 409, 'one claim per stage');
     }
     if ((await call('state', {}, players[0].secret)).question.bingo.over) break;

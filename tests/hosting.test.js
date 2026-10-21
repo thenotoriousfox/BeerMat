@@ -162,7 +162,8 @@ test('end quiz and start next: results kept on the laptop, teams and scores clea
   const bingo = await call('host/open', {text: 'Bingo', type: 'bingo', seconds: 600, mode: 'progressive', stagePoints: [1, 2, 3]});
   const row = (await call('state', {}, team.secret)).question.bingo.card[0].filter(Boolean);
   for (let called = []; !row.every(n => called.includes(n));) {await call('host/bingo', {question: bingo.id}); called = (await call('state', {}, team.secret)).question.bingo.called;}
-  assert.equal((await call('bingo', {question: bingo.id}, team.secret)).stage, 'line');
+  await call('bingo', {question: bingo.id}, team.secret);
+  assert.equal((await call('host/bingo-verdict', {shout: (await call('host/state')).question.bingo.shouts[0].id, correct: true})).stage, 'line');
   await call('host/close'); await call('host/settings', {ended: true}); await call('host/timer', {action: 'start', seconds: 60});
   const before = (await board()).event;
   const ended = await call('host/new-event', {questions: 'keep', title: 'Night two'});

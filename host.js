@@ -394,7 +394,7 @@ function timeSong(q, song) {
     $('songAudio').pause(); if (song.spotify) await request('spotify/pause').catch(() => {});
     const live = state.question;
     // A claim during the song pauses the auto-play so the quizmaster can check it.
-    if (!q.autoNext || run !== songRun || live?.id !== q.id || !live.live || live.paused || live.bingo.over || live.bingo.claims > claims || live.bingo.played >= q.songs.length) return;
+    if (!q.autoNext || run !== songRun || live?.id !== q.id || !live.live || live.paused || live.bingo.over || live.bingo.claims > claims || live.bingo.pending > 0 || live.bingo.played >= q.songs.length) return;
     songTimer = setTimeout(() => {if (run === songRun && !$('callNumber').disabled) $('callNumber').click();}, 2000);
   }, q.songSeconds * 1000);
 }
@@ -402,7 +402,7 @@ function timeSong(q, song) {
 // Sound files are matched to moments by SpeedQuizzing's file names (soundnames.js; first match wins).
 const soundSlotInfo = Object.entries({startRound: 'Round starts', questionStart: 'Question opens', timerMusic: 'Music while answering (loops)', countdown: 'Final countdown (hits zero at time up)', timeUp: "Time's up",
   endRound: 'Round ends (leaderboard)', correct: 'Correct buzzer answer', wrong: 'Wrong buzzer answer', reveal: 'Answer reveal', bingoCall: 'Bingo number called',
-  bingo: 'Bingo claimed', applause: 'Winner'}).map(([slot, label]) => [slot, label, slotFiles[slot]]);
+  bingo: 'Someone calls BINGO', applause: 'Winner'}).map(([slot, label]) => [slot, label, slotFiles[slot]]);
 const audioFile = file => /\.(mp3|ogg|wav)$/i.test(file.name);
 const fileKey = file => (file.webkitRelativePath || file.name).toLowerCase().replace(/\.(mp3|ogg|wav)$/, '');
 let soundsSignature = '';
@@ -520,7 +520,8 @@ $('spinWheel').onclick = () => action(async () => {
 const shortcuts = {n: 'next', c: 'close', r: 'reveal', 1: 'buzzCorrect', 2: 'buzzWrong', 3: 'buzzPass', a: 'startAgree', b: 'callNumber', w: 'spinWheel', t: 'timerPause', s: 'showScores'};
 document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || $('panel').hidden || e.target.closest('input,textarea,select,dialog')) return;
-  const key = e.key.toLowerCase(), id = key === 'p' ? (state?.question?.paused ? 'resume' : 'pause') : shortcuts[key];
+  const key = e.key.toLowerCase(), shout = state?.question?.bingo?.pending && {1: 'shoutCorrect', 2: 'shoutWrong'}[key];
+  const id = shout || (key === 'p' ? (state?.question?.paused ? 'resume' : 'pause') : shortcuts[key]);
   const button = id && $(id);
   if (!button || button.disabled || button.closest('[hidden]')) return;
   e.preventDefault(); if (tab !== 'live') chooseTab('live'); button.click();
@@ -666,20 +667,36 @@ function renderBuzzPanel(q) {
   $('startAgree').disabled = !b.active || b.agreeOpen || busy;
   const leader = b.active?.name || ''; if (leader && leader !== lastBuzz) buzzSound(leader, b.active.sound); lastBuzz = leader;
 }
+// Calls of "bingo!" wait here for the quizmaster's verdict (keys 1 and 2 answer the first). The desk shows whether
+// the ticket checks out against the numbers called before the shout, but the quizmaster decides.
+let shoutsSignature = '';
+function renderShouts(g) {
+  const waiting = g.shouts.filter(x => x.status === 'pending'), signature = JSON.stringify(waiting);
+  if (signature === shoutsSignature) return; shoutsSignature = signature;
+  $('bingoShouts').replaceChildren(...waiting.map((x, i) => {
+    const li = element('li'), yes = element('button', 'Correct — bingo!'), no = element('button', 'Not a bingo', 'danger');
+    yes.type = no.type = 'button'; if (i === 0) {yes.id = 'shoutCorrect'; no.id = 'shoutWrong';}
+    yes.onclick = () => action(() => request('bingo-verdict', {shout: x.id, correct: true}), `${x.name}: correct — ${stageNames[x.stage]}`);
+    no.onclick = () => action(() => request('bingo-verdict', {shout: x.id, correct: false}), `${x.name}: not a bingo`);
+    li.append(element('strong', `🔔 ${x.name} called BINGO`), element('span', x.checks ? `✓ ticket checks out for ${stageNames[x.stage]}` : `✗ ticket does not check out for ${stageNames[x.stage]}`, x.checks ? 'good' : 'bad'), yes, no);
+    return li;
+  }));
+}
 function renderBingoPanel(q) {
   const g = q?.bingo; $('bingoPanel').hidden = !g || !q.live;
   if (!g) return;
+  renderShouts(g);
   $('callNumber').textContent = g.music ? 'Play next song' : 'Call next number';
   if (!q.live) {$('songAudio').pause(); stopSongTimer();}
   if (g.music) {
     $('bingoInfo').textContent = g.winners.length ? bingoWins(g) : g.current ? `Song ${g.played}: ${g.current.title}` : 'No songs played yet';
     $('bingoCalls').textContent = `${g.played} of ${q.songs.length} songs played${q.songSeconds ? ` · each plays ${q.songSeconds}s${q.startAt ? ` from ${q.startAt}s` : ''}${q.autoNext ? ', then the next starts by itself' : ''}` : q.startAt ? ` · songs start ${q.startAt}s in` : ''}`;
-    $('callNumber').disabled = busy || g.over || !!q.paused || g.played >= q.songs.length;
+    $('callNumber').disabled = busy || g.over || !!q.paused || g.pending > 0 || g.played >= q.songs.length;
     return;
   }
   $('bingoInfo').textContent = g.winners.length ? bingoWins(g) : g.last ? `Last call: ${g.last}${state.settings.bingoPhrases ? ` — ${(g.phrase ?? bingoCall(g.last))}` : ''} · ${g.called.length} called` : 'No numbers called yet';
   $('bingoCalls').textContent = g.called.join(' · ');
-  $('callNumber').disabled = busy || g.over || !!q.paused || g.called.length >= 90;
+  $('callNumber').disabled = busy || g.over || !!q.paused || g.pending > 0 || g.called.length >= 90;
 }
 function shownValue(q, value) {
   if (q.type === 'wordsnake') {try {const {path, wide} = JSON.parse(value); return path.map(i => q.grid.letters[i]).join('') + (wide ? ' (went wide)' : '');} catch {return value;}}
