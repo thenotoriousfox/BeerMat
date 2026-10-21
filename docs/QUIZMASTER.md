@@ -73,7 +73,7 @@ for f in en_GB-cori-high.onnx en_GB-cori-high.onnx.json; do curl -LO "https://hu
 cd - && node scripts/bingo-voice.mjs   # about 30 seconds; writes soundpack/bingo_voice/1.mp3 … 90.mp3
 ```
 
-`./scripts/setup.sh` does the last step for you once Piper is installed. Run `node scripts/bingo-voice.mjs` again after changing the calls file, then restart PubQuiz; rebuilding the sound pack keeps the recordings. The caller only speaks the calls it was recorded for: calls typed on the desk have no voice, and nothing is spoken while **Bingo phrases** is off.
+`./scripts/setup.sh` does the last step for you once Piper is installed. Run `node scripts/bingo-voice.mjs` again after changing the calls file, then restart PubQuiz; rebuilding the sound pack keeps the recordings. The caller only speaks the calls it was recorded for: calls typed on the desk have no voice. **Bingo caller voice** in Room controls switches it off and on (the chime still plays); nothing is spoken while **Bingo phrases** is off either.
 
 ## Spotify (optional, private quizzes only)
 

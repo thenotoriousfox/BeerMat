@@ -67,7 +67,8 @@ test('a sound pack built from a SpeedQuizzing folder becomes the default; desk c
     await call('host/bingo-calls', {calls: null}, key); assert.equal((await call('host/state', {}, key)).bingoCalls, null);
     assert.equal(await voice(), '/sounds/bingo_voice/4.mp3');
     await call('host/settings', {bingoPhrases: false}, key); assert.equal(await voice(), null, 'no caller with phrases off');
-    await call('host/settings', {bingoPhrases: true}, key);
+    await call('host/settings', {bingoPhrases: true, bingoVoice: false}, key); assert.equal(await voice(), null, 'caller switched off');
+    await call('host/settings', {bingoVoice: true}, key); assert.equal(await voice(), '/sounds/bingo_voice/4.mp3');
     await call('host/bingo-calls', {calls: Array.from({length: 90}, (_, i) => `Call ${i + 1}`)}, key); assert.equal(await voice(), null, 'the desk\'s own calls have no recordings');
   } finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
 });
