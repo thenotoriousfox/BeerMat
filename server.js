@@ -746,7 +746,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           run('INSERT INTO bingo_calls VALUES(?,?,?,?)', q.id, called.size + 1, number, now());
           // A Spotify song starts on the laptop's Spotify app; if that fails the call still stands and the desk is told why.
           const song = data.type === 'musicbingo' && data.songs[number - 1];
-          if (song?.spotify) try {await spotify.play(song.spotify, data.startAt);} catch (e) {if (!(e instanceof QuizError)) throw e; return send(200, {number, warning: e.message});}
+          if (song?.spotify) try {await spotify.play(song.spotify, song.start ?? data.startAt);} catch (e) {if (!(e instanceof QuizError)) throw e; return send(200, {number, warning: e.message});}
           return send(200, {number});
         }
         if (p === '/api/host/clip') {

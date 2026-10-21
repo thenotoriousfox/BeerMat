@@ -359,6 +359,13 @@ test('music bingo song timing: start time, play time and auto-next are validated
   assert.deepEqual((({startAt, songSeconds, autoNext}) => [startAt, songSeconds, autoNext])(validateQuestion(base, '.')), [0, 0, false]);
   assert.throws(() => validateQuestion({...base, autoNext: true}, '.'), /move on automatically/);
   assert.throws(() => validateQuestion({...base, songSeconds: 2}, '.'), /3–600 seconds/);
+  // Each song can carry a Spotify link with its own start point and play time; links are stored as track ids.
+  const id = '4uLU6hMCjMI75M1A2tKUQC', timed = songs.map((song, i) => ({...song, spotify: i % 2 ? `spotify:track:${id}` : `https://open.spotify.com/intl-gb/track/${id}?si=abc`, start: 30 + i, seconds: 20}));
+  const checked = validateQuestion({...base, songs: timed, autoNext: true}, '.');
+  assert.deepEqual(checked.songs[0], {title: songs[0].title, media: null, spotify: `spotify:track:${id}`, start: 30, seconds: 20});
+  assert.equal(checked.autoNext, true, 'per-song play times allow auto-next');
+  assert.throws(() => validateQuestion({...base, songs: [{...timed[0], spotify: 'https://example.com/track/x'}, ...timed.slice(1)]}, '.'), /Invalid Spotify track/);
+  assert.throws(() => validateQuestion({...base, songs: [{...timed[0], seconds: 1}, ...timed.slice(1)]}, '.'), /3–600 seconds/);
 });
 
 test('full bingo game: line, then two lines, then full house, each paying its own points', () => fixture(async ({call, teams, score}) => {

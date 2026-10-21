@@ -98,11 +98,12 @@ test('connect with PKCE, import a playlist, refresh tokens, disconnect', () => f
 
 test('music bingo plays Spotify songs from the start time; clips play and log; no player gives a clear message', () => fixture(async ctx => {
   const {call, fake} = ctx; await connect(ctx);
-  const songs = Array.from({length: 15}, (_, i) => ({title: `Song ${i + 1}`, spotify: `spotify:track:${id(i + 1)}`}));
+  // Every other song has its own start time (and is given as a song link); the rest start at the game's.
+  const songs = Array.from({length: 15}, (_, i) => i % 2 ? {title: `Song ${i + 1}`, spotify: `spotify:track:${id(i + 1)}`} : {title: `Song ${i + 1}`, spotify: `https://open.spotify.com/track/${id(i + 1)}`, start: 10 * (i + 1)});
   const bingo = await call('host/open', {text: 'Music bingo', type: 'musicbingo', seconds: 600, points: 1, songs, mode: 'line', startAt: 45});
   const {number} = await call('host/bingo', {question: bingo.id});
   const played = fake.log.findLast(l => l.path === '/v1/me/player/play');
-  assert.deepEqual(JSON.parse(played.body), {uris: [`spotify:track:${id(number)}`], position_ms: 45000});
+  assert.deepEqual(JSON.parse(played.body), {uris: [`spotify:track:${id(number)}`], position_ms: ((number - 1) % 2 ? 45 : 10 * number) * 1000});
   fake.state.device = false;
   const second = await call('host/bingo', {question: bingo.id});
   assert.match(second.warning, /Start Spotify player/); assert.ok(second.number, 'the call still counts');

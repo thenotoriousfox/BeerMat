@@ -164,7 +164,7 @@ function fillQuestion(q = null) {
   $('qAnswer').value = q?.answer || ''; $('qAliases').value = (q?.aliases || []).join('\n'); $('qOptions').value = (q?.options || []).join('\n'); $('qMedia').value = q?.media || '';
   $('qNote').value = q?.answerNote || ''; $('qItems').value = q?.type === 'sequence' ? q.items.join('\n') : ''; $('qPlaces').value = q?.places ?? 1;
   $('qCorrect').value = (q?.correct || []).join('\n'); pinTarget = q?.target || null; $('qRadius').value = Math.round((q?.target?.r ?? 0.08) * 100);
-  $('qSongs').value = (q?.songs || []).map(s => s.media || s.spotify ? `${s.title} | ${s.media || s.spotify}` : s.title).join('\n'); $('qStartAt').value = q?.startAt ?? 0; $('qSongSeconds').value = q?.songSeconds ?? 0; $('qAutoNext').checked = !!q?.autoNext; $('qClipSeconds').value = q?.clipSeconds ?? 15; $('qRevealNow').checked = !!q?.revealNow;
+  $('qSongs').value = (q?.songs || []).map(s => s.media || s.spotify ? `${s.title} | ${s.media || s.spotify}${s.start !== undefined || s.seconds !== undefined ? ` | ${s.start ?? ''} | ${s.seconds ?? ''}` : ''}` : s.title).join('\n'); $('qStartAt').value = q?.startAt ?? 0; $('qSongSeconds').value = q?.songSeconds ?? 0; $('qAutoNext').checked = !!q?.autoNext; $('qClipSeconds').value = q?.clipSeconds ?? 15; $('qRevealNow').checked = !!q?.revealNow;
   clipItems = structuredClone(q?.clips || []); targetClip = q?.targetClip ?? 0; renderClipList();
   $('qFastest').checked = !!q?.fastestFingers; $('qBonusMode').value = q?.bonusMode || 'sliding'; $('qBonusPlaces').value = q?.bonusPlaces ?? 1; $('qEvil').checked = !!q?.evil;
   $('qGoWide').checked = !!q?.goWide; $('qGoWidePoints').value = q?.goWidePoints ?? 0; $('qMode').value = q?.mode || 'progressive';
@@ -202,11 +202,12 @@ function readQuestion() {
   const stagePoints = $('qMode').value === 'progressive' ? {stagePoints: [Number($('qLinePoints').value), Number($('qTwoLinePoints').value), Number($('qHousePoints').value)]} : {};
   if (type === 'bingo') Object.assign(q, {mode: $('qMode').value, media: '', ...stagePoints});
   if (type === 'musicbingo') Object.assign(q, {...stagePoints, mode: $('qMode').value, revealNow: $('qRevealNow').checked, startAt: Number($('qStartAt').value), songSeconds: Number($('qSongSeconds').value), autoNext: $('qAutoNext').checked, media: '', songs: lines('qSongs').map(line => {
-    // "Title | /media/file.mp3" plays an uploaded file; "Title | spotify:track:…" plays on Spotify.
-    const [title, source = ''] = line.split(/\s*\|\s*(?=\/media\/|spotify:track:)/), file = source.trim();
-    return {title: title.trim(), media: file.startsWith('/media/') ? file : null, ...(file.startsWith('spotify:') ? {spotify: file} : {})};
+    // "Title | /media/file.mp3" plays an uploaded file; "Title | spotify:track:…" (or a Spotify song link) plays on
+    // Spotify. "| start | seconds" after it gives that song its own start point and play time.
+    const [title, rest = ''] = line.split(/\s*\|\s*(?=\/media\/|spotify:track:|https:\/\/open\.spotify\.com\/)/), [file = '', start = '', seconds = ''] = rest.split('|').map(s => s.trim());
+    return {title: title.trim(), media: file.startsWith('/media/') ? file : null, ...(/^(spotify:|https:)/.test(file) ? {spotify: file} : {}), ...(start !== '' && {start: Number(start)}), ...(seconds !== '' && {seconds: Number(seconds)})};
   })});
-  if (type === 'clips') Object.assign(q, {clips: clipItems.map(c => c.spotify ? {spotify: c.spotify, start: c.start ?? 0, label: c.label.trim()} : {media: c.media, label: c.label.trim()}), targetClip, clipSeconds: Number($('qClipSeconds').value), media: ''});
+  if (type === 'clips') Object.assign(q, {clips: clipItems.map(c => c.spotify ? {spotify: c.spotify, start: c.start ?? 0, ...(c.seconds !== undefined && {seconds: c.seconds}), label: c.label.trim()} : {media: c.media, label: c.label.trim()}), targetClip, clipSeconds: Number($('qClipSeconds').value), media: ''});
   if (type === 'sequence') q.items = lines('qItems');
   if (type === 'sheet') Object.assign(q, {items: rows.map(row => row.querySelectorAll('input')[0].value.trim()), itemAnswers: rows.map(row => row.querySelectorAll('input')[1].value.trim()), answerNote: '', media: ''});
   if (type === 'nearest') q.places = Number($('qPlaces').value);
@@ -359,7 +360,7 @@ function playClip(i) {
       if (clipRun !== run) return;
       await request('spotify/pause').catch(() => {}); await request('clip', {question: q.id, clip: -1}).catch(() => {});
       setTimeout(() => {if (clipRun === run) playClip(i + 1);}, 1500);
-    }, q.clipSeconds * 1000)).catch(e => {message(e.message, true); if (clipRun === run) stopClips();});
+    }, (q.clips[i].seconds ?? q.clipSeconds) * 1000)).catch(e => {message(e.message, true); if (clipRun === run) stopClips();});
     return renderClipsPanel(q);
   }
   const run = clipRun = {question: q.id, index: i}, audio = $('clipAudio'); let started = false;
@@ -387,8 +388,8 @@ $('stopClips').onclick = stopClips;
 let songTimer = null, songRun = 0;
 function stopSongTimer() {clearTimeout(songTimer); songTimer = null; songRun++;}
 function timeSong(q, song) {
-  const run = songRun, claims = state.question?.bingo?.claims ?? 0;
-  if (!q.songSeconds) return;
+  const run = songRun, claims = state.question?.bingo?.claims ?? 0, seconds = song.seconds ?? q.songSeconds;
+  if (!seconds) return;
   songTimer = setTimeout(async () => {
     if (run !== songRun) return;
     $('songAudio').pause(); if (song.spotify) await request('spotify/pause').catch(() => {});
@@ -396,7 +397,7 @@ function timeSong(q, song) {
     // A claim during the song pauses the auto-play so the quizmaster can check it.
     if (!q.autoNext || run !== songRun || live?.id !== q.id || !live.live || live.paused || live.bingo.over || live.bingo.claims > claims || live.bingo.pending > 0 || live.bingo.played >= q.songs.length) return;
     songTimer = setTimeout(() => {if (run === songRun && !$('callNumber').disabled) $('callNumber').click();}, 2000);
-  }, q.songSeconds * 1000);
+  }, seconds * 1000);
 }
 // --- Sounds & bingo calls ---------------------------------------------------------------------------------------
 // Sound files are matched to moments by SpeedQuizzing's file names (soundnames.js; first match wins).
@@ -505,7 +506,8 @@ $('callNumber').onclick = () => action(async () => {
   audio.hidden = !song.media;
   if (song.spotify) {audio.pause(); if (!warning) timeSong(q, song); return `Song ${q.bingo.played + 1}: ${song.title}${warning ? ` — ⚠ ${warning}` : ' — playing on Spotify'}`;}
   // A media fragment (#t=) starts an uploaded song at the chosen point.
-  if (song.media) {audio.src = song.media + (q.startAt ? `#t=${q.startAt}` : ''); audio.play().then(() => timeSong(q, song)).catch(() => message('Press play on the song player', true));}
+  const startAt = song.start ?? q.startAt;
+  if (song.media) {audio.src = song.media + (startAt ? `#t=${startAt}` : ''); audio.play().then(() => timeSong(q, song)).catch(() => message('Press play on the song player', true));}
   return `Song ${q.bingo.played + 1}: ${song.title}${song.media ? '' : ' — play it from your own music player'}`;
 });
 $('spinWheel').onclick = () => action(async () => {

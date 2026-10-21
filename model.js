@@ -16,6 +16,11 @@ export const numberPattern = /^-?\d{1,15}(\.\d{1,6})?$/;
 export const soundSlots = ['startRound', 'questionStart', 'timerMusic', 'countdown', 'timeUp', 'endRound', 'correct', 'wrong', 'reveal', 'bingoCall', 'bingo', 'applause'];
 export const audioPath = media => typeof media === 'string' && mediaPattern.test(media) && /\.(mp3|ogg|wav)$/i.test(media);
 export const spotifyPattern = /^spotify:track:[A-Za-z0-9]{22}$/;
+// A Spotify track as a spotify:track: id or an open.spotify.com link (as "Share → Copy song link" gives), stored as the id.
+export const spotifyTrack = value => {
+  const match = typeof value === 'string' && /^(?:spotify:track:|https:\/\/open\.spotify\.com\/(?:intl-[a-z-]+\/)?track\/)([A-Za-z0-9]{22})(?:[?#].*)?$/.exec(value.trim());
+  return match ? `spotify:track:${match[1]}` : null;
+};
 export const mediaPattern = /^\/media\/[a-zA-Z0-9_-][a-zA-Z0-9_.-]*\.(png|jpg|jpeg|webp|mp3|ogg|wav)$/i;
 const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = ['.mp3', '.ogg', '.wav'];
 
@@ -105,11 +110,13 @@ export function validateQuestion(q, mediaDir) {
     // A clip is an uploaded audio file, or a Spotify track played from a start time for clipSeconds.
     result.clips = q.clips.map(c => {
       requireValue(c && typeof c === 'object', 'Invalid clip');
+      const spotify = c.spotify && spotifyTrack(c.spotify);
       if (c.spotify) {
-        requireValue(spotifyPattern.test(c.spotify) && integer(c.start ?? 0, 0, 3600), 'Spotify clips need a track and a start time of 0–3,600 seconds');
+        requireValue(spotify && integer(c.start ?? 0, 0, 3600), 'Spotify clips need a track and a start time of 0–3,600 seconds');
+        requireValue(c.seconds === undefined || integer(c.seconds, 3, 60), 'A clip plays for 3–60 seconds');
       } else requireValue(typeof c.media === 'string' && mediaPattern.test(c.media) && audioExtensions.includes(path.extname(c.media).toLowerCase()) && existsSync(path.join(mediaDir, path.basename(c.media))), 'Each clip needs an uploaded audio file or a Spotify track');
       requireValue(c.label === undefined || text(c.label, 100, false), 'Clip names must be up to 100 characters');
-      return c.spotify ? {spotify: c.spotify, start: c.start ?? 0, label: c.label?.trim() || ''} : {media: c.media, label: c.label?.trim() || ''};
+      return c.spotify ? {spotify, start: c.start ?? 0, ...(c.seconds !== undefined && {seconds: c.seconds}), label: c.label?.trim() || ''} : {media: c.media, label: c.label?.trim() || ''};
     });
     result.clipSeconds = q.clipSeconds ?? 15;
     requireValue(integer(result.clipSeconds, 3, 60), 'Spotify clip length must be 3–60 seconds');
@@ -120,18 +127,21 @@ export function validateQuestion(q, mediaDir) {
     requireValue(Array.isArray(q.songs) && q.songs.length >= 15 && q.songs.length <= 300, 'Music bingo needs 15–300 songs');
     result.songs = q.songs.map(song => {
       requireValue(song && text(song.title, 100), 'Every song needs a title of up to 100 characters');
-      const media = song.media || null, spotify = song.spotify || null;
+      const media = song.media || null, spotify = song.spotify ? spotifyTrack(song.spotify) : null;
       requireValue(!media || (typeof media === 'string' && mediaPattern.test(media) && audioExtensions.includes(path.extname(media).toLowerCase()) && existsSync(path.join(mediaDir, path.basename(media)))), 'Song audio must be an uploaded MP3, Ogg or WAV');
-      requireValue(!spotify || (typeof spotify === 'string' && spotifyPattern.test(spotify)), 'Invalid Spotify track');
+      requireValue(!song.spotify || spotify, 'Invalid Spotify track — use a spotify:track: id or an open.spotify.com/track/ link');
       requireValue(!(media && spotify), 'A song plays either an uploaded file or Spotify, not both');
-      return {title: song.title.trim(), media, ...(spotify ? {spotify} : {})};
+      // A song can have its own start point and play time, instead of the game's.
+      requireValue(song.start === undefined || integer(song.start, 0, 3600), 'A song\'s start time must be 0–3,600 seconds');
+      requireValue(song.seconds === undefined || integer(song.seconds, 3, 600), 'A song plays for 3–600 seconds');
+      return {title: song.title.trim(), media, ...(spotify ? {spotify} : {}), ...(song.start !== undefined && {start: song.start}), ...(song.seconds !== undefined && {seconds: song.seconds})};
     });
     // Each song starts this far in (e.g. at the chorus) and plays for songSeconds (0 = the whole song);
     // with autoNext the desk then plays the next song by itself.
     result.startAt = q.startAt ?? 0; result.songSeconds = q.songSeconds ?? 0; result.autoNext = q.autoNext === true;
     requireValue(integer(result.startAt, 0, 600), 'Song start time must be 0–600 seconds');
     requireValue(result.songSeconds === 0 || integer(result.songSeconds, 3, 600), 'Play each song for 3–600 seconds, or 0 for the whole song');
-    requireValue(!result.autoNext || result.songSeconds > 0, 'Set how long each song plays to move on automatically');
+    requireValue(!result.autoNext || result.songSeconds > 0 || result.songs.every(s => s.seconds), 'Set how long each song plays to move on automatically');
     requireValue(new Set(result.songs.map(s => s.title.toLowerCase())).size === result.songs.length, 'Song titles must all be different');
     result.revealNow = q.revealNow === true;
   }
