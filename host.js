@@ -1,6 +1,7 @@
 import {$, element, api, message, readStorage, writeStorage, download, renderMedia, renderSolution, timeText, selectOptions, letters, live, enableSound, useSounds, buzzSound, renderPinpoint, bingoCall, avatar} from './app.js';
 import {parseSqRound, parseQuickQuestion} from './sqimport.js';
 import {slotFiles} from './soundnames.js';
+import {looks} from './looks.js';
 let key = readStorage('pubquiz-host', true), state = null, library = null, editingId = null, tab = 'live', dirty = false, reviewId = '', reviewSignature = '', busy = false;
 const uid = () => 'id-' + crypto.getRandomValues(new Uint32Array(4)).join('-');
 const request = (p, body = {}) => api('host/' + p, body, key);
@@ -399,18 +400,29 @@ function timeSong(q, song) {
 }
 // --- Sounds & bingo calls ---------------------------------------------------------------------------------------
 // Sound files are matched to moments by SpeedQuizzing's file names (soundnames.js; first match wins).
-const soundSlotInfo = Object.entries({startRound: 'Round starts', questionStart: 'Question opens', timerMusic: 'Music while answering (loops)', timeUp: "Time's up",
+const soundSlotInfo = Object.entries({startRound: 'Round starts', questionStart: 'Question opens', timerMusic: 'Music while answering (loops)', countdown: 'Final countdown (timed to end at time up)', timeUp: "Time's up",
   endRound: 'Round ends (leaderboard)', correct: 'Correct buzzer answer', wrong: 'Wrong buzzer answer', reveal: 'Answer reveal', bingoCall: 'Bingo number called',
-  bingo: 'Bingo claimed', wheel: 'Wheel spin', applause: 'Winner'}).map(([slot, label]) => [slot, label, slotFiles[slot]]);
+  bingo: 'Bingo claimed', applause: 'Winner'}).map(([slot, label]) => [slot, label, slotFiles[slot]]);
 const audioFile = file => /\.(mp3|ogg|wav)$/i.test(file.name);
 const fileKey = file => (file.webkitRelativePath || file.name).toLowerCase().replace(/\.(mp3|ogg|wav)$/, '');
 let soundsSignature = '';
 function renderSounds(s) {
-  const signature = JSON.stringify([s.sounds, s.bingoCalls?.length, s.soundThemes, s.settings.soundTheme]); if (signature === soundsSignature) return; soundsSignature = signature;
+  const signature = JSON.stringify([s.sounds, s.bingoCalls?.length, s.soundThemes, s.settings.soundTheme, s.soundThemesByType, s.soundThemeNow]); if (signature === soundsSignature) return; soundsSignature = signature;
   // Themes come from the sound pack (SpeedQuizzing's Themes folder); a theme only replaces the moments it has sounds for.
-  selectOptions($('soundTheme'), [['', 'Standard sounds'], ...s.soundThemes.map(name => [name, name])], s.settings.soundTheme);
+  // A fixed theme, a random one for each question, or one per question type.
+  const themeName = name => name || 'Standard sounds';
+  selectOptions($('soundTheme'), [['', 'Standard sounds'], ...s.soundThemes.map(name => [name, name]), ...(s.soundThemes.length ? [['@random', 'Random theme for each question'], ['@type', 'Theme by question type']] : [])], s.settings.soundTheme);
   $('soundTheme').disabled = !s.soundThemes.length;
-  $('themeHint').textContent = s.soundThemes.length ? 'A theme replaces the moments it has a sound for; the rest use the standard sounds. Changing theme resets the moments below to it (added buzzer sounds stay).' : 'No themes found. Themes come from a sound pack (soundpack/Themes/<name>/, as in SpeedQuizzing).';
+  const mode = s.settings.soundTheme, perQuestion = mode === '@random' || mode === '@type';
+  $('themeHint').textContent = !s.soundThemes.length ? 'No themes found. Themes come from a sound pack (soundpack/Themes/<name>/, as in SpeedQuizzing).'
+    : `A theme replaces the moments it has a sound for; the rest use the standard sounds. Changing theme resets the moments below to it (added buzzer sounds stay).${perQuestion ? ` Current question: ${themeName(s.soundThemeNow)}.` : ''}`;
+  $('themeByType').hidden = mode !== '@type';
+  if (mode === '@type') $('themeByType').replaceChildren(...[...$('qType').options].map(option => {
+    const label = element('label', option.textContent), select = element('select');
+    selectOptions(select, [['', 'Standard sounds'], ...s.soundThemes.map(name => [name, name])], s.soundThemesByType[option.value] ?? '');
+    select.onchange = () => {const theme = select.value; action(() => request('settings', {soundThemeByType: {[option.value]: theme}}), `${option.textContent}: ${themeName(theme)}`);};
+    label.append(select); return label;
+  }));
   $('soundSlots').replaceChildren(...soundSlotInfo.map(([slot, label]) => {
     const row = element('div', undefined, 'sound-slot'), media = s.sounds.slots[slot], pick = element('input'), play = element('button', '▶', 'subtle'), remove = element('button', 'Remove', 'subtle');
     pick.type = 'file'; pick.accept = 'audio/mpeg,audio/ogg,audio/wav'; pick.setAttribute('aria-label', `File for ${label}`);
@@ -425,6 +437,22 @@ function renderSounds(s) {
   $('callsStatus').textContent = s.bingoCalls ? `Your own bingo calls are in use (e.g. 4: “${s.bingoCalls[3] || bingoCall(4)}”)` : 'Built-in bingo calls';
   $('defaultCalls').disabled = !s.bingoCalls;
 }
+// The TV and phones' look: one look, a random one for each question, or one per question type.
+const lookName = id => looks.find(([value]) => value === id)?.[1] || id;
+let looksSignature = '';
+function renderLooks(s) {
+  const signature = JSON.stringify([s.settings.look, s.looksByType, s.look]); if (signature === looksSignature) return; looksSignature = signature;
+  if (document.activeElement !== $('look')) selectOptions($('look'), [...looks, ['@random', 'Random look for each question'], ['@type', 'Look by question type']], s.settings.look);
+  $('lookNow').textContent = s.settings.look.startsWith('@') ? `(now: ${lookName(s.look)})` : '';
+  $('lookByType').hidden = s.settings.look !== '@type';
+  if (s.settings.look === '@type' && !$('lookByType').contains(document.activeElement)) $('lookByType').replaceChildren(...[...$('qType').options].map(option => {
+    const label = element('label', option.textContent), select = element('select');
+    selectOptions(select, looks, s.looksByType[option.value] ?? 'stage');
+    select.onchange = () => {const look = select.value; action(() => request('settings', {lookByType: {[option.value]: look}}), `${option.textContent}: ${lookName(look)}`);};
+    label.append(select); return label;
+  }));
+}
+$('look').onchange = () => {const look = $('look').value; action(() => request('settings', {look}), look === '@random' ? 'Each question now gets a random look' : look === '@type' ? 'Each question type now has its own look — change them below' : `Look: ${lookName(look)}`);};
 $('soundTheme').onchange = () => {const soundTheme = $('soundTheme').value; action(() => request('settings', {soundTheme}), soundTheme ? `Sound theme: ${soundTheme}` : 'Standard sounds');};
 $('soundFolder').onchange = () => {const files = [...$('soundFolder').files].filter(audioFile); action(async () => {
   const slots = {};
@@ -482,9 +510,11 @@ $('callNumber').onclick = () => action(async () => {
 });
 $('spinWheel').onclick = () => action(async () => {
   const items = $('wheelItems').value.split('\n').map(s => s.trim()).filter(Boolean);
-  if (state.settings.displayMode !== 'wheel') await request('settings', {displayMode: 'wheel'});
+  const auto = state.settings.displayMode === 'auto';
+  if (!auto && state.settings.displayMode !== 'wheel') await request('settings', {displayMode: 'wheel'});
   const wheel = await request('wheel', items.length ? {items} : {});
-  $('wheelLast').textContent = `Last spin: ${wheel.items[wheel.result]}`; return 'Wheel spinning on the projector — set Projector view back to Auto when you are done';
+  $('wheelLast').textContent = `Last spin: ${wheel.items[wheel.result]}`;
+  return auto ? 'Wheel spinning on the projector — Auto carries on once the result has shown' : 'Wheel spinning on the projector — set Projector view back to Auto when you are done';
 });
 // Single-key shortcuts, also usable from a Stream Deck or presenter remote that sends key presses.
 const shortcuts = {n: 'next', c: 'close', r: 'reveal', 1: 'buzzCorrect', 2: 'buzzWrong', 3: 'buzzPass', a: 'startAgree', b: 'callNumber', w: 'spinWheel', t: 'timerPause', s: 'showScores'};
@@ -495,7 +525,22 @@ document.addEventListener('keydown', e => {
   if (!button || button.disabled || button.closest('[hidden]')) return;
   e.preventDefault(); if (tab !== 'live') chooseTab('live'); button.click();
 });
-$('reveal').onclick = () => action(() => request('reveal', {question: state.question.id, revealed: !state.question.revealed}), 'Reveal updated');
+// Revealing waits for the reveal sound (e.g. a drum roll, up to 10 s): the TV plays it, then the answer appears.
+const soundLengths = new Map();
+function soundLength(src) {
+  if (!src) return Promise.resolve(0);
+  if (!soundLengths.has(src)) soundLengths.set(src, new Promise(resolve => {
+    const audio = new Audio(); audio.preload = 'metadata';
+    audio.onloadedmetadata = () => resolve(Number.isFinite(audio.duration) ? audio.duration : 0); audio.onerror = () => resolve(0);
+    setTimeout(() => resolve(0), 3000); audio.src = src;
+  }));
+  return soundLengths.get(src);
+}
+$('reveal').onclick = () => {const q = state.question, hide = q.revealed || q.revealing; action(async () => {
+  const delay = hide ? 0 : Math.min(10000, Math.round(await soundLength(state.sounds.slots.reveal) * 1000));
+  await request('reveal', {question: q.id, revealed: !hide, delay});
+  return hide ? 'Answer hidden' : delay ? `Drum roll… the answer appears in ${Math.ceil(delay / 1000)}s` : 'Answer revealed';
+});};
 // Queued actions run later, after a refresh may have reset the form, so each handler reads its values straight away.
 $('joinDetails').onsubmit = e => {e.preventDefault(); const body = {joinSsid: $('joinSsidInput').value, joinUrl: $('joinUrlInput').value}; action(() => request('settings', body), 'Join details saved — shown on the projector join screen');};
 $('titleForm').onsubmit = e => {e.preventDefault(); const title = $('eventName').value; action(() => request('settings', {title}));};
@@ -653,12 +698,12 @@ function renderState(s) {
   $('liveRound').textContent = q?.round || ''; $('liveText').textContent = q?.text || 'Ready when you are'; $('liveTimer').textContent = timeText(q, offset);
   $('liveKey').textContent = q ? answerKey(q) : '';
   if (q?.id !== liveQuestion) {liveQuestion = q?.id; $('announced').value = '';}
-  renderBuzzPanel(q); renderBingoPanel(q); showDeskPlayer(); renderSounds(s); useSounds(s.sounds);
+  renderBuzzPanel(q); renderBingoPanel(q); showDeskPlayer(); renderSounds(s); useSounds(s.sounds); renderLooks(s);
   if (clipRun && (q?.id !== clipRun.question || !q.live)) stopClips(); else renderClipsPanel(q);
   $('liveCount').textContent = q ? `${s.answers.length} answers received · ${s.teams.filter(t => t.enabled && !t.waiting).length} active teams` : 'Add rounds in Build quiz, then start your first question.';
   renderMedia($('liveMedia'), q); renderSolution($('liveSolution'), q);
   $('next').disabled = !!q?.live || s.settings.ended; $('close').textContent = ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type) ? 'End game' : 'Close answers'; $('close').disabled = !pending; $('pause').disabled = !q?.open; $('resume').disabled = !q?.paused; $('reveal').disabled = !q || !!pending;
-  $('reveal').textContent = q?.revealed ? 'Hide answer reveal' : 'Reveal answer';
+  $('reveal').textContent = q?.revealing ? 'Revealing…' : q?.revealed ? 'Hide answer reveal' : 'Reveal answer';
   $('registration').textContent = s.settings.registrationOpen ? 'Close registration' : 'Open registration'; $('registration').disabled = s.settings.ended;
   $('visibility').textContent = s.settings.leaderboardVisible ? 'Hide leaderboard' : 'Show leaderboard';
   $('photos').textContent = `Team photos: ${s.settings.teamPhotos ? 'on' : 'off'}`;

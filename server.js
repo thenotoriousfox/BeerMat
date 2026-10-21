@@ -7,7 +7,8 @@ import path from 'node:path';
 import {offensive} from './names.js';
 import {createSpotify} from './spotify.js';
 import {slotFiles, skippedBuzzerPacks, bingoCallsFile} from './soundnames.js';
-import {QuizError, requireValue, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern} from './model.js';
+import {looks, typeGroups} from './looks.js';
+import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern} from './model.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(24).toString('hex');
@@ -109,7 +110,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, teamPhotos: true, language: 'en', onlineAfterJoin: true, waitingRoom: false, maxTeams: 0, showScores: true, soundTheme: ''};
+  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, teamPhotos: true, language: 'en', onlineAfterJoin: true, waitingRoom: false, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {}};
   const SOUNDS = 8;
   // Sound effects for the TV and extra buzzer sounds, both from the quizmaster's own files; custom bingo calls (1–90).
   // This laptop's sound pack (scripts/sound-pack.mjs) supplies the defaults until the desk changes them; a desk choice of
@@ -120,9 +121,42 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // separately for moments and buzzers, override the defaults.
   const themes = {...shipped.themes, ...local.themes};
   const defaults = theme => ({slots: {...shipped.slots, ...local.slots, ...themes[theme]}, buzzers: [...local.buzzers, ...shipped.buzzers].slice(0, 200)});
-  const soundPack = () => {
-    const saved = getMeta('soundPack', {}), base = defaults(settings().soundTheme);
-    return {slots: saved.slots ?? base.slots, buzzers: saved.buzzers ?? base.buzzers};
+  // The theme can be fixed, random for each question (stable per question) or chosen by question type.
+  // By type, the default spreads the themes over groups of formats; the desk can change any type.
+  const themesByType = () => {
+    const names = Object.keys(themes).sort(), chosen = settings().soundThemeByType || {};
+    const auto = Object.fromEntries(typeGroups.flatMap((types, i) => types.map(type => [type, names.length ? names[i % names.length] : ''])));
+    return {...auto, ...Object.fromEntries(Object.entries(chosen).filter(([, theme]) => theme === '' || Object.hasOwn(themes, theme)))};
+  };
+  function themeFor(q) {
+    const mode = settings().soundTheme;
+    if (Object.hasOwn(themes, mode)) return mode;
+    if (!q || !['@random', '@type'].includes(mode)) return '';
+    if (mode === '@type') return themesByType()[dataOf(q).type] ?? '';
+    const pool = ['', ...Object.keys(themes).sort()];
+    return pool[pickFor(q.id, 0x27d4eb2f, pool.length)];
+  }
+  // The TV and phones' look: fixed, random for each question (stable per question), or by question type, where the
+  // default gives each group of formats its own look.
+  // A random-looking but fixed choice for each question (a small integer hash; `salt` keeps looks and sounds apart).
+  const pickFor = (id, salt, count) => {
+    let h = Math.imul(id ^ salt, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
+    return (h >>> 0) % count;
+  };
+  const lookIds = looks.map(([id]) => id), groupLooks = ['stage', 'ocean', 'sunset', 'neon', 'emerald'];
+  const looksByType = () => ({...Object.fromEntries(typeGroups.flatMap((types, i) => types.map(type => [type, groupLooks[i]]))), ...settings().lookByType});
+  function lookFor(q) {
+    const mode = settings().look;
+    if (lookIds.includes(mode)) return mode;
+    if (!q) return 'stage';
+    if (mode === '@type') return looksByType()[dataOf(q).type] ?? 'stage';
+    return mode === '@random' ? lookIds[pickFor(q.id, 0x5bd1e995, lookIds.length)] : 'stage';
+  }
+  // Desk choices for single moments sit on top of the theme (null removes a moment's sound).
+  const soundPack = (q = latest()) => {
+    const saved = getMeta('soundPack', {}), base = defaults(themeFor(q));
+    const slots = Object.fromEntries(Object.entries({...base.slots, ...saved.slots}).filter(([slot, media]) => media && soundSlots.includes(slot)));
+    return {slots, buzzers: saved.buzzers ?? base.buzzers};
   };
   const bingoCalls = () => getMeta('bingoCalls', local.calls ?? shipped.calls);
   // Only audio files inside the two sound folders are ever served.
@@ -147,6 +181,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const questionById = id => Number.isSafeInteger(id) && id > 0 ? one('SELECT * FROM questions WHERE id=?', id) : null;
   const dataOf = q => JSON.parse(q.data);
   const pending = q => !!q && !q.closed && (hostDriven(dataOf(q).type) || q.paused_ms !== null || now() < q.deadline);
+  // A reveal can be held back for a few seconds (while the TV plays its drum roll); until then it is "revealing".
+  const revealedNow = q => !!q?.revealed && (q.revealed_at ?? 0) <= now();
   const accepting = q => pending(q) && q.paused_ms === null && !settings().ended && now() < q.deadline;
 
   // Host sessions survive restarts; only a hash of each token is stored.
@@ -173,7 +209,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const liveTeams = () => new Set([...streams].map(s => s.team).filter(Boolean));
   const ticker = setInterval(() => {
     // Expiry is time-driven, so announce it as soon as it happens.
-    const q = latest(), state = (q ? `${q.id}:${pending(q)}:${accepting(q)}:${q.agree_deadline > now()}` : '') + ':' + tvView();
+    const q = latest(), state = (q ? `${q.id}:${pending(q)}:${accepting(q)}:${q.agree_deadline > now()}:${revealedNow(q)}` : '') + ':' + tvView();
     if (state !== lastPending) {lastPending = state; if (q) settle(q); notify();}
     if (++ticks % 60 === 0) for (const stream of streams) stream.res.write(': keep-alive\n\n');
   }, 250);
@@ -244,24 +280,36 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const {answer, aliases, itemAnswers, answerNote, correct, target, clips, targetClip, songs, snake, tiles, ...safe} = data;
     // Sequence items are shown shuffled; the stored order is the answer.
     const result = {...safe, id: q.id, deadline: q.deadline, open: accepting(q), live: pending(q), paused: pending(q) && q.paused_ms !== null,
-      remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: !!q.revealed, buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId, host), clipGame: clipState(q, data, teamId)};
+      remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: revealedNow(q), revealing: !!q.revealed && !revealedNow(q), buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId, host), clipGame: clipState(q, data, teamId)};
     if (data.type === 'sequence') result.order = shuffleOrder(data.items.length, q.id);
     if (snake) {
       result.grid = {size: snake.size, letters: snake.grid};
       // Going wide shows a team only the squares on the answer's path.
       if (teamId && one('SELECT 1 FROM go_wide WHERE team=? AND question=?', teamId, q.id)) result.wideCells = snake.path;
     }
-    if (host || q.revealed) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], correct, target, clips, targetClip, songs, snakePath: snake?.path, tiles, tally: tally(q, data),
-      correctCount: one('SELECT COUNT(*) n FROM answers WHERE question=? AND points>0', q.id).n, scorers: scorers(q)});
+    if (host || revealedNow(q)) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], correct, target, clips, targetClip, songs, snakePath: snake?.path, tiles, tally: tally(q, data),
+      correctCount: one('SELECT COUNT(*) n FROM answers WHERE question=? AND points>0', q.id).n, scorers: scorers(q), first: firstPlace(q, data)});
     return result;
   }
   // Teams that scored, quickest answer first (each team's clock starts as for the speed bonus).
   // Answers the quizmaster marked by hand have no answer time and come last.
+  // Closest-wins lists them closest first, with what they answered.
   function scorers(q) {
-    const shown = settings().showScores;
-    return rows('SELECT a.team,a.points,a.submitted,t.name FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=? AND a.points>0 AND t.enabled=1', q.id)
-      .map(a => ({name: a.name, points: shown ? a.points : null, ms: a.submitted === null ? null : Math.max(0, a.submitted - q.opened - lateness(q, a.team))}))
-      .sort((a, b) => (a.ms ?? Infinity) - (b.ms ?? Infinity) || a.name.localeCompare(b.name));
+    const shown = settings().showScores, nearest = dataOf(q).type === 'nearest';
+    return rows('SELECT a.team,a.points,a.submitted,a.value,t.name FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=? AND a.points>0 AND t.enabled=1', q.id)
+      .map(a => ({name: a.name, points: shown ? a.points : null, ms: a.submitted === null ? null : Math.max(0, a.submitted - q.opened - lateness(q, a.team)), ...nearest && {answer: a.value, rawPoints: a.points}}))
+      .sort((a, b) => (nearest ? b.rawPoints - a.rawPoints : 0) || (a.ms ?? Infinity) - (b.ms ?? Infinity) || a.name.localeCompare(b.name))
+      .map(({rawPoints, ...a}) => a);
+  }
+  // The team that came first on a fastest-fingers or closest-wins question, shown large on the TV at the reveal with
+  // its photo and buzzer sound. Answers marked by hand have no time, so they never come first on speed.
+  function firstPlace(q, data) {
+    const nearest = data.type === 'nearest';
+    if (!nearest && !data.fastestFingers) return null;
+    const best = rows('SELECT a.team,a.points,a.submitted,a.value,t.name,t.sound,t.photo,t.photo_status FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=? AND a.points>0 AND t.enabled=1 AND a.submitted IS NOT NULL', q.id)
+      .map(a => ({...a, ms: Math.max(0, a.submitted - q.opened - lateness(q, a.team))}))
+      .sort((a, b) => (nearest ? b.points - a.points : 0) || a.ms - b.ms || a.name.localeCompare(b.name))[0];
+    return best ? {kind: nearest ? 'nearest' : 'fastest', name: best.name, sound: best.sound, photo: publicPhoto(best), ms: best.ms, ...nearest && {answer: best.value}} : null;
   }
   function shuffleOrder(length, seed) {
     const order = Array.from({length}, (_, i) => i); let s = seed * 9301 + 49297;
@@ -286,7 +334,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function publicScores() {
     // With scores switched off, the board shows positions only.
     const shown = settings().showScores;
-    return settings().leaderboardVisible ? scores().map(({seen, connected, enabled, waiting, photo, photo_status, note, ...t}) => ({...t, score: shown ? t.score : null, photo: publicPhoto({photo, photo_status})})) : [];
+    // After a closest-wins answer is revealed, the board shows what each team put until the next question.
+    const q = latest(), put = q && revealedNow(q) && dataOf(q).type === 'nearest' ? new Map(rows('SELECT team,value FROM answers WHERE question=? AND submitted IS NOT NULL', q.id).map(a => [a.team, a.value])) : null;
+    return settings().leaderboardVisible ? scores().map(({seen, connected, enabled, waiting, photo, photo_status, note, ...t}) => ({...t, score: shown ? t.score : null, photo: publicPhoto({photo, photo_status}), ...put && {answer: put.get(t.id) ?? null}})) : [];
   }
   // Desk-only statistics: answers given, answers that scored, and the quickest scoring answer.
   function teamStats() {
@@ -298,10 +348,16 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // Automatic TV: join screen before the first question, the question while it runs and after it closes,
   // the leaderboard once a round's last question has been revealed (or closed unrevealed) for a few seconds,
   // and the winner when the quiz is finished. Any other projector view chosen on the desk overrides it.
-  const ROUND_BOARD_MS = 10000;
+  const ROUND_BOARD_MS = 10000, WHEEL_SHOW_MS = 16000;
+  // A new id each time the server starts: phones and the TV reload when it changes, so they never keep running the
+  // page as it was before an update.
+  const build = token().slice(0, 8);
   function tvView() {
     const s = settings();
     if (s.displayMode !== 'auto') return s.displayMode;
+    // A spin takes over the TV while the wheel turns and its result shows, then Auto carries on.
+    const wheel = getMeta('wheel', null);
+    if (wheel && now() - wheel.spun < WHEEL_SHOW_MS) return 'wheel';
     if (s.ended) return 'winner';
     const q = latest();
     if (!q) return s.registrationOpen ? 'join' : 'leaderboard';
@@ -317,7 +373,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return round.questions.every(x => played.has(x.id));
   }
   function exportResults() {return {version: 3, settings: settings(), library: library(), teams: rows('SELECT id,name,enabled FROM teams'), questions: rows('SELECT * FROM questions'), answers: rows('SELECT * FROM answers'), adjustments: rows('SELECT * FROM adjustments'), markingLog: rows('SELECT * FROM marking_log'), buzzes: rows('SELECT * FROM buzzes'), agrees: rows('SELECT * FROM agrees'), bingoCalls: rows('SELECT * FROM bingo_calls'), bingoClaims: rows('SELECT * FROM bingo_claims'), clipPlays: rows('SELECT * FROM clip_plays')};}
-  function publicState() { return {serverTime: now(), settings: settings(), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
+  function publicState() { return {serverTime: now(), build, settings: settings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
 
   // Final scoring once answers stop: nearest-wins needs every answer before it can rank them.
   function settle(q) {
@@ -501,7 +557,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       settle(latest());
       if (req.method === 'GET' && p === '/api/events') return openStream(req, res, url);
       if ((req.method === 'GET' || req.method === 'HEAD') && !p.startsWith('/api/')) {
-        const routes = {'/host': 'host.html', '/display': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/sqimport.js': 'sqimport.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
+        const routes = {'/host': 'host.html', '/display': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/sqimport.js': 'sqimport.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/looks.js': 'looks.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
         if (p.startsWith('/media/')) {
           requireValue(mediaPattern.test(p), 'Media not found', 404);
           const file = path.join(mediaDir, path.basename(p));
@@ -568,7 +624,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/logout') {run('DELETE FROM host_sessions WHERE hash=?', hash(auth)); return send(200, {ok: true});}
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats();
-          return send(200, {serverTime: now(), settings: settings(), sounds: soundPack(), soundThemes: Object.keys(themes), bingoCalls: bingoCalls(), view: tvView(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {serverTime: now(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -587,8 +643,19 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           if (Object.hasOwn(body, 'joinUrl')) {requireValue(typeof body.joinUrl === 'string' && /^https?:\/\/[^\s]{1,150}$/.test(body.joinUrl.trim()), 'Join address must start with http:// and have no spaces'); next.joinUrl = body.joinUrl.trim();}
           // Picking a theme puts every moment back to that theme's sounds; added buzzer sounds stay.
           if (Object.hasOwn(body, 'soundTheme')) {
-            requireValue(body.soundTheme === '' || Object.hasOwn(themes, body.soundTheme), 'Unknown sound theme');
+            requireValue(['', '@random', '@type'].includes(body.soundTheme) || Object.hasOwn(themes, body.soundTheme), 'Unknown sound theme');
             next.soundTheme = body.soundTheme; const saved = getMeta('soundPack', {}); delete saved.slots; setMeta('soundPack', saved);
+          }
+          if (Object.hasOwn(body, 'look')) {requireValue(['@random', '@type', ...lookIds].includes(body.look), 'Unknown look'); next.look = body.look;}
+          if (Object.hasOwn(body, 'lookByType')) {
+            const map = body.lookByType;
+            requireValue(map && typeof map === 'object' && Object.entries(map).every(([type, look]) => questionTypes.includes(type) && lookIds.includes(look)), 'Unknown question type or look');
+            next.lookByType = {...settings().lookByType, ...map};
+          }
+          if (Object.hasOwn(body, 'soundThemeByType')) {
+            const map = body.soundThemeByType;
+            requireValue(map && typeof map === 'object' && Object.entries(map).every(([type, theme]) => questionTypes.includes(type) && (theme === '' || Object.hasOwn(themes, theme))), 'Unknown question type or sound theme');
+            next.soundThemeByType = {...settings().soundThemeByType, ...map};
           }
           if (Object.hasOwn(body, 'maxTeams')) {requireValue(Number.isInteger(body.maxTeams) && body.maxTeams >= 0 && body.maxTeams <= 250, 'Maximum teams must be 0 (no limit) to 250'); next.maxTeams = body.maxTeams;}
           if (Object.hasOwn(body, 'language')) {requireValue(['en', 'fr', 'es'].includes(body.language), 'Unknown language'); next.language = body.language;}
@@ -668,7 +735,6 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const pack = structuredClone(soundPack()), exists = media => typeof media === 'string' && (/^\/(pack|sounds)\//.test(media) ? !!packFile(media) : audioPath(media) && existsSync(path.join(mediaDir, path.basename(media))));
           if (Object.hasOwn(body, 'slots')) {
             requireValue(body.slots && typeof body.slots === 'object' && Object.entries(body.slots).every(([slot, media]) => soundSlots.includes(slot) && (media === null || exists(media))), 'Each sound needs an uploaded MP3, Ogg or WAV');
-            pack.slots = Object.fromEntries(Object.entries({...pack.slots, ...body.slots}).filter(([, media]) => media));
           }
           if (Object.hasOwn(body, 'buzzers')) {
             requireValue(Array.isArray(body.buzzers) && body.buzzers.length <= 200 && body.buzzers.every(b => b && typeof b.name === 'string' && b.name.trim() && b.name.length <= 60 && exists(b.media)), 'Buzzer sounds need a name (up to 60 characters) and an uploaded audio file; 200 at most');
@@ -676,8 +742,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             // Teams whose custom sound no longer exists go back to the default.
             run('UPDATE teams SET sound=NULL WHERE sound>=?', SOUNDS + pack.buzzers.length);
           }
-          setMeta('soundPack', {...getMeta('soundPack', {}), ...(Object.hasOwn(body, 'slots') ? {slots: pack.slots} : {}), ...(Object.hasOwn(body, 'buzzers') ? {buzzers: pack.buzzers} : {})});
-          return send(200, pack);
+          const saved = getMeta('soundPack', {});
+          setMeta('soundPack', {...saved, ...(Object.hasOwn(body, 'slots') ? {slots: {...saved.slots, ...body.slots}} : {}), ...(Object.hasOwn(body, 'buzzers') ? {buzzers: pack.buzzers} : {})});
+          return send(200, soundPack());
         }
         if (p === '/api/host/bingo-calls') {
           requireValue(body.calls === null || (Array.isArray(body.calls) && body.calls.length === 90 && body.calls.every(c => typeof c === 'string' && c.length <= 150)), 'Bingo calls need 90 entries of up to 150 characters');
@@ -702,7 +769,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         }
         if (p === '/api/host/reveal') {
           const q = questionById(body.question); requireValue(q && !pending(q), 'Close question before revealing', 409);
-          run('UPDATE questions SET revealed=?,revealed_at=? WHERE id=?', body.revealed === false ? 0 : 1, body.revealed === false ? null : now(), q.id); return send(200, {ok: true});
+          // `delay` (up to 10 s) holds the answer back while the TV plays the reveal sound.
+          const delay = body.delay ?? 0; requireValue(Number.isInteger(delay) && delay >= 0 && delay <= 10000, 'Reveal delay must be 0–10 seconds');
+          run('UPDATE questions SET revealed=?,revealed_at=? WHERE id=?', body.revealed === false ? 0 : 1, body.revealed === false ? null : now() + delay, q.id); return send(200, {ok: true});
         }
         if (p === '/api/host/review') {
           const q = questionById(body.question); requireValue(q, 'Question not found', 404);

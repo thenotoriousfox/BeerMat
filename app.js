@@ -38,7 +38,10 @@ export function renderBoard(container, teams) {
   container.replaceChildren(...teams.map(team => {
     const li = element('li'), name = element('span', `${team.rank}. ${team.name}`, 'team-name');
     if (team.photo) name.prepend(avatar(team.photo));
-    li.append(name, element('strong', team.score === null ? '' : `${team.score} pts`)); li.dataset.team = team.id; return li;
+    li.append(name);
+    // After a closest-wins reveal, each team's answer sits beside its score.
+    if ('answer' in team) li.append(element('span', team.answer ?? '–', 'board-answer'));
+    li.append(element('strong', team.score === null ? '' : `${team.score} pts`)); li.dataset.team = team.id; li.dataset.rank = team.rank; return li;
   }));
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   for (const li of container.children) {
@@ -81,11 +84,12 @@ export function renderSolution(container, question) {
   // Who scored, fastest answer first.
   if (question.type !== 'vote' && question.scorers) {
     const n = question.scorers.length;
-    container.append(element('p', !n ? t('Nobody scored this time') : n === 1 ? t('1 team scored') : t('{n} teams scored — fastest first', {n}), 'muted scorers-title'));
+    const nearest = question.type === 'nearest';
+    container.append(element('p', !n ? t('Nobody scored this time') : n === 1 ? t('1 team scored') : nearest ? t('{n} teams scored — closest first', {n}) : t('{n} teams scored — fastest first', {n}), 'muted scorers-title'));
     const list = element('ol', undefined, 'scorers');
     list.append(...question.scorers.map(s => {
       const li = element('li'); li.append(element('span', s.name, 'team-name'));
-      const detail = [s.ms === null ? '' : t('{s}s', {s: (s.ms / 1000).toFixed(1)}), s.points === null ? '' : `+${s.points}`].filter(Boolean).join(' · ');
+      const detail = [nearest ? s.answer : s.ms === null ? '' : t('{s}s', {s: (s.ms / 1000).toFixed(1)}), s.points === null ? '' : `+${s.points}`].filter(Boolean).join(' · ');
       if (detail) li.append(element('strong', detail));
       return li;
     }));
@@ -128,7 +132,12 @@ export const sounds = [['Classic buzz', 'square', [330, 495]], ['Doorbell', 'sin
 // synthesised ones. Nothing plays until the page has been clicked once (enableSound), as browsers require.
 let pack = {slots: {}, buzzers: []};
 const players = new Map();
-export function useSounds(next) {if (next) pack = next;}
+export function useSounds(next) {
+  if (!next) return;
+  pack = next;
+  // The final countdown's length must be known before it is due, so load it early.
+  if (pack.slots?.countdown && !players.has(pack.slots.countdown)) {const player = new Audio(pack.slots.countdown); player.preload = 'auto'; players.set(pack.slots.countdown, player);}
+}
 export const buzzerNames = () => [...sounds.map(([label]) => label), ...pack.buzzers.map(b => b.name)];
 function playFile(src, loop = false) {
   let player = players.get(src);
@@ -142,6 +151,37 @@ export function playSound(slot, loop = false) {
   playFile(src, loop); return true;
 }
 export function stopSound(slot) {players.get(pack.slots?.[slot])?.pause();}
+// The wheel's pegs: a short wooden knock at each of `times` (ms from now), scheduled on the audio clock so they keep
+// pace with the spin. A new spin, or stopWheelTicks, cancels any still to come.
+let tick = null, ticks = [];
+export function wheelTicks(times) {
+  stopWheelTicks();
+  if (!audio || audio.state !== 'running') return;
+  if (!tick) {
+    const rate = audio.sampleRate, buffer = audio.createBuffer(1, Math.round(rate * 0.03), rate), data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (rate * 0.003)) + Math.sin(i / rate * 2 * Math.PI * 1800) * Math.exp(-i / (rate * 0.006)) * 0.6;
+    const filter = audio.createBiquadFilter(), gain = audio.createGain();
+    filter.type = 'bandpass'; filter.frequency.value = 2200; filter.Q.value = 1.2; gain.gain.value = 0.6;
+    filter.connect(gain).connect(audio.destination); tick = {buffer, input: filter};
+  }
+  const start = audio.currentTime + 0.02;
+  ticks = times.map(ms => {
+    const source = audio.createBufferSource(); source.buffer = tick.buffer; source.playbackRate.value = 0.92 + Math.random() * 0.16;
+    source.connect(tick.input); source.start(start + ms / 1000); return source;
+  });
+}
+export function stopWheelTicks() {for (const source of ticks) try {source.stop();} catch {} ticks = [];}
+// Plays a countdown sound so that it reaches zero `ms` from now (starting part-way through if less time is left).
+// Countdown files count down from ten, as SpeedQuizzing's do: zero is 10 seconds in, and whatever follows is the
+// ring-out after time's up. A file shorter than that reaches zero at its end. False if it cannot play: no file, sound
+// not enabled, length unknown yet, or more time left than the count lasts.
+export function playEnding(slot, ms) {
+  const player = players.get(pack.slots?.[slot]);
+  if (!player || !audio || audio.state !== 'running' || !Number.isFinite(player.duration)) return false;
+  const zero = Math.min(10, player.duration);
+  if (ms / 1000 > zero) return false;
+  player.loop = false; player.currentTime = Math.max(0, zero - ms / 1000); player.play().catch(() => {}); return true;
+}
 export function buzzSound(name = '', sound = null) {
   if (!audio || audio.state !== 'running') return;
   if (sound >= sounds.length) {const custom = pack.buzzers[sound - sounds.length]; if (custom) playFile(custom.media); return;}

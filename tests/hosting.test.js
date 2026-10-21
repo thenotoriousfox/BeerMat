@@ -120,6 +120,9 @@ test('automatic TV: join, question, leaderboard after a round, winner; a manual 
   tick(31000); assert.equal(await view(), 'question'); // expired unrevealed: board 10 s after the deadline
   tick(10000); assert.equal(await view(), 'leaderboard');
   await call('host/settings', {displayMode: 'wheel'}); assert.equal(await view(), 'wheel');
+  // In Auto, a spin shows the wheel while it turns and its result shows, then Auto carries on.
+  await call('host/settings', {displayMode: 'auto'}); await call('host/wheel', {items: ['Red', 'Blue']}); assert.equal(await view(), 'wheel');
+  tick(15000); assert.equal(await view(), 'wheel'); tick(1500); assert.equal(await view(), 'leaderboard');
   await call('host/settings', {displayMode: 'auto', ended: true}); assert.equal(await view(), 'winner');
 }));
 
@@ -134,6 +137,8 @@ test('reveal lists who scored, quickest answer first, with their time', () => fi
   const q = (await call('state', {}, wrong.secret)).question;
   assert.deepEqual(q.scorers.map(s => [s.name, s.ms]), [['Fast', 1200], ['Slow', 4200]]);
   assert.ok(q.scorers[0].points > q.scorers[1].points);
+  // The fastest team fills the TV at the reveal, with its buzzer sound.
+  assert.deepEqual(q.first, {kind: 'fastest', name: 'Fast', sound: null, photo: null, ms: 1200});
   await call('host/settings', {showScores: false});
   assert.equal((await call('state', {}, wrong.secret)).question.scorers[0].points, null);
 }));
@@ -181,8 +186,8 @@ test('end quiz and start next: results kept on the laptop, teams and scores clea
 test('sound effects, extra buzzer sounds and custom bingo calls', () => fixture(async ({call, board, upload}) => {
   const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WAVEfmt '), Buffer.alloc(32)]);
   const [airhorn, quack, honk] = [await upload('airhorn.wav', wav), await upload('quack.wav', wav), await upload('honk.wav', wav)];
-  await call('host/sounds', {slots: {bingo: airhorn, wheel: airhorn}});
-  await call('host/sounds', {slots: {wheel: null}, buzzers: [{name: 'Quack', media: quack}, {name: 'Honk', media: honk}]});
+  await call('host/sounds', {slots: {bingo: airhorn, applause: airhorn}});
+  await call('host/sounds', {slots: {applause: null}, buzzers: [{name: 'Quack', media: quack}, {name: 'Honk', media: honk}]});
   assert.deepEqual((await board()).sounds, {slots: {bingo: airhorn}, buzzers: [{name: 'Quack', media: quack}, {name: 'Honk', media: honk}]});
   assert.equal((await call('host/sounds', {slots: {nope: airhorn}})).status, 400);
   assert.equal((await call('host/sounds', {slots: {bingo: '/media/missing.mp3'}})).status, 400);
@@ -199,4 +204,29 @@ test('sound effects, extra buzzer sounds and custom bingo calls', () => fixture(
   const {number} = await call('host/bingo', {question: id});
   assert.equal((await board()).question.bingo.phrase, `Call for ${number}`);
   await call('host/bingo-calls', {calls: null}); assert.equal((await board()).question.bingo.phrase, null);
+}));
+
+test('a reveal can be held back while the TV plays its drum roll', () => fixture(async ({call, board, tick}) => {
+  const {id} = await call('host/open', question()); await call('host/close');
+  await call('host/reveal', {question: id, delay: 5000});
+  let q = (await board()).question; assert.deepEqual([q.revealing, q.revealed, q.answer], [true, false, undefined], 'answer withheld during the drum roll');
+  tick(5000); q = (await board()).question; assert.deepEqual([q.revealing, q.revealed, q.answer], [false, true, 'Cardiff']);
+  assert.equal((await call('host/reveal', {question: id, delay: 20000})).status, 400);
+  await call('host/reveal', {question: id, revealed: false}); assert.equal((await board()).question.revealed, false);
+}));
+
+test('looks: one for all, random for each question, or by question type', () => fixture(async ({call, board}) => {
+  assert.equal((await board()).look, 'stage');
+  await call('host/settings', {look: 'neon'}); assert.equal((await board()).look, 'neon');
+  assert.equal((await call('host/settings', {look: 'tartan'})).status, 400);
+  await call('host/settings', {look: '@type'});
+  const open = async (fields) => {await call('host/close'); await call('host/open', question(fields));};
+  await open({}); const typed = (await board()).look;
+  await open({type: 'choice', options: ['Cardiff', 'Swansea']}); assert.notEqual((await board()).look, typed, 'keypad and typed questions look different');
+  await call('host/settings', {lookByType: {choice: 'royal'}}); assert.equal((await board()).look, 'royal');
+  assert.equal((await call('host/settings', {lookByType: {choice: 'tartan'}})).status, 400);
+  await call('host/settings', {look: '@random'});
+  const seen = new Set();
+  for (let i = 0; i < 12; i++) {await open({}); const look = (await board()).look; assert.equal((await board()).look, look, 'a question keeps its look'); seen.add(look);}
+  assert.ok(seen.size >= 3, `looks vary: ${[...seen]}`);
 }));

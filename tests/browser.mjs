@@ -75,11 +75,12 @@ try {
   await projector.goto(base + '/display'); await visible(projector, '#joinSection');
   await host.locator('[data-tab=live]').click(); assert.equal(await host.locator('#displayMode').inputValue(), 'auto');
   // Later updates with no question open must keep the TV connected (a drawing error shows as a lost connection).
-  await host.locator('#visibility').click(); await host.locator('#visibility').click();
+  await host.locator('#visibility').click(); await waitFor(host, () => document.getElementById('visibility').textContent === 'Show leaderboard');
+  await host.locator('#visibility').click(); await waitFor(host, () => document.getElementById('visibility').textContent === 'Hide leaderboard');
   await waitFor(projector, () => document.getElementById('connection').textContent.includes('Connected')); await waitFor(host, () => document.getElementById('autoView').textContent === '(now: join screen)');
   await waitFor(projector, () => document.querySelector('#wifiQr svg')?.getAttribute('aria-label') === 'QR code: WIFI:T:nopass;S:PubQuiz;;');
   assert.equal(await projector.locator('.qr').count(), 1, 'one code to scan'); assert.match(await projector.locator('#joinStepWifi').textContent(), /“PubQuiz”/);
-  assert.match(await projector.locator('#joinFallback').textContent(), /10\.42\.0\.1/); assert.match(await projector.locator('#joinStatus').textContent(), /1 team has joined/);
+  assert.match(await projector.locator('#joinFallback').textContent(), /10\.42\.0\.1/); await waitFor(projector, () => /1 team has joined/.test(document.getElementById('joinStatus').textContent));
   await host.locator('#joinSsidInput').fill('Fox Quiz'); await host.locator('#joinDetails button').click(); await waitFor(projector, () => document.getElementById('joinStepWifi').textContent.includes('Fox Quiz'));
   await projector.mouse.move(5, 5); await projector.mouse.move(20, 20); await projector.locator('#fullscreen').click(); await waitFor(projector, () => !!document.fullscreenElement && document.getElementById('fullscreen').textContent.includes('Exit'));
   await projector.keyboard.press('f'); await waitFor(projector, () => !document.fullscreenElement);
@@ -195,9 +196,41 @@ try {
   // Every desk action briefly disables the buttons; wait for the close to finish before the next shortcut.
   await waitFor(host, () => !document.getElementById('next').disabled && !document.getElementById('spinWheel').disabled);
   log('bingo: ticket dabbing, B shortcut calls numbers, call phrases, verified claim shown on projector');
+  // The wheel clicks as each segment edge passes the pointer: on the audio clock, slowing down, all within the spin.
+  // A frame-by-frame record of the wheel's angle checks that each click lands on an edge.
+  await projector.evaluate(() => {
+    window.wheelLog = {clicks: [], angles: []};
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (when, ...rest) {
+      const context = this.context; window.wheelLog.clicks.push(when);
+      if (!window.wheelLog.watching) {
+        window.wheelLog.watching = true;
+        const frame = () => {
+          const spin = document.getElementById('wheelSpin'), m = spin && new DOMMatrix(getComputedStyle(spin).transform);
+          if (m) window.wheelLog.angles.push([context.currentTime, Math.atan2(m.b, m.a) * 180 / Math.PI]);
+          if (window.wheelLog.angles.length < 600) requestAnimationFrame(frame);
+        };
+        frame();
+      }
+      return start.call(this, when, ...rest);
+    };
+  });
   await host.locator('#wheelItems').fill('Red\nBlue\nGreen'); await host.locator('#wheelItems').evaluate(e => e.blur()); await host.keyboard.press('w');
   await visible(projector, '#wheelSection'); await waitFor(projector, () => document.getElementById('wheelResult').textContent.startsWith('🎉'));
   assert.match(await projector.locator('#wheelResult').textContent(), /Red|Blue|Green/);
+  const {clicks, angles} = await projector.evaluate(() => window.wheelLog);
+  // Three segments: 120° apart, and at least six full turns, so at least 18 clicks.
+  assert.ok(clicks.length >= 18, `${clicks.length} wheel clicks`);
+  const gaps = clicks.slice(1).map((c, i) => c - clicks[i]);
+  assert.ok(gaps.at(-1) > gaps[1] * 3 && clicks.at(-1) - clicks[0] < 6, 'clicks slow down and end with the spin');
+  // How far each click is from the moment a segment edge passes the pointer, from the frames either side of it.
+  const misses = clicks.map(c => {
+    const i = angles.findIndex(([t]) => t >= c); if (i < 1) return 0;
+    const [[t0, a0], [t1, a1]] = [angles[i - 1], angles[i]], turn = ((a1 - a0) % 360 + 540) % 360 - 180;
+    const angle = a0 + turn * (c - t0) / (t1 - t0), off = ((angle % 120) + 120) % 120;
+    return Math.min(off, 120 - off) / Math.max(1, Math.abs(turn) / (t1 - t0)) * 1000;
+  });
+  assert.ok(Math.max(...misses) < 40, `clicks land on segment edges (worst ${Math.max(...misses).toFixed(1)} ms out)`);
   log('spin the wheel on the projector; team buzzer sound choice saved');
   await player.locator('#menuButton').click(); await player.locator('#photoInput').setInputFiles({name: 'selfie.png', mimeType: 'image/png', buffer: makePng(640, 480)});
   await waitFor(player, () => document.getElementById('photoStatus').textContent.includes('Waiting'));
@@ -311,6 +344,8 @@ try {
   log('host-assisted recovery retains team identity; paper scoring; finish shows the winner celebration');
   await quiz.close(); await start(port);
   await host.reload(); await visible(host, '#panel'); // host session persists across a server restart
+  // The restarted server is a new build, so the phone reloads itself, onto the quiz's own page.
+  await player.waitForURL(url => url.pathname === '/', {timeout: 30000, waitUntil: 'domcontentloaded'});
   await waitFor(player, () => document.getElementById('connection').textContent.includes('Connected'));
   assert.equal(await player.locator('#team').textContent(), 'Fox team');
   await host.locator('[data-tab=build]').click(); await host.evaluate(() => window.print = () => {document.body.dataset.printed = 'yes';}); await host.locator('#printSheets').click();

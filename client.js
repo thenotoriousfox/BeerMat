@@ -1,9 +1,9 @@
 import {qrMatrix, wifiCode} from './qr.js';
 import {t, setLanguage, language, languages, translatePage} from './i18n.js';
-import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, stopSound, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playEnding, stopSound, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('pubquiz-team'), current = null, renderedQuestion = 'unset', offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
-let localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0, winnerShown = '';
+let build = null, firstArmed = null, firstTimer, localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0, winnerShown = '';
 const inputs = () => [...$('inputs').querySelectorAll('input,select')];
 const draftKey = id => `pubquiz-draft:${secret}:${id}`;
 const keypad = type => ['choice', 'vote', 'letter'].includes(type);
@@ -258,7 +258,12 @@ function renderResult(s) {
   $('resultPoints').textContent = !a ? t('No answer this time') : points > 0 ? (points === 1 ? t('+1 point') : t('+{n} points', {n: points})) : points < 0 ? t('{n} points', {n: points}) : t('No points this time');
 }
 function sharedState(s) {
+  // Phones may be on a sign-in probe address (hotspot-detect.html and the like), so they come back to the quiz's own page.
+  if (build && s.build !== build) {if (role === 'player') location.replace('/'); else location.reload(); return;}
+  build = s.build;
   useSounds(s.sounds);
+  // The quizmaster's look for this question (colours only; see style.css).
+  document.documentElement.dataset.look = s.look || 'stage';
   $('title').textContent = s.settings.title; document.title = s.settings.title + ' — ' + (role === 'player' ? 'Team' : 'Projector');
   renderBoard($('leaderboard'), s.teams);
   $('boardStatus').textContent = !s.settings.leaderboardVisible ? t('The quizmaster has hidden scores for now.') : s.settings.ended ? t('Final standings') : s.teams.length ? t('Ties share the same rank.') : t('Waiting for teams');
@@ -289,10 +294,13 @@ function displayState(s) {
   const q = s.question; $('question').textContent = q?.text || t('Waiting for the quizmaster'); $('round').textContent = q?.round || ''; $('status').textContent = timeText(q, offset);
   if (q?.type === 'pinpoint') renderPinpoint($('media'), q); else renderMedia($('media'), q);
   renderSolution($('solution'), q);
+  renderFirst(q);
   if (q?.id !== renderedQuestion) {
     renderedQuestion = q?.id;
     const items = q?.type === 'choice' || q?.type === 'vote' || q?.type === 'multi' ? q.options.map((o, i) => `${letters[i]}. ${o}`) : q?.type === 'sequence' ? q.order.map(i => q.items[i]) : q?.type === 'sheet' ? q.items : q?.type === 'tiles' ? [tileWord('', q.wordLengths), q.pieces.join('  ·  ')] : [];
     $('projectItems').replaceChildren(...items.map(text => element('li', text)));
+    // Answer options show as coloured tiles matching the phone keypad.
+    $('projectItems').classList.toggle('options', ['choice', 'vote', 'multi'].includes(q?.type));
   }
   $('projectSnake').hidden = q?.type !== 'wordsnake';
   if (q?.type === 'wordsnake') renderSnake($('projectSnake'), q.grid, q.revealed ? q.snakePath : []);
@@ -313,6 +321,7 @@ function displayState(s) {
     }
   }
   $('wheelSection').hidden = s.view !== 'wheel';
+  if (s.view !== 'wheel') stopWheelTicks();
   $('leaderboard').classList.toggle('cols', s.teams.length > 10);
   renderCountdown(); fitStage(); soundCues(s);
   $('winnerSection').hidden = s.view !== 'winner';
@@ -326,7 +335,38 @@ function displayState(s) {
     const leader = b.active?.name || ''; if (leader && leader !== lastBuzzer) buzzSound(leader, b.active.sound); lastBuzzer = leader;
   }
 }
-// The wheel always turns forwards and stops with the server's chosen segment under the pointer.
+// Fastest fingers and closest wins: at the reveal, the team that came first fills the TV for a few seconds with its
+// photo, name and buzzer sound. Only a reveal seen happening does this, not one already shown when the page loads.
+function renderFirst(q) {
+  if (q && !q.revealed) firstArmed = q.id;
+  if (String(q?.id) !== $('firstPlace').dataset.question) {clearTimeout(firstTimer); $('firstPlace').hidden = true;}
+  if (!q?.revealed || firstArmed !== q.id) return;
+  firstArmed = null;
+  const f = q.first; if (!f) return;
+  const box = $('firstPlace'); box.dataset.question = q.id;
+  $('firstKind').textContent = f.kind === 'nearest' ? t('CLOSEST ANSWER') : t('FASTEST FINGERS');
+  $('firstPhoto').replaceChildren(f.photo ? avatar(f.photo) : element('span', [...f.name][0].toUpperCase(), 'avatar first-initial'));
+  $('firstName').textContent = f.name;
+  $('firstDetail').textContent = f.kind === 'nearest' ? t('Answered {answer}', {answer: f.answer}) : t('{s}s', {s: (f.ms / 1000).toFixed(1)});
+  box.hidden = false; box.classList.remove('show'); void box.offsetWidth; box.classList.add('show');
+  buzzSound(f.name, f.sound);
+  clearTimeout(firstTimer); firstTimer = setTimeout(() => {box.hidden = true;}, 7000);
+}
+// The wheel always turns forwards and stops with the server's chosen segment under the pointer. It clicks each time
+// a segment edge passes the pointer, so the clicks slow down with the wheel.
+const wheelSpinMs = 6000, wheelEasing = [0.12, 0.6, 0.15, 1];
+// When (ms into the spin) each segment edge passes the pointer, following the same cubic-bezier the CSS uses.
+// Edges sit at whole multiples of `slice` degrees of turn.
+function wheelCrossings(from, to, slice) {
+  const [x1, y1, x2, y2] = wheelEasing, curve = (u, a, b) => 3 * a * u * (1 - u) ** 2 + 3 * b * u * u * (1 - u) + u ** 3;
+  const times = []; let lastTime = 0, lastTurn = from;
+  for (let i = 1; i <= 4000; i++) {
+    const u = i / 4000, time = curve(u, x1, x2), turn = from + (to - from) * curve(u, y1, y2);
+    for (let k = Math.floor(lastTurn / slice) + 1; k * slice <= turn; k++) times.push((lastTime + (time - lastTime) * (k * slice - lastTurn) / (turn - lastTurn)) * wheelSpinMs);
+    lastTime = time; lastTurn = turn;
+  }
+  return times;
+}
 function renderWheel(wheel, fresh) {
   if (wheel.id === wheelId) return;
   const first = !fresh; wheelId = wheel.id;
@@ -339,32 +379,45 @@ function renderWheel(wheel, fresh) {
     const label = node('text', {x: 58, y: 0, transform: `rotate(${(i + 0.5) * slice - 90})`, class: 'wheel-label', 'dominant-baseline': 'middle', 'text-anchor': 'middle'}); label.textContent = item.length > 14 ? item.slice(0, 13) + '…' : item; spin.append(label);
   });
   svg.replaceChildren(spin, node('polygon', {points: '-7,-108 7,-108 0,-92', class: 'pointer'}));
-  const target = 360 - (wheel.result + 0.5) * slice;
+  const target = 360 - (wheel.result + 0.5) * slice, from = wheelTurn;
   wheelTurn = first ? target : wheelTurn - (wheelTurn % 360) + 360 * 6 + target;
   $('wheelResult').textContent = first ? wheel.items[wheel.result] : '';
-  spin.style.transition = first ? 'none' : 'transform 6s cubic-bezier(.12,.6,.15,1)';
-  requestAnimationFrame(() => requestAnimationFrame(() => {spin.style.transform = `rotate(${wheelTurn}deg)`;}));
-  if (!first) setTimeout(() => {if (wheelId === wheel.id) $('wheelResult').textContent = `🎉 ${wheel.items[wheel.result]}`;}, 6100);
+  spin.style.transition = first ? 'none' : `transform ${wheelSpinMs}ms cubic-bezier(${wheelEasing})`;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    spin.style.transform = `rotate(${wheelTurn}deg)`;
+    if (first) return;
+    wheelTicks(wheelCrossings(from, wheelTurn, slice));
+    setTimeout(() => {if (wheelId === wheel.id) $('wheelResult').textContent = `🎉 ${wheel.items[wheel.result]}`;}, wheelSpinMs + 100);
+  }));
 }
 // Sound effects on the TV, from the quizmaster's imported files: each plays when the quiz state changes, never on
 // first load. Music loops while a question without its own audio is open.
-let heard = null, musicOn = false;
+let heard = null, musicOn = false, countdownFor = null;
+// The final countdown is timed to end at the deadline; the answering music stops when it starts.
+function countdownCue() {
+  const q = current?.question, timed = !!q?.open && !q.paused && !silentTypes.includes(q.type) && !/\.(mp3|ogg|wav)$/i.test(q.media || '');
+  const left = q?.deadline - Date.now() - offset;
+  // At time's up the countdown rings out; it is cut short only if the question closes early or pauses.
+  if (!timed) {if (countdownFor !== null) {if (!q || q.paused || left > 300) stopSound('countdown'); countdownFor = null;} return;}
+  if (countdownFor !== q.id && left > 300 && playEnding('countdown', left)) {countdownFor = q.id; stopSound('timerMusic'); musicOn = false;}
+}
 const silentTypes = ['audio', 'clips', 'musicbingo', 'buzzer', 'bingo'];
 function soundCues(s) {
   const q = s.question, before = heard;
-  heard = {id: q?.id, round: q?.round, open: !!q?.open, revealed: !!q?.revealed, calls: q?.bingo?.called?.length ?? 0, winners: q?.bingo?.winners.length ?? 0,
-    buzz: Object.fromEntries((q?.buzz?.queue || []).map(b => [b.team, b.status])), view: s.view, wheel: s.wheel?.id};
-  const music = !!q?.open && !q.paused && !silentTypes.includes(q.type) && !/\.(mp3|ogg|wav)$/i.test(q.media || '');
+  heard = {id: q?.id, round: q?.round, open: !!q?.open, revealing: !!q?.revealing, revealed: !!q?.revealed, calls: q?.bingo?.called?.length ?? 0, winners: q?.bingo?.winners.length ?? 0,
+    buzz: Object.fromEntries((q?.buzz?.queue || []).map(b => [b.team, b.status])), view: s.view};
+  const music = !!q?.open && !q.paused && !silentTypes.includes(q.type) && !/\.(mp3|ogg|wav)$/i.test(q.media || '') && countdownFor !== q.id;
   if (music !== musicOn) {musicOn = music; if (music) playSound('timerMusic', true); else stopSound('timerMusic');}
   if (!before) return;
   if (q && q.id !== before.id && q.live) {if (!(q.round && q.round !== before.round && playSound('startRound'))) playSound('questionStart');}
   if (q?.id !== before.id) return;
-  if (before.open && !heard.open && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q.type)) playSound('timeUp');
-  if (heard.revealed && !before.revealed) playSound('reveal');
+  // A countdown that ran to the end has its own ring-out, so time's up only sounds without one.
+  if (before.open && !heard.open && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q.type) && countdownFor !== q.id) playSound('timeUp');
+  // The drum roll plays while the reveal is held back; the answer appears as it ends.
+  if (heard.revealing && !before.revealing) playSound('reveal');
   for (const [team, status] of Object.entries(heard.buzz)) if (status !== before.buzz[team]) {if (status === 'correct') playSound('correct'); if (status === 'wrong') playSound('wrong');}
   if (q?.type === 'bingo' && heard.calls > before.calls) playSound('bingoCall');
   if (heard.winners > before.winners) playSound('bingo');
-  if (heard.wheel !== before.wheel && s.view === 'wheel') playSound('wheel');
   if (s.view === 'leaderboard' && before.view === 'question' && s.settings.displayMode === 'auto') playSound('endRound');
 }
 // The TV never scrolls: the visible view is scaled down until it fits the space under the header.
@@ -563,5 +616,5 @@ if (role === 'display') {
   new ResizeObserver(fitStage).observe($('stage'));
   $('stage').addEventListener('load', fitStage, true); document.fonts?.ready.then(fitStage);
 }
-setInterval(() => {if (role === 'player') updateControls(); else if (current) {$('status').textContent = timeText(current.question, offset); renderCountdown(); fitStage();}}, 200);
+setInterval(() => {if (role === 'player') updateControls(); else if (current) {$('status').textContent = timeText(current.question, offset); renderCountdown(); fitStage(); countdownCue();}}, 200);
 const updates = live(refresh, () => role === 'player' ? secret : '');

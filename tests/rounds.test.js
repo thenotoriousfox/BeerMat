@@ -63,6 +63,14 @@ test('nearest wins ranks by distance, breaks ties by time and scores on a slidin
   tick(31000); // expiry settles without the host closing
   assert.equal(await score(a), 10); assert.equal(await score(b), 5); assert.equal(await score(c), 0); assert.equal(await score(d), 0);
   assert.equal((await call('state', {}, a.secret)).answer.points, 10);
+  // Answers stay private until the reveal; then the board shows what each team put, and the closest team comes first.
+  assert.ok((await call('state', {}, a.secret)).teams.every(t => !('answer' in t)));
+  await call('host/reveal', {question: id});
+  const s = await call('state', {}, d.secret);
+  assert.deepEqual(Object.fromEntries(s.teams.map(t => [t.name, t.answer])), {Alpha: '250', Bravo: '256', Charlie: '300', Delta: null});
+  assert.deepEqual(s.question.scorers.map(x => [x.name, x.answer]), [['Alpha', '250'], ['Bravo', '256']]);
+  assert.equal(s.question.first.name, 'Alpha'); assert.equal(s.question.first.answer, '250');
+  assert.ok((await call('host/open', {...base, text: 'Next', type: 'text', answer: 'Yes'})).id); assert.ok((await call('state', {}, a.secret)).teams.every(t => !('answer' in t)));
 }));
 
 test('speed bonus starts each team clock on delivery, capped by a grace period', () => fixture(async ({call, teams, tick}) => {
