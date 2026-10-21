@@ -76,7 +76,7 @@ function startDeskPlayer() {
 }
 function showDeskPlayer() {
   $('spotifyPlayerState').textContent = deskReady ? '✓ Ready — playing through this desk' : '';
-  const q = state?.question, wanted = spotify?.deskPlayer && !deskReady && q?.live && (q.songs || q.clips || []).some(x => x.spotify);
+  const q = state?.question, wanted = spotify?.deskPlayer && !deskReady && q?.live && [...(q.songs || []), ...(q.clips || []), ...(q.clip ? [q.clip] : [])].some(x => x.spotify);
   $('spotifyStartLive').hidden = !wanted;
 }
 $('spotifyStartPlayer').onclick = $('spotifyStartLive').onclick = startDeskPlayer;
@@ -105,7 +105,7 @@ function formTypes() {
   show('nearestFields', type === 'nearest'); show('buzzerFields', type === 'buzzer'); show('pinpointFields', type === 'pinpoint'); show('goWideFields', type === 'pinpoint' || type === 'wordsnake');
   $('goWideText').textContent = type === 'wordsnake' ? 'Allow go wide: teams can remove the decoy letters for fewer points' : 'Allow go wide: a second tap scores if the first misses'; show('bingoFields', type === 'bingo' || type === 'musicbingo'); show('stagePointsFields', (type === 'bingo' || type === 'musicbingo') && $('qMode').value === 'progressive');
   const songs = $('qSongs').value.split('\n').filter(l => l.trim()).length; $('songCount').textContent = `${songs} songs${songs < 30 ? ' — add at least 30 so each team gets a different mix (a ticket holds 15)' : ''}`; show('musicFields', type === 'musicbingo'); show('clipsFields', type === 'clips');
-  show('mediaFields', !['sheet', 'bingo', 'musicbingo', 'clips'].includes(type)); show('answerFields', !['sheet', 'vote', 'sequence', 'multi', 'pinpoint', 'bingo', 'musicbingo', 'clips'].includes(type)); show('aliasesLabel', ['text', 'picture', 'audio'].includes(type)); show('noteLabel', type !== 'sheet');
+  show('mediaFields', !['sheet', 'bingo', 'musicbingo', 'clips'].includes(type)); show('audioClipFields', type === 'audio'); show('answerFields', !['sheet', 'vote', 'sequence', 'multi', 'pinpoint', 'bingo', 'musicbingo', 'clips'].includes(type)); show('aliasesLabel', ['text', 'picture', 'audio'].includes(type)); show('noteLabel', type !== 'sheet');
   // Speed bonus settings only appear once fastest fingers first is ticked.
   const fastest = speedTypes.includes(type) && $('qFastest').checked;
   show('pointsLabel', type !== 'sheet' && !(isBingoType(type) && $('qMode').value === 'progressive')); show('fastestLabel', speedTypes.includes(type)); show('speedLabel', fastest);
@@ -154,7 +154,7 @@ $('qRadius').oninput = () => {if (pinTarget) {pinTarget = {...pinTarget, r: Numb
 function addSheetItem(text = '', answer = '') {
   const row = element('div', undefined, 'sheet-row');
   const label = element('label', 'Question'); const input = element('input'); input.maxLength = 500; input.value = text; input.required = true; label.append(input);
-  const marking = element('label', 'Correct answer (optional)'); const key = element('input'); key.maxLength = 300; key.value = answer; marking.append(key);
+  const marking = element('label', 'Correct answer (optional; alternatives after “ / ”)'); const key = element('input'); key.maxLength = 2000; key.value = answer; marking.append(key);
   const remove = element('button', 'Remove', 'subtle'); remove.type = 'button'; remove.onclick = () => {row.remove(); editorChanged();};
   row.append(label, marking, remove); $('sheetItems').append(row);
 }
@@ -162,7 +162,8 @@ function fillQuestion(q = null) {
   editingId = q?.id || null;
   $('qText').value = q?.text || ''; $('qType').value = q?.type || 'text'; $('qSeconds').value = q?.seconds ?? 30; $('qPoints').value = q?.points ?? 1; $('qSpeed').value = q?.speedBonus || 0;
   $('qAnswer').value = q?.answer || ''; $('qAliases').value = (q?.aliases || []).join('\n'); $('qOptions').value = (q?.options || []).join('\n'); $('qMedia').value = q?.media || '';
-  $('qNote').value = q?.answerNote || ''; $('qItems').value = q?.type === 'sequence' ? q.items.join('\n') : ''; $('qPlaces').value = q?.places ?? 1;
+  $('qNote').value = q?.answerNote || ''; $('qItems').value = q?.type === 'sequence' ? q.items.join('\n') : ''; $('qPlaces').value = q?.places ?? 1; $('qTieBreaker').checked = !!q?.tieBreaker;
+  $('qClipLink').value = q?.clip?.spotify || ''; $('qClipStart').value = q?.clip?.start ?? 0; $('qClipPlay').value = q?.clip?.seconds ?? 30;
   $('qCorrect').value = (q?.correct || []).join('\n'); pinTarget = q?.target || null; $('qRadius').value = Math.round((q?.target?.r ?? 0.08) * 100);
   $('qSongs').value = (q?.songs || []).map(s => s.media || s.spotify ? `${s.title} | ${s.media || s.spotify}${s.start !== undefined || s.seconds !== undefined ? ` | ${s.start ?? ''} | ${s.seconds ?? ''}` : ''}` : s.title).join('\n'); $('qStartAt').value = q?.startAt ?? 0; $('qSongSeconds').value = q?.songSeconds ?? 0; $('qAutoNext').checked = !!q?.autoNext; $('qClipSeconds').value = q?.clipSeconds ?? 15; $('qRevealNow').checked = !!q?.revealNow;
   clipItems = structuredClone(q?.clips || []); targetClip = q?.targetClip ?? 0; renderClipList();
@@ -170,7 +171,7 @@ function fillQuestion(q = null) {
   $('qGoWide').checked = !!q?.goWide; $('qGoWidePoints').value = q?.goWidePoints ?? 0; $('qMode').value = q?.mode || 'progressive';
   [$('qLinePoints').value, $('qTwoLinePoints').value, $('qHousePoints').value] = q?.stagePoints || [1, 2, 3];
   $('qVariation').value = q?.variation || 'classic'; $('qPenalty').value = q?.penalty ?? 0; $('qPassPenalty').value = q?.passPenalty ?? 0; $('qAgreePoints').value = q?.agreePoints ?? 1; $('qAgreeSeconds').value = q?.agreeSeconds ?? 10;
-  $('sheetItems').replaceChildren(); (q?.type === 'sheet' ? q.items : ['']).forEach((item, i) => addSheetItem(item, q?.itemAnswers?.[i] || ''));
+  $('sheetItems').replaceChildren(); (q?.type === 'sheet' ? q.items : ['']).forEach((item, i) => addSheetItem(item, [q?.itemAnswers?.[i] || '', ...(q?.itemAliases?.[i] || [])].filter(Boolean).join(' / ')));
   $('mediaUpload').value = ''; renderMedia($('mediaPreview'), q); formTypes(); dirty = false;
   $('editorStatus').textContent = q ? 'Saved question loaded' : 'New question — save it to a round';
   $('playSelected').disabled = !q; $('deleteQuestion').disabled = !q;
@@ -209,8 +210,11 @@ function readQuestion() {
   })});
   if (type === 'clips') Object.assign(q, {clips: clipItems.map(c => c.spotify ? {spotify: c.spotify, start: c.start ?? 0, ...(c.seconds !== undefined && {seconds: c.seconds}), label: c.label.trim()} : {media: c.media, label: c.label.trim()}), targetClip, clipSeconds: Number($('qClipSeconds').value), media: ''});
   if (type === 'sequence') q.items = lines('qItems');
-  if (type === 'sheet') Object.assign(q, {items: rows.map(row => row.querySelectorAll('input')[0].value.trim()), itemAnswers: rows.map(row => row.querySelectorAll('input')[1].value.trim()), answerNote: '', media: ''});
-  if (type === 'nearest') q.places = Number($('qPlaces').value);
+  // A sheet answer can list alternatives after the answer: "Shakespeare / William Shakespeare".
+  const keys = rows.map(row => row.querySelectorAll('input')[1].value.split(' / ').map(s => s.trim()).filter(Boolean));
+  if (type === 'sheet') Object.assign(q, {items: rows.map(row => row.querySelectorAll('input')[0].value.trim()), itemAnswers: keys.map(k => k[0] || ''), itemAliases: keys.map(k => k.slice(1)), answerNote: '', media: ''});
+  if (type === 'nearest') Object.assign(q, {places: Number($('qPlaces').value), tieBreaker: $('qTieBreaker').checked});
+  if (type === 'audio' && $('qClipLink').value.trim()) q.clip = {spotify: $('qClipLink').value.trim(), start: Number($('qClipStart').value), seconds: Number($('qClipPlay').value)};
   if (type === 'buzzer') Object.assign(q, {variation: $('qVariation').value, penalty: Number($('qPenalty').value), passPenalty: Number($('qPassPenalty').value), agreePoints: Number($('qAgreePoints').value), agreeSeconds: Number($('qAgreeSeconds').value)});
   return q;
 }
@@ -374,6 +378,22 @@ function playClip(i) {
   audio.play().catch(() => message('The browser blocked audio — press Play clips again', true));
   renderClipsPanel(q);
 }
+// An audio question with a Spotify clip: the desk starts it as the question opens (not when the desk is reloaded
+// later) and pauses it after its play time; the button plays it again.
+let audioClipFor = null, audioClipTimer = null;
+async function playAudioClip(q) {
+  clearTimeout(audioClipTimer);
+  const {seconds} = await request('spotify/play', {question: q.id});
+  audioClipTimer = setTimeout(() => request('spotify/pause').catch(() => {}), seconds * 1000);
+}
+function audioClipCue(q) {
+  const ready = q?.type === 'audio' && !!q.clip && !!q.live;
+  $('replayClip').hidden = !ready;
+  if (!ready || audioClipFor === q.id) return;
+  audioClipFor = q.id;
+  if (q.seconds * 1000 - q.remaining < 5000) playAudioClip(q).catch(e => message(e.message, true));
+}
+$('replayClip').onclick = () => action(() => playAudioClip(state.question), 'Playing the clip on Spotify');
 function renderClipsPanel(q) {
   const c = q?.clipGame; $('clipsPanel').hidden = !c || !q.live;
   if (!c) return;
@@ -719,7 +739,7 @@ function renderState(s) {
   $('liveRound').textContent = q?.round || ''; $('liveText').textContent = q?.text || 'Ready when you are'; $('liveTimer').textContent = timeText(q, offset);
   $('liveKey').textContent = q ? answerKey(q) : '';
   if (q?.id !== liveQuestion) {liveQuestion = q?.id; $('announced').value = '';}
-  renderBuzzPanel(q); renderBingoPanel(q); showDeskPlayer(); renderSounds(s); useSounds(s.sounds); renderLooks(s);
+  renderBuzzPanel(q); renderBingoPanel(q); audioClipCue(q); showDeskPlayer(); renderSounds(s); useSounds(s.sounds); renderLooks(s);
   if (clipRun && (q?.id !== clipRun.question || !q.live)) stopClips(); else renderClipsPanel(q);
   $('liveCount').textContent = q ? `${s.answers.length} answers received · ${s.teams.filter(t => t.enabled && !t.waiting).length} active teams` : 'Add rounds in Build quiz, then start your first question.';
   renderMedia($('liveMedia'), q); renderSolution($('liveSolution'), q);

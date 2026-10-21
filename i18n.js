@@ -173,6 +173,8 @@ const T = {
   '1 team scored': ['1 équipe a marqué', '1 equipo ha puntuado'],
   '{n} teams scored — fastest first': ['{n} équipes ont marqué — la plus rapide d’abord', '{n} equipos han puntuado — el más rápido primero'],
   '{n} teams scored — closest first': ['{n} équipes ont marqué — la plus proche d’abord', '{n} equipos han puntuado — el más cercano primero'],
+  'Tie-breaker — closest first': ['Départage — la plus proche d’abord', 'Desempate — el más cercano primero'],
+  'TIE-BREAKER WINNER': ['VAINQUEUR DU DÉPARTAGE', 'GANADOR DEL DESEMPATE'],
   'CLOSEST ANSWER': ['RÉPONSE LA PLUS PROCHE', 'RESPUESTA MÁS CERCANA'],
   'FASTEST FINGERS': ['LES PLUS RAPIDES', 'LOS MÁS RÁPIDOS'],
   'Answered {answer}': ['A répondu {answer}', 'Respondió {answer}'],

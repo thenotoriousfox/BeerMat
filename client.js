@@ -353,10 +353,10 @@ function renderFirst(q) {
   firstArmed = null;
   const f = q.first; if (!f) return;
   const box = $('firstPlace'); box.dataset.question = q.id;
-  $('firstKind').textContent = f.kind === 'nearest' ? t('CLOSEST ANSWER') : t('FASTEST FINGERS');
+  $('firstKind').textContent = f.kind === 'tieBreaker' ? t('TIE-BREAKER WINNER') : f.kind === 'nearest' ? t('CLOSEST ANSWER') : t('FASTEST FINGERS');
   $('firstPhoto').replaceChildren(f.photo ? avatar(f.photo) : element('span', [...f.name][0].toUpperCase(), 'avatar first-initial'));
   $('firstName').textContent = f.name;
-  $('firstDetail').textContent = f.kind === 'nearest' ? t('Answered {answer}', {answer: f.answer}) : t('{s}s', {s: (f.ms / 1000).toFixed(1)});
+  $('firstDetail').textContent = f.kind !== 'fastest' ? t('Answered {answer}', {answer: f.answer}) : t('{s}s', {s: (f.ms / 1000).toFixed(1)});
   box.hidden = false; box.classList.remove('show'); void box.offsetWidth; box.classList.add('show');
   buzzSound(f.name, f.sound);
   clearTimeout(firstTimer); firstTimer = setTimeout(() => {box.hidden = true;}, 7000);

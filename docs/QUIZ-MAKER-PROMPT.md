@@ -53,10 +53,17 @@ Optional on most types:
 **Typed answers:**
 - `text`: `answer` up to 300 characters. Marking ignores case, accents in letter case and extra spaces, but is otherwise an **exact** match. Other accepted answers go in `aliases` (up to 20, each up to 300 characters), e.g. `"answer": "The Beatles", "aliases": ["Beatles"]`. Leaving `answer` out means the quizmaster marks it by hand.
 - `picture`: like `text`, plus `media` (a picture; see Media).
-- `audio`: like `text`, plus `media` (a sound; see Media).
+- `audio`: like `text`, plus the sound to play: either `media` (a sound file; see Media) or a Spotify `clip`, which the desk plays when the question opens:
+
+  ```json
+  "clip": {"spotify": "https://open.spotify.com/track/<id>", "start": 45, "seconds": 20}
+  ```
+
+  `spotify` is the track's link or `spotify:track:<id>`; `start` is the seconds into the track (0–3,600, default 0); `seconds` is how long it plays (3–600, default 30). Teams type their answer as for `text`.
 
 **Puzzles:**
 - `nearest`: closest number wins. `answer` is a plain number. `places` (1–20, default 1) is how many teams score, on a sliding scale: for example 3 places of 9 points gives 9, 6 and 3. Ties go to the earlier answer. At the reveal the closest team fills the TV, and the leaderboard shows what every team answered.
+  - `tieBreaker: true` makes it a tie-breaker: it scores nothing (`points` is ignored) and only orders teams that are level on points, closest first and then the quicker answer. The reveal lists every team's answer, closest first, and the winner fills the TV.
 - `wordsnake`: teams trace the answer through a letter grid. `answer` is one word of 3–20 letters (A–Z only; spaces and punctuation are dropped).
   - Optional go wide: `goWide: true` plus `goWidePoints` (0–100). Teams can remove the decoy letters, scoring `goWidePoints` instead of `points`.
 - `tiles`: teams rebuild the answer from up to 7 shuffled tiles. `answer` is 4–40 letters; spaces are allowed between words, e.g. `"Big Ben"`.
@@ -92,14 +99,14 @@ Optional on most types:
   - `targetClip` is the index of the correct clip, counting from 0; `text` says what to tap for.
 
 **Paper:**
-- `sheet`: an answer sheet. `items`: 1–50 questions; `itemAnswers`: the answers, in the same order and the same number. Each item is worth 1 point, whatever `points` says. No `media`.
+- `sheet`: an answer sheet. `items`: 1–50 questions; `itemAnswers`: the answers, in the same order and the same number; optional `itemAliases`: a list per item of other accepted answers (up to 20 each), e.g. `[["William Shakespeare"], []]`. Each item is worth 1 point, whatever `points` says. No `media`.
 
 ## Media
 
-`picture`, `audio` and `pinpoint` questions, `clips` and music-bingo songs can carry a file as a **data URL** in `media`, e.g. `"data:image/png;base64,…"`.
+`picture`, `audio` (unless it has a Spotify `clip`) and `pinpoint` questions, `clips` and music-bingo songs can carry a file as a **data URL** in `media`, e.g. `"data:image/png;base64,…"`.
 - Allowed types are PNG, JPEG, WebP, MP3, Ogg and WAV, each up to 20 MB.
 - PubQuiz uploads them when the file is loaded.
-- Media must be real files; a `picture`, `audio` or `pinpoint` question without one won't load.
+- Media must be real files; a `picture` or `pinpoint` question without one, or an `audio` question with neither a file nor a `clip`, won't load.
 
 Spotify links must be real tracks: PubQuiz plays whatever track the id points to.
 
@@ -126,7 +133,10 @@ Spotify links must be real tracks: PubQuiz plays whatever track the id points to
     {"id": "r3", "title": "Round 3 · Buzzers and bingo", "questions": [
       {"id": "r3-q1", "type": "buzzer", "text": "Which band sang “Wonderwall”?", "seconds": 20, "points": 2, "answer": "Oasis", "variation": "classic", "penalty": 1},
       {"id": "r3-q2", "type": "bingo", "text": "Eyes down for a full game: one line, two lines, then full house!", "seconds": 1800, "mode": "progressive", "stagePoints": [2, 3, 5]},
-      {"id": "r3-q3", "type": "sheet", "text": "Three quick ones — fill in the sheet", "seconds": 180, "points": 3, "items": ["Capital of France", "Who wrote Hamlet?", "How many continents are there?"], "itemAnswers": ["Paris", "Shakespeare", "7"]}
+      {"id": "r3-q3", "type": "sheet", "text": "Three quick ones — fill in the sheet", "seconds": 180, "points": 3, "items": ["Capital of France", "Who wrote Hamlet?", "How many continents are there?"], "itemAnswers": ["Paris", "Shakespeare", "7"], "itemAliases": [[], ["William Shakespeare"], ["Seven"]]}
+    ]},
+    {"id": "tb", "title": "Tie-breaker", "questions": [
+      {"id": "tb-q1", "type": "nearest", "text": "Tie-breaker: how tall is the Eiffel Tower, in metres?", "seconds": 30, "points": 0, "answer": "330", "tieBreaker": true}
     ]}
   ]
 }
@@ -143,4 +153,5 @@ Spotify links must be real tracks: PubQuiz plays whatever track the id points to
 - [ ] `speedBonus` only appears with `fastestFingers: true`, and only on the types listed.
 - [ ] `evil` and `"bonusMode": "fixed"` only appear on questions PubQuiz marks itself.
 - [ ] Music bingo has 15–300 songs with different titles, each with `title`, `spotify`, `start` and `seconds`.
-- [ ] Every clip has `spotify`, `start` and `seconds` (or real `media`).
+- [ ] Every clip has `spotify`, `start` and `seconds` (or real `media`); every `audio` question has a `clip` or real `media`.
+- [ ] Any `itemAliases` has one list per sheet item.

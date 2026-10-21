@@ -80,6 +80,9 @@ export function validateQuestion(q, mediaDir) {
   if (q.type === 'nearest') {
     result.places = q.places ?? 1;
     requireValue(integer(result.places, 1, 20), 'Places scored must be 1–20');
+    // A tie-breaker scores nothing: it only orders teams level on points, closest first.
+    result.tieBreaker = q.tieBreaker === true;
+    if (result.tieBreaker) result.points = 0;
   }
   if (q.type === 'sequence') {
     requireValue(Array.isArray(q.items) && q.items.length >= 2 && q.items.length <= 8 && q.items.every(i => text(i, 200)) && new Set(q.items).size === q.items.length, 'Supply 2–8 distinct items in their correct order');
@@ -170,7 +173,14 @@ export function validateQuestion(q, mediaDir) {
     requireValue(q.type === 'picture' ? pictureExtensions.includes(extension) : q.type === 'audio' ? audioExtensions.includes(extension) : true, 'Media format does not match question type');
     result.media = q.media;
   }
-  requireValue(!['picture', 'audio', 'pinpoint'].includes(q.type) || result.media, 'Upload or select an existing media file');
+  // An audio question can play a Spotify track instead of a file: the desk plays it from `start` for `seconds`.
+  if (q.type === 'audio' && q.clip !== undefined && q.clip !== null) {
+    const c = q.clip, spotify = c && spotifyTrack(c.spotify);
+    requireValue(spotify && integer(c.start ?? 0, 0, 3600) && integer(c.seconds ?? 30, 3, 600), 'A Spotify clip needs a track, a start time of 0–3,600 seconds and a play time of 3–600 seconds');
+    requireValue(!result.media, 'An audio question plays either a file or Spotify, not both');
+    result.clip = {spotify, start: c.start ?? 0, seconds: c.seconds ?? 30};
+  }
+  requireValue(!['picture', 'audio', 'pinpoint'].includes(q.type) || result.media || result.clip, 'Upload or select an existing media file');
   requireValue(q.type !== 'pinpoint' || pictureExtensions.includes(path.extname(result.media).toLowerCase()), 'Pinpoint needs a picture');
   if (q.type === 'sheet') {
     requireValue(Array.isArray(q.items) && q.items.length >= 1 && q.items.length <= 50 && q.items.every(i => text(i, 500)), 'Supply 1–50 sheet questions');
@@ -178,6 +188,10 @@ export function validateQuestion(q, mediaDir) {
     const answers = q.itemAnswers ?? q.items.map(() => '');
     requireValue(Array.isArray(answers) && answers.length === q.items.length && answers.every(a => text(a, 300, false)), 'Sheet answers must match its questions');
     result.itemAnswers = answers.map(a => a.trim());
+    // Other accepted answers for each item, as `aliases` are for a typed answer.
+    const itemAliases = q.itemAliases ?? q.items.map(() => []);
+    requireValue(Array.isArray(itemAliases) && itemAliases.length === q.items.length && itemAliases.every(list => Array.isArray(list) && list.length <= 20 && list.every(a => text(a, 300))), 'Sheet alternative answers must match its questions (up to 20 each)');
+    result.itemAliases = itemAliases.map(list => list.map(a => a.trim()));
     // Every sheet item is worth one point. Missing keys are left for the host to mark.
     result.points = q.items.length;
   }

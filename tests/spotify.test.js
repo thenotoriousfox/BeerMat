@@ -119,6 +119,11 @@ test('music bingo plays Spotify songs from the start time; clips play and log; n
   assert.equal((await call('tap', {question: clips.id}, team.secret)).clip, 2);
   await call('host/close');
   assert.equal((await call('host/open', {text: 'Bad', type: 'clips', seconds: 60, points: 1, targetClip: 0, clips: [{spotify: 'spotify:track:short'}, {spotify: `spotify:track:${id(1)}`}]})).status, 400);
+  // An audio question's Spotify clip plays from its start; the desk is told how long to let it play. Phones don't see the track.
+  const audio = await call('host/open', {text: 'Name the artist', type: 'audio', seconds: 30, points: 1, answer: 'Queen', clip: {spotify: `https://open.spotify.com/track/${id(3)}`, start: 42, seconds: 12}});
+  assert.equal((await call('host/spotify/play', {question: audio.id})).seconds, 12);
+  assert.deepEqual(JSON.parse(fake.log.findLast(l => l.path === '/v1/me/player/play').body), {uris: [`spotify:track:${id(3)}`], position_ms: 42000});
+  assert.equal((await call('state', {}, team.secret)).question.clip, undefined);
 }));
 
 test('only the desk page may load Spotify\'s player; phones and the TV stay local-only', () => fixture(async ({base}) => {

@@ -301,7 +301,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function publicQuestion(q, host = false, teamId = null) {
     if (!q) return null;
     const data = dataOf(q);
-    const {answer, aliases, itemAnswers, answerNote, correct, target, clips, targetClip, songs, snake, tiles, ...safe} = data;
+    const {answer, aliases, itemAnswers, itemAliases, answerNote, correct, target, clips, targetClip, songs, snake, tiles, clip, ...safe} = data;
     // Sequence items are shown shuffled; the stored order is the answer.
     const result = {...safe, id: q.id, deadline: q.deadline, open: accepting(q), live: pending(q), paused: pending(q) && q.paused_ms !== null,
       remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: revealedNow(q), revealing: !!q.revealed && !revealedNow(q), buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId, host), clipGame: clipState(q, data, teamId)};
@@ -311,7 +311,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       // Going wide shows a team only the squares on the answer's path.
       if (teamId && one('SELECT 1 FROM go_wide WHERE team=? AND question=?', teamId, q.id)) result.wideCells = snake.path;
     }
-    if (host || revealedNow(q)) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], correct, target, clips, targetClip, songs, snakePath: snake?.path, tiles, tally: tally(q, data),
+    if (host || revealedNow(q)) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], itemAliases: itemAliases || [], correct, target, clips, clip, targetClip, songs, snakePath: snake?.path, tiles, tally: tally(q, data),
       correctCount: one('SELECT COUNT(*) n FROM answers WHERE question=? AND points>0', q.id).n, scorers: scorers(q), first: firstPlace(q, data)});
     return result;
   }
@@ -319,7 +319,13 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // Answers the quizmaster marked by hand have no answer time and come last.
   // Closest-wins lists them closest first, with what they answered.
   function scorers(q) {
-    const shown = settings().showScores, nearest = dataOf(q).type === 'nearest';
+    const data = dataOf(q);
+    // A tie-breaker scores nothing, so its reveal lists every answer, closest first.
+    if (data.tieBreaker) {
+      const answers = rows('SELECT a.team,a.value,a.submitted,t.name FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=? AND a.submitted IS NOT NULL AND t.enabled=1', q.id), byTeam = new Map(answers.map(a => [a.team, a]));
+      return rankNearest(data, answers).map(r => {const a = byTeam.get(r.team); return {name: a.name, points: null, ms: Math.max(0, a.submitted - q.opened - lateness(q, a.team)), answer: a.value};});
+    }
+    const shown = settings().showScores, nearest = data.type === 'nearest';
     return rows('SELECT a.team,a.points,a.submitted,a.value,t.name FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=? AND a.points>0 AND t.enabled=1', q.id)
       .map(a => ({name: a.name, points: shown ? a.points : null, ms: a.submitted === null ? null : Math.max(0, a.submitted - q.opened - lateness(q, a.team)), ...nearest && {answer: a.value, rawPoints: a.points}}))
       .sort((a, b) => (nearest ? b.rawPoints - a.rawPoints : 0) || (a.ms ?? Infinity) - (b.ms ?? Infinity) || a.name.localeCompare(b.name))
@@ -330,6 +336,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function firstPlace(q, data) {
     const nearest = data.type === 'nearest';
     if (!nearest && !data.fastestFingers) return null;
+    // A tie-breaker scores nothing: the closest answer wins it.
+    if (data.tieBreaker) {
+      const answers = rows('SELECT a.team,a.value,a.submitted,t.name,t.sound,t.photo,t.photo_status FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=? AND a.submitted IS NOT NULL AND t.enabled=1', q.id);
+      const best = answers.find(a => a.team === rankNearest(data, answers)[0]?.team);
+      return best ? {kind: 'tieBreaker', name: best.name, sound: best.sound, photo: publicPhoto(best), ms: Math.max(0, best.submitted - q.opened - lateness(q, best.team)), answer: best.value} : null;
+    }
     const best = rows('SELECT a.team,a.points,a.submitted,a.value,t.name,t.sound,t.photo,t.photo_status FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=? AND a.points>0 AND t.enabled=1 AND a.submitted IS NOT NULL', q.id)
       .map(a => ({...a, ms: Math.max(0, a.submitted - q.opened - lateness(q, a.team))}))
       .sort((a, b) => (nearest ? b.points - a.points : 0) || a.ms - b.ms || a.name.localeCompare(b.name))[0];
@@ -346,8 +358,22 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const teams = rows(`SELECT id,name,seen,enabled,waiting,photo,photo_status,note,
       COALESCE((SELECT SUM(a.points) FROM answers a JOIN questions q ON a.question=q.id WHERE a.team=teams.id AND (q.closed=1 OR q.settled=1)),0)
       +COALESCE((SELECT SUM(points) FROM adjustments WHERE team=teams.id),0) score FROM teams ${includeDisabled ? '' : 'WHERE enabled=1 AND waiting=0'} ORDER BY score DESC,name`);
+    // Teams level on points are split by the latest tie-breaker once it has closed: closest first, then the quicker
+    // answer; teams that didn't answer it stay level with each other, behind those that did.
+    const tie = tieOrder();
+    if (tie) teams.sort((a, b) => b.score - a.score || (tie.get(a.id) ?? Infinity) - (tie.get(b.id) ?? Infinity) || a.name.localeCompare(b.name));
     let rank = 0, previous;
-    return teams.map((t, i) => {if (previous !== t.score) rank = i + 1; previous = t.score; return {...t, rank, connected: !!t.enabled && (live.has(t.id) || now() - t.seen < 15000)};});
+    return teams.map((t, i) => {
+      const key = `${t.score}:${tie?.get(t.id) ?? ''}`;
+      if (previous !== key) rank = i + 1; previous = key;
+      return {...t, rank, connected: !!t.enabled && (live.has(t.id) || now() - t.seen < 15000)};
+    });
+  }
+  function tieOrder() {
+    const q = rows('SELECT * FROM questions WHERE closed=1 OR settled=1 ORDER BY id DESC').find(q => dataOf(q).tieBreaker);
+    if (!q) return null;
+    const ranked = rankNearest(dataOf(q), rows('SELECT team,value,submitted FROM answers WHERE question=? AND submitted IS NOT NULL', q.id));
+    return new Map(ranked.map((r, i) => [r.team, i]));
   }
   // Only photos the quizmaster approved are ever shown to other teams or on the TV.
   const publicPhoto = t => settings().teamPhotos && t.photo_status === 'approved' ? t.photo : null;
@@ -444,7 +470,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function autoMark(value, data, q, teamId) {
     if (data.type === 'sheet') {
       const values = JSON.parse(value);
-      const marks = data.items.map((_, i) => data.itemAnswers?.[i] ? Number(isCorrect(values[i], {type: 'text', answer: data.itemAnswers[i]})) : null);
+      const marks = data.items.map((_, i) => data.itemAnswers?.[i] ? Number(isCorrect(values[i], {type: 'text', answer: data.itemAnswers[i], aliases: data.itemAliases?.[i] || []})) : null);
       return {points: marks.reduce((a, b) => a + (b ?? 0), 0), marks};
     }
     const base = basePoints(value, data);
@@ -770,7 +796,10 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/spotify/pause') {await spotify.pause(); return send(200, {ok: true});}
         // A Spotify sound clip: start it, then log it as playing so taps count against it.
         if (p === '/api/host/spotify/play') {
-          const q = questionById(body.question); requireValue(q && pending(q) && dataOf(q).type === 'clips', 'No live sound clips game', 409);
+          const q = questionById(body.question), data = q && dataOf(q);
+          // An audio question's Spotify clip, played when it opens (and again on request).
+          if (data?.type === 'audio') {requireValue(pending(q) && data.clip, 'No live Spotify audio question', 409); await spotify.play(data.clip.spotify, data.clip.start); return send(200, {ok: true, seconds: data.clip.seconds});}
+          requireValue(q && pending(q) && data.type === 'clips', 'No live sound clips game', 409);
           const clip = dataOf(q).clips[body.clip]; requireValue(Number.isInteger(body.clip) && clip?.spotify, 'Not a Spotify clip');
           await spotify.play(clip.spotify, clip.start);
           run('INSERT INTO clip_plays VALUES(?,?,?,?)', q.id, (nowPlaying(q)?.seq || 0) + 1, body.clip, now()); return send(200, {ok: true});

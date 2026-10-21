@@ -397,3 +397,32 @@ test('full bingo game: line, then two lines, then full house, each paying its ow
   await call('host/close');
   for (const p of players) assert.equal(await score(p), expected.get(p.id));
 }));
+
+test('sheet answers take alternatives; a tie-breaker scores nothing but orders teams level on points', () => fixture(async ({call, teams, score}) => {
+  const [a, b, c] = await teams('Alpha', 'Bravo', 'Charlie');
+  const sheet = await call('host/open', {...base, text: 'Sheet', type: 'sheet', items: ['Who wrote Hamlet?', 'Capital of Wales?'], itemAnswers: ['Shakespeare', 'Cardiff'], itemAliases: [['William Shakespeare'], []]});
+  for (const [team, value] of [[a, ['william shakespeare', 'Cardiff']], [b, ['Shakespeare', 'Swansea']], [c, ['Marlowe', 'cardiff']]]) {await call('state', {}, team.secret); await call('answer', {question: sheet.id, value}, team.secret);}
+  await call('host/close');
+  assert.deepEqual([await score(a), await score(b), await score(c)], [2, 1, 1], 'an alternative answer counts');
+  const tie = await call('host/open', {...base, text: 'Tie-breaker: the year of the Battle of Hastings?', type: 'nearest', answer: '1066', tieBreaker: true});
+  for (const [team, value] of [[a, '2000'], [b, '1100'], [c, '1060']]) {await call('state', {}, team.secret); await call('answer', {question: tie.id, value}, team.secret);}
+  const ranks = async () => (await call('host/state')).teams.map(t => [t.name, t.rank]);
+  assert.deepEqual(await ranks(), [['Alpha', 1], ['Bravo', 2], ['Charlie', 2]], 'level until the tie-breaker closes');
+  await call('host/close');
+  assert.deepEqual([await score(a), await score(b), await score(c)], [2, 1, 1], 'the tie-breaker scores nothing');
+  assert.deepEqual(await ranks(), [['Alpha', 1], ['Charlie', 2], ['Bravo', 3]], 'closest of the level teams goes ahead');
+  await call('host/reveal', {question: tie.id});
+  const q = (await call('state', {}, a.secret)).question;
+  assert.deepEqual(q.scorers.map(s => [s.name, s.answer]), [['Charlie', '1060'], ['Bravo', '1100'], ['Alpha', '2000']], 'every answer, closest first');
+  assert.deepEqual([q.first.kind, q.first.name, q.first.answer], ['tieBreaker', 'Charlie', '1060'], 'the winner fills the TV');
+}));
+
+test('audio questions can play a Spotify clip instead of a file', async () => {
+  const {validateQuestion} = await import('../model.js');
+  const id = '4uLU6hMCjMI75M1A2tKUQC', base = {text: 'Name the artist', type: 'audio', seconds: 30, points: 1, answer: 'Queen'};
+  assert.deepEqual(validateQuestion({...base, clip: {spotify: `https://open.spotify.com/track/${id}?si=x`, start: 60, seconds: 15}}, '.').clip, {spotify: `spotify:track:${id}`, start: 60, seconds: 15});
+  assert.deepEqual(validateQuestion({...base, clip: {spotify: `spotify:track:${id}`}}, '.').clip, {spotify: `spotify:track:${id}`, start: 0, seconds: 30});
+  assert.throws(() => validateQuestion(base, '.'), /media file/, 'needs a file or a clip');
+  assert.throws(() => validateQuestion({...base, clip: {spotify: 'https://example.com/x'}}, '.'), /Spotify clip/);
+  assert.throws(() => validateQuestion({...base, clip: {spotify: `spotify:track:${id}`, seconds: 1}}, '.'), /Spotify clip/);
+});

@@ -85,7 +85,7 @@ export function renderSolution(container, question) {
   if (question.type !== 'vote' && question.scorers) {
     const n = question.scorers.length;
     const nearest = question.type === 'nearest';
-    container.append(element('p', !n ? t('Nobody scored this time') : n === 1 ? t('1 team scored') : nearest ? t('{n} teams scored — closest first', {n}) : t('{n} teams scored — fastest first', {n}), 'muted scorers-title'));
+    container.append(element('p', question.tieBreaker ? t('Tie-breaker — closest first') : !n ? t('Nobody scored this time') : n === 1 ? t('1 team scored') : nearest ? t('{n} teams scored — closest first', {n}) : t('{n} teams scored — fastest first', {n}), 'muted scorers-title'));
     const list = element('ol', undefined, 'scorers');
     list.append(...question.scorers.map(s => {
       const li = element('li'); li.append(element('span', s.name, 'team-name'));
