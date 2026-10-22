@@ -91,14 +91,72 @@ def teardown():
 def run(cmd, **kw):
     return subprocess.run(cmd, check=True, text=True, **kw)
 
+def ask(cmd):
+    """Output of a read-only command, or '' when it fails."""
+    return subprocess.run(cmd, check=False, capture_output=True, text=True).stdout.strip()
+
+def cards():
+    """Wi-Fi cards NetworkManager knows (not the hotspot's own pq0): name, AP support and the network each is on."""
+    found = []
+    for line in ask(['nmcli', '-t', '-f', 'DEVICE,TYPE', 'device', 'status']).splitlines():
+        name, _, kind = line.rpartition(':')
+        if kind != 'wifi' or name == AP_IFACE:
+            continue
+        state, network = (ask(['nmcli', '-g', 'GENERAL.STATE,GENERAL.CONNECTION', 'device', 'show', name]).splitlines() + ['', ''])[:2]
+        on = state.startswith('100') and network != PROFILE
+        found.append({'name': name, 'ap': ask(['nmcli', '-g', 'WIFI-PROPERTIES.AP', 'device', 'show', name]) == 'yes',
+                      'connected': on, 'network': network if on else '', 'hosting': network == PROFILE})
+    return found
+
+def pick(found, interface='auto', offline=False):
+    """The card to host on and whether it keeps its own Wi-Fi connection: a free card that can host, else the first
+    that can, hosting beside the network it is on (--keep-wifi) unless offline."""
+    able = [c for c in found if c['ap'] and (interface == 'auto' or c['name'] == interface)]
+    card = next((c for c in able if not c['connected']), able[0] if able else None)
+    if not card:
+        return None
+    return {'interface': card['name'], 'keepWifi': card['connected'] and not offline}
+
+def running():
+    """The hotspot this script started, if it is up: its card, name, and whether it shares a card (--keep-wifi)."""
+    ssid = lambda iface: next((l.split('ssid ', 1)[1] for l in ask(['iw', 'dev', iface, 'info']).splitlines() if l.strip().startswith('ssid ')), '')
+    if Path(f'/sys/class/net/{AP_IFACE}').exists():
+        return {'interface': AP_IFACE, 'ssid': ssid(AP_IFACE), 'keepWifi': True}
+    for line in ask(['nmcli', '-t', '-f', 'NAME,DEVICE', 'connection', 'show', '--active']).splitlines():
+        name, _, device = line.rpartition(':')
+        if name == PROFILE:
+            return {'interface': device, 'ssid': ssid(device), 'keepWifi': False}
+    return None
+
+def take_down():
+    # Never kill an arbitrary PID from a stale pidfile. Each step runs even if an earlier one
+    # fails (for example dnsmasq already stopped), so a partial setup is still fully removed.
+    profile = PROFILE in ask(['nmcli', '-g', 'NAME', 'connection', 'show']).splitlines()
+    steps = [c for c in teardown() if profile or c[0] != 'nmcli'] + ([['iw', 'dev', AP_IFACE, 'del']] if Path(f'/sys/class/net/{AP_IFACE}').exists() else [])
+    return [' '.join(cmd) for cmd in steps if subprocess.run(cmd, check=False, capture_output=True).returncode != 0]
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('action', choices=['up', 'down', 'check'])
-    p.add_argument('--interface', default='wlan0')
+    p.add_argument('action', choices=['up', 'down', 'check', 'status'])
+    p.add_argument('--interface', default='auto', help='Wi-Fi card to host on; auto picks a free one that can host, else shares one')
     p.add_argument('--ssid', default='PubQuiz')
     p.add_argument('--apply', action='store_true', help='Actually change local networking (requires approval/root)')
-    p.add_argument('--keep-wifi', action='store_true', help='Stay on your normal Wi-Fi as well: host on a virtual interface sharing its 2.4 GHz channel')
+    p.add_argument('--keep-wifi', action='store_true', help='Stay on your normal Wi-Fi as well: host on a virtual interface sharing its 2.4 GHz channel (automatic when the card is connected)')
+    p.add_argument('--offline', action='store_true', help='Let the hotspot card leave the network it is on instead of sharing it')
+    p.add_argument('--replace', action='store_true', help='Take down a hotspot left from before instead of stopping')
     a = p.parse_args()
+    if a.action == 'status':
+        # Read-only, for the quiz desk: no root needed.
+        found = cards()
+        print(json.dumps({'wifiOn': ask(['nmcli', 'radio', 'wifi']) == 'enabled', 'cards': found, 'pick': pick(found), 'running': running()}))
+        return
+    if a.interface == 'auto' or a.action == 'up':
+        chosen = pick(cards(), a.interface, a.offline)
+        if a.interface == 'auto' and not chosen and a.action != 'down':
+            p.error('No Wi-Fi card that can host a hotspot (see: nmcli device status)')
+        if chosen:
+            a.interface = chosen['interface']
+            a.keep_wifi = a.keep_wifi or chosen['keepWifi']
     ap = AP_IFACE if a.keep_wifi else a.interface
     plan = commands(ap, a.ssid)
     if a.action == 'check':
@@ -115,11 +173,7 @@ def main():
         p.error('--apply requires root')
     runtime = Path('/run/pubquiz')
     if a.action == 'down':
-        # Never kill an arbitrary PID from a stale pidfile. Each step runs even if an earlier one
-        # fails (for example dnsmasq already stopped), so a partial setup is still fully removed.
-        profile = PROFILE in subprocess.run(['nmcli', '-g', 'NAME', 'connection', 'show'], check=False, capture_output=True, text=True).stdout.splitlines()
-        steps = [c for c in teardown() if profile or c[0] != 'nmcli'] + ([['iw', 'dev', AP_IFACE, 'del']] if a.keep_wifi or Path(f'/sys/class/net/{AP_IFACE}').exists() else [])
-        failed = [' '.join(cmd) for cmd in steps if subprocess.run(cmd, check=False, capture_output=True).returncode != 0]
+        failed = take_down()
         if failed:
             print('Already absent or failed (inspect if unexpected):\n  ' + '\n  '.join(failed))
         return
@@ -136,7 +190,9 @@ def main():
     for unit in ('pubquiz-dnsmasq.service', AP_UNIT):
         if subprocess.run(['systemctl', 'is-active', '--quiet', unit], check=False).returncode == 0:
             leftovers.append(unit.replace('.service', ' service'))
-    if leftovers:
+    if leftovers and a.replace:
+        take_down()
+    elif leftovers:
         p.error('A previous hotspot is still set up (' + ', '.join(leftovers) + '). Remove it first with:\n'
                 f'  sudo python scripts/hotspot.py down --interface {a.interface} --apply' + (' --keep-wifi' if Path(f'/sys/class/net/{AP_IFACE}').exists() else ''))
     channel, connected = None, False
@@ -198,7 +254,7 @@ def main():
         if virtual:
             subprocess.run(['iw', 'dev', AP_IFACE, 'del'], check=False)
         raise
-    print('Hotspot ready. Players: http://10.42.0.1 ; host: http://localhost:3000/host')
+    print(f'Hotspot "{a.ssid}" ready on {a.interface}' + (' beside the Wi-Fi it is on' if a.keep_wifi else '') + '. Players: http://10.42.0.1 ; host: http://localhost:3000/host')
     if a.keep_wifi:
         print(f'Hosting on 2.4 GHz channel {channel}' + (' alongside your normal Wi-Fi, which stays connected.' if connected else '.') + ' Stop with: down --keep-wifi --apply')
 

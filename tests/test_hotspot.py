@@ -4,7 +4,12 @@ from unittest.mock import patch
 spec = importlib.util.spec_from_file_location('hotspot', 'scripts/hotspot.py')
 hotspot = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hotspot)
+card = lambda name, connected=False, ap=True: {'name': name, 'ap': ap, 'connected': connected, 'network': 'Home' if connected else '', 'hosting': False}
 class HotspotTests(unittest.TestCase):
+    def setUp(self):
+        # One free card that can host, unless a test says otherwise; no real nmcli.
+        cards = patch.object(hotspot, 'cards', return_value=[card('wlan0')])
+        cards.start(); self.addCleanup(cards.stop)
     def test_plan_is_dedicated_and_not_autoconnecting(self):
         cmd = hotspot.commands('wlan0', 'Pub Quiz')
         self.assertIn('manual', cmd[1])
@@ -87,5 +92,30 @@ class HotspotTests(unittest.TestCase):
         message = ''.join(c.args[0] for c in err.write.call_args_list)
         self.assertIn('Wi-Fi profile PubQuiz-offline, firewall table inet pubquiz, pubquiz-dnsmasq service', message)
         self.assertIn('hotspot.py down --interface wlan0 --apply', message)
+    def test_pick_prefers_a_free_card_and_shares_only_when_it_must(self):
+        self.assertEqual(hotspot.pick([card('wlan0', True), card('wlan1')]), {'interface': 'wlan1', 'keepWifi': False})
+        self.assertEqual(hotspot.pick([card('wlan0'), card('wlan1', True)]), {'interface': 'wlan0', 'keepWifi': False})
+        self.assertEqual(hotspot.pick([card('wlan0', True), card('wlan1', ap=False)]), {'interface': 'wlan0', 'keepWifi': True})
+        self.assertEqual(hotspot.pick([card('wlan0', True)], offline=True), {'interface': 'wlan0', 'keepWifi': False})
+        self.assertEqual(hotspot.pick([card('wlan0', True), card('wlan1')], 'wlan0'), {'interface': 'wlan0', 'keepWifi': True})
+        self.assertIsNone(hotspot.pick([card('wlan0', ap=False)]))
+    def test_status_is_read_only_json(self):
+        with patch('sys.argv', ['hotspot.py', 'status']), patch.object(hotspot, 'cards', return_value=[card('wlan0', True), card('wlan1')]), \
+                patch.object(hotspot, 'ask', return_value='enabled'), patch.object(hotspot, 'running', return_value=None), \
+                patch.object(hotspot, 'run') as run, patch('builtins.print') as out:
+            hotspot.main()
+        run.assert_not_called()
+        status = hotspot.json.loads(out.call_args.args[0])
+        self.assertEqual((status['wifiOn'], status['pick'], len(status['cards'])), (True, {'interface': 'wlan1', 'keepWifi': False}, 2))
+    def test_replace_takes_leftovers_down_and_carries_on(self):
+        def fake(cmd, **kw):
+            out = {('nmcli', '-g', 'WIFI-PROPERTIES.AP'): 'yes\n', ('nmcli', '-g', 'NAME'): 'PubQuiz-offline\n', ('nft', 'list', 'tables'): ''}
+            return type('R', (), {'stdout': out.get(tuple(cmd[:3]), ''), 'returncode': 0})
+        with patch('sys.argv', ['hotspot.py', 'up', '--apply', '--replace']), patch('os.geteuid', return_value=0), patch.object(hotspot, 'run', side_effect=fake) as run, \
+                patch('subprocess.run', return_value=type('R', (), {'returncode': 3})), patch.object(hotspot, 'take_down', return_value=[]) as down, \
+                patch.object(hotspot.Path, 'mkdir'), patch.object(hotspot.Path, 'write_text'), patch('builtins.print'):
+            hotspot.main()
+        down.assert_called_once()
+        self.assertTrue(any(c.args[0][:3] == ['nmcli', 'connection', 'up'] for c in run.call_args_list))
 if __name__ == '__main__':
     unittest.main()

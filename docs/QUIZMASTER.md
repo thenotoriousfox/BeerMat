@@ -2,7 +2,7 @@
 
 ## Before the room fills
 
-1. Run `./scripts/quiz-night.sh` (quiz Wi-Fi and PubQuiz together; Ctrl+C ends both), or `./scripts/start.sh` for PubQuiz alone, and open `http://localhost:3000/host`. Unlock with the host key.
+1. Click **PubQuiz** in the app menu and type the host key: the desk opens unlocked. In **Quiz night** at the top, press **Start quiz Wi-Fi** and enter your laptop password. (From a terminal: `./scripts/quiz-night.sh` does the same, Ctrl+C ends it; or `./scripts/start.sh` for PubQuiz alone, then open `http://localhost:3000/host`.) After the quiz, **Close PubQuiz** takes the Wi-Fi down and stops the server.
 2. In **Build quiz**, set a quiz title and add rounds. Add and save questions with the form. Move questions up/down to set their order.
 3. Pick a format (see **Round formats** below). Upload images/audio directly in the form; any format can carry an optional picture or clip. Files stay on the laptop. Each upload has a unique filename, so replacing a picture cannot change a question already played.
 4. Add the correct answer and accepted alternatives, or leave it blank for manual marking. Choices must match one of the supplied options exactly. Each sheet item has its own marking key; the sheet's **Scoring** sets whether each item is worth a point, the parts share the question's points, or it's all-or-nothing. For a traditional paper round, print blank sheets and enter its score later.

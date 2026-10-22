@@ -600,6 +600,53 @@ document.addEventListener('pointerdown', enableSound);
 $('loginForm').onsubmit = async e => {e.preventDefault(); await action(async () => {
   key = (await api('login', {key: $('key').value})).key; writeStorage('pubquiz-host', key, true); $('key').value = ''; updates.reconnect(); await loadLibrary();
 }, 'Quiz desk unlocked');};
+// Quiz night: the laptop's own Wi-Fi and setup jobs. Only on the laptop itself; hidden anywhere else.
+let laptop = null, laptopTimer = null;
+async function loadLaptop() {
+  clearTimeout(laptopTimer);
+  try {laptop = await request('laptop');} catch {laptop = null;}
+  renderLaptop();
+  // Quicker while something runs, so its result shows up.
+  if (laptop) laptopTimer = setTimeout(loadLaptop, Object.values(laptop.jobs).some(j => j.running) ? 1500 : 10000);
+}
+const jobText = (id, job, working) => {$(id).textContent = job?.running ? working : job?.message || ''; $(id).classList.toggle('warning', job?.ok === false);};
+function renderLaptop() {
+  $('laptopPanel').hidden = !laptop; if (!laptop) return;
+  const w = laptop.wifi, job = laptop.jobs.wifi, working = !!job?.running, on = w.running;
+  const where = c => c.connected ? `on ${c.network}, shares it` : c.hosting ? 'hosting the quiz Wi-Fi' : 'free';
+  $('wifiControls').hidden = !w.available;
+  $('wifiState').textContent = !w.available ? '' : working ? '⏳ Working…' : on ? `● “${on.ssid}” is on` : '○ Quiz Wi-Fi off';
+  $('wifiInfo').textContent = !w.available ? 'This laptop has no Wi-Fi control (NetworkManager), so use ./scripts/quiz-night.sh or your own hotspot.'
+    : on ? `Phones join “${on.ssid}” and open http://10.42.0.1. Hosted on ${on.interface === 'pq0' ? 'the Wi-Fi card beside your home Wi-Fi' : on.interface}.`
+    : !w.wifiOn ? 'Wi-Fi is switched off on this laptop.'
+    : w.cards.length ? 'Wi-Fi cards: ' + w.cards.map(c => `${c.name} (${c.ap ? where(c) : 'can’t host'})`).join(' · ') : 'No Wi-Fi card found.';
+  const chosen = $('wifiCard').value || 'auto';
+  $('wifiCard').replaceChildren(element('option', `Automatic — ${w.pick ? w.pick.interface + (w.pick.keepWifi ? ', beside your home Wi-Fi' : '') : 'no card can host'}`),
+    ...(w.cards || []).map(c => {const o = element('option', `${c.name} — ${c.ap ? where(c) : 'can’t host'}`); o.value = c.name; o.disabled = !c.ap; return o;}));
+  $('wifiCard').options[0].value = 'auto'; $('wifiCard').value = [...$('wifiCard').options].some(o => o.value === chosen && !o.disabled) ? chosen : 'auto';
+  if (!$('wifiSsid').value && document.activeElement !== $('wifiSsid')) $('wifiSsid').value = on?.ssid || state?.settings.joinSsid || 'PubQuiz';
+  $('wifiOn').hidden = !w.available || w.wifiOn;
+  $('wifiStart').hidden = !!on; $('wifiStop').hidden = !on; $('wifiStart').disabled = working || !w.wifiOn || !w.pick; $('wifiStop').disabled = working;
+  $('wifiSsid').disabled = $('wifiCard').disabled = working || !!on;
+  jobText('wifiJob', job, 'Answer the password prompt on this laptop…');
+  const setupJob = laptop.jobs.bingoVoice?.running ? laptop.jobs.bingoVoice : laptop.jobs.soundPack?.running ? laptop.jobs.soundPack : laptop.jobs.bingoVoice || laptop.jobs.soundPack;
+  jobText('setupJob', setupJob, setupJob === laptop.jobs.bingoVoice ? 'Recording the bingo caller (a minute or two)…' : 'Copying sounds…');
+  $('buildPack').disabled = !laptop.setup.speedQuizzing || !!laptop.jobs.soundPack?.running;
+  $('buildPack').title = laptop.setup.speedQuizzing ? '' : 'No “SpeedQuizzing Documents/Sounds” folder in your home folder';
+  $('recordVoice').disabled = !laptop.setup.piper || !!laptop.jobs.bingoVoice?.running;
+  $('recordVoice').title = laptop.setup.piper ? '' : 'Piper is not installed (docs/QUIZMASTER.md, “A spoken bingo caller”)';
+  $('quitApp').hidden = !laptop.canQuit;
+}
+const laptopAction = (path, body, success) => action(async () => {await request(path, body); await loadLaptop(); return success;});
+$('wifiStart').onclick = () => laptopAction('laptop/wifi', {action: 'start', card: $('wifiCard').value, ssid: $('wifiSsid').value}, 'Starting the quiz Wi-Fi: enter your password when asked');
+$('wifiStop').onclick = () => {if (confirm('Stop the quiz Wi-Fi? Phones lose the quiz until it is back on.')) laptopAction('laptop/wifi', {action: 'stop'}, 'Stopping the quiz Wi-Fi: enter your password when asked');};
+$('wifiOn').onclick = () => action(async () => {await request('laptop/wifi', {action: 'on'}); setTimeout(loadLaptop, 2500); return 'Switching Wi-Fi on';});
+$('buildPack').onclick = () => laptopAction('laptop/setup', {job: 'soundPack'}, 'Copying sounds from SpeedQuizzing');
+$('recordVoice').onclick = () => laptopAction('laptop/setup', {job: 'bingoVoice'}, 'Recording the bingo caller');
+$('quitApp').onclick = () => {
+  if (!confirm('Close PubQuiz? The quiz Wi-Fi stops too (one more password prompt). Everything is saved: start it again from the app menu.')) return;
+  action(async () => {await request('laptop/quit'); clearTimeout(laptopTimer); return 'PubQuiz is closing. You can close this tab.';});
+};
 $('logout').onclick = () => action(async () => {await request('logout'); key = ''; writeStorage('pubquiz-host', '', true); $('panel').hidden = true; $('login').hidden = false;}, 'Quiz desk locked');
 let adjustRequest = null;
 $('adjustForm').oninput = () => {adjustRequest = null;};
@@ -809,7 +856,7 @@ async function refresh() {
   if (busy) return;
   if (!key) {$('connection').textContent = 'Desk locked'; return;}
   try {
-    const s = await request('state'); if (busy) return; if (!library) {await loadLibrary(); loadSpotify();}
+    const s = await request('state'); if (busy) return; if (!library) {await loadLibrary(); loadSpotify(); loadLaptop();}
     $('login').hidden = true; $('panel').hidden = false; $('connection').textContent = '● Server connected'; renderState(s);
     if (tab === 'mark') await loadReview();
   } catch (e) {
@@ -821,3 +868,9 @@ async function refresh() {
 window.addEventListener('beforeunload', e => {if (dirty) {e.preventDefault(); e.returnValue = '';}});
 setInterval(() => {if (state) {$('liveTimer').textContent = timeText(state.question, offset); renderTimer();}}, 200);
 const updates = live(refresh, () => key);
+// Opened from the app icon: a one-time ticket in the address unlocks the desk without typing the key a second time.
+const ticket = new URLSearchParams(location.hash.slice(1)).get('ticket');
+if (ticket) {
+  history.replaceState(null, '', location.pathname);
+  api('login', {ticket}).then(r => {key = r.key; writeStorage('pubquiz-host', key, true); updates.reconnect(); refresh();}).catch(e => {if (!key) message(e.message, true);});
+}

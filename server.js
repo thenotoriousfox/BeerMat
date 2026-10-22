@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {offensive} from './names.js';
 import {createSpotify} from './spotify.js';
+import {createLaptop} from './laptop.js';
 import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from './soundnames.js';
 import {looks, typeGroups} from './looks.js';
 import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern, sheetPoints} from './model.js';
@@ -25,7 +26,7 @@ const deskSecurity = {...security, 'Content-Security-Policy': security['Content-
 const DELIVERY_GRACE_MS = 2000;
 const SESSION_MS = 12 * 60 * 60 * 1000;
 // Read-only routes never notify clients of a change.
-const readOnly = new Set(['/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token']);
+const readOnly = new Set(['/api/host/laptop', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token']);
 
 // Sound packs are laid out like SpeedQuizzing's Sounds folder: general/<name>.mp3 for each moment (soundnames.js),
 // buzzers/<pack>/*.mp3, and optionally its bingo calls file at the top. `prefix` is the URL they are served under.
@@ -55,7 +56,7 @@ function loadPack(dir, prefix) {
   return {slots, themes, buzzers, calls, voice: voice.some(Boolean) ? voice : null};
 }
 
-export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds')} = {}) {
+export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), laptop = null, deskTicket = null, onQuit = null} = {}) {
   if (typeof hostKey !== 'string' || hostKey.length < 12) throw Error('HOST_KEY must contain at least 12 characters');
   const db = new DatabaseSync(database);
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
@@ -119,10 +120,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // This laptop's sound pack (scripts/sound-pack.mjs) supplies the defaults until the desk changes them; a desk choice of
   // the built-in bingo calls is stored as null.
   // PubQuiz ships CC0 sounds in sounds/; a laptop's own soundpack/ (same layout) takes priority over them.
-  const shipped = loadPack(soundsDir, '/sounds/'), local = loadPack(packDir, '/pack/');
   // A sound theme (SpeedQuizzing's Themes/<name>) replaces the moments it has a sound for. Desk choices, stored
-  // separately for moments and buzzers, override the defaults.
-  const themes = {...shipped.themes, ...local.themes};
+  // separately for moments and buzzers, override the defaults. Reloaded after the desk rebuilds the pack.
+  let shipped, local, themes;
+  const reloadPack = () => {shipped = loadPack(soundsDir, '/sounds/'); local = loadPack(packDir, '/pack/'); themes = {...shipped.themes, ...local.themes};};
+  reloadPack();
   const defaults = theme => ({slots: {...shipped.slots, ...local.slots, ...themes[theme]}, buzzers: [...local.buzzers, ...shipped.buzzers].slice(0, 200)});
   // The theme can be fixed, random for each question (stable per question) or chosen by question type.
   // By type, the default spreads the themes over groups of formats; the desk can change any type.
@@ -597,7 +599,13 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return rows('SELECT a.ms,a.count,a.since,t.name FROM away a JOIN teams t ON t.id=a.team WHERE a.question=? ORDER BY t.name', q.id)
       .map(a => ({name: a.name, count: a.count, ms: a.ms + (a.since ? now() - a.since : 0), awayNow: a.since !== null}));
   }
-  const localAllowed = req => !allowedAddresses || allowedAddresses.includes((req.socket.localAddress || '').replace(/^::ffff:/, ''));
+  // While the desk's quiz Wi-Fi is up, PubQuiz answers only on it and on this laptop, like start.sh --hotspot.
+  let hotspotOnly = false;
+  const localAllowed = req => {const only = allowedAddresses || (hotspotOnly ? ['127.0.0.1', '::1', '10.42.0.1'] : null); return !only || only.includes((req.socket.localAddress || '').replace(/^::ffff:/, ''));};
+  const laptopStatus = async () => {const status = await laptop.status(); hotspotOnly = !!status.wifi.running; return {...status, canQuit: !!onQuit};};
+  if (laptop) laptop.wifi().then(w => {hotspotOnly = !!w.running;});
+  // The app launcher (scripts/pubquiz-app.sh) opens the desk with a one-time ticket instead of asking for the key twice.
+  let deskLink = deskTicket;
   const server = http.createServer(async (req, res) => {
     const send = (status, data) => {res.writeHead(status, {...security, 'Content-Type': 'application/json'}); res.end(JSON.stringify(data));};
     try {
@@ -666,7 +674,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         const ip = req.socket.remoteAddress; const a = attempts.get(ip) || {n: 0, time: now()};
         if (now() - a.time >= 60000) {a.n = 0; a.time = now();} attempts.set(ip, a);
         requireValue(++a.n <= 10, 'Wait one minute before trying again', 429);
-        requireValue(equal(body.key, hostKey), 'Incorrect key', 403);
+        if (typeof body.ticket === 'string') {
+          requireValue(deskLink && loopback(clientIp(req)) && equal(body.ticket, deskLink), 'This link has been used. Unlock with the key.', 403); deskLink = null;
+        } else requireValue(equal(body.key, hostKey), 'Incorrect key', 403);
         const key = token(); run('INSERT INTO host_sessions VALUES(?,?)', hash(key), now() + SESSION_MS); return send(200, {key});
       }
       if (p.startsWith('/api/host/')) {
@@ -679,6 +689,35 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
         if (p === '/api/host/library') return send(200, library());
+        if (p.startsWith('/api/host/laptop')) {
+          requireValue(laptop, 'Laptop controls are not available here', 404);
+          requireValue(loopback(clientIp(req)), 'Use the desk on the quiz laptop for this', 403);
+          if (p === '/api/host/laptop') return send(200, await laptopStatus());
+          if (p === '/api/host/laptop/wifi') {
+            if (body.action === 'on') {await laptop.wifiOn(); return send(200, {ok: true});}
+            requireValue(['start', 'stop'].includes(body.action), 'Unknown Wi-Fi action');
+            if (body.action === 'stop') laptop.stopWifi(r => {if (r.ok) hotspotOnly = false; notify();});
+            else {
+              laptop.startWifi({card: body.card, ssid: body.ssid}, r => {if (r.ok) hotspotOnly = true; notify();});
+              // The TV's join screen names the same network.
+              setMeta('settings', {...settings(), joinSsid: body.ssid.trim()});
+            }
+            return send(200, {ok: true});
+          }
+          if (p === '/api/host/laptop/setup') {
+            requireValue(['soundPack', 'bingoVoice'].includes(body.job), 'Unknown setup step');
+            laptop[body.job](r => {if (r.ok) reloadPack(); notify();});
+            return send(200, {ok: true});
+          }
+          if (p === '/api/host/laptop/quit') {
+            requireValue(onQuit, 'PubQuiz was not started from the app icon; stop it in its terminal', 400);
+            send(200, {ok: true});
+            // The quiz Wi-Fi comes down first (one more password prompt), then PubQuiz stops.
+            const status = await laptop.wifi();
+            if (status.running) await new Promise(resolve => {try {laptop.stopWifi(resolve);} catch {resolve();}});
+            return onQuit();
+          }
+        }
         if (p === '/api/host/library/save') {
           const old = library(); requireValue(body.revision === old.revision, 'Quiz changed in another window. Reload before saving.', 409);
           const next = {...validateLibrary(body.quiz, mediaDir), revision: old.revision + 1};
@@ -1063,7 +1102,10 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   // ALLOWED_ADDRESSES limits which local addresses answer, e.g. 127.0.0.1,10.42.0.1 for hotspot-only play.
   const allowedAddresses = process.env.ALLOWED_ADDRESSES ? process.env.ALLOWED_ADDRESSES.split(',').map(s => s.trim()).filter(Boolean) : null;
-  const quiz = createQuiz({hostKey: process.env.HOST_KEY, database: process.env.QUIZ_DB || path.join(root, 'quiz.sqlite'), allowedAddresses});
+  // Started from the app icon (scripts/pubquiz-app.sh): the desk can also close PubQuiz.
+  const app = process.env.PUBQUIZ_APP === '1';
+  const quiz = createQuiz({hostKey: process.env.HOST_KEY, database: process.env.QUIZ_DB || path.join(root, 'quiz.sqlite'), allowedAddresses,
+    laptop: process.platform === 'linux' ? createLaptop({root}) : null, deskTicket: process.env.DESK_TICKET || null, onQuit: app ? () => quiz.close().then(() => process.exit(0)) : null});
   quiz.server.listen(Number(process.env.PORT || 3000), process.env.BIND || '0.0.0.0', () => {
     console.log('PubQuiz ready. Quizmaster: http://localhost:' + (process.env.PORT || 3000) + '/host');
     if (!allowedAddresses && (process.env.BIND || '0.0.0.0') === '0.0.0.0') console.log('Note: reachable from every network this laptop is on. Use ./scripts/start.sh --hotspot to answer only on the quiz Wi-Fi.');

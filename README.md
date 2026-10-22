@@ -12,6 +12,8 @@ Install Node.js 24 or later. Initial OS package installation needs internet; qui
 ./scripts/start.sh                 # prompts for a private 12+ character host key
 ```
 
+**From the app menu (no terminal):** `./scripts/setup.sh --install` (or just `--app`) adds a **PubQuiz** icon to the app menu. It asks for the quizmaster key in a window, starts PubQuiz in the background and opens the quiz desk already unlocked; clicking it again while PubQuiz runs just reopens the desk. The desk's **Quiz night** panel starts and stops the quiz Wi-Fi (your laptop password is asked for each change; same `hotspot.py` as below, card picked automatically), copies your SpeedQuizzing sounds, records the bingo caller, and **Close PubQuiz** takes the Wi-Fi down and stops the server. While the quiz Wi-Fi is on, PubQuiz answers only on it and on the laptop. The log is in `~/.local/state/pubquiz/server.log`.
+
 Open **http://localhost:3000/host**. Players can use **http://LAPTOP-IP:3000/** before hotspot integration. The projector/TV page is `/display`: it has a full-screen button and a join screen with Wi-Fi and address QR codes generated on the laptop. The default database is `quiz.sqlite` beside the server; `QUIZ_DB`, `PORT` and `BIND` can override defaults. Keep the key private. The service deliberately uses local HTTP for captive portal compatibility; use only a trusted local quiz network. The hotspot is open Wi-Fi, so recovery codes and host credentials are not encrypted on air. Do not expose it to public internet or reuse an important password.
 
 ## Dedicated CachyOS Wi-Fi
@@ -20,7 +22,7 @@ Open **http://localhost:3000/host**. Players can use **http://LAPTOP-IP:3000/** 
 
 **One command for a quiz night:** `./scripts/quiz-night.sh` asks for the host key and your password, starts the **PubQuiz** Wi-Fi while the laptop stays on your normal Wi-Fi, runs PubQuiz on it, and takes the Wi-Fi down again when you press Ctrl+C. With two Wi-Fi cards (say a USB adapter joined to your home Wi-Fi) it hosts on the one that isn't connected and leaves the other alone; with one card it hosts beside your home Wi-Fi on that card (`--keep-wifi`, below). `--offline` lets the hotspot card leave your home Wi-Fi instead; `--ssid` and `--interface` change the network name and card. The steps below are the same thing by hand.
 
-1. Find the interface with `nmcli device status` (often `wlan0` or `wlp...`). Run `python scripts/hotspot.py check --interface wlan0` to inspect AP capability.
+1. Find the interface with `nmcli device status` (often `wlan0` or `wlp...`). Run `python scripts/hotspot.py check --interface wlan0` to inspect AP capability. `python scripts/hotspot.py status` shows every card and which one `--interface auto` (the default) would host on: a free card that can host, otherwise the connected one, shared with its network (`--keep-wifi`, below) unless you add `--offline`.
 2. Start PubQuiz as your normal user with `./scripts/start.sh --hotspot`, keeping the terminal open. `--hotspot` makes the server answer only on this laptop and the quiz Wi-Fi (10.42.0.1), not on any other network the laptop is connected to. Test the dashboard first.
 3. Preview: `python scripts/hotspot.py up --interface wlan0 --ssid PubQuiz`.
 4. After local approval: `sudo python scripts/hotspot.py up --interface wlan0 --ssid PubQuiz --apply`.

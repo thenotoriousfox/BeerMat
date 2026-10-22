@@ -487,3 +487,5 @@ body.idle .screen-controls button { opacity: 0; pointer-events: none; }
 }
 .theme-by-type { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0 16px; margin: 8px 0 12px; }
 .theme-by-type label { font-size: .85rem; margin: 4px 0 10px; }
+
+.job{white-space:pre-line}
