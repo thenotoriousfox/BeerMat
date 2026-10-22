@@ -122,7 +122,9 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       // The player web app (the same pages as the phone app) for players without the app.
       if (method === 'GET' && (p === '/' || p.startsWith('/app/'))) {
         if (p === '/') {res.writeHead(302, {Location: '/app/'}); return res.end();}
-        const base = path.resolve(appDir), file = path.resolve(base, decodeURIComponent(p.slice(5)) || 'index.html');
+        // The app's shared code comes straight from the source (the phone app gets copies at build time).
+        const shared = {'/app/shared/online-client.js': path.join(here, 'client.js'), '/app/shared/achievements.js': path.join(here, '..', 'achievements.js')};
+        const base = path.resolve(shared[p] ? path.dirname(shared[p]) : appDir), file = shared[p] || path.resolve(base, decodeURIComponent(p.slice(5)) || 'index.html');
         check(file.startsWith(base + path.sep) && existsSync(file) && statSync(file).isFile() && staticTypes[path.extname(file)], 'Not found', 404);
         res.writeHead(200, {'Content-Type': staticTypes[path.extname(file)], 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-cache',
           'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; connect-src *; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'"});
