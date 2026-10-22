@@ -56,7 +56,7 @@ function loadPack(dir, prefix) {
   return {slots, themes, buzzers, calls, voice: voice.some(Boolean) ? voice : null};
 }
 
-export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), laptop = null, deskTicket = null, onQuit = null} = {}) {
+export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001} = {}) {
   if (typeof hostKey !== 'string' || hostKey.length < 12) throw Error('HOST_KEY must contain at least 12 characters');
   const db = new DatabaseSync(database);
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
@@ -212,13 +212,13 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     for (const [ip, a] of attempts) if (now() - a.time >= 60000) attempts.delete(ip);
   }
 
-  // Live updates: every client keeps one server-sent event stream and refetches state on each nudge.
+  // Live updates: every client keeps one server-sent event stream (or, online, a WebSocket) and refetches state on each nudge.
   const streams = new Set(); let version = 0, notifyTimer = null, lastPending = null, ticks = 0;
   function notify() {
     if (notifyTimer) return;
     notifyTimer = setTimeout(() => {
       notifyTimer = null; version++;
-      for (const stream of streams) stream.res.write(`data: ${version}\n\n`);
+      for (const stream of streams) stream.send(version);
     }, 20);
   }
   const liveTeams = () => new Set([...streams].map(s => s.team).filter(Boolean));
@@ -226,7 +226,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     // Expiry is time-driven, so announce it as soon as it happens.
     const q = latest(), state = (q ? `${q.id}:${pending(q)}:${accepting(q)}:${q.agree_deadline > now()}:${revealedNow(q)}` : '') + ':' + tvView();
     if (state !== lastPending) {lastPending = state; if (q) settle(q); notify();}
-    if (++ticks % 60 === 0) for (const stream of streams) stream.res.write(': keep-alive\n\n');
+    if (++ticks % 60 === 0) for (const stream of streams) stream.ping();
   }, 250);
   const keepAlive = setInterval(prune, 60000);
   ticker.unref(); keepAlive.unref();
@@ -425,7 +425,10 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return round.questions.every(x => played.has(x.id));
   }
   function exportResults() {return {version: 3, settings: settings(), library: library(), teams: rows('SELECT id,name,enabled FROM teams'), questions: rows('SELECT * FROM questions'), answers: rows('SELECT * FROM answers'), adjustments: rows('SELECT * FROM adjustments'), markingLog: rows('SELECT * FROM marking_log'), buzzes: rows('SELECT * FROM buzzes'), agrees: rows('SELECT * FROM agrees'), bingoCalls: rows('SELECT * FROM bingo_calls'), bingoClaims: rows('SELECT * FROM bingo_claims'), bingoShouts: rows('SELECT * FROM bingo_shouts'), clipPlays: rows('SELECT * FROM clip_plays')};}
-  function publicState() { return {serverTime: now(), build, settings: settings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
+  // Online mode: phones and the TV get the public link as the join address.
+  const onlineUrl = () => laptop?.online?.()?.ready ? laptop.online().url : null;
+  const shownSettings = () => {const url = onlineUrl(); return url ? {...settings(), joinUrl: url, online: true} : settings();};
+  function publicState() { return {serverTime: now(), build, settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
 
   // Final scoring once answers stop: nearest-wins needs every answer before it can rank them.
   function settle(q) {
@@ -561,18 +564,47 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (req.method === 'HEAD') return res.end();
     const stream = createReadStream(location); stream.on('error', () => res.destroy()); res.on('close', () => stream.destroy()); stream.pipe(res);
   }
-  function openStream(req, res, url) {
+  const streamTeam = url => {
     const auth = url.searchParams.get('key') || '';
     const team = auth ? one('SELECT id,enabled FROM teams WHERE secret=?', auth) : null;
     requireValue(!auth || team || isHost(auth), 'Invalid key', 401);
+    return team;
+  };
+  function addStream(stream, closed) {
+    streams.add(stream); if (stream.team) notify();
+    closed(() => {if (streams.delete(stream) && stream.team) notify();});
+  }
+  function openStream(req, res, url) {
+    const team = streamTeam(url);
     res.writeHead(200, {...security, 'Content-Type': 'text/event-stream', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no'});
     res.write(`retry: 1000\ndata: ${version}\n\n`);
-    const stream = {res, team: team?.id || null}; streams.add(stream);
-    if (team) notify();
-    req.on('close', () => {streams.delete(stream); if (team) notify();});
+    addStream({team: team?.id || null, send: v => res.write(`data: ${v}\n\n`), ping: () => res.write(': keep-alive\n\n'), end: () => res.end()}, done => req.on('close', done));
   }
+  // The same nudges over a WebSocket, for online play: Cloudflare's quick tunnels hold server-sent events back.
+  // Only the server talks; from the browser it needs nothing but close and pong frames.
+  function openSocket(req, socket) {
+    socket.on('error', () => socket.destroy());
+    const refuse = () => socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
+    let team;
+    try {
+      const url = new URL(req.url, 'http://quiz.local'), key = req.headers['sec-websocket-key'];
+      if (url.pathname !== '/api/events' || !localAllowed(req) || !/^[A-Za-z0-9+/]{22}==$/.test(key || '') || !originOk(req)) return refuse();
+      team = streamTeam(url);
+      socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '
+        + createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64') + '\r\n\r\n');
+    } catch {return refuse();}
+    const frame = (opcode, text = '') => {const body = Buffer.from(String(text)); if (!socket.destroyed) socket.write(Buffer.concat([Buffer.from([0x80 | opcode, body.length]), body]));};
+    // A close frame from the browser (opcode 8) ends it; anything else it sends is ignored.
+    socket.on('data', data => {if ((data[0] & 0x0f) === 8) socket.end();});
+    socket.setTimeout(0); socket.setNoDelay(true);
+    frame(1, version);
+    addStream({team: team?.id || null, send: v => frame(1, v), ping: () => frame(9), end: () => {frame(8); socket.end();}}, done => socket.on('close', done));
+  }
+  // Same-site requests only; online the page is on https (Cloudflare's end of the tunnel).
+  const originOk = req => !req.headers.origin || req.headers.origin === `http://${req.headers.host}` || (req.viaTunnel && req.headers.origin === `https://${req.headers.host}`);
   // Phones are recognised by their address on the quiz Wi-Fi. The laptop itself (loopback) is never a team device.
-  const clientIp = req => clientAddress ? clientAddress(req) : (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+  // Online players all arrive through the tunnel from this laptop, so they have no address of their own here.
+  const clientIp = req => req.viaTunnel ? '' : clientAddress ? clientAddress(req) : (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
   const loopback = ip => ip.startsWith('127.') || ip === '::1';
   const DEVICE_MS = 12 * 60 * 60 * 1000;
   function rememberDevice(req, teamId) {
@@ -606,11 +638,13 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   if (laptop) laptop.wifi().then(w => {hotspotOnly = !!w.running;});
   // The app launcher (scripts/pubquiz-app.sh) opens the desk with a one-time ticket instead of asking for the key twice.
   let deskLink = deskTicket;
-  const server = http.createServer(async (req, res) => {
+  const handle = async (req, res) => {
     const send = (status, data) => {res.writeHead(status, {...security, 'Content-Type': 'application/json'}); res.end(JSON.stringify(data));};
     try {
       if (!localAllowed(req)) return send(403, {error: 'Not available on this network'});
       const url = new URL(req.url, 'http://quiz.local'); const p = url.pathname;
+      // The online link reaches only the players' and TV pages: never the desk, its key or its controls.
+      if (req.viaTunnel && (['/host', '/host.js', '/api/login', '/spotify/callback'].includes(p) || p.startsWith('/api/host/'))) return send(404, {error: 'Not found'});
       const auth = req.headers.authorization?.replace(/^Bearer /, '');
       settle(latest());
       if (req.method === 'GET' && p === '/api/events') return openStream(req, res, url);
@@ -639,7 +673,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       }
       if (req.method === 'GET' && p === '/api/leaderboard') return send(200, publicState());
       requireValue(req.method === 'POST', 'POST required', 405);
-      requireValue(!req.headers.origin || req.headers.origin === `http://${req.headers.host}`, 'Origin rejected', 403);
+      requireValue(originOk(req), 'Origin rejected', 403);
       if (!readOnly.has(p)) res.on('finish', () => {if (res.statusCode < 400) notify();});
       if (p === '/api/host/media') {
         requireValue(isHost(auth), 'Host login required', 403);
@@ -702,6 +736,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
               // The TV's join screen names the same network.
               setMeta('settings', {...settings(), joinSsid: body.ssid.trim()});
             }
+            return send(200, {ok: true});
+          }
+          if (p === '/api/host/laptop/online') {
+            requireValue(['start', 'stop'].includes(body.action), 'Unknown online action');
+            if (body.action === 'start') laptop.goOnline(publicPort, notify); else laptop.goOffline();
             return send(200, {ok: true});
           }
           if (p === '/api/host/laptop/setup') {
@@ -1088,16 +1127,22 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       if (!(e instanceof QuizError)) console.error(e);
       send(e.status || 500, {error: e instanceof QuizError ? e.message : 'Server error. Check the server terminal.'});
     }
-  });
-  server.requestTimeout = 15000; server.headersTimeout = 10000;
+  };
+  // Two doors to the same quiz: the main port (laptop, quiz Wi-Fi) and a laptop-only port for the online tunnel.
+  const server = http.createServer(handle), publicServer = http.createServer((req, res) => {req.viaTunnel = true; handle(req, res);});
+  publicServer.on('upgrade', (req, socket) => {req.viaTunnel = true; openSocket(req, socket);});
+  server.on('upgrade', openSocket);
+  for (const s of [server, publicServer]) {s.requestTimeout = 15000; s.headersTimeout = 10000;}
   let closing = null;
   function close() {
     clearInterval(ticker); clearInterval(keepAlive); clearTimeout(notifyTimer);
-    for (const stream of streams) stream.res.end();
-    closing ||= new Promise(resolve => {server.close(() => {db.close(); resolve();}); server.closeAllConnections();});
+    for (const stream of streams) stream.end();
+    laptop?.goOffline?.();
+    const shut = s => new Promise(resolve => {s.close(() => resolve()); s.closeAllConnections();});
+    closing ||= Promise.all([shut(server), shut(publicServer)]).then(() => db.close());
     return closing;
   }
-  return {server, db, close};
+  return {server, publicServer, db, close};
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   // ALLOWED_ADDRESSES limits which local addresses answer, e.g. 127.0.0.1,10.42.0.1 for hotspot-only play.
@@ -1105,10 +1150,13 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   // Started from the app icon (scripts/pubquiz-app.sh): the desk can also close PubQuiz.
   const app = process.env.PUBQUIZ_APP === '1';
   const quiz = createQuiz({hostKey: process.env.HOST_KEY, database: process.env.QUIZ_DB || path.join(root, 'quiz.sqlite'), allowedAddresses,
-    laptop: process.platform === 'linux' ? createLaptop({root}) : null, deskTicket: process.env.DESK_TICKET || null, onQuit: app ? () => quiz.close().then(() => process.exit(0)) : null});
+    laptop: process.platform === 'linux' ? createLaptop({root}) : null, publicPort: Number(process.env.PUBLIC_PORT || 3001), deskTicket: process.env.DESK_TICKET || null, onQuit: app ? () => quiz.close().then(() => process.exit(0)) : null});
   quiz.server.listen(Number(process.env.PORT || 3000), process.env.BIND || '0.0.0.0', () => {
     console.log('PubQuiz ready. Quizmaster: http://localhost:' + (process.env.PORT || 3000) + '/host');
     if (!allowedAddresses && (process.env.BIND || '0.0.0.0') === '0.0.0.0') console.log('Note: reachable from every network this laptop is on. Use ./scripts/start.sh --hotspot to answer only on the quiz Wi-Fi.');
   });
+  // Online mode's tunnel connects here; only this laptop can reach it.
+  quiz.publicServer.on('error', e => console.log(`Online mode unavailable: port ${process.env.PUBLIC_PORT || 3001} is busy (${e.code}).`));
+  quiz.publicServer.listen(Number(process.env.PUBLIC_PORT || 3001), '127.0.0.1');
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => quiz.close().then(() => process.exit(0)));
 }

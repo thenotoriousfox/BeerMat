@@ -601,13 +601,13 @@ $('loginForm').onsubmit = async e => {e.preventDefault(); await action(async () 
   key = (await api('login', {key: $('key').value})).key; writeStorage('pubquiz-host', key, true); $('key').value = ''; updates.reconnect(); await loadLibrary();
 }, 'Quiz desk unlocked');};
 // Quiz night: the laptop's own Wi-Fi and setup jobs. Only on the laptop itself; hidden anywhere else.
-let laptop = null, laptopTimer = null;
+let laptop = null, laptopTimer = null, panelsLoaded = false;
 async function loadLaptop() {
   clearTimeout(laptopTimer);
   try {laptop = await request('laptop');} catch {laptop = null;}
   renderLaptop();
   // Quicker while something runs, so its result shows up.
-  if (laptop) laptopTimer = setTimeout(loadLaptop, Object.values(laptop.jobs).some(j => j.running) ? 1500 : 10000);
+  if (laptop) laptopTimer = setTimeout(loadLaptop, Object.values(laptop.jobs).some(j => j.running) || (laptop.online && !laptop.online.ready) ? 1500 : 10000);
 }
 const jobText = (id, job, working) => {$(id).textContent = job?.running ? working : job?.message || ''; $(id).classList.toggle('warning', job?.ok === false);};
 function renderLaptop() {
@@ -636,11 +636,22 @@ function renderLaptop() {
   $('recordVoice').disabled = !laptop.setup.piper || !!laptop.jobs.bingoVoice?.running;
   $('recordVoice').title = laptop.setup.piper ? '' : 'Piper is not installed (docs/QUIZMASTER.md, “A spoken bingo caller”)';
   $('quitApp').hidden = !laptop.canQuit;
+  const o = laptop.online;
+  $('goOnline').hidden = !!o; $('goOffline').hidden = !o; $('goOnline').disabled = !laptop.cloudflared;
+  $('onlineLink').hidden = $('copyOnline').hidden = !o?.ready; $('onlineLink').value = o?.url || '';
+  $('onlineInfo').textContent = !laptop.cloudflared ? 'Install cloudflared first (sudo pacman -S cloudflared), then reload this page.'
+    : o?.ready ? 'Post this link in Discord; the TV join screen shows it too. Share the TV in Discord: open Projector ↗, then Share Screen → that window, with sound on. Anyone with the link can join, so the waiting room (Room controls) lets you check teams first. The desk stays on this laptop.'
+    : o ? 'Connecting to Cloudflare…'
+    : laptop.onlineError || 'Play over the internet: Go online makes a free public link (a Cloudflare quick tunnel) to the players’ page and the TV, never the desk. The link changes each time you go online.';
+  $('onlineInfo').classList.toggle('warning', !o && !!laptop.onlineError);
 }
 const laptopAction = (path, body, success) => action(async () => {await request(path, body); await loadLaptop(); return success;});
 $('wifiStart').onclick = () => laptopAction('laptop/wifi', {action: 'start', card: $('wifiCard').value, ssid: $('wifiSsid').value}, 'Starting the quiz Wi-Fi: enter your password when asked');
 $('wifiStop').onclick = () => {if (confirm('Stop the quiz Wi-Fi? Phones lose the quiz until it is back on.')) laptopAction('laptop/wifi', {action: 'stop'}, 'Stopping the quiz Wi-Fi: enter your password when asked');};
 $('wifiOn').onclick = () => action(async () => {await request('laptop/wifi', {action: 'on'}); setTimeout(loadLaptop, 2500); return 'Switching Wi-Fi on';});
+$('goOnline').onclick = () => laptopAction('laptop/online', {action: 'start'}, 'Going online');
+$('goOffline').onclick = () => {if (confirm('Go offline? Online players lose the quiz, and going online again makes a new link.')) laptopAction('laptop/online', {action: 'stop'}, 'Offline');};
+$('copyOnline').onclick = () => navigator.clipboard.writeText($('onlineLink').value).then(() => message('Link copied'), () => {$('onlineLink').select(); message('Press Ctrl+C to copy the link');});
 $('buildPack').onclick = () => laptopAction('laptop/setup', {job: 'soundPack'}, 'Copying sounds from SpeedQuizzing');
 $('recordVoice').onclick = () => laptopAction('laptop/setup', {job: 'bingoVoice'}, 'Recording the bingo caller');
 $('quitApp').onclick = () => {
@@ -856,7 +867,7 @@ async function refresh() {
   if (busy) return;
   if (!key) {$('connection').textContent = 'Desk locked'; return;}
   try {
-    const s = await request('state'); if (busy) return; if (!library) {await loadLibrary(); loadSpotify(); loadLaptop();}
+    const s = await request('state'); if (busy) return; if (!library) await loadLibrary(); if (!panelsLoaded) {panelsLoaded = true; loadSpotify(); loadLaptop();}
     $('login').hidden = true; $('panel').hidden = false; $('connection').textContent = '● Server connected'; renderState(s);
     if (tab === 'mark') await loadReview();
   } catch (e) {

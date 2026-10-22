@@ -14,7 +14,7 @@ if [[ ${1:-} == --app ]]; then app; exit 0; fi
 # Node 22.13 or later (built-in SQLite). A Node already installed is kept, e.g. nodejs-lts-jod, which other apps
 # such as balena-etcher depend on; pacman cannot install a second one beside it.
 node_ok() { command -v node >/dev/null && node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a==22&&b>=13)?0:1)'; }
-packages=(networkmanager dnsmasq nftables python iw curl kdialog)
+packages=(networkmanager dnsmasq nftables python iw curl kdialog cloudflared)
 node_ok || packages=(nodejs npm "${packages[@]}")
 if [[ ${1:-} != --install ]]; then
   echo 'Preview only. Install prerequisites and the app-menu icon with: ./scripts/setup.sh --install (just the icon: --app)'

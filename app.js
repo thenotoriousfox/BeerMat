@@ -116,8 +116,16 @@ export function live(refresh, key = () => '', slowPoll = 5000) {
     const k = key();
     if (source && k === currentKey) return;
     source?.close(); currentKey = k;
-    source = new EventSource('/api/events' + (k ? '?key=' + encodeURIComponent(k) : ''));
-    source.onmessage = update;
+    const address = '/api/events' + (k ? '?key=' + encodeURIComponent(k) : '');
+    // Online (https, through Cloudflare) the nudges come over a WebSocket: the tunnel holds server-sent events back.
+    if (location.protocol === 'https:') {
+      source = new WebSocket('wss://' + location.host + address);
+      const mine = source; source.onmessage = update;
+      source.onclose = () => {if (source === mine) {source = null; setTimeout(connect, 1000);}};
+    } else {
+      source = new EventSource(address);
+      source.onmessage = update;
+    }
   }
   async function loop() {connect(); await update(); setTimeout(loop, slowPoll);}
   loop();

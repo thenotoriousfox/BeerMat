@@ -287,18 +287,20 @@ function renderQr(container, text) {
 }
 function displayState(s) {
   current = s; offset = s.serverTime - Date.now();
-  const {joinSsid, joinUrl, registrationOpen, ended} = s.settings, joining = registrationOpen && !ended;
+  const {joinSsid, joinUrl, registrationOpen, ended, online} = s.settings, joining = registrationOpen && !ended, address = joinUrl.replace(/^https?:\/\//, '');
   $('projection').hidden = s.view === 'blank';
   $('joinSection').hidden = s.view !== 'join';
   if (s.view === 'join') {
     // One code does it all: it joins the quiz Wi-Fi, and the phone's sign-in window then opens the quiz.
-    renderQr($('wifiQr'), wifiCode(joinSsid));
-    $('joinStepWifi').textContent = t('Join the “{ssid}” Wi-Fi when your phone offers it', {ssid: joinSsid});
-    $('joinStepQuiz').textContent = t('Tap “Sign in” when your phone asks (iPhones open it straight away) — then pick a team name');
-    $('joinFallback').textContent = t('Quiz not opening? On the {ssid} Wi-Fi, go to {url}', {ssid: joinSsid, url: joinUrl.replace(/^http:\/\//, '')});
+    // Online (shown over Discord), the code is the quiz's public link instead.
+    renderQr($('wifiQr'), online ? joinUrl : wifiCode(joinSsid));
+    $('joinStepWifi').textContent = online ? t('Or go to {url}', {url: address}) : t('Join the “{ssid}” Wi-Fi when your phone offers it', {ssid: joinSsid});
+    $('joinStepQuiz').textContent = online ? t('Pick a team name and keep the page open') : t('Tap “Sign in” when your phone asks (iPhones open it straight away) — then pick a team name');
+    $('joinFallback').textContent = online ? '' : t('Quiz not opening? On the {ssid} Wi-Fi, go to {url}', {ssid: joinSsid, url: address});
+    $('joinWifiNote').hidden = !!online;
     $('joinStatus').textContent = !joining ? t('Registration is closed — ask the quizmaster to join') : s.teams.length ? (s.teams.length === 1 ? t('1 team has joined') : t('{n} teams have joined', {n: s.teams.length})) : t('Be the first team to join!');
   }
-  $('joinHint').textContent = joining ? t('Join: Wi-Fi “{ssid}” → {url}', {ssid: joinSsid, url: joinUrl.replace(/^http:\/\//, '')}) : '';
+  $('joinHint').textContent = !joining ? '' : online ? t('Join: {url}', {url: address}) : t('Join: Wi-Fi “{ssid}” → {url}', {ssid: joinSsid, url: address});
   $('boardSection').hidden = s.view !== 'leaderboard'; $('projectQuestion').hidden = s.view !== 'question';
   const q = s.question; $('question').textContent = q?.text || t('Waiting for the quizmaster'); $('round').textContent = q?.round || ''; $('status').textContent = timeText(q, offset);
   if (q?.type === 'pinpoint') renderPinpoint($('media'), q); else renderMedia($('media'), q);
@@ -497,12 +499,17 @@ function reportAway(state) {
 }
 async function refresh() {
   try {
-    const s = role === 'player' && secret ? await api('state', {}, secret) : await publicState();
+    const asTeam = role === 'player' ? secret : '';
+    const s = asTeam ? await api('state', {}, asTeam) : await publicState();
+    // A team joined or switched while this was loading; the refresh that follows has its state.
+    if (role === 'player' && asTeam !== secret) return;
     online = true; $('connection').classList.remove('offline');
     // The TV follows the quizmaster's language setting; a change after load reloads the page in the new language.
     if (role === 'display' && s.settings.language !== language()) {if (initialised) return location.reload(); setLanguage(s.settings.language); translatePage();}
     initialised = true;
     $('connection').textContent = t('● Connected'); lastSettings = s.settings; sharedState(s);
+    // Online there is no quiz Wi-Fi to warn about.
+    for (const tip of document.querySelectorAll('.wifi-tip')) tip.hidden = !!s.settings.online;
     if (role === 'display') displayState(s);
     else if (secret) playerState(s);
     else {
@@ -539,7 +546,7 @@ if (role === 'player') {
     e.preventDefault(); $('joinButton').disabled = true;
     try {
       const team = await api('join', {name: $('name').value}); saveIdentity(team.secret);
-      message(team.waiting ? t('Nearly there! The quizmaster will let you in shortly. Keep this window open.') : t('You’re in! Keep this window open to play. If it closes, open {url} in your browser to carry on.', {url: (lastSettings?.joinUrl || 'http://10.42.0.1').replace(/^http:\/\//, '')}));
+      message(team.waiting ? t('Nearly there! The quizmaster will let you in shortly. Keep this window open.') : t('You’re in! Keep this window open to play. If it closes, open {url} in your browser to carry on.', {url: (lastSettings?.joinUrl || 'http://10.42.0.1').replace(/^https?:\/\//, '')}));
       await refresh();
     } catch (e) {message(e.message, true);} finally {if (!secret) $('joinButton').disabled = false;}
   };

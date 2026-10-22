@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {mkdtempSync, rmSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import {EventEmitter} from 'node:events';
+import {PassThrough} from 'node:stream';
 import {createQuiz} from '../server.js';
 import {createLaptop} from '../laptop.js';
 
@@ -46,7 +48,7 @@ async function fixture(options, fn) {
     return {status: response.status, ...await response.json()};
   };
   const host = (await call('login', {key: hostKey})).key;
-  try {await fn({call, port});} finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
+  try {await fn({call, port, quiz});} finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
 }
 // A stand-in for the laptop: the Wi-Fi is whatever the test says, and jobs finish when the test lets them.
 function fakeLaptop() {
@@ -55,6 +57,7 @@ function fakeLaptop() {
     status: async () => ({wifi: await fake.wifi(), jobs: {}, setup: {speedQuizzing: false, piper: false}}),
     startWifi: (options, done) => {fake.started.push(options); fake.pending.push(() => {fake.running = {interface: 'wlan0', ssid: options.ssid, keepWifi: false}; done({ok: true});});},
     stopWifi: done => fake.pending.push(() => {fake.running = null; done({ok: true});}),
+    tunnel: null, online: () => fake.tunnel, goOnline: () => {fake.tunnel = {url: 'https://quiz-test.trycloudflare.com', ready: true};}, goOffline: () => {fake.tunnel = null;},
     wifiOn: async () => {}, soundPack: done => fake.pending.push(() => done({ok: true})), bingoVoice: () => {},
     finish: () => fake.pending.splice(0).forEach(f => f())};
   return fake;
@@ -96,4 +99,72 @@ test('the app launcher\'s one-time desk link unlocks the desk once, only on the 
   const {key} = await call('login', {ticket: 'one-time-ticket-123'});
   assert.equal((await call('host/state', {}, key)).status, 200);
   assert.equal((await call('login', {ticket: 'one-time-ticket-123'})).status, 403);
+}));
+
+test('online mode: cloudflared\'s link counts once a connection is registered, and a crash is reported', async () => {
+  const children = [];
+  const tunnel = (file, args) => {const child = new EventEmitter(); child.stderr = new PassThrough(); child.kill = () => child.emit('exit', null); child.args = [file, ...args]; children.push(child); return child;};
+  let changes = 0;
+  const laptop = createLaptop({root: '/quiz', tunnel, cloudflared: '/usr/bin/cloudflared', run: async () => ({ok: true, code: 0, out: '{}'})});
+  laptop.goOnline(3001, () => changes++);
+  assert.deepEqual(children[0].args, ['/usr/bin/cloudflared', 'tunnel', '--no-autoupdate', '--url', 'http://127.0.0.1:3001']);
+  assert.throws(() => laptop.goOnline(3001), /Already online/);
+  children[0].stderr.write('INF |  https://plain-words-here.trycloudflare.com  |\n'); await settle();
+  assert.deepEqual(laptop.online(), {url: 'https://plain-words-here.trycloudflare.com', ready: false});
+  children[0].stderr.write('INF Registered tunnel connection connIndex=0\n'); await settle();
+  assert.deepEqual([laptop.online().ready, changes], [true, 1]);
+  laptop.goOffline();
+  assert.deepEqual([laptop.online(), (await laptop.status()).onlineError], [null, '']);
+  laptop.goOnline(3001);
+  children[1].stderr.write('2026-10-22T10:00:00Z ERR Failed to fetch quick Tunnel: no network\n'); await settle();
+  children[1].emit('exit', 1);
+  assert.equal((await laptop.status()).onlineError, 'Online mode stopped: Failed to fetch quick Tunnel: no network');
+  assert.throws(() => createLaptop({root: '/quiz', cloudflared: null}).goOnline(3001), /Install cloudflared/);
+});
+
+test('the online link reaches only the players\' and TV pages, and they show it as the join address', () => {
+  const laptop = fakeLaptop();
+  return fixture({laptop}, async ({call, quiz}) => {
+    await new Promise(r => quiz.publicServer.listen(0, '127.0.0.1', r));
+    const online = (route, init) => fetch(`http://127.0.0.1:${quiz.publicServer.address().port}${route}`, init);
+    const post = (route, body, key = '') => online('/api/' + route, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body)});
+    for (const route of ['/host', '/host.js']) assert.equal((await online(route)).status, 404);
+    assert.equal((await post('login', {key: hostKey})).status, 404);
+    const desk = (await call('login', {key: hostKey})).key;
+    assert.equal((await post('host/state', {}, desk)).status, 404); // not even with a valid desk session
+    assert.equal((await online('/')).status, 200); assert.equal((await online('/display')).status, 200);
+    const team = await (await post('join', {name: 'Online Owls'})).json();
+    assert.ok(team.secret);
+    assert.equal((await (await online('/api/leaderboard')).json()).settings.joinUrl, 'http://10.42.0.1');
+    assert.equal((await call('host/laptop/online', {action: 'start'})).status, 200);
+    const shown = (await (await online('/api/leaderboard')).json()).settings;
+    assert.deepEqual([shown.joinUrl, shown.online], ['https://quiz-test.trycloudflare.com', true]);
+    assert.equal((await call('host/state')).settings.joinUrl, 'http://10.42.0.1'); // the saved join details are untouched
+    await call('host/laptop/online', {action: 'stop'});
+    assert.equal((await (await online('/api/leaderboard')).json()).settings.online, undefined);
+  });
+});
+
+test('online players get live nudges over a WebSocket, and their https pages may post', () => fixture({}, async ({call, quiz}) => {
+  await new Promise(r => quiz.publicServer.listen(0, '127.0.0.1', r));
+  const port = quiz.publicServer.address().port, host = `127.0.0.1:${port}`;
+  const team = await call('join', {name: 'Socket Sloths'});
+  const socket = new WebSocket(`ws://${host}/api/events?key=${team.secret}`), messages = [];
+  socket.onmessage = e => messages.push(Number(e.data));
+  await new Promise(r => {socket.onopen = r;});
+  await new Promise(r => setTimeout(r, 100));
+  const first = messages.length;
+  assert.ok(first >= 1);
+  await call('host/settings', {title: 'Nudged'});
+  await new Promise(r => setTimeout(r, 100));
+  assert.ok(messages.length > first && messages.at(-1) > messages[0]);
+  // Through the tunnel the page is https; on the quiz Wi-Fi port only http pages may post.
+  const post = (p, origin) => fetch(`http://127.0.0.1:${p}/api/join`, {method: 'POST', headers: {'Content-Type': 'application/json', Origin: origin}, body: JSON.stringify({name: 'Origin ' + p})});
+  assert.equal((await post(port, `https://${host}`)).status, 200);
+  assert.equal((await post(quiz.server.address().port, `https://127.0.0.1:${quiz.server.address().port}`)).status, 403);
+  assert.equal((await post(port, 'https://evil.example')).status, 403);
+  // A bad team key is refused before the upgrade.
+  const bad = new WebSocket(`ws://${host}/api/events?key=nope`);
+  assert.equal(await new Promise(r => {bad.onopen = () => r('open'); bad.onerror = () => r('refused');}), 'refused');
+  socket.close();
 }));
