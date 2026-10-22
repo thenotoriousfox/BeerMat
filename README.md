@@ -4,7 +4,7 @@ Independent offline pub quiz system for a single CachyOS laptop. The laptop serv
 
 ## Start locally
 
-Install Node.js 24 or later. Initial OS package installation needs internet; quiz nights do not.
+Install Node.js 22.13 or later (setup keeps a Node that is already installed). Initial OS package installation needs internet; quiz nights do not.
 
 ```bash
 ./scripts/setup.sh                 # preview packages; changes nothing

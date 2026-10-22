@@ -10,7 +10,7 @@ Audited all six files on main before implementation. Repository metadata confirm
 * No SQLite, captive DNS/DHCP, AP integration, media, sheets, import/export or tests.
 * Positive: host key was required, host actions checked authentication, UI used textContent rather than HTML for user text.
 
-Implementation retains Node and browser clients but replaces volatile socket state with SQLite and authenticated HTTP polling. Node 24 built-ins provide HTTP, SQLite, cryptography and tests without runtime npm dependencies or CDN assets. Polling also works in constrained captive portal browsers and naturally resumes after missed requests.
+Implementation retains Node and browser clients but replaces volatile socket state with SQLite and authenticated HTTP polling. Node 22.13+ built-ins provide HTTP, SQLite, cryptography and tests without runtime npm dependencies or CDN assets. Polling also works in constrained captive portal browsers and naturally resumes after missed requests.
 
 # Validation boundary
 

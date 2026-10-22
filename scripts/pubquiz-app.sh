@@ -31,7 +31,7 @@ done
 mkdir -p "$state"
 umask 077
 ticket=$(head -c 24 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n')
-HOST_KEY=$key DESK_TICKET=$ticket PUBQUIZ_APP=1 setsid node server.js >>"$log" 2>&1 </dev/null &
+HOST_KEY=$key DESK_TICKET=$ticket PUBQUIZ_APP=1 setsid node --disable-warning=ExperimentalWarning server.js >>"$log" 2>&1 </dev/null &
 for _ in $(seq 50); do
   up && { xdg-open "$desk#ticket=$ticket"; exit 0; }
   kill -0 $! 2>/dev/null || break

@@ -11,13 +11,18 @@ app() {
   echo "PubQuiz is in the app menu (Games). Remove it with: rm $apps/pubquiz.desktop"
 }
 if [[ ${1:-} == --app ]]; then app; exit 0; fi
+# Node 22.13 or later (built-in SQLite). A Node already installed is kept, e.g. nodejs-lts-jod, which other apps
+# such as balena-etcher depend on; pacman cannot install a second one beside it.
+node_ok() { command -v node >/dev/null && node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a==22&&b>=13)?0:1)'; }
+packages=(networkmanager dnsmasq nftables python iw curl kdialog)
+node_ok || packages=(nodejs npm "${packages[@]}")
 if [[ ${1:-} != --install ]]; then
   echo 'Preview only. Install prerequisites and the app-menu icon with: ./scripts/setup.sh --install (just the icon: --app)'
-  echo 'sudo pacman -S --needed nodejs npm networkmanager dnsmasq nftables python iw curl kdialog'
+  echo "sudo pacman -S --needed ${packages[*]}"
   exit 0
 fi
-sudo pacman -S --needed nodejs npm networkmanager dnsmasq nftables python iw curl kdialog
-node -e 'if(Number(process.versions.node.split(".")[0])<24)process.exit(1)'
+sudo pacman -S --needed "${packages[@]}"
+node_ok || { echo "PubQuiz needs Node 22.13 or later; this is $(node --version)" >&2; exit 1; }
 npm test
 # Sounds, buzzers and bingo calls from SpeedQuizzing on this laptop become PubQuiz's defaults (kept out of git).
 if [[ -d "${SQ_DOCUMENTS:-$HOME/SpeedQuizzing Documents}/Sounds" ]]; then node scripts/sound-pack.mjs; fi
