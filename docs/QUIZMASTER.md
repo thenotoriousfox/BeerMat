@@ -99,7 +99,7 @@ In online mode players join over the internet instead of the quiz Wi-Fi: in the 
 
 1. Install cloudflared once: `sudo pacman -S cloudflared` (`./scripts/setup.sh --install` includes it).
 2. Start PubQuiz from the app icon. In **Quiz night**, press **Go online**. After a few seconds you get a link like `https://some-random-words.trycloudflare.com`; **Copy link** to share it. The TV's join screen shows it too, with a QR code.
-3. In person, show the TV page (**Projector ↗**) on the room's screen as usual. For remote players, share that window with sound over a video call or screen share (click **🔊 Enable sound** first).
+3. In person, show the TV page (**Projector ↗**) on the room's screen as usual; its sound plays through that computer or the TV, as on the quiz Wi-Fi. Remote players either watch it shared with sound over a video call, or open the link + `/display` themselves and click **🔊 Enable sound**. Spotify music plays on the desk device or the Spotify app, so remote players only hear it through a shared call.
 4. Run the quiz as usual. Questions reach phones within about a tenth of a second, usually sooner than a shared screen, so remote players read them on their phones and use the shared screen for pictures, sound and the leaderboard.
 5. **Go offline** (or **Close PubQuiz**) ends it. Going online again makes a new link.
 
