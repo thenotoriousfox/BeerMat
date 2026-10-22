@@ -115,4 +115,6 @@ export function qrMatrix(text) {
 }
 
 // A Wi-Fi joining code for an open network; phones offer to connect when they scan it.
-export const wifiCode = ssid => `WIFI:T:nopass;S:${ssid.replace(/([\\;,:"])/g, '\\$1')};;`;
+const wifiEscape = text => text.replace(/([\\;,:"])/g, '\\$1');
+// An open network, or WPA with its password (Windows' Mobile Hotspot always has one).
+export const wifiCode = (ssid, password = '') => password ? `WIFI:T:WPA;S:${wifiEscape(ssid)};P:${wifiEscape(password)};;` : `WIFI:T:nopass;S:${wifiEscape(ssid)};;`;

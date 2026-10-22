@@ -7,6 +7,7 @@ import path from 'node:path';
 import {offensive} from './names.js';
 import {createSpotify} from './spotify.js';
 import {createLaptop} from './laptop.js';
+import {lanAddresses, joinUrlFor, diagnose, hotspotAddresses} from './network.js';
 import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from './soundnames.js';
 import {looks, typeGroups} from './looks.js';
 import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern, sheetPoints} from './model.js';
@@ -26,7 +27,7 @@ const deskSecurity = {...security, 'Content-Security-Policy': security['Content-
 const DELIVERY_GRACE_MS = 2000;
 const SESSION_MS = 12 * 60 * 60 * 1000;
 // Read-only routes never notify clients of a change.
-const readOnly = new Set(['/api/host/laptop', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token']);
+const readOnly = new Set(['/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token']);
 
 // Sound packs are laid out like SpeedQuizzing's Sounds folder: general/<name>.mp3 for each moment (soundnames.js),
 // buzzers/<pack>/*.mp3, and optionally its bingo calls file at the top. `prefix` is the URL they are served under.
@@ -56,7 +57,7 @@ function loadPack(dir, prefix) {
   return {slots, themes, buzzers, calls, voice: voice.some(Boolean) ? voice : null};
 }
 
-export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001} = {}) {
+export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose} = {}) {
   if (typeof hostKey !== 'string' || hostKey.length < 12) throw Error('HOST_KEY must contain at least 12 characters');
   const db = new DatabaseSync(database);
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
@@ -114,7 +115,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, bingoBoard: false, teamPhotos: true, language: 'en', onlineAfterJoin: true, deskOnline: false, waitingRoom: false, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {}};
+  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', joinMode: 'hotspot', joinPassword: '', scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, bingoBoard: false, teamPhotos: true, language: 'en', onlineAfterJoin: true, deskOnline: false, waitingRoom: false, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {}};
   const SOUNDS = 8;
   // Sound effects for the TV and extra buzzer sounds, both from the quizmaster's own files; custom bingo calls (1–90).
   // This laptop's sound pack (scripts/sound-pack.mjs) supplies the defaults until the desk changes them; a desk choice of
@@ -427,7 +428,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function exportResults() {return {version: 3, settings: settings(), library: library(), teams: rows('SELECT id,name,enabled FROM teams'), questions: rows('SELECT * FROM questions'), answers: rows('SELECT * FROM answers'), adjustments: rows('SELECT * FROM adjustments'), markingLog: rows('SELECT * FROM marking_log'), buzzes: rows('SELECT * FROM buzzes'), agrees: rows('SELECT * FROM agrees'), bingoCalls: rows('SELECT * FROM bingo_calls'), bingoClaims: rows('SELECT * FROM bingo_claims'), bingoShouts: rows('SELECT * FROM bingo_shouts'), clipPlays: rows('SELECT * FROM clip_plays')};}
   // Online mode: phones and the TV get the public link as the join address.
   const onlineUrl = () => laptop?.online?.()?.ready ? laptop.online().url : null;
-  const shownSettings = () => {const url = onlineUrl(); return url ? {...settings(), joinUrl: url, online: true} : settings();};
+  const shownSettings = () => {const url = onlineUrl(); return url ? {...settings(), joinUrl: url, joinPassword: '', online: true} : settings();};
   function publicState() { return {serverTime: now(), build, settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
 
   // Final scoring once answers stop: nearest-wins needs every answer before it can rank them.
@@ -632,11 +633,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       .map(a => ({name: a.name, count: a.count, ms: a.ms + (a.since ? now() - a.since : 0), awayNow: a.since !== null}));
   }
   // While the desk's quiz Wi-Fi is up, PubQuiz answers only on it and on this laptop, like start.sh --hotspot.
-  let hotspotOnly = false;
-  const localAllowed = req => {const only = allowedAddresses || (hotspotOnly ? ['127.0.0.1', '::1', '10.42.0.1'] : null); return !only || only.includes((req.socket.localAddress || '').replace(/^::ffff:/, ''));};
-  const laptopStatus = async () => {const status = await laptop.status(); hotspotOnly = !!status.wifi.running; return {...status, canQuit: !!onQuit};};
-  if (laptop) laptop.wifi().then(w => {hotspotOnly = !!w.running;});
-  // The app launcher (scripts/pubquiz-app.sh) opens the desk with a one-time ticket instead of asking for the key twice.
+  // (Windows' Mobile Hotspot is at 192.168.137.1.)
+  let hotspotOnly = null;
+  const onlyOn = running => running ? ['127.0.0.1', '::1', running.address || '10.42.0.1'] : null;
+  const localAllowed = req => {const only = allowedAddresses || hotspotOnly; return !only || only.includes((req.socket.localAddress || '').replace(/^::ffff:/, ''));};
+  const laptopStatus = async () => {const status = await laptop.status(); hotspotOnly = onlyOn(status.wifi.running); return {...status, canQuit: !!onQuit};};
+  if (laptop) laptop.wifi().then(w => {hotspotOnly = onlyOn(w.running);});
+  // The app launcher (scripts/pubquiz-app.sh) opens the desk with a one-time ticket instead of asking for the key twice;
+  // the desktop app asks for a new one (newDeskTicket) each time it opens the desk.
   let deskLink = deskTicket;
   const handle = async (req, res) => {
     const send = (status, data) => {res.writeHead(status, {...security, 'Content-Type': 'application/json'}); res.end(JSON.stringify(data));};
@@ -733,11 +737,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             requireValue(loopback(clientIp(req)), 'The quiz Wi-Fi can only be changed at the laptop', 403);
             if (body.action === 'on') {await laptop.wifiOn(); return send(200, {ok: true});}
             requireValue(['start', 'stop'].includes(body.action), 'Unknown Wi-Fi action');
-            if (body.action === 'stop') laptop.stopWifi(r => {if (r.ok) hotspotOnly = false; notify();});
+            if (body.action === 'stop') laptop.stopWifi(r => {if (r.ok) hotspotOnly = null; notify();});
             else {
-              laptop.startWifi({card: body.card, ssid: body.ssid}, r => {if (r.ok) hotspotOnly = true; notify();});
-              // The TV's join screen names the same network.
-              setMeta('settings', {...settings(), joinSsid: body.ssid.trim()});
+              const port = server.address().port;
+              laptop.startWifi({card: body.card, ssid: body.ssid, ...(body.password !== undefined ? {password: body.password} : {})}, r => {if (r.ok) laptop.wifi().then(w => {hotspotOnly = onlyOn(w.running); notify();}); else notify();}, port);
+              // The TV's join screen names the same network (and, on Windows, its password and the quiz's port).
+              const windows = (await laptop.wifi()).platform === 'windows';
+              setMeta('settings', {...settings(), joinMode: 'hotspot', joinSsid: body.ssid.trim(), joinPassword: windows ? body.password : '',
+                joinUrl: windows ? joinUrlFor(hotspotAddresses[1], port) : 'http://' + hotspotAddresses[0]});
             }
             return send(200, {ok: true});
           }
@@ -760,6 +767,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             return onQuit();
           }
         }
+        // Playing on the venue's own network: this laptop's addresses, and checks for what stops phones reaching it.
+        if (p === '/api/host/network') return send(200, {port: server.address().port, addresses: lanAddresses(interfaces), local: loopback(clientIp(req))});
+        if (p === '/api/host/network/check') return send(200, {checks: await networkCheck({port: server.address().port, addresses: lanAddresses(interfaces)})});
         if (p === '/api/host/library/save') {
           const old = library(); requireValue(body.revision === old.revision, 'Quiz changed in another window. Reload before saving.', 409);
           const next = {...validateLibrary(body.quiz, mediaDir), revision: old.revision + 1};
@@ -771,6 +781,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           if (Object.hasOwn(body, 'title')) {requireValue(typeof body.title === 'string' && body.title.trim() && body.title.length <= 100, 'Title must contain 1–100 characters'); next.title = body.title.trim();}
           // Shown on the projector's join screen; the Wi-Fi name should match the hotspot's --ssid.
           if (Object.hasOwn(body, 'joinSsid')) {requireValue(typeof body.joinSsid === 'string' && body.joinSsid.trim() && Buffer.byteLength(body.joinSsid.trim()) <= 32, 'Wi-Fi name must be 1–32 bytes'); next.joinSsid = body.joinSsid.trim();}
+          // hotspot: the TV's code joins the quiz Wi-Fi; lan: phones are already on the venue's network, so it opens the quiz.
+          if (Object.hasOwn(body, 'joinMode')) {requireValue(['hotspot', 'lan'].includes(body.joinMode), 'Unknown way to join'); next.joinMode = body.joinMode;}
+          if (Object.hasOwn(body, 'joinPassword')) {requireValue(typeof body.joinPassword === 'string' && (body.joinPassword === '' || /^[\x20-\x7e]{8,63}$/.test(body.joinPassword)), 'Wi-Fi password must be empty or 8–63 characters'); next.joinPassword = body.joinPassword;}
           if (Object.hasOwn(body, 'joinUrl')) {requireValue(typeof body.joinUrl === 'string' && /^https?:\/\/[^\s]{1,150}$/.test(body.joinUrl.trim()), 'Join address must start with http:// and have no spaces'); next.joinUrl = body.joinUrl.trim();}
           // Picking a theme puts every moment back to that theme's sounds; added buzzer sounds stay.
           if (Object.hasOwn(body, 'soundTheme')) {
@@ -1145,15 +1158,21 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     closing ||= Promise.all([shut(server), shut(publicServer)]).then(() => db.close());
     return closing;
   }
-  return {server, publicServer, db, close};
+  // A fresh one-time desk login for the desktop app, which runs the server and opens the desk itself.
+  const newDeskTicket = () => (deskLink = token());
+  return {server, publicServer, db, close, newDeskTicket};
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   // ALLOWED_ADDRESSES limits which local addresses answer, e.g. 127.0.0.1,10.42.0.1 for hotspot-only play.
   const allowedAddresses = process.env.ALLOWED_ADDRESSES ? process.env.ALLOWED_ADDRESSES.split(',').map(s => s.trim()).filter(Boolean) : null;
   // Started from the app icon (scripts/pubquiz-app.sh): the desk can also close PubQuiz.
   const app = process.env.PUBQUIZ_APP === '1';
+  // QUIZ_DB, MEDIA_DIR and PACK_DIR move the quiz's own files out of the program folder (the desktop app keeps them
+  // in the user's data folder).
+  const packDir = process.env.PACK_DIR || path.join(root, 'soundpack');
   const quiz = createQuiz({hostKey: process.env.HOST_KEY, database: process.env.QUIZ_DB || path.join(root, 'quiz.sqlite'), allowedAddresses,
-    laptop: process.platform === 'linux' ? createLaptop({root}) : null, publicPort: Number(process.env.PUBLIC_PORT || 3001), deskTicket: process.env.DESK_TICKET || null, onQuit: app ? () => quiz.close().then(() => process.exit(0)) : null});
+    mediaDir: process.env.MEDIA_DIR || path.join(root, 'media'), packDir,
+    laptop: ['linux', 'win32'].includes(process.platform) ? createLaptop({root, packDir}) : null, publicPort: Number(process.env.PUBLIC_PORT || 3001), deskTicket: process.env.DESK_TICKET || null, onQuit: app ? () => quiz.close().then(() => process.exit(0)) : null});
   quiz.server.listen(Number(process.env.PORT || 3000), process.env.BIND || '0.0.0.0', () => {
     console.log('PubQuiz ready. Quizmaster: http://localhost:' + (process.env.PORT || 3000) + '/host');
     if (!allowedAddresses && (process.env.BIND || '0.0.0.0') === '0.0.0.0') console.log('Note: reachable from every network this laptop is on. Use ./scripts/start.sh --hotspot to answer only on the quiz Wi-Fi.');

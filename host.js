@@ -601,7 +601,38 @@ $('loginForm').onsubmit = async e => {e.preventDefault(); await action(async () 
   key = (await api('login', {key: $('key').value})).key; writeStorage('pubquiz-host', key, true); $('key').value = ''; updates.reconnect(); await loadLibrary();
 }, 'Quiz desk unlocked');};
 // Quiz night: the laptop's own Wi-Fi and setup jobs. Only on the laptop itself; hidden anywhere else.
-let laptop = null, laptopTimer = null, panelsLoaded = false;
+let laptop = null, laptopTimer = null, panelsLoaded = false, network = null;
+// How players join: the quiz hotspot, or the venue's own network (any computer, no laptop controls needed).
+async function loadNetwork() {
+  try {network = await request('network');} catch {network = null;}
+  renderNetwork();
+}
+function renderNetwork() {
+  $('networkPanel').hidden = !network || !state; if (!network || !state) return;
+  const s = state.settings, lan = s.joinMode === 'lan';
+  if (document.activeElement !== $('joinMode')) $('joinMode').value = s.joinMode || 'hotspot';
+  $('lanControls').hidden = $('joinMode').value !== 'lan';
+  $('joinModeNow').textContent = s.online ? '● Online link' : lan ? `● Venue network: ${s.joinUrl.replace(/^https?:\/\//, '')}` : '● Quiz Wi-Fi';
+  const chosen = $('lanAddress').value, usable = network.addresses.filter(a => a.kind !== 'hotspot');
+  $('lanAddress').replaceChildren(...usable.map(a => {const o = element('option', `${a.address} — ${a.name}${a.kind === 'virtual' ? ' (virtual: phones can’t reach it)' : ''}`); o.value = a.address; return o;}));
+  if (!usable.length) $('lanAddress').append(element('option', 'Not on a network'));
+  $('lanAddress').value = usable.some(a => a.address === chosen) ? chosen : usable[0]?.address || '';
+  $('useLan').disabled = !usable.length;
+  if (!$('lanSsid').value && document.activeElement !== $('lanSsid') && lan) $('lanSsid').value = s.joinSsid;
+}
+$('joinMode').onchange = () => {
+  if ($('joinMode').value === 'hotspot') return action(() => request('settings', {joinMode: 'hotspot', joinUrl: 'http://10.42.0.1'}), 'Players join on the quiz Wi-Fi');
+  renderNetwork();
+};
+$('useLan').onclick = () => action(async () => {
+  const address = $('lanAddress').value, url = `http://${address}${network.port === 80 ? '' : ':' + network.port}`;
+  await request('settings', {joinMode: 'lan', joinUrl: url, ...($('lanSsid').value.trim() ? {joinSsid: $('lanSsid').value.trim()} : {})});
+}, 'The TV now shows the venue network address');
+$('checkLan').onclick = () => action(async () => {
+  $('lanChecks').replaceChildren(element('li', 'Checking…'));
+  const {checks} = await request('network/check');
+  $('lanChecks').replaceChildren(...checks.map(c => element('li', `${c.status === 'ok' ? '✓' : c.status === 'warn' ? '⚠' : 'ℹ'} ${c.text}`, c.status === 'warn' ? 'warning' : c.status === 'ok' ? 'good' : 'muted')));
+}, 'Connection checked');
 async function loadLaptop() {
   clearTimeout(laptopTimer);
   try {laptop = await request('laptop');} catch {laptop = null;}
@@ -627,7 +658,10 @@ function renderLaptop() {
   if (!$('wifiSsid').value && document.activeElement !== $('wifiSsid')) $('wifiSsid').value = on?.ssid || state?.settings.joinSsid || 'PubQuiz';
   $('wifiOn').hidden = !w.available || w.wifiOn;
   $('wifiStart').hidden = !!on; $('wifiStop').hidden = !on; $('wifiStart').disabled = working || !w.wifiOn || !w.pick; $('wifiStop').disabled = working;
-  $('wifiSsid').disabled = $('wifiCard').disabled = working || !!on;
+  $('wifiSsid').disabled = $('wifiCard').disabled = $('wifiPassword').disabled = working || !!on;
+  // Windows' Mobile Hotspot always has a password; the TV shows it with the Wi-Fi code.
+  $('wifiPasswordLabel').hidden = !w.needsPassword;
+  if (w.needsPassword && !$('wifiPassword').value && document.activeElement !== $('wifiPassword')) $('wifiPassword').value = on?.password || state?.settings.joinPassword || '';
   jobText('wifiJob', job, 'Answer the password prompt on this laptop…');
   const setupJob = laptop.jobs.bingoVoice?.running ? laptop.jobs.bingoVoice : laptop.jobs.soundPack?.running ? laptop.jobs.soundPack : laptop.jobs.bingoVoice || laptop.jobs.soundPack;
   jobText('setupJob', setupJob, setupJob === laptop.jobs.bingoVoice ? 'Recording the bingo caller (a minute or two)…' : 'Copying sounds…');
@@ -649,7 +683,7 @@ function renderLaptop() {
   $('deskLink').textContent = deskOnline ? (o?.ready ? `Run the quiz from anywhere at ${o.url}/host with the quizmaster key. Keep the key private.` : 'The desk will be at the online link + /host.') : 'Off: the desk only opens on this laptop and your own network.';
 }
 const laptopAction = (path, body, success) => action(async () => {await request(path, body); await loadLaptop(); return success;});
-$('wifiStart').onclick = () => laptopAction('laptop/wifi', {action: 'start', card: $('wifiCard').value, ssid: $('wifiSsid').value}, 'Starting the quiz Wi-Fi: enter your password when asked');
+$('wifiStart').onclick = () => laptopAction('laptop/wifi', {action: 'start', card: $('wifiCard').value, ssid: $('wifiSsid').value, ...(laptop?.wifi.needsPassword ? {password: $('wifiPassword').value} : {})}, laptop?.wifi.needsPassword ? 'Starting the quiz Wi-Fi' : 'Starting the quiz Wi-Fi: enter your password when asked');
 $('wifiStop').onclick = () => {if (confirm('Stop the quiz Wi-Fi? Phones lose the quiz until it is back on.')) laptopAction('laptop/wifi', {action: 'stop'}, 'Stopping the quiz Wi-Fi: enter your password when asked');};
 $('wifiOn').onclick = () => action(async () => {await request('laptop/wifi', {action: 'on'}); setTimeout(loadLaptop, 2500); return 'Switching Wi-Fi on';});
 $('goOnline').onclick = () => laptopAction('laptop/online', {action: 'start'}, 'Going online');
@@ -876,8 +910,8 @@ async function refresh() {
   if (busy) return;
   if (!key) {$('connection').textContent = 'Desk locked'; return;}
   try {
-    const s = await request('state'); if (busy) return; if (!library) await loadLibrary(); if (!panelsLoaded) {panelsLoaded = true; loadSpotify(); loadLaptop();}
-    $('login').hidden = true; $('panel').hidden = false; $('connection').textContent = '● Server connected'; renderState(s);
+    const s = await request('state'); if (busy) return; if (!library) await loadLibrary(); if (!panelsLoaded) {panelsLoaded = true; loadSpotify(); loadLaptop(); loadNetwork();}
+    $('login').hidden = true; $('panel').hidden = false; $('connection').textContent = '● Server connected'; renderState(s); renderNetwork();
     if (tab === 'mark') await loadReview();
   } catch (e) {
     if (e.status === 403) {key = ''; writeStorage('pubquiz-host', '', true); $('panel').hidden = true; $('login').hidden = false; message('Log in to unlock the desk again.', true);}

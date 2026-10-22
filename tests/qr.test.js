@@ -16,6 +16,7 @@ test('QR matrices have the right size, finder patterns and limits', () => {
   }
   assert.throws(() => qrMatrix('z'.repeat(214)), /too long/);
   assert.equal(wifiCode('Fox; "Quiz"'), 'WIFI:T:nopass;S:Fox\\; \\"Quiz\\";;');
+  assert.equal(wifiCode('Quiz', 'pa;ss:word'), 'WIFI:T:WPA;S:Quiz;P:pa\\;ss\\:word;;');
 });
 
 // Decodes with zbar when it is installed (e.g. pacman -S zbar); skipped otherwise.
