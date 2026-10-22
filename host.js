@@ -614,9 +614,9 @@ function renderLaptop() {
   $('laptopPanel').hidden = !laptop; if (!laptop) return;
   const w = laptop.wifi, job = laptop.jobs.wifi, working = !!job?.running, on = w.running;
   const where = c => c.connected ? `on ${c.network}, shares it` : c.hosting ? 'hosting the quiz Wi-Fi' : 'free';
-  $('wifiControls').hidden = !w.available;
+  $('wifiControls').hidden = !w.available || !laptop.local;
   $('wifiState').textContent = !w.available ? '' : working ? '⏳ Working…' : on ? `● “${on.ssid}” is on` : '○ Quiz Wi-Fi off';
-  $('wifiInfo').textContent = !w.available ? 'This laptop has no Wi-Fi control (NetworkManager), so use ./scripts/quiz-night.sh or your own hotspot.'
+  $('wifiInfo').textContent = !laptop.local ? (on ? `The quiz Wi-Fi “${on.ssid}” is on. It can only be changed at the laptop.` : 'The quiz Wi-Fi can only be started at the laptop (it isn’t needed for online quizzes).') : !w.available ? 'This laptop has no Wi-Fi control (NetworkManager), so use ./scripts/quiz-night.sh or your own hotspot.'
     : on ? `Phones join “${on.ssid}” and open http://10.42.0.1. Hosted on ${on.interface === 'pq0' ? 'the Wi-Fi card beside your home Wi-Fi' : on.interface}.`
     : !w.wifiOn ? 'Wi-Fi is switched off on this laptop.'
     : w.cards.length ? 'Wi-Fi cards: ' + w.cards.map(c => `${c.name} (${c.ap ? where(c) : 'can’t host'})`).join(' · ') : 'No Wi-Fi card found.';
@@ -640,17 +640,26 @@ function renderLaptop() {
   $('goOnline').hidden = !!o; $('goOffline').hidden = !o; $('goOnline').disabled = !laptop.cloudflared;
   $('onlineLink').hidden = $('copyOnline').hidden = !o?.ready; $('onlineLink').value = o?.url || '';
   $('onlineInfo').textContent = !laptop.cloudflared ? 'Install cloudflared first (sudo pacman -S cloudflared), then reload this page.'
-    : o?.ready ? 'Post this link in Discord; the TV join screen shows it too. Share the TV in Discord: open Projector ↗, then Share Screen → that window, with sound on. Anyone with the link can join, so the waiting room (Room controls) lets you check teams first. The desk stays on this laptop.'
+    : o?.ready ? 'Post this link in Discord; the TV join screen shows it too. Share the TV in Discord: open Projector ↗, then Share Screen → that window, with sound on. Anyone with the link can join, so the waiting room (Room controls) lets you check teams first.' + (state?.settings.deskOnline ? '' : ' The desk stays on this laptop.')
     : o ? 'Connecting to Cloudflare…'
     : laptop.onlineError || 'Play over the internet: Go online makes a free public link (a Cloudflare quick tunnel) to the players’ page and the TV, never the desk. The link changes each time you go online.';
   $('onlineInfo').classList.toggle('warning', !o && !!laptop.onlineError);
+  const deskOnline = !!state?.settings.deskOnline;
+  $('deskOnline').textContent = `Desk on the online link: ${deskOnline ? 'on' : 'off'}`;
+  $('deskLink').textContent = deskOnline ? (o?.ready ? `Run the quiz from anywhere at ${o.url}/host with the quizmaster key. Keep the key private.` : 'The desk will be at the online link + /host.') : 'Off: the desk only opens on this laptop and your own network.';
 }
 const laptopAction = (path, body, success) => action(async () => {await request(path, body); await loadLaptop(); return success;});
 $('wifiStart').onclick = () => laptopAction('laptop/wifi', {action: 'start', card: $('wifiCard').value, ssid: $('wifiSsid').value}, 'Starting the quiz Wi-Fi: enter your password when asked');
 $('wifiStop').onclick = () => {if (confirm('Stop the quiz Wi-Fi? Phones lose the quiz until it is back on.')) laptopAction('laptop/wifi', {action: 'stop'}, 'Stopping the quiz Wi-Fi: enter your password when asked');};
 $('wifiOn').onclick = () => action(async () => {await request('laptop/wifi', {action: 'on'}); setTimeout(loadLaptop, 2500); return 'Switching Wi-Fi on';});
 $('goOnline').onclick = () => laptopAction('laptop/online', {action: 'start'}, 'Going online');
-$('goOffline').onclick = () => {if (confirm('Go offline? Online players lose the quiz, and going online again makes a new link.')) laptopAction('laptop/online', {action: 'stop'}, 'Offline');};
+$('deskOnline').onclick = () => {
+  const on = !state.settings.deskOnline;
+  if (on && !confirm('Put the quiz desk on the online link? Anyone with the link could then try the quizmaster key, so use a long, private key.')) return;
+  if (!on && location.protocol === 'https:' && !confirm('You are using the desk through the online link: turning this off locks this window out. Continue?')) return;
+  action(async () => {await request('settings', {deskOnline: on}); await loadLaptop();}, on ? 'The desk is on the online link' : 'The desk is off the online link');
+};
+$('goOffline').onclick = () => {if (confirm(location.protocol === 'https:' ? 'Go offline? This desk is using the online link, so it disconnects too; online players lose the quiz, and going online again makes a new link.' : 'Go offline? Online players lose the quiz, and going online again makes a new link.')) laptopAction('laptop/online', {action: 'stop'}, 'Offline');};
 $('copyOnline').onclick = () => navigator.clipboard.writeText($('onlineLink').value).then(() => message('Link copied'), () => {$('onlineLink').select(); message('Press Ctrl+C to copy the link');});
 $('buildPack').onclick = () => laptopAction('laptop/setup', {job: 'soundPack'}, 'Copying sounds from SpeedQuizzing');
 $('recordVoice').onclick = () => laptopAction('laptop/setup', {job: 'bingoVoice'}, 'Recording the bingo caller');

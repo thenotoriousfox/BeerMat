@@ -77,7 +77,8 @@ test('desk Wi-Fi: starting it names the network on the TV, and PubQuiz then answ
     if (lan) assert.equal((await call('leaderboard', {}, '', lan).catch(() => ({status: 'unreachable'}))).status, 403);
     assert.equal((await call('host/laptop/wifi', {action: 'stop'})).status, 200);
     laptop.finish(); await settle();
-    if (lan) assert.equal((await call('host/laptop', {}, undefined, lan)).status, 403); // laptop controls stay laptop-only
+    // From another device the desk sees the panel, but the Wi-Fi (its password prompt is on the laptop) stays local.
+    if (lan) {assert.equal((await call('host/laptop', {}, undefined, lan)).local, false); assert.equal((await call('host/laptop/wifi', {action: 'stop'}, undefined, lan)).status, 403);}
     assert.equal((await call('host/laptop/setup', {job: 'rm'})).status, 400);
   });
 });
@@ -122,7 +123,7 @@ test('online mode: cloudflared\'s link counts once a connection is registered, a
   assert.throws(() => createLaptop({root: '/quiz', cloudflared: null}).goOnline(3001), /Install cloudflared/);
 });
 
-test('the online link reaches only the players\' and TV pages, and they show it as the join address', () => {
+test('the online link reaches the players\' and TV pages, the desk only when allowed, and shows itself as the join address', () => {
   const laptop = fakeLaptop();
   return fixture({laptop}, async ({call, quiz}) => {
     await new Promise(r => quiz.publicServer.listen(0, '127.0.0.1', r));
@@ -140,6 +141,21 @@ test('the online link reaches only the players\' and TV pages, and they show it 
     const shown = (await (await online('/api/leaderboard')).json()).settings;
     assert.deepEqual([shown.joinUrl, shown.online], ['https://quiz-test.trycloudflare.com', true]);
     assert.equal((await call('host/state')).settings.joinUrl, 'http://10.42.0.1'); // the saved join details are untouched
+    // The quizmaster can put the desk on the link too; the quiz Wi-Fi still only changes at the laptop.
+    await call('host/settings', {deskOnline: true});
+    assert.equal((await online('/host')).status, 200);
+    const remote = (await (await post('login', {key: hostKey})).json()).key;
+    assert.equal((await post('host/state', {}, remote)).status, 200);
+    assert.equal((await (await post('host/laptop', {}, remote)).json()).local, false);
+    assert.equal((await post('host/laptop/wifi', {action: 'stop'}, remote)).status, 403);
+    assert.equal((await post('login', {ticket: 'anything-at-all-123'})).status, 403);
+    // Wrong keys are counted per visitor, so one guesser cannot lock out the rest.
+    const guess = ip => online('/api/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'CF-Connecting-IP': ip}, body: JSON.stringify({key: 'wrong-key-attempt'})});
+    for (let i = 0; i < 10; i++) assert.equal((await guess('203.0.113.9')).status, 403);
+    assert.equal((await guess('203.0.113.9')).status, 429);
+    assert.equal((await guess('198.51.100.7')).status, 403);
+    await call('host/settings', {deskOnline: false});
+    assert.equal((await post('host/state', {}, remote)).status, 404);
     await call('host/laptop/online', {action: 'stop'});
     assert.equal((await (await online('/api/leaderboard')).json()).settings.online, undefined);
   });

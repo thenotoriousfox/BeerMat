@@ -114,7 +114,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, bingoBoard: false, teamPhotos: true, language: 'en', onlineAfterJoin: true, waitingRoom: false, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {}};
+  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, bingoBoard: false, teamPhotos: true, language: 'en', onlineAfterJoin: true, deskOnline: false, waitingRoom: false, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {}};
   const SOUNDS = 8;
   // Sound effects for the TV and extra buzzer sounds, both from the quizmaster's own files; custom bingo calls (1–90).
   // This laptop's sound pack (scripts/sound-pack.mjs) supplies the defaults until the desk changes them; a desk choice of
@@ -643,8 +643,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     try {
       if (!localAllowed(req)) return send(403, {error: 'Not available on this network'});
       const url = new URL(req.url, 'http://quiz.local'); const p = url.pathname;
-      // The online link reaches only the players' and TV pages: never the desk, its key or its controls.
-      if (req.viaTunnel && (['/host', '/host.js', '/api/login', '/spotify/callback'].includes(p) || p.startsWith('/api/host/'))) return send(404, {error: 'Not found'});
+      // The online link reaches the players' and TV pages; the desk only while the quizmaster allows it (Desk on the
+      // online link), and Spotify sign-in never.
+      if (req.viaTunnel && (p === '/spotify/callback' || (!settings().deskOnline && (['/host', '/host.js', '/api/login'].includes(p) || p.startsWith('/api/host/'))))) return send(404, {error: 'Not found'});
       const auth = req.headers.authorization?.replace(/^Bearer /, '');
       settle(latest());
       if (req.method === 'GET' && p === '/api/events') return openStream(req, res, url);
@@ -705,9 +706,10 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       try {body = JSON.parse((await readBody(req, 4 * 1024 * 1024)).toString() || '{}');} catch (e) {if (e instanceof QuizError) throw e; throw new QuizError('Invalid JSON');}
       requireValue(body && typeof body === 'object' && !Array.isArray(body), 'Invalid request');
       if (p === '/api/login') {
-        const ip = req.socket.remoteAddress; const a = attempts.get(ip) || {n: 0, time: now()};
-        if (now() - a.time >= 60000) {a.n = 0; a.time = now();} attempts.set(ip, a);
-        requireValue(++a.n <= 10, 'Wait one minute before trying again', 429);
+        // Ten tries a minute per address. Online everyone arrives from this laptop, so count by the visitor's own
+        // address (from Cloudflare), plus at most 30 a minute through the link altogether.
+        const count = ip => {const a = attempts.get(ip) || {n: 0, time: now()}; if (now() - a.time >= 60000) {a.n = 0; a.time = now();} attempts.set(ip, a); return ++a.n;};
+        requireValue(count(req.viaTunnel ? 'online:' + (req.headers['cf-connecting-ip'] || '') : req.socket.remoteAddress) <= 10 && (!req.viaTunnel || count('online') <= 30), 'Wait one minute before trying again', 429);
         if (typeof body.ticket === 'string') {
           requireValue(deskLink && loopback(clientIp(req)) && equal(body.ticket, deskLink), 'This link has been used. Unlock with the key.', 403); deskLink = null;
         } else requireValue(equal(body.key, hostKey), 'Incorrect key', 403);
@@ -725,9 +727,10 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/library') return send(200, library());
         if (p.startsWith('/api/host/laptop')) {
           requireValue(laptop, 'Laptop controls are not available here', 404);
-          requireValue(loopback(clientIp(req)), 'Use the desk on the quiz laptop for this', 403);
-          if (p === '/api/host/laptop') return send(200, await laptopStatus());
+          if (p === '/api/host/laptop') return send(200, {...await laptopStatus(), local: loopback(clientIp(req))});
           if (p === '/api/host/laptop/wifi') {
+            // Its password prompt opens on the laptop's own screen.
+            requireValue(loopback(clientIp(req)), 'The quiz Wi-Fi can only be changed at the laptop', 403);
             if (body.action === 'on') {await laptop.wifiOn(); return send(200, {ok: true});}
             requireValue(['start', 'stop'].includes(body.action), 'Unknown Wi-Fi action');
             if (body.action === 'stop') laptop.stopWifi(r => {if (r.ok) hotspotOnly = false; notify();});
@@ -764,7 +767,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         }
         if (p === '/api/host/settings') {
           const next = {...settings()};
-          for (const k of ['registrationOpen', 'leaderboardVisible', 'ended', 'scrambleKeypads', 'bingoPhrases', 'bingoVoice', 'bingoBoard', 'teamPhotos', 'onlineAfterJoin', 'waitingRoom', 'showScores']) if (Object.hasOwn(body, k)) {requireValue(typeof body[k] === 'boolean', 'Invalid setting'); next[k] = body[k];}
+          for (const k of ['registrationOpen', 'leaderboardVisible', 'ended', 'scrambleKeypads', 'bingoPhrases', 'bingoVoice', 'bingoBoard', 'teamPhotos', 'onlineAfterJoin', 'deskOnline', 'waitingRoom', 'showScores']) if (Object.hasOwn(body, k)) {requireValue(typeof body[k] === 'boolean', 'Invalid setting'); next[k] = body[k];}
           if (Object.hasOwn(body, 'title')) {requireValue(typeof body.title === 'string' && body.title.trim() && body.title.length <= 100, 'Title must contain 1–100 characters'); next.title = body.title.trim();}
           // Shown on the projector's join screen; the Wi-Fi name should match the hotspot's --ssid.
           if (Object.hasOwn(body, 'joinSsid')) {requireValue(typeof body.joinSsid === 'string' && body.joinSsid.trim() && Buffer.byteLength(body.joinSsid.trim()) <= 32, 'Wi-Fi name must be 1–32 bytes'); next.joinSsid = body.joinSsid.trim();}
