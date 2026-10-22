@@ -601,7 +601,32 @@ $('loginForm').onsubmit = async e => {e.preventDefault(); await action(async () 
   key = (await api('login', {key: $('key').value})).key; writeStorage('pubquiz-host', key, true); $('key').value = ''; updates.reconnect(); await loadLibrary();
 }, 'Quiz desk unlocked');};
 // Quiz night: the laptop's own Wi-Fi and setup jobs. Only on the laptop itself; hidden anywhere else.
-let laptop = null, laptopTimer = null, panelsLoaded = false, network = null;
+let laptop = null, laptopTimer = null, panelsLoaded = false, network = null, past = null;
+// Past quizzes kept on this laptop, and optional sharing with PubQuiz Online.
+async function loadHistory() {
+  try {past = await request('results');} catch {past = null;}
+  renderHistory();
+}
+function renderHistory() {
+  $('historyPanel').hidden = !past || !state; if (!past || !state) return;
+  $('historyList').replaceChildren(...past.events.map(e => {
+    const li = element('li', `${new Date(e.finished).toLocaleDateString()} — ${e.title}: ${e.teams} teams${e.winner ? `, won by ${e.winner}` : ''} `);
+    const remove = element('button', 'Delete', 'subtle'); remove.type = 'button';
+    remove.onclick = () => {if (confirm(`Delete the results of “${e.title}” from this laptop?`)) action(async () => {await request('results/delete', {event: e.event}); await loadHistory();}, 'Results deleted');};
+    li.append(remove); return li;
+  }));
+  if (!past.events.length) $('historyList').append(element('li', 'No finished quizzes yet.', 'muted'));
+  $('historyClear').hidden = !past.events.length;
+  $('historyPending').textContent = past.pending ? `${past.pending} waiting to send${past.lastError ? ` (${past.lastError})` : ''}` : '';
+  $('venueKeyId').textContent = past.venueKeyId; $('venueKey').value = past.venueKey;
+  if (document.activeElement !== $('onlineServiceUrl')) $('onlineServiceUrl').value = state.settings.onlineService || '';
+  $('shareResults').textContent = `Share results: ${state.settings.shareResults ? 'on' : 'off'}`;
+  $('syncNow').hidden = !past.pending;
+}
+$('historyClear').onclick = () => {if (confirm('Delete every past quiz’s results from this laptop? This cannot be undone.')) action(async () => {await request('results/delete', {all: true}); await loadHistory();}, 'Past results deleted');};
+$('onlineServiceForm').onsubmit = e => {e.preventDefault(); action(async () => {await request('settings', {onlineService: $('onlineServiceUrl').value.trim()}); await loadHistory();}, 'Online service saved');};
+$('shareResults').onclick = () => action(async () => {await request('settings', {shareResults: !state.settings.shareResults}); await loadHistory();}, 'Sharing updated');
+$('syncNow').onclick = () => action(async () => {await request('results/sync'); await loadHistory();}, 'Sent what could be sent');
 // How players join: the quiz hotspot, or the venue's own network (any computer, no laptop controls needed).
 async function loadNetwork() {
   try {network = await request('network');} catch {network = null;}
@@ -910,8 +935,8 @@ async function refresh() {
   if (busy) return;
   if (!key) {$('connection').textContent = 'Desk locked'; return;}
   try {
-    const s = await request('state'); if (busy) return; if (!library) await loadLibrary(); if (!panelsLoaded) {panelsLoaded = true; loadSpotify(); loadLaptop(); loadNetwork();}
-    $('login').hidden = true; $('panel').hidden = false; $('connection').textContent = '● Server connected'; renderState(s); renderNetwork();
+    const s = await request('state'); if (busy) return; if (!library) await loadLibrary(); if (!panelsLoaded) {panelsLoaded = true; loadSpotify(); loadLaptop(); loadNetwork(); loadHistory();}
+    $('login').hidden = true; $('panel').hidden = false; $('connection').textContent = '● Server connected'; const wasEnded = state?.settings.ended; renderState(s); renderNetwork(); if (panelsLoaded && s.settings.ended && !wasEnded) loadHistory(); else renderHistory();
     if (tab === 'mark') await loadReview();
   } catch (e) {
     if (e.status === 403) {key = ''; writeStorage('pubquiz-host', '', true); $('panel').hidden = true; $('login').hidden = false; message('Log in to unlock the desk again.', true);}

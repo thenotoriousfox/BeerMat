@@ -79,7 +79,7 @@ try {
   await host.locator('#visibility').click(); await waitFor(host, () => document.getElementById('visibility').textContent === 'Hide leaderboard');
   await waitFor(projector, () => document.getElementById('connection').textContent.includes('Connected')); await waitFor(host, () => document.getElementById('autoView').textContent === '(now: join screen)');
   await waitFor(projector, () => document.querySelector('#wifiQr svg')?.getAttribute('aria-label') === 'QR code: WIFI:T:nopass;S:PubQuiz;;');
-  assert.equal(await projector.locator('.qr').count(), 1, 'one code to scan'); assert.match(await projector.locator('#joinStepWifi').textContent(), /“PubQuiz”/);
+  assert.equal(await projector.locator('.qr:visible').count(), 1, 'one code to scan'); assert.match(await projector.locator('#joinStepWifi').textContent(), /“PubQuiz”/);
   assert.match(await projector.locator('#joinFallback').textContent(), /10\.42\.0\.1/); await waitFor(projector, () => /1 team has joined/.test(document.getElementById('joinStatus').textContent));
   await host.locator('#joinSsidInput').fill('Fox Quiz'); await host.locator('#joinDetails button').click(); await waitFor(projector, () => document.getElementById('joinStepWifi').textContent.includes('Fox Quiz'));
   await projector.mouse.move(5, 5); await projector.mouse.move(20, 20); await projector.locator('#fullscreen').click(); await waitFor(projector, () => !!document.fullscreenElement && document.getElementById('fullscreen').textContent.includes('Exit'));
