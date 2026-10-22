@@ -793,7 +793,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           }
           if (p === '/api/host/laptop/online') {
             requireValue(['start', 'stop'].includes(body.action), 'Unknown online action');
-            if (body.action === 'start') laptop.goOnline(publicPort, notify); else laptop.goOffline();
+            if (body.action === 'start') laptop.goOnline(publicServer.address()?.port || publicPort, notify); else laptop.goOffline();
             return send(200, {ok: true});
           }
           if (p === '/api/host/laptop/setup') {

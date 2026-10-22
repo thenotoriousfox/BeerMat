@@ -602,6 +602,40 @@ $('loginForm').onsubmit = async e => {e.preventDefault(); await action(async () 
 }, 'Quiz desk unlocked');};
 // Quiz night: the laptop's own Wi-Fi and setup jobs. Only on the laptop itself; hidden anywhere else.
 let laptop = null, laptopTimer = null, panelsLoaded = false, network = null, past = null;
+// Screens: only in the desktop app (preload.cjs), which owns the TV window.
+const desktop = window.pubquizDesktop;
+function renderScreens(info) {
+  $('screensPanel').hidden = false;
+  const tv = info.displays.find(d => d.audience);
+  $('tvState').textContent = !info.open ? '○ TV window closed' : info.blanked ? '■ TV blanked' : info.fullscreen ? `● TV on ${tv?.label || 'second screen'}` : '● TV preview window';
+  $('screensInfo').textContent = info.windowed ? 'One screen connected: the TV opens as a preview window. Plug in a TV or projector and it shows the quiz full screen by itself.'
+    : `${info.displays.length} screens: the desk is on ${info.displays.find(d => d.desk)?.label}, the TV on ${tv?.label}.`;
+  $('tvScreen').replaceChildren(element('option', 'Automatic'), ...info.displays.filter(d => !d.desk || info.displays.length === 1).map(d => {const o = element('option', `${d.label} (${d.width}×${d.height})`); o.value = String(d.id); return o;}));
+  $('tvScreen').options[0].value = 'auto'; $('tvScreen').disabled = info.windowed;
+  $('tvOpen').hidden = info.open; $('tvClose').hidden = !info.open; $('tvBlank').disabled = !info.open;
+  $('tvBlank').textContent = info.blanked ? 'Show the TV again' : 'Blank the TV';
+  $('tvSwap').disabled = info.displays.length < 2;
+  $('tvAuto').textContent = `Open by itself: ${info.autoOpen ? 'on' : 'off'}`;
+  screensInfo = info;
+}
+let screensInfo = null;
+if (desktop) {
+  desktop.screens().then(renderScreens); desktop.onScreens(renderScreens);
+  // The desk's action() puts buttons back as they were afterwards, so the panel is drawn again once it has finished.
+  const run = (fn, done) => {action(fn, done); actionQueue.then(() => desktop.screens()).then(renderScreens);};
+  $('tvOpen').onclick = () => run(() => desktop.openTv(), 'TV window open');
+  $('tvClose').onclick = () => run(() => desktop.closeTv(), 'TV window closed');
+  $('tvBlank').onclick = () => run(() => desktop.blank(!screensInfo?.blanked), 'TV updated');
+  $('tvSwap').onclick = () => run(() => desktop.swap(), 'Screens swapped');
+  $('tvAuto').onclick = () => run(() => desktop.autoOpen(!screensInfo?.autoOpen), 'Saved');
+  $('tvScreen').onchange = () => run(() => desktop.chooseTv($('tvScreen').value === 'auto' ? null : Number($('tvScreen').value)), 'TV screen chosen');
+  $('appBackup').onclick = () => action(async () => {const file = await desktop.backup(); return file ? `Backup saved: ${file}` : 'No backup made';});
+  $('appRestore').onclick = () => desktop.restore();
+  $('appData').onclick = () => desktop.openDataFolder();
+  $('appLogs').onclick = () => desktop.openLogs();
+  $('appKey').onclick = () => desktop.showKey();
+  $('appBrowser').onclick = () => desktop.openInBrowser();
+}
 // Past quizzes kept on this laptop, and optional sharing with PubQuiz Online.
 async function loadHistory() {
   try {past = await request('results');} catch {past = null;}
