@@ -2,20 +2,20 @@
 # Everything for a quiz night in one go: starts the offline quiz Wi-Fi, runs PubQuiz on it, and takes the Wi-Fi down
 # again when PubQuiz stops (Ctrl+C), even if it crashed.
 #
-#   ./scripts/quiz-night.sh                     hotspot "PubQuiz" on the laptop's Wi-Fi card
-#   ./scripts/quiz-night.sh --keep-wifi         ...while staying on your normal Wi-Fi too (for Spotify)
+#   ./scripts/quiz-night.sh                     hotspot "PubQuiz", while the laptop stays on your normal Wi-Fi
+#   ./scripts/quiz-night.sh --offline           hotspot only: the card leaves your normal Wi-Fi
 #   ./scripts/quiz-night.sh --ssid "Quiz Night" --interface wlan0
 #
-# Asks for your password (sudo, for the Wi-Fi) and the quizmaster key. Same steps by hand: README.md, "Offline hotspot".
+# Asks for your password (sudo, for the Wi-Fi) and the quizmaster key. Same steps by hand: README.md, "Dedicated CachyOS Wi-Fi".
 set -euo pipefail
 cd -- "$(dirname -- "$0")/.."
 
-ssid=PubQuiz iface='' extra=()
+ssid=PubQuiz iface='' extra=(--keep-wifi)
 while (($#)); do
   case $1 in
     --ssid) ssid=$2; shift 2 ;;
     --interface) iface=$2; shift 2 ;;
-    --keep-wifi) extra+=(--keep-wifi); shift ;;
+    --offline) extra=(); shift ;;
     *) echo "Unknown option: $1 (see the top of $0)" >&2; exit 2 ;;
   esac
 done
