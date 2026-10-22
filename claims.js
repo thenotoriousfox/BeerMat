@@ -26,5 +26,10 @@ export function verifyClaim(claim) {
   } catch {return false;}
 }
 
+// A laptop's public venue key, as the desk shows it.
+export function validKey(publicKey) {
+  try {return createPublicKey({key: Buffer.from(publicKey, 'base64'), format: 'der', type: 'spki'}).asymmetricKeyType === 'ed25519';} catch {return false;}
+}
+
 // A short, stable name for a venue key (for display and lookups).
 export const keyId = publicKey => createHash('sha256').update(publicKey).digest('hex').slice(0, 16);

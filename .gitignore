@@ -6,3 +6,4 @@ quiz.sqlite*
 results/
 soundpack/
 dist/
+online.sqlite*

@@ -10,7 +10,9 @@ import os from 'node:os';
 import {_electron as electron} from 'playwright';
 
 const root = path.join(import.meta.dirname, '..');
-const binary = path.join(root, 'node_modules', 'electron', 'dist', 'electron');
+// PUBQUIZ_DESKTOP_BINARY=dist/linux-unpacked/pubquiz tests a packaged build instead of the source.
+const packaged = process.env.PUBQUIZ_DESKTOP_BINARY ? path.resolve(process.env.PUBQUIZ_DESKTOP_BINARY) : null;
+const binary = packaged || path.join(root, 'node_modules', 'electron', 'dist', 'electron'), appArgs = packaged ? [] : [root];
 const data = mkdtempSync(path.join(os.tmpdir(), 'pubquiz-desktop-e2e-')), port = 3900 + Math.floor(Math.random() * 50);
 writeFileSync(path.join(data, 'desktop.json'), JSON.stringify({port}));
 
@@ -20,7 +22,7 @@ const xvfb = spawn('Xvfb', [`:${number}`, '-screen', '0', '1600x900x24', '-nolis
 for (let i = 0; i < 50 && !existsSync(`/tmp/.X11-unix/X${number}`); i++) await new Promise(r => setTimeout(r, 100));
 const env = {...process.env, DISPLAY: `:${number}`, XDG_SESSION_TYPE: 'x11', PUBQUIZ_USER_DATA: data, PUBQUIZ_TEST: '1', PUBQUIZ_LAPTOP: '0'};
 delete env.WAYLAND_DISPLAY;
-const launch = () => electron.launch({executablePath: binary, args: [root, '--ozone-platform=x11'], env, timeout: 60000});
+const launch = () => electron.launch({executablePath: binary, args: [...appArgs, '--ozone-platform=x11'], env, timeout: 60000});
 const pass = name => console.log('PASS:', name);
 const serverPid = () => {
   const line = execFileSync('ss', ['-ltnpH', `sport = :${port}`]).toString();
@@ -80,7 +82,7 @@ try {
   pass('quiz server killed mid-quiz: restarted by the app, desk logged in again, the team keeps its place');
 
   // A second copy hands over to the running one and exits.
-  const second = spawn(binary, [root, '--ozone-platform=x11'], {env, stdio: 'ignore'});
+  const second = spawn(binary, [...appArgs, '--ozone-platform=x11'], {env, stdio: 'ignore'});
   const code = await new Promise(r => second.on('exit', r));
   assert.equal(code, 0);
   assert.equal(app.windows().length, 2);

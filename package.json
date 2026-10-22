@@ -76,7 +76,8 @@
           "Comment": "Run a pub quiz",
           "StartupWMClass": "PubQuiz"
         }
-      }
+      },
+      "syncDesktopName": true
     },
     "win": {
       "target": [
@@ -95,5 +96,6 @@
     "portable": {
       "artifactName": "PubQuiz-${version}-portable.exe"
     }
-  }
+  },
+  "desktopName": "pubquiz.desktop"
 }
