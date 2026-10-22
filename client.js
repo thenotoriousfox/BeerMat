@@ -181,6 +181,8 @@ function buildInputs(q) {
 function renderBuzzer(q) {
   const b = q.buzz, mine = b.buzzed, queue = b.queue.filter(x => ['active', 'queued'].includes(x.status));
   const position = queue.findIndex(x => x.team === current.team.id) + 1;
+  // Passed on to this team after another's wrong answer: their turn now.
+  if (mine === 'active' && myTurn !== q.id) {myTurn = q.id; nudge([200, 80, 200]);}
   $('buzz').disabled = !(online && q.open && !q.paused && !mine && !b.lockedOut && !current.settings.ended);
   $('buzzStatus').textContent = b.lockedOut ? t('Locked out — wrong answer on the last buzzer question') : mine === 'active' ? t('You buzzed first — give your answer!') :
     mine === 'queued' ? t('Buzzed · you are #{n} in the queue', {n: position}) : mine === 'wrong' ? t('Ruled wrong') : mine === 'passed' ? t('Passed') : mine === 'correct' ? t('Correct!') :
@@ -222,9 +224,14 @@ function renderBingo(q) {
 function playerState(s) {
   current = s; writeStorage('pubquiz-event', s.event || ''); offset = s.serverTime - Date.now(); $('join').hidden = true; $('game').hidden = false;
   $('team').textContent = s.team.name; $('code').textContent = secret; const q = s.question;
+  // Once the quiz is finished, a player may keep the team's result (signed by the quiz laptop) in an online profile.
+  $('keepResult').hidden = !s.settings.ended || s.team.waiting || !(appPlatform || s.settings.onlineService);
   // A team in the waiting room sees only a holding screen until the quizmaster lets it in.
   const shown = s.team.waiting ? 'waiting' : q?.id;
   if (shown !== renderedQuestion) {
+    // A new question while this page was already showing one: a short buzz in the pocket.
+    if (q?.open && !s.team.waiting && seenQuestion !== null && seenQuestion !== q.id) nudge([120, 60, 120]);
+    if (q) seenQuestion = q.id; else seenQuestion ??= 0;
     clearTimeout(draftTimer); draftGeneration++; localDraft = null; inputRevision = 0;
     renderedQuestion = shown; $('inputs').replaceChildren(); $('draftStatus').textContent = '';
     $('question').textContent = s.team.waiting ? t('You’re in the waiting room — the quizmaster will let you in shortly') : q?.text || t('Waiting for the next question…'); $('round').textContent = q?.round || '';
@@ -487,6 +494,14 @@ async function publicState() {
   const response = await fetch('/api/leaderboard', {signal: AbortSignal.timeout(8000)}); if (!response.ok) throw Error(t('Cannot reach quiz server')); return response.json();
 }
 let initialised = false, deviceChecked = false, lastSettings = null;
+// Inside the PubQuiz Player app (its web view adds PubQuizPlayer/<version> to the user agent): a way back to the app's
+// own screens, and results handed to it for the player's profile. Everyone else plays exactly the same in a browser.
+const appPlatform = /PubQuizPlayer\/[\d.]+ \((ios|android)\)/.exec(navigator.userAgent)?.[1] || null;
+const appHome = appPlatform === 'ios' ? 'capacitor://localhost/' : appPlatform ? 'http://localhost/' : null;
+// Vibration (where the phone supports it): on by default in the app, off in a browser until switched on.
+const vibrateOn = () => (readStorage('pubquiz-vibrate') || (appPlatform ? '1' : '0')) === '1';
+const nudge = pattern => {if (vibrateOn()) navigator.vibrate?.(pattern);};
+let seenQuestion = null, myTurn = null;
 // A phone that already joined (for example in the Wi-Fi sign-in window) is offered its team back.
 async function checkDevice() {
   deviceChecked = true;
@@ -547,6 +562,17 @@ async function flushDraft() {
   finally {inFlight = false; if (generation === draftGeneration && revision !== inputRevision) {clearTimeout(draftTimer); draftTimer = setTimeout(flushDraft, 400);}}
 }
 if (role === 'player') {
+  if (appHome) {$('appHome').hidden = false; $('appHome').href = appHome; $('appHome').textContent = t('Quizzes');}
+  $('vibrateToggle').checked = vibrateOn();
+  $('vibrateToggle').onchange = () => {writeStorage('pubquiz-vibrate', $('vibrateToggle').checked ? '1' : '0'); if ($('vibrateToggle').checked) navigator.vibrate?.(60);};
+  $('keepResultButton').onclick = async () => {
+    try {
+      const {claim} = await api('team/result', {}, secret);
+      const packed = btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(claim)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      if (appHome) location.href = appHome + '#claim=' + packed;
+      else window.open(lastSettings.onlineService.replace(/\/$/, '') + '/app/#claim=' + packed, '_blank', 'noopener');
+    } catch (e) {message(e.message, true);}
+  };
   $('joinForm').onsubmit = async e => {
     e.preventDefault(); $('joinButton').disabled = true;
     try {
