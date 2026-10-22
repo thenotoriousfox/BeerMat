@@ -211,3 +211,9 @@ test('quiz server process: starts on the preferred port or the next free one, mi
     await assert.rejects(fetch(base + '/health'));
   } finally {child.kill(); blocker.close(); rmSync(dir, {recursive: true, force: true});}
 });
+
+test('editions: a single place for a future Free/Pro split, with every feature in every edition today', async () => {
+  const {edition, features} = await import('../edition.js');
+  for (const name of ['free', 'pro', 'unknown']) for (const f of features) assert.equal(edition(name).has(f), true);
+  assert.equal(edition('free').has('somethingElse'), false);
+});

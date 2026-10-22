@@ -32,7 +32,7 @@ const watch = page => {page.on('pageerror', e => errors.push(`${page.url()}: ${e
 // The app's own screens at http://localhost, as the Android app serves mobile/www (shared code from the source).
 const www = path.join(root, 'mobile', 'www'), shared = {'/shared/online-client.js': path.join(root, 'online', 'client.js'), '/shared/achievements.js': path.join(root, 'achievements.js')};
 async function appContext() {
-  const context = await browser.newContext({...phone, userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36 PubQuizPlayer/0.3.0 (android)'});
+  const context = await browser.newContext({...phone, userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36 PubQuizPlayer/0.4.0 (android)'});
   await context.route('http://localhost/**', route => {
     const p = new URL(route.request().url()).pathname, file = shared[p] || path.join(www, p === '/' ? 'index.html' : p);
     if (!existsSync(file)) return route.fulfill({status: 404, body: ''});

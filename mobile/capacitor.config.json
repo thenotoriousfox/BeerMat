@@ -7,10 +7,10 @@
     "allowNavigation": ["*"]
   },
   "android": {
-    "appendUserAgent": "PubQuizPlayer/0.3.0 (android)"
+    "appendUserAgent": "PubQuizPlayer/0.4.0 (android)"
   },
   "ios": {
-    "appendUserAgent": "PubQuizPlayer/0.3.0 (ios)",
+    "appendUserAgent": "PubQuizPlayer/0.4.0 (ios)",
     "contentInset": "never"
   }
 }
