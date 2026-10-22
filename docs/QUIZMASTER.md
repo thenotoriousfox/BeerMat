@@ -93,17 +93,17 @@ If you connected Spotify before the desk player existed, press **Connect Spotify
 - Playlists made by Spotify itself (editorial and algorithmic ones) can't be read by personal apps; copy their songs into a playlist of your own first.
 - Sign-in tokens stay in the quiz database on the laptop and are never exported. **Disconnect** removes them.
 
-## Online quizzes (Discord)
+## Online quizzes
 
-Friends can play from home: they answer on their phones over the internet while you share the TV page in a Discord call.
+In online mode players join over the internet instead of the quiz Wi-Fi: in the room on their own mobile data or the venue's Wi-Fi, or from home.
 
 1. Install cloudflared once: `sudo pacman -S cloudflared` (`./scripts/setup.sh --install` includes it).
-2. Start PubQuiz from the app icon. In **Quiz night**, press **Go online**. After a few seconds you get a link like `https://some-random-words.trycloudflare.com`; **Copy link** and post it in Discord. The TV's join screen shows it too, with a QR code.
-3. Open **Projector ↗**, click **🔊 Enable sound**, and in Discord use **Share Screen** on that window with sound on. On Linux, Discord's own app may not share sound; Vesktop (a Discord client) does.
-4. Run the quiz as usual. Questions reach phones within about a tenth of a second, sooner than the Discord stream, so players read them on their phones and use the stream for pictures, sound and the leaderboard.
+2. Start PubQuiz from the app icon. In **Quiz night**, press **Go online**. After a few seconds you get a link like `https://some-random-words.trycloudflare.com`; **Copy link** to share it. The TV's join screen shows it too, with a QR code.
+3. In person, show the TV page (**Projector ↗**) on the room's screen as usual. For remote players, share that window with sound over a video call or screen share (click **🔊 Enable sound** first).
+4. Run the quiz as usual. Questions reach phones within about a tenth of a second, usually sooner than a shared screen, so remote players read them on their phones and use the shared screen for pictures, sound and the leaderboard.
 5. **Go offline** (or **Close PubQuiz**) ends it. Going online again makes a new link.
 
-The link reaches the players' page and the TV. The desk joins them only while **Desk on the online link** is on (off by default): then `<link>/host` runs the quiz from anywhere with the quizmaster key, so use a long, private one. Wrong keys are limited to 10 a minute per visitor and 30 a minute through the link altogether. From another device the quiz Wi-Fi can't be changed (its password prompt opens on the laptop); online quizzes don't need it. Spotify sign-in is only ever on the laptop. Anyone with the link can join, so turn on the waiting room (Room options) if it may travel beyond your friends. The link uses Cloudflare's free quick tunnels, made for testing and casual use; no Cloudflare account is needed. Spotify's terms cover personal listening, so streaming its music to a Discord call is at your own risk.
+The link reaches the players' page and the TV. The desk joins them only while **Desk on the online link** is on (off by default): then `<link>/host` runs the quiz from anywhere with the quizmaster key, so use a long, private one. Wrong keys are limited to 10 a minute per visitor and 30 a minute through the link altogether. From another device the quiz Wi-Fi can't be changed (its password prompt opens on the laptop); online quizzes don't need it. Spotify sign-in is only ever on the laptop. Anyone with the link can join, so turn on the waiting room (Room options) if it may travel beyond your friends. The link uses Cloudflare's free quick tunnels, made for testing and casual use; no Cloudflare account is needed. Spotify's terms cover personal listening, so streaming its music to other people is at your own risk.
 
 ## Room options
 

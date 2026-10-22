@@ -292,7 +292,7 @@ function displayState(s) {
   $('joinSection').hidden = s.view !== 'join';
   if (s.view === 'join') {
     // One code does it all: it joins the quiz Wi-Fi, and the phone's sign-in window then opens the quiz.
-    // Online (shown over Discord), the code is the quiz's public link instead.
+    // Online, the code is the quiz's public link instead.
     renderQr($('wifiQr'), online ? joinUrl : wifiCode(joinSsid));
     $('joinStepWifi').textContent = online ? t('Or go to {url}', {url: address}) : t('Join the “{ssid}” Wi-Fi when your phone offers it', {ssid: joinSsid});
     $('joinStepQuiz').textContent = online ? t('Pick a team name and keep the page open') : t('Tap “Sign in” when your phone asks (iPhones open it straight away) — then pick a team name');
