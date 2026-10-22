@@ -18,6 +18,8 @@ Open **http://localhost:3000/host**. Players can use **http://LAPTOP-IP:3000/** 
 
 **Network changes require the laptop owner's approval. These commands have not been run against your laptop.** A Wi-Fi adapter supporting AP mode is required. A single radio will usually disconnect from its current Wi-Fi network while hosting; internet is unnecessary.
 
+**One command for a quiz night:** `./scripts/quiz-night.sh` (add `--keep-wifi` to stay online too) asks for your password and the host key, starts the **PubQuiz** Wi-Fi on the first Wi-Fi card, runs PubQuiz on it, and takes the Wi-Fi down again when you press Ctrl+C. `--ssid` and `--interface` change the network name and card. The steps below are the same thing by hand.
+
 1. Find the interface with `nmcli device status` (often `wlan0` or `wlp...`). Run `python scripts/hotspot.py check --interface wlan0` to inspect AP capability.
 2. Start PubQuiz as your normal user with `./scripts/start.sh --hotspot`, keeping the terminal open. `--hotspot` makes the server answer only on this laptop and the quiz Wi-Fi (10.42.0.1), not on any other network the laptop is connected to. Test the dashboard first.
 3. Preview: `python scripts/hotspot.py up --interface wlan0 --ssid PubQuiz`.
@@ -68,7 +70,7 @@ Stop the server before copying `quiz.sqlite` for a consistent backup (or use a S
 ```bash
 npm test
 python -m unittest discover -s tests -p 'test_*.py'
-bash -n scripts/setup.sh scripts/start.sh scripts/connectivity.sh
+bash -n scripts/setup.sh scripts/start.sh scripts/quiz-night.sh scripts/connectivity.sh
 python scripts/hotspot.py up --interface wlan0  # dry run
 ```
 
