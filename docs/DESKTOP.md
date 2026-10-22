@@ -1,0 +1,133 @@
+# PubQuiz for Windows and Linux
+
+The desktop app runs the whole quiz from one laptop: the quiz server, the quiz desk in its own window, and the TV
+display full screen on a second screen. Nothing else needs installing: no Node.js, terminal or browser.
+
+## Installing
+
+| System | File | How |
+|---|---|---|
+| Windows 10/11 | `PubQuiz Setup 0.4.0.exe` | Run it, choose where to install. Start menu and desktop shortcuts are added. |
+| Windows, no install | `PubQuiz-0.4.0-portable.exe` | Run it from anywhere (a USB stick). Data still goes in your user folder. |
+| Linux (CachyOS, Arch, Ubuntu, Fedora…) | `PubQuiz-0.4.0.AppImage` | `chmod +x PubQuiz-0.4.0.AppImage`, then run it. |
+| Linux, unpacked | `pubquiz-0.4.0.tar.gz` | Unpack anywhere and run `pubquiz`. |
+
+The builds are **not code-signed yet**. Windows SmartScreen warns about an unknown publisher (More info → Run
+anyway) until the installer is signed with a code-signing certificate (see "Building", below).
+
+**Updating:** install the new version over the old one. Your quizzes, settings and key are in your user folder, not
+the program folder, so they carry over. There is no automatic updater yet (it needs somewhere to host releases).
+
+## First run
+
+The app makes a long random **quizmaster key** for you and keeps it in the system keychain (Windows: DPAPI; Linux:
+the Secret Service, e.g. KWallet or GNOME Keyring; if there is none, a file only your account can read). You only
+need it to open the desk somewhere else: **PubQuiz → Show quizmaster key**.
+
+It then asks how players will join:
+
+* **Venue Wi-Fi or network**: phones on the venue's own Wi-Fi open this laptop's address, shown on the TV with a
+  QR code. Nothing on the router is changed.
+* **PubQuiz Wi-Fi from this laptop**: the laptop makes its own quiz Wi-Fi (see "Quiz Wi-Fi", below).
+
+You can change this any time on the desk under **How players join**.
+
+## The TV screen
+
+Plug in a TV or projector as a second screen (extended, not mirrored). The app:
+
+* opens the desk on the main screen and the TV display full screen on the other screen, by itself;
+* remembers which screen is the TV (by its name, so it is found again after unplugging);
+* follows screens being plugged in and out: if the TV is unplugged mid-quiz, the display carries on in a window on
+  the laptop; when it is back, it goes full screen there again;
+* with one screen, opens the TV as a preview window when you ask (**TV → Preview the TV in a window**, or **F7**).
+
+On the desk, **Screens** (and the **TV** menu) choose the TV screen, swap the desk and TV screens, blank the TV
+(**F8**: black and silent, the quiz carries on underneath) and switch the automatic opening off. The TV window is a
+separate, locked-down page: it never has the desk's login and cannot show answers before they are revealed.
+
+On Linux the app runs through XWayland on Wayland desktops (KDE Plasma, GNOME), because Wayland does not let an app
+put a window on a chosen screen. Set `PUBQUIZ_WAYLAND=1` to run natively on Wayland instead (then move the TV window
+yourself).
+
+## How players join
+
+* **Venue Wi-Fi / LAN**: under **How players join**, choose *On the venue's own Wi-Fi or network*, pick this
+  laptop's address and type the venue's Wi-Fi name, then **Use for joining**. **Check the connection** tests that
+  PubQuiz answers on that address and looks for the usual blockers:
+  * *Windows Firewall*: the first time PubQuiz runs, Windows asks whether to allow it: tick **Private networks**. If
+    the venue's network is set to **Public**, Windows blocks phones: set it to Private (Settings → Network → the
+    network), or allow PubQuiz on Public networks.
+  * *Linux*: firewalld or ufw, if running, need the quiz port allowed (the check prints the command).
+  * *Client isolation*: guest and public Wi-Fi often keeps devices apart, so phones cannot reach the laptop at all.
+    Nothing on the laptop can fix that; ask for a network without it (often the staff Wi-Fi), or use the quiz Wi-Fi.
+* **Quiz Wi-Fi from this laptop**: **Quiz night → Start quiz Wi-Fi**.
+  * *Linux*: as before (`scripts/hotspot.py`): an open network, with a sign-in window that opens the quiz by itself
+    on most phones. Asks for your password. The laptop can stay on your own Wi-Fi.
+  * *Windows*: Windows' own **Mobile Hotspot**. Differences you should know:
+    * it always has a password (8–63 characters); the TV shows a Wi-Fi QR code with it, plus a second code for
+      the quiz address (`http://192.168.137.1:3000`). There is no sign-in window.
+    * Windows only starts it while the laptop is connected to some network (it shares that connection). A laptop
+      with no network at all needs a network cable, a phone's hotspot or a second Wi-Fi adapter, or use the venue
+      Wi-Fi instead. The desk says so when it happens.
+    * no administrator rights are needed; **Stop quiz Wi-Fi** or closing PubQuiz turns it off again.
+    * not every Wi-Fi card can share while connected; the desk shows Windows' reason when it refuses.
+* **Online**: **Go online**, as before. Install cloudflared first (Windows: `winget install Cloudflare.cloudflared`).
+
+## Your data
+
+| | Windows | Linux |
+|---|---|---|
+| Quiz database, media, sound pack, backups | `%APPDATA%\PubQuiz` | `~/.config/PubQuiz` |
+| Logs (`pubquiz.log`, `server.log`) | `%APPDATA%\PubQuiz\logs` | `~/.config/PubQuiz/logs` |
+
+**PubQuiz → Open data folder / Open logs** opens them.
+
+* The quiz saves as it goes. Each time the app starts it checks the database and keeps a copy in `backups/` (the
+  newest ten).
+* If the database is ever damaged, the app moves it aside (it is never deleted) and carries on from the newest good
+  copy, and tells you.
+* **Back up the quiz…** saves a copy wherever you like; **Restore a backup…** puts one back (the current quiz is
+  backed up first).
+* Quiz files (**Download quiz with media**, **Load a quiz file**) still move quizzes between laptops, including to
+  and from the browser version.
+
+## When something goes wrong
+
+* **The quiz server stops**: the app restarts it straight away and reloads the desk and TV; teams carry on where they
+  were. After three failures in a minute it asks you, with a button to open the logs.
+* **Port in use**: if something else already uses port 3000 (another PubQuiz started from a terminal, say), the app
+  uses the next free port and tells you. The quiz Wi-Fi and the TV's join screen follow the new port.
+* **Opening PubQuiz twice** brings the open window to the front.
+* **The desk in a browser** (fallback, or a second device): **PubQuiz → Open the desk in a browser** and the
+  quizmaster key. The Linux scripts in `scripts/` also still work without the app.
+* **Spotify**: the desk's built-in Spotify player needs Widevine, which the app's browser engine does not include.
+  Use the Spotify app on the laptop (the default), or open the desk in Chrome/Firefox for the built-in player.
+
+## Building
+
+Needs Node 22.13+ and npm on the build machine only.
+
+```bash
+npm ci
+npm run dist:linux        # dist/PubQuiz-<v>.AppImage and pubquiz-<v>.tar.gz
+npm run dist:win          # dist/PubQuiz Setup <v>.exe and PubQuiz-<v>-portable.exe (on Linux this uses Wine)
+npm run desktop           # run from source
+```
+
+`npm ci` may report blocked install scripts (npm 12+); approve Electron's with `npm install-scripts approve electron`.
+
+Signing (not done; needs credentials):
+
+* **Windows**: an OV or EV code-signing certificate. Set `CSC_LINK` (the .pfx) and `CSC_KEY_PASSWORD` before
+  `npm run dist:win`, or use Azure Trusted Signing (electron-builder's `win.azureSignOptions`). EV certificates or
+  Trusted Signing avoid most SmartScreen warnings.
+* **Linux**: AppImages are usually distributed unsigned; publish SHA-256 checksums alongside them.
+
+## What has been checked
+
+See [TESTING.md](TESTING.md). In short: the desktop app (source and the packaged Linux build) starts, opens the desk
+logged in, opens and blanks the TV preview, restarts a killed quiz server without losing teams, hands over to an
+already running copy, and reopens a quiz, all automated on a private virtual screen. Choosing and following screens is
+tested with simulated screens. **Not yet checked by a person**: the Windows build running on Windows, the Windows
+hotspot, a real second screen/projector, and the first-run window.

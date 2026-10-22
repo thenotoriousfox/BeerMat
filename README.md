@@ -1,6 +1,29 @@
 # PubQuiz
 
-Independent offline pub quiz system for a single CachyOS laptop. The laptop serves the quizmaster dashboard, phone clients, local picture/audio files and leaderboard. SQLite stores team identities, questions, answers, scores and manual adjustments. No cloud, installed phone app, account service, CDN or runtime npm dependency is needed. (Optional exception: music rounds can play from the laptop's Spotify app for private quizzes, which needs internet on the laptop; see docs/QUIZMASTER.md.)
+A pub quiz system that runs a whole quiz from one laptop, with or without internet. The quizmaster runs the desk, a
+TV or projector shows the quiz, and teams play on their phones: in a normal browser, or in the optional PubQuiz
+Player app.
+
+| Part | For | Guide |
+|---|---|---|
+| **PubQuiz desktop app** (Windows 10/11, Linux incl. CachyOS) | quizmasters: desk window, TV on the second screen, quiz Wi-Fi or venue Wi-Fi, backups | [docs/DESKTOP.md](docs/DESKTOP.md) |
+| **Phone browser** | teams: nothing to install, every round format | [docs/QUIZMASTER.md](docs/QUIZMASTER.md) |
+| **PubQuiz Player** (Android, iOS) | teams who want it: scan to join, profile, find quizzes | [docs/MOBILE.md](docs/MOBILE.md) |
+| **PubQuiz Online** (optional service) | profiles, statistics, achievements, venue pages, quiz listings | [docs/ONLINE.md](docs/ONLINE.md) |
+| Running from source on Linux | the original scripts, below | this file |
+
+Offline is the default: one laptop hosts everything, players join as guests, and no account, app or internet is
+needed. How the parts fit together, and what stays offline: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). What has
+been tested, and what still needs real hardware: [docs/TESTING.md](docs/TESTING.md).
+
+Players join in one of three ways: the **quiz Wi-Fi** the laptop makes itself (Linux: open network with a sign-in
+window; Windows: Mobile Hotspot with a password), the **venue's own Wi-Fi or network** (the TV shows the laptop's
+address; the desk checks for firewall and Wi-Fi isolation problems), or **online** over a public link.
+
+The rest of this file is about running the quiz server from source on Linux, which still works without the desktop
+app. SQLite stores team identities, questions, answers, scores and manual adjustments; the server has no runtime npm
+dependencies. (Optional exception: music rounds can play from the laptop's Spotify app for private quizzes, which
+needs internet on the laptop; see docs/QUIZMASTER.md.)
 
 ## Start locally
 
@@ -68,6 +91,8 @@ It adds six rounds (21 questions) that use every format and the main options (Ev
 ## Persistence and tests
 
 Stop the server before copying `quiz.sqlite` for a consistent backup (or use a SQLite-aware backup tool). Keep backups private: the database contains team recovery secrets. To start a new event, stop the server and use a new `QUIZ_DB` path. Existing teams/scores remain in the old event file. Export JSON excludes recovery secrets; it is a results archive, not an importable database backup. Host logins are stored (as hashes) in the database, expire after 12 hours and survive a restart. The application automatically migrates databases from the earlier prototype.
+
+All suites, including the desktop app and phone app runs: [docs/TESTING.md](docs/TESTING.md).
 
 ```bash
 npm test

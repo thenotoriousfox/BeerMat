@@ -63,3 +63,59 @@ TV iteration: the projector page is now a fixed full screen (no scroll at 800×6
 Spotify iteration: optional playback control (Web API, PKCE sign-in, no secret) of the laptop's Spotify app for music bingo and sound clips, plus playlist/track import. Server-side only; tokens are host-only and excluded from exports; the callback answers only on loopback with a one-time state. Tested against a fake Spotify service (`tests/spotify.test.js`); not yet tried against the real Spotify API, which needs the user's own developer app and Premium account. Intended for private quizzes only (Spotify's personal-use terms). The desk can also be the player itself (Web Playback SDK): its script is fetched only on request and only the `/host` page's CSP allows Spotify's script, frame and audio hosts; the desk receives only the short-lived access token. Checked in Chrome that the SDK loads and reaches Spotify under that CSP (it rejected a dummy token, as expected); real playback still needs the user's account.
 
 Hotspot hardware findings: on Intel AX200-class cards a NetworkManager AP on a second virtual interface fails ("wpa_supplicant couldn't grab this interface … Device or resource busy"), reproduced on a second CachyOS machine. `--keep-wifi` now creates `pq0` as an AP-type interface outside NetworkManager and runs `wpa_supplicant` in AP mode; verified on real hardware there (broadcasting on channel 6, 10.42.0.1, DNS and DHCP listening, firewall table, clean teardown). Hosting while also connected to a 2.4 GHz network still needs checking on the quiz laptop.
+
+# Platform audit (2026-10-22)
+
+Starting point: PR #1 (`development/offline-quiz`, 69 Node tests, 15 Python tests, 27 browser sections, all passing).
+Work continued on `development/platform`.
+
+Reusable as-is: the quiz engine and every round format, SQLite storage and migrations, the desk/TV/player pages, the
+Linux hotspot, online mode, team recovery. Platform assumptions found and addressed: Linux-only laptop controls
+(now Linux or Windows), data written beside the program (`QUIZ_DB`/`MEDIA_DIR`/`PACK_DIR`, and the desktop app's user
+folder), a fixed port 3000 for the hotspot redirect (`hotspot.py --port`), the hotspot address `10.42.0.1` (Windows
+uses `192.168.137.1`), and a join screen that assumed the quiz Wi-Fi (venue LAN mode added).
+
+Security review of the new parts:
+
+* **Desktop (Electron)**: context isolation, sandboxed renderers, no Node in pages; the desk's preload exposes 14
+  calls and the main process accepts them only from the desk page on its own server; every page is kept on the quiz
+  server (other links go to the system browser, only http/https); `<webview>` blocked; permissions denied except
+  clipboard/full screen; the TV window has its own session, so it never holds the desk login; DevTools only in
+  development. The quiz server runs in a separate utility process. The quizmaster key is random and kept with
+  safeStorage where available.
+* **Uploads and imports**: unchanged checks (file signatures, sizes, schema validation of quiz files); restore only
+  accepts a SQLite file that passes `quick_check` and has PubQuiz's tables, after backing up the current one.
+* **Path traversal**: sound and media routes unchanged; PubQuiz Online's static files are contained to the app folder
+  (tested with `..` and encoded `..`).
+* **Command injection**: every command is `execFile` with an argument list; Wi-Fi settings reach PowerShell as base64
+  JSON, so a Wi-Fi name like `-Action down` is just a name; card names are pattern-checked.
+* **XSS**: new screens build content with `textContent`; links built from online data are https/geo/maps URLs made
+  from validated numbers; profile pictures must be image data URLs.
+* **Database integrity**: checked backup on every desktop start, damaged files moved aside (never deleted).
+* **Privileged networking**: Linux unchanged (pkexec, the desktop's own prompt); Windows Mobile Hotspot needs no
+  administrator rights. The venue LAN mode changes nothing on the router or laptop.
+* **Signed results**: each install has an Ed25519 key in its database (backups therefore hold it: keep them private,
+  as before). Claims carry a hashed team reference, never recovery codes. Exports and quiz files do not include the key.
+* **Online accounts**: scrypt passwords, hashed bearer tokens (no cookies, so no CSRF), CORS only for the app and
+  listed sites, sign-in limits per address and per email, generic sign-in errors (sign-up does reveal that an email is
+  taken). The leaderboard is computed per request: fine for a reference service, needs aggregation at scale.
+* **Mobile permissions**: camera, coarse location on request, notifications, vibration; no background or precise
+  location, no exact alarms. Cleartext is allowed because quiz laptops serve local `http`.
+* **Privacy/UK GDPR**: see ONLINE.md (opt-in publicity, export, erasure, what is still needed before launch).
+
+Third-party code and assets that ship:
+
+| Component | Where | Licence | Notes |
+|---|---|---|---|
+| Electron 39 (Chromium, Node, FFmpeg) | desktop builds | MIT, with Chromium's licences in `LICENSES.chromium.html` (shipped by the build) | |
+| Capacitor 8 core, Android, iOS, local notifications | phone app | MIT | |
+| Capacitor ML Kit barcode scanning | phone app | Apache-2.0 | uses Google ML Kit (Google APIs terms; free to ship in apps) |
+| Built-in sounds | `sounds/` | CC0 | listed in `sounds/CREDITS.md` |
+| cloudflared | not bundled | Apache-2.0 | installed by the user for online mode |
+| Playwright, electron-builder | development only | Apache-2.0 / MIT | not shipped |
+
+No SpeedQuizzing code, media or sounds are in the repository or the builds: the sound pack and bingo calls stay in
+the user's own gitignored `soundpack/` (or the desktop app's data folder) and are copied from their own installation.
+
+Validation boundary: [TESTING.md](TESTING.md) lists what is automated and what still needs hardware, accounts or
+hosting.
