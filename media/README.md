@@ -1,0 +1,1 @@
+Place quiz pictures and audio here before starting. Use simple filenames (letters, digits, dot, underscore, hyphen). These files are locally served and ignored by git. Never store answer keys or private files here.

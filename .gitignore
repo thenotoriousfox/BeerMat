@@ -1,5 +1,7 @@
+__pycache__/
+media/*
+!media/README.md
 node_modules/
-.env
-*.sqlite
-*.sqlite-*
-.DS_Store
+quiz.sqlite*
+results/
+soundpack/
