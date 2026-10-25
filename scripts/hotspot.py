@@ -66,11 +66,13 @@ dhcp-leasefile=/run/pubquiz/dnsmasq.leases
 pid-file=/run/pubquiz/dnsmasq.pid
 '''
 
-def nft_config(interface):
+def nft_config(interface, port=3000):
     commands(interface, 'PubQuiz')
+    if not isinstance(port, int) or not 1 <= port <= 65535:
+        raise ValueError('Invalid port')
     return f'''table inet {TABLE} {{
  chain portal {{ type nat hook prerouting priority dstnat; policy accept;
-  iifname "{interface}" tcp dport 80 redirect to :3000
+  iifname "{interface}" tcp dport 80 redirect to :{port}
  }}
  chain isolation {{ type filter hook forward priority -10; policy accept;
   iifname "{interface}" drop
@@ -144,6 +146,7 @@ def main():
     p.add_argument('--keep-wifi', action='store_true', help='Stay on your normal Wi-Fi as well: host on a virtual interface sharing its 2.4 GHz channel (automatic when the card is connected)')
     p.add_argument('--offline', action='store_true', help='Let the hotspot card leave the network it is on instead of sharing it')
     p.add_argument('--replace', action='store_true', help='Take down a hotspot left from before instead of stopping')
+    p.add_argument('--port', type=int, default=3000, help='PubQuiz\'s port: phones opening http://10.42.0.1 are sent to it')
     a = p.parse_args()
     if a.action == 'status':
         # Read-only, for the quiz desk: no root needed.
@@ -217,7 +220,7 @@ def main():
     config.write_text(dns_config(ap))
     run(['dnsmasq', '--test', '--conf-file=' + str(config)])
     # Validate the firewall syntax before touching the wireless profile.
-    run(['nft', '--check', '-f', '-'], input=nft_config(ap))
+    run(['nft', '--check', '-f', '-'], input=nft_config(ap, a.port))
     created = firewall = virtual = False
     try:
         if a.keep_wifi:
@@ -241,7 +244,7 @@ def main():
         else:
             run(plan[0]); created = True
             run(plan[1]); run(plan[2])
-        run(['nft', '-f', '-'], input=nft_config(ap)); firewall = True
+        run(['nft', '-f', '-'], input=nft_config(ap, a.port)); firewall = True
         run(['systemd-run', '--unit=pubquiz-dnsmasq', '--collect', '--service-type=exec', '/usr/bin/dnsmasq', '--keep-in-foreground', '--conf-file=' + str(config)])
         run(['systemctl', 'is-active', '--quiet', 'pubquiz-dnsmasq.service'])
     except Exception:
@@ -254,7 +257,7 @@ def main():
         if virtual:
             subprocess.run(['iw', 'dev', AP_IFACE, 'del'], check=False)
         raise
-    print(f'Hotspot "{a.ssid}" ready on {a.interface}' + (' beside the Wi-Fi it is on' if a.keep_wifi else '') + '. Players: http://10.42.0.1 ; host: http://localhost:3000/host')
+    print(f'Hotspot "{a.ssid}" ready on {a.interface}' + (' beside the Wi-Fi it is on' if a.keep_wifi else '') + f'. Players: http://10.42.0.1 ; host: http://localhost:{a.port}/host')
     if a.keep_wifi:
         print(f'Hosting on 2.4 GHz channel {channel}' + (' alongside your normal Wi-Fi, which stays connected.' if connected else '.') + ' Stop with: down --keep-wifi --apply')
 

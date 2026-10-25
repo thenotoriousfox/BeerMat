@@ -1,0 +1,24 @@
+{
+  "name": "pubquiz-player",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "description": "PubQuiz Player: the optional phone app for PubQuiz teams (Android and iOS, Capacitor)",
+  "scripts": {
+    "build": "node scripts/build-web.mjs",
+    "sync": "node scripts/build-web.mjs && cap sync",
+    "android:debug": "node scripts/build-web.mjs && cap sync android && cd android && ./gradlew assembleDebug",
+    "android:release": "node scripts/build-web.mjs && cap sync android && cd android && ./gradlew bundleRelease",
+    "ios": "node scripts/build-web.mjs && cap sync ios && cap open ios"
+  },
+  "dependencies": {
+    "@capacitor-mlkit/barcode-scanning": "8.2.1",
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/local-notifications": "8.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

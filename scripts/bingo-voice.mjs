@@ -5,7 +5,7 @@
 //   node scripts/bingo-voice.mjs              calls from soundpack/Customisable Bingo Calls.txt → soundpack/bingo_voice/
 //   node scripts/bingo-voice.mjs --builtin    PubQuiz's own calls → sounds/bingo_voice/ (shipped with PubQuiz)
 //
-// Numbers without a call in the file use PubQuiz's own call. Options: --out <dir>, --python <Piper's python>,
+// Numbers without a call in the file use PubQuiz's own call. Options: --pack <sound pack folder>, --out <dir>, --python <Piper's python>,
 // --model <voice .onnx>. Defaults: ~/.local/opt/piper/bin/python and the public-domain en_GB "cori" voice in
 // ~/.local/share/piper. Run it again after changing the calls file; restart PubQuiz to use the new recordings.
 import {execFileSync} from 'node:child_process';
@@ -18,8 +18,8 @@ import {bingoCall} from '../app.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2), option = (name, fallback) => {const i = args.indexOf(name); return i >= 0 ? args[i + 1] : fallback;};
-const builtin = args.includes('--builtin');
-const out = path.resolve(option('--out', path.join(root, builtin ? 'sounds' : 'soundpack', 'bingo_voice')));
+const builtin = args.includes('--builtin'), pack = path.resolve(option('--pack', path.join(root, 'soundpack')));
+const out = path.resolve(option('--out', builtin ? path.join(root, 'sounds', 'bingo_voice') : path.join(pack, 'bingo_voice')));
 const python = option('--python', path.join(os.homedir(), '.local/opt/piper/bin/python'));
 const model = option('--model', path.join(os.homedir(), '.local/share/piper/en_GB-cori-high.onnx'));
 for (const [what, file] of [['Piper', python], ['voice', model]]) if (!existsSync(file)) {console.error(`${what} not found at ${file}. See docs/QUIZMASTER.md, "A spoken bingo caller".`); process.exit(1);}
@@ -27,7 +27,7 @@ for (const [what, file] of [['Piper', python], ['voice', model]]) if (!existsSyn
 // The same calls the TV shows: the pack's file where it has one, PubQuiz's own otherwise. A call that doesn't say its
 // number gets it added, as a caller would ("Kelly's eye, number one").
 let fileCalls = {};
-if (!builtin) try {fileCalls = JSON.parse(readFileSync(path.join(root, 'soundpack', bingoCallsFile), 'utf8').replace(/^﻿/, ''));} catch {}
+if (!builtin) try {fileCalls = JSON.parse(readFileSync(path.join(pack, bingoCallsFile), 'utf8').replace(/^﻿/, ''));} catch {}
 const text = n => {
   const call = (Array.isArray(fileCalls) ? fileCalls[n - 1] : fileCalls[n])?.trim() || bingoCall(n);
   return new RegExp(`\\b${n}\\b`).test(call) ? call : `${call}, number ${n}`;

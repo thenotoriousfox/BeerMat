@@ -1,0 +1,16 @@
+{
+  "appId": "uk.pubquiz.player",
+  "appName": "PubQuiz Player",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "http",
+    "allowNavigation": ["*"]
+  },
+  "android": {
+    "appendUserAgent": "PubQuizPlayer/0.4.0 (android)"
+  },
+  "ios": {
+    "appendUserAgent": "PubQuizPlayer/0.4.0 (ios)",
+    "contentInset": "never"
+  }
+}

@@ -489,3 +489,5 @@ body.idle .screen-controls button { opacity: 0; pointer-events: none; }
 .theme-by-type label { font-size: .85rem; margin: 4px 0 10px; }
 
 .job{white-space:pre-line}
+.checks { list-style: none; padding: 0; display: grid; gap: 6px; } .checks .good { color: var(--good); }
+.join-single #quizQr { margin-left: 16px; }

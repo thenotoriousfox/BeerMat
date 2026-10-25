@@ -2,7 +2,7 @@
 
 ## Before the room fills
 
-1. Click **PubQuiz** in the app menu and type the host key: the desk opens unlocked. In **Quiz night** at the top, press **Start quiz Wi-Fi** and enter your laptop password. (From a terminal: `./scripts/quiz-night.sh` does the same, Ctrl+C ends it; or `./scripts/start.sh` for PubQuiz alone, then open `http://localhost:3000/host`.) After the quiz, **Close PubQuiz** takes the Wi-Fi down and stops the server.
+1. **Desktop app** (Windows or Linux, [DESKTOP.md](DESKTOP.md)): open **PubQuiz**; the desk opens unlocked and the TV display goes full screen on a second screen by itself. Choose how players join under **How players join** (venue Wi-Fi, below) or start the quiz Wi-Fi in **Quiz night**. From source on Linux, `./scripts/setup.sh --app` puts the desktop app in the app menu. **Browser launcher** (`./scripts/setup.sh --browser-app`): click **PubQuiz** in the app menu and type the host key: the desk opens unlocked in the browser. In **Quiz night** at the top, press **Start quiz Wi-Fi** and enter your laptop password. (From a terminal: `./scripts/quiz-night.sh` does the same, Ctrl+C ends it; or `./scripts/start.sh` for PubQuiz alone, then open `http://localhost:3000/host`.) After the quiz, **Close PubQuiz** takes the Wi-Fi down and stops the server.
 2. In **Build quiz**, set a quiz title and add rounds. Add and save questions with the form. Move questions up/down to set their order.
 3. Pick a format (see **Round formats** below). Upload images/audio directly in the form; any format can carry an optional picture or clip. Files stay on the laptop. Each upload has a unique filename, so replacing a picture cannot change a question already played.
 4. Add the correct answer and accepted alternatives, or leave it blank for manual marking. Choices must match one of the supplied options exactly. Each sheet item has its own marking key; the sheet's **Scoring** sets whether each item is worth a point, the parts share the question's points, or it's all-or-nothing. For a traditional paper round, print blank sheets and enter its score later.
@@ -92,6 +92,23 @@ If you connected Spotify before the desk player existed, press **Connect Spotify
 - **Sound clips:** add Spotify tracks with a start time each; each plays for the **Spotify clip length**, then the next starts. Uploaded and Spotify clips can be mixed.
 - Playlists made by Spotify itself (editorial and algorithmic ones) can't be read by personal apps; copy their songs into a playlist of your own first.
 - Sign-in tokens stay in the quiz database on the laptop and are never exported. **Disconnect** removes them.
+
+## Venue Wi-Fi instead of the quiz Wi-Fi
+
+When the venue has Wi-Fi that phones already use, players can join on it instead (no quiz Wi-Fi needed):
+
+1. Connect the laptop to the venue's Wi-Fi (or a network cable to the same router).
+2. On the desk, **How players join → On the venue's own Wi-Fi or network**. Pick this laptop's address, type the
+   venue's Wi-Fi name and press **Use for joining**. The TV's join screen then shows a QR code that opens the quiz,
+   with the address underneath.
+3. **Check the connection**: it tests that PubQuiz answers on that address and warns about this laptop's firewall
+   (Windows asks to allow PubQuiz the first time: tick *Private networks*; a network set to *Public* blocks phones).
+4. If phones still can't open it, the venue's Wi-Fi probably keeps devices apart (guest Wi-Fi often does). Ask for
+   the staff network, or use the quiz Wi-Fi.
+
+**Windows quiz Wi-Fi**: Windows' Mobile Hotspot always has a password, so type one (8–63 characters) beside the Wi-Fi
+name. The TV shows a Wi-Fi code with the password and a second code that opens the quiz. Windows only starts it while
+the laptop is connected to some network; see [DESKTOP.md](DESKTOP.md).
 
 ## Online quizzes
 
@@ -183,3 +200,15 @@ If a code is lost, use **Issue recovery code** for that team and give the new co
 3. Choose the questions for the next quiz: keep the current ones, load a quiz file (.json), or start empty (then build it, import SpeedQuizzing rounds, or run `node scripts/load-test-quiz.mjs`).
 
 Settings, join details, Spotify connection and question pictures and sounds are kept, and the TV goes back to Auto (the join screen).
+
+## Past quizzes and player profiles
+
+Every finished quiz's results (team names, positions, points, answers right) stay on the laptop under **Past
+quizzes**, also after **End quiz & start next**; delete them there.
+
+After you **Finish quiz**, teams see **Keep this result in your PubQuiz profile** when PubQuiz Online is set up (in
+the PubQuiz Player app, always). It is the player's choice; the result is signed by this laptop so it can't be
+altered. For results to count towards players' statistics and badges, register this laptop with your venue on
+PubQuiz Online: the key is under **Past quizzes → PubQuiz Online**. **Share results** (off by default) also sends
+each finished quiz's team names, positions and points to your venue's page; tell the room if you switch it on.
+Results wait on the laptop until the service can be reached. See [ONLINE.md](ONLINE.md).

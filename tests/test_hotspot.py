@@ -20,6 +20,9 @@ class HotspotTests(unittest.TestCase):
         self.assertIn('address=/#/10.42.0.1', hotspot.dns_config('wlan0'))
         self.assertIn('iifname "wlan0" drop', hotspot.nft_config('wlan0'))
         self.assertIn('redirect to :3000', hotspot.nft_config('wlan0'))
+        self.assertIn('redirect to :3005', hotspot.nft_config('wlan0', 3005))
+        with self.assertRaises(ValueError):
+            hotspot.nft_config('wlan0', 70000)
     def test_injection_rejected(self):
         with self.assertRaises(ValueError):
             hotspot.commands('wlan0; rm', 'PubQuiz')

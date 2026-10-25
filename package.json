@@ -1,6 +1,6 @@
 {
   "name": "pubquiz",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -8,10 +8,94 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node --test",
-    "test:browser": "node tests/browser.mjs"
+    "desktop": "electron .",
+    "test": "node --disable-warning=ExperimentalWarning --test",
+    "test:browser": "node tests/browser.mjs",
+    "test:desktop": "node tests/desktop.e2e.mjs",
+    "dist:linux": "electron-builder --linux",
+    "dist:win": "electron-builder --win",
+    "online": "node online/service.js"
   },
   "devDependencies": {
+    "electron": "^39.8.10",
+    "electron-builder": "^26.15.3",
     "playwright": "1.64.1"
-  }
+  },
+  "allowScripts": {
+    "electron@39.8.10": true,
+    "electron-winstaller@5.4.0": true
+  },
+  "productName": "PubQuiz",
+  "description": "Pub quiz system: quiz desk, TV display and phone play, offline on one laptop",
+  "author": {
+    "name": "Daniel Weatherall",
+    "email": "d.weatherall92@gmail.com"
+  },
+  "license": "UNLICENSED",
+  "main": "desktop/main.js",
+  "build": {
+    "appId": "uk.pubquiz.desktop",
+    "productName": "PubQuiz",
+    "copyright": "Copyright \u00a9 2026 Daniel Weatherall",
+    "asar": false,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "package.json",
+      "*.js",
+      "*.html",
+      "*.css",
+      "desktop/**",
+      "scripts/*.py",
+      "scripts/*.ps1",
+      "scripts/*.mjs",
+      "scripts/pubquiz.png",
+      "scripts/pubquiz.svg",
+      "sounds/**",
+      "media/README.md",
+      "!**/__pycache__",
+      "!online/**",
+      "!mobile/**",
+      "!tests/**",
+      "!examples/**",
+      "!docs/**"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
+      "category": "Game",
+      "icon": "build/icon.png",
+      "executableName": "pubquiz",
+      "desktop": {
+        "entry": {
+          "Name": "PubQuiz",
+          "Comment": "Run a pub quiz",
+          "StartupWMClass": "PubQuiz"
+        }
+      },
+      "syncDesktopName": true
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "PubQuiz"
+    },
+    "portable": {
+      "artifactName": "PubQuiz-${version}-portable.exe"
+    }
+  },
+  "desktopName": "pubquiz.desktop"
 }

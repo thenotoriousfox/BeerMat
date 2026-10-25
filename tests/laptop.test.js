@@ -15,13 +15,13 @@ test('laptop jobs: the Wi-Fi goes through pkexec with fixed arguments, and messa
   const calls = [], results = [];
   const run = async (file, args) => {calls.push([file, ...args]); return results.shift() || {ok: true, code: 0, out: '{"wifiOn":true,"cards":[],"pick":null,"running":null}'};};
   const laptop = createLaptop({root: '/quiz', run, python: '/usr/bin/python3', speedQuizzing: '/nowhere', piper: ['/nowhere']});
-  assert.deepEqual((await laptop.status()).wifi, {available: true, wifiOn: true, cards: [], pick: null, running: null});
+  assert.deepEqual((await laptop.status()).wifi, {available: true, platform: 'linux', needsPassword: false, wifiOn: true, cards: [], pick: null, running: null, address: '10.42.0.1'});
   assert.deepEqual(calls.pop(), ['/usr/bin/python3', '/quiz/scripts/hotspot.py', 'status']);
 
   results.push({ok: false, code: 2, out: 'usage: hotspot.py [-h]\nhotspot.py: error: Your Wi-Fi (Home) is on 5 GHz.\n  nmcli connection modify Home 802-11-wireless.band bg'});
   let done; const finished = new Promise(r => {done = r;});
-  laptop.startWifi({card: 'auto', ssid: ' Quiz Night '}, done);
-  assert.deepEqual(calls.pop(), ['pkexec', '/usr/bin/python3', '/quiz/scripts/hotspot.py', 'up', '--interface', 'auto', '--ssid', 'Quiz Night', '--apply', '--replace']);
+  laptop.startWifi({card: 'auto', ssid: ' Quiz Night '}, done, 3000);
+  assert.deepEqual(calls.pop(), ['pkexec', '/usr/bin/python3', '/quiz/scripts/hotspot.py', 'up', '--interface', 'auto', '--ssid', 'Quiz Night', '--port', '3000', '--apply', '--replace']);
   await finished;
   assert.deepEqual((await laptop.status()).jobs.wifi, {running: false, ok: false, message: 'Your Wi-Fi (Home) is on 5 GHz.\n  nmcli connection modify Home 802-11-wireless.band bg'});
 
@@ -36,6 +36,37 @@ test('laptop jobs: the Wi-Fi goes through pkexec with fixed arguments, and messa
   for (const bad of [{card: 'wlan0; rm -rf', ssid: 'Quiz'}, {card: 'auto', ssid: ''}, {card: 'auto', ssid: 'x'.repeat(33)}, {card: 'auto', ssid: 'a\nb'}]) assert.throws(() => laptop.startWifi(bad), /Pick a Wi-Fi card|Wi-Fi name/);
   assert.throws(() => laptop.soundPack(), /No SpeedQuizzing sounds/);
   assert.throws(() => laptop.bingoVoice(), /Piper is not installed/);
+});
+
+test('laptop jobs on Windows: Mobile Hotspot through PowerShell, always with a password, settings passed as base64 JSON', async () => {
+  const calls = [], results = [];
+  const run = async (file, args) => {calls.push([file, ...args]); return results.shift() || {ok: true, code: 0, out: '{"available":true,"platform":"windows","needsPassword":true,"wifiOn":true,"cards":[{"name":"Wi-Fi","ap":true,"connected":true}],"pick":{"interface":"Mobile Hotspot","keepWifi":true},"running":null}'};};
+  const laptop = createLaptop({root: 'C:\\PubQuiz', run, platform: 'win32', cloudflared: null, speedQuizzing: '/nowhere', piper: ['/nowhere']});
+  const status = await laptop.status();
+  assert.equal(status.platform, 'windows');
+  assert.equal(status.wifi.needsPassword, true);
+  assert.equal(status.wifi.address, '192.168.137.1');
+  const ps = ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join('C:\\PubQuiz', 'scripts', 'hotspot-windows.ps1')];
+  assert.deepEqual(calls.pop(), [...ps, 'status']);
+  assert.throws(() => laptop.startWifi({ssid: 'Quiz', password: 'short'}), /8–63/);
+  assert.throws(() => laptop.startWifi({ssid: 'Quiz', password: 'pässwörd-long'}), /8–63/);
+  let done; const finished = new Promise(r => {done = r;});
+  laptop.startWifi({ssid: '-Action down', password: 'quiz night 2024'}, done);
+  const call = calls.pop();
+  assert.deepEqual(call.slice(0, -1), [...ps, 'up']);
+  assert.deepEqual(JSON.parse(Buffer.from(call.at(-1), 'base64').toString()), {ssid: '-Action down', password: 'quiz night 2024'});
+  assert.match(call.at(-1), /^[A-Za-z0-9+/=]+$/);
+  await finished;
+  // A Windows exit code 126 is not a dismissed password prompt.
+  results.push({ok: false, code: 126, out: 'Windows could not stop Mobile Hotspot'});
+  await new Promise(r => laptop.stopWifi(r));
+  assert.deepEqual(calls.pop(), [...ps, 'down']);
+  assert.equal((await laptop.status()).jobs.wifi.message, 'Windows could not stop Mobile Hotspot');
+  await assert.rejects(laptop.wifiOn(), /quick settings/);
+  assert.throws(() => laptop.goOnline(3001), /winget install Cloudflare.cloudflared/);
+  // The JSON line is found even after PowerShell warnings.
+  results.push({ok: true, code: 0, out: 'WARNING: something\n{"available":false,"reason":"No API"}'});
+  assert.deepEqual((await laptop.wifi()), {available: false, platform: 'windows', needsPassword: true, reason: 'No API', address: '192.168.137.1', running: null});
 });
 
 async function fixture(options, fn) {

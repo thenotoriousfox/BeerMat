@@ -5,3 +5,16 @@ node_modules/
 quiz.sqlite*
 results/
 soundpack/
+dist/
+online.sqlite*
+mobile/www/shared/
+mobile/node_modules/
+mobile/android/app/build/
+mobile/android/.gradle/
+mobile/android/build/
+mobile/ios/App/Pods/
+mobile/android/local.properties
+
+mobile/android/keystore.properties
+*.jks
+*.keystore
