@@ -77,6 +77,12 @@ test('waiting room holds new teams until let in; max teams caps joining', () => 
   assert.equal((await call('host/settings', {maxTeams: 251})).status, 400);
 }));
 
+test('the TV knows each team’s buzzer sound, so first place and the winner hear their own', () => fixture(async ({call, board}) => {
+  const fox = await call('join', {name: 'Fox'}); await call('join', {name: 'Owl'});
+  await call('team/sound', {sound: 6}, fox.secret);
+  assert.deepEqual((await board()).teams.map(t => [t.name, t.sound]), [['Fox', 6], ['Owl', null]]);
+}));
+
 test('positions-only board hides scores everywhere but the desk', () => fixture(async ({call, board}) => {
   const team = await call('join', {name: 'Fox'}), other = await call('join', {name: 'Owl'});
   const {id} = await call('host/open', question());

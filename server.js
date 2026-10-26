@@ -377,7 +377,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   }
   function scores(includeDisabled = false) {
     const live = liveTeams();
-    const teams = rows(`SELECT id,name,seen,enabled,waiting,photo,photo_status,note,
+    const teams = rows(`SELECT id,name,seen,enabled,waiting,sound,photo,photo_status,note,
       COALESCE((SELECT SUM(a.points) FROM answers a JOIN questions q ON a.question=q.id WHERE a.team=teams.id AND (q.closed=1 OR q.settled=1)),0)
       +COALESCE((SELECT SUM(points) FROM adjustments WHERE team=teams.id),0) score FROM teams ${includeDisabled ? '' : 'WHERE enabled=1 AND waiting=0'} ORDER BY score DESC,name`);
     // Teams level on points are split by the latest tie-breaker once it has closed: closest first, then the quicker

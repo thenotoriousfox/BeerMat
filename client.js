@@ -449,6 +449,7 @@ function soundCues(s) {
     if (status === 'pending') playSound('bingo'); else {stopSound('bingo'); playSound(status === 'correct' ? 'correct' : 'wrong');}
   }
   if (s.view === 'leaderboard' && before.view === 'question' && s.settings.displayMode === 'auto') playSound('endRound');
+  if (s.view === 'leaderboard' && before.view !== 'leaderboard') cheerLeaders(s.teams, 1200);
 }
 // The TV never scrolls: the visible view is scaled down until it fits the space under the header.
 // A narrower scale makes the view wider, so text reflows shorter; a few rounds settle it.
@@ -478,6 +479,11 @@ function renderCountdown() {
   if (left <= 0 && countdownDone !== timer.id) {countdownDone = timer.id; if (timer.endsAt !== null && Date.now() + offset - timer.endsAt < 3000 && !playSound('timeUp')) buzzSound('', 3);}
   else if (left > 0 && countdownDone === timer.id) countdownDone = null;
 }
+// The team in first place hears its own buzzer sound when the leaderboard comes up and when it wins; teams tied for
+// first take turns.
+function cheerLeaders(teams, delay) {
+  teams.filter(team => team.rank === 1).slice(0, 4).forEach((team, i) => setTimeout(() => buzzSound(team.name, team.sound), delay + i * 2500));
+}
 function renderWinner(s) {
   const top = s.teams.filter(t => t.rank === 1), names = top.map(t => t.name).join(' & ');
   $('winnerName').textContent = !s.settings.leaderboardVisible ? t('Scores are hidden for now') : names || t('No teams yet');
@@ -485,7 +491,7 @@ function renderWinner(s) {
   $('winnerScore').textContent = top.length && s.settings.leaderboardVisible && top[0].score !== null ? t(top.length > 1 ? '{n} points — a tie!' : '{n} points', {n: top[0].score}) : '';
   $('podium').replaceChildren(...s.teams.filter(t => t.rank > 1 && t.rank <= 3).map(t => {const li = element('li'); li.append(element('span', `${t.rank === 2 ? '🥈' : '🥉'} ${t.name}`), element('strong', t.score === null ? '' : `${t.score} pts`)); return li;}));
   if (names && names !== winnerShown) {
-    winnerShown = names; fanfare();
+    winnerShown = names; fanfare(); cheerLeaders(s.teams, 2500);
     // Confetti pieces fall once; reduced-motion users see a still screen (see style.css).
     $('confetti').replaceChildren(...Array.from({length: 80}, (_, i) => {
       const piece = element('span'); piece.style.left = `${Math.random() * 100}%`; piece.style.animationDelay = `${Math.random() * 1.5}s`;
