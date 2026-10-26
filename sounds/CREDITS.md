@@ -20,7 +20,6 @@ sound was shortened with a fade.
 | `general/airhorn.mp3` | Joseph Sardin, BigSoundBank #1048 “Gas fog horn #1” (https://bigsoundbank.com/sound-s1048.html) | CC0 |
 | `general/your_applause.mp3` | Joseph Sardin, BigSoundBank #3522 “Applause from 40 people #6” (https://bigsoundbank.com/sound-s3522.html) | CC0 |
 | `bingo_voice/1.mp3` … `90.mp3` | Made for PubQuiz with `scripts/bingo-voice.mjs --builtin`: Piper text-to-speech, en_GB “cori” voice, trained on public-domain LibriVox recordings (https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_GB/cori/high/MODEL_CARD) | CC0 |
-| `Themes/Halloween/*.mp3` (round start and end, question start, music while answering, time's up, correct, wrong, reveal) | Made for PubQuiz with `scripts/halloween-sounds.mjs`: synthesised from scratch (organ, bells, music box, theremin, timpani), no recordings or samples | CC0 |
 | `buzzers/Sound Effects/Power up *`, `Laser *`, `Phaser *`, `Three tone`, `Two tone`, `Zap*`, `Pep *` | Kenney, *Digital Audio* (https://kenney.nl/assets/digital-audio) | CC0 |
 | `buzzers/Sound Effects/Glass ding`, `Bong`, `Confirm` | Kenney, *Interface Sounds* | CC0 |
 | `buzzers/Jingles/*` | Kenney, *Music Jingles* | CC0 |

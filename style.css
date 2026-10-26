@@ -41,39 +41,10 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
-/* ---------- Looks: the TV and phones can change look per question (random or by type) ---------- */
-:root[data-look=ocean] { --bg: #04101f; --bg-2: #0a2240; --surface-solid: #0d2340; --field: #061629; --gold: #3ddcff; --gold-hi: #9ff0ff; --gold-pale: #d4f8ff; --gold-2: #2f7bff; --on-accent: #021426; --pink: #6b7bff; --violet: #2f7bff; --spot-1: #2f7bff; --spot-2: #19e6c1; --spot-3: #6b7bff; --muted: #a9c3e0; }
-:root[data-look=sunset] { --bg: #190710; --bg-2: #3a0f1f; --surface-solid: #3a1424; --field: #1e0811; --gold: #ff9f43; --gold-hi: #ffc58a; --gold-pale: #ffe0c2; --gold-2: #ff4f5e; --on-accent: #2a0a00; --pink: #ff4f8b; --violet: #ff6a3d; --spot-1: #ff6a3d; --spot-2: #ff2d6f; --spot-3: #ffb347; --muted: #e3b7bf; }
-:root[data-look=emerald] { --bg: #03130c; --bg-2: #0a2c1d; --surface-solid: #0e2e20; --field: #04170e; --gold: #ffd34d; --gold-hi: #ffe58f; --gold-pale: #fff1c4; --gold-2: #e8a317; --on-accent: #1d1300; --pink: #2fe39a; --violet: #18a868; --spot-1: #18a868; --spot-2: #ffd34d; --spot-3: #2fe39a; --muted: #a9d6c0; }
-:root[data-look=neon] { --bg: #0c0214; --bg-2: #24063a; --surface-solid: #2a0b40; --field: #11041c; --gold: #ff3df2; --gold-hi: #ff9cf8; --gold-pale: #ffd1fb; --gold-2: #a63dff; --on-accent: #ffffff; --pink: #3dfcff; --violet: #a63dff; --spot-1: #ff3df2; --spot-2: #3dfcff; --spot-3: #a63dff; --muted: #d1b3e6; }
-:root[data-look=royal] { --bg: #0b0905; --bg-2: #1e180b; --surface-solid: #241d0e; --field: #110d06; --gold: #f5c542; --gold-hi: #ffe08a; --gold-pale: #fff0c7; --gold-2: #c8892c; --on-accent: #1d1300; --pink: #d9a441; --violet: #8a6a2c; --spot-1: #c8892c; --spot-2: #f5c542; --spot-3: #7a5a20; --muted: #d6c8a6; }
-:root[data-look=halloween] { --bg: #0b0612; --bg-2: #22103a; --surface-solid: #26123a; --field: #12081c; --gold: #ff7a1a; --gold-hi: #ffa552; --gold-pale: #ffd9b0; --gold-2: #e0480f; --on-accent: #1a0800; --pink: #8dff4f; --violet: #7b2fbf; --spot-1: #7b2fbf; --spot-2: #ff7a1a; --spot-3: #3fbf3f; --muted: #c9b3d9; }
+/* ---------- Looks: each look is a theme in themes/<id>/look.css, served together as /themes.css ---------- */
 :root[data-look] { transition: background-color .6s; }
-/* Halloween on the TV: a full moon, bats drifting across the top and pumpkins in the bottom corners, kept faint and
-   out of the way of the quiz. Text characters only (no images to load). */
-:root[data-look=halloween]:has(body[data-role=display]) {
-  background-image:
-    radial-gradient(3.2vmin 3.2vmin at 52% 5.5vh, #fff4d6 0 92%, transparent 100%),
-    radial-gradient(9vmin 9vmin at 52% 5.5vh, color-mix(in srgb, #ffe7a8 22%, transparent), transparent 70%),
-    radial-gradient(60vmax 40vmax at 12% -8%, color-mix(in srgb, var(--spot-1) 38%, transparent), transparent 60%),
-    radial-gradient(70vmax 50vmax at 50% 115%, color-mix(in srgb, var(--spot-3) 14%, transparent), transparent 65%),
-    linear-gradient(180deg, var(--bg-2), var(--bg) 60%);
-  animation: none; background-size: auto;
-}
-:root[data-look=halloween] body[data-role=display]::before, :root[data-look=halloween] body[data-role=display]::after, :root[data-look=halloween] body[data-role=display] #projection::after {
-  position: fixed; pointer-events: none; z-index: 0; opacity: .55; line-height: 1; filter: drop-shadow(0 0 1vmin rgba(0, 0, 0, .6));
-}
-:root[data-look=halloween] body[data-role=display]::before { content: '🦇      🦇   🦇'; top: 9vh; left: -30vw; font-size: 4vmin; white-space: pre; }
-:root[data-look=halloween] body[data-role=display]::after { content: '🎃'; bottom: 1.5vh; left: 1.5vw; font-size: 9vmin; }
-:root[data-look=halloween] body[data-role=display] #projection::after { content: '🎃'; bottom: 1.5vh; right: 1.5vw; font-size: 7vmin; }
-:root[data-look=halloween] body[data-role=display] #projection { position: relative; z-index: 1; }
-@media (prefers-reduced-motion: no-preference) {
-  :root[data-look=halloween] body[data-role=display]::before { animation: bats 26s linear infinite; }
-  @keyframes bats {
-    0% { transform: translate(0, 0); } 25% { transform: translate(40vw, 4vh); } 50% { transform: translate(80vw, -2vh); }
-    75% { transform: translate(120vw, 5vh); } 100% { transform: translate(160vw, 0); }
-  }
-}
+/* A theme's decorations (themes/<id>/look.css) go in this layer behind the page; hidden unless a look uses it. */
+.decor { display: none; position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
 
 /* ---------- Stage background: spotlights that drift slowly (on the whole window) ---------- */
 body { max-width: 1180px; margin: auto; padding: 24px; min-height: 100vh; }

@@ -11,7 +11,8 @@ import {lanAddresses, joinUrlFor, diagnose, hotspotAddresses} from './network.js
 import {teamResults} from './results.js';
 import {newVenueKey, signClaim, keyId} from './claims.js';
 import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from './soundnames.js';
-import {looks, typeGroups, seasonal} from './looks.js';
+import {typeGroups} from './looks.js';
+import {loadThemes} from './themes.js';
 import {fetchDriveQuiz} from './drive.js';
 import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern, sheetPoints, spotifyTrack} from './model.js';
 
@@ -19,7 +20,7 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(24).toString('hex');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const equal = (a, b) => typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
-const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav'};
+const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.svg': 'image/svg+xml', '.woff2': 'font/woff2'};
 const security = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; media-src 'self'; img-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"};
 // Only the quiz desk may load Spotify's Web Playback SDK (its script, its hidden player frame and the audio it streams).
 // Phones and the TV keep the strict, local-only policy.
@@ -60,7 +61,7 @@ function loadPack(dir, prefix) {
   return {slots, themes, buzzers, calls, voice: voice.some(Boolean) ? voice : null};
 }
 
-export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose, fetchImpl = globalThis.fetch} = {}) {
+export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), themesDir = path.join(root, 'themes'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose, fetchImpl = globalThis.fetch} = {}) {
   if (typeof hostKey !== 'string' || hostKey.length < 12) throw Error('HOST_KEY must contain at least 12 characters');
   const db = new DatabaseSync(database);
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
@@ -128,9 +129,17 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // PubQuiz ships CC0 sounds in sounds/; a laptop's own soundpack/ (same layout) takes priority over them.
   // A sound theme (SpeedQuizzing's Themes/<name>) replaces the moments it has a sound for. Desk choices, stored
   // separately for moments and buzzers, override the defaults. Reloaded after the desk rebuilds the pack.
+  // Themes in themes/<id>/ (themes.js) bring a look and, with a sounds/ folder, a sound theme under the theme's name.
   let shipped, local, themes;
-  const reloadPack = () => {shipped = loadPack(soundsDir, '/sounds/'); local = loadPack(packDir, '/pack/'); themes = {...shipped.themes, ...local.themes};};
+  const folders = loadThemes(themesDir);
+  const reloadPack = () => {
+    shipped = loadPack(soundsDir, '/sounds/'); local = loadPack(packDir, '/pack/');
+    themes = {...shipped.themes, ...Object.fromEntries(folders.themes.filter(t => Object.keys(t.sounds).length).map(t => [t.name, t.sounds])), ...local.themes};
+  };
   reloadPack();
+  // Seasonal themes (Halloween) are only used when chosen.
+  const seasonal = name => folders.themes.some(t => t.seasonal && (t.id === name || t.name === name));
+  const looks = folders.themes.map(t => [t.id, t.name]);
   const defaults = theme => ({slots: {...shipped.slots, ...local.slots, ...themes[theme]}, buzzers: [...local.buzzers, ...shipped.buzzers].slice(0, 200)});
   // The theme can be fixed, random for each question (stable per question) or chosen by question type.
   // By type, the default spreads the themes over groups of formats; the desk can change any type.
@@ -154,15 +163,15 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     let h = Math.imul(id ^ salt, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
     return (h >>> 0) % count;
   };
-  const lookIds = looks.map(([id]) => id), groupLooks = ['stage', 'ocean', 'sunset', 'neon', 'emerald'];
-  const looksByType = () => ({...Object.fromEntries(typeGroups.flatMap((types, i) => types.map(type => [type, groupLooks[i]]))), ...settings().lookByType});
+  const lookIds = looks.map(([id]) => id), groupLooks = ['stage', 'ocean', 'sunset', 'neon', 'emerald'].filter(id => lookIds.includes(id));
+  const looksByType = () => ({...Object.fromEntries(typeGroups.flatMap((types, i) => types.map(type => [type, groupLooks[i % groupLooks.length] ?? 'stage']))), ...settings().lookByType});
   function lookFor(q) {
     const mode = settings().look;
-    if (lookIds.includes(mode)) return mode;
+    if (lookIds.includes(mode) || mode === 'stage') return mode;
     if (!q) return 'stage';
     if (mode === '@type') return looksByType()[dataOf(q).type] ?? 'stage';
     const pool = lookIds.filter(id => !seasonal(id));
-    return mode === '@random' ? pool[pickFor(q.id, 0x5bd1e995, pool.length)] : 'stage';
+    return mode === '@random' && pool.length ? pool[pickFor(q.id, 0x5bd1e995, pool.length)] : 'stage';
   }
   // Desk choices for single moments sit on top of the theme (null removes a moment's sound).
   const soundPack = (q = latest()) => {
@@ -708,7 +717,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       settle(latest());
       if (req.method === 'GET' && p === '/api/events') return openStream(req, res, url);
       if ((req.method === 'GET' || req.method === 'HEAD') && !p.startsWith('/api/')) {
-        const routes = {'/host': 'host.html', '/display': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/sqimport.js': 'sqimport.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/looks.js': 'looks.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
+        const routes = {'/host': 'host.html', '/display': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/sqimport.js': 'sqimport.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
         if (p.startsWith('/media/')) {
           requireValue(mediaPattern.test(p), 'Media not found', 404);
           const file = path.join(mediaDir, path.basename(p));
@@ -716,6 +725,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           return sendFile(req, res, file);
         }
         if (p === '/health') return send(200, {ok: true});
+        if (p === '/themes.css') {res.writeHead(200, {...security, 'Content-Type': 'text/css; charset=utf-8'}); return res.end(folders.css);}
+        if (p.startsWith('/themes/')) {
+          const [, id, ...rest] = p.slice(1).split('/'), file = folders.file(id, rest.join('/'));
+          requireValue(file && existsSync(file) && statSync(file).isFile(), 'Not found', 404); return sendFile(req, res, file);
+        }
         if (p.startsWith('/pack/') || p.startsWith('/sounds/')) {const file = packFile(p); requireValue(file, 'Sound not found', 404); return sendFile(req, res, file);}
         if (p === '/spotify/callback') {
           // Sign-in only ever finishes in a browser on the laptop itself.
@@ -778,7 +792,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/logout') {run('DELETE FROM host_sessions WHERE hash=?', hash(auth)); return send(200, {ok: true});}
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats();
-          return send(200, {serverTime: now(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {serverTime: now(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }

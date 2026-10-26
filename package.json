@@ -57,6 +57,7 @@
       "scripts/pubquiz.png",
       "scripts/pubquiz.svg",
       "sounds/**",
+      "themes/**",
       "media/README.md",
       "!**/__pycache__",
       "!online/**",

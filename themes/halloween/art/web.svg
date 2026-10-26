@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
+  <!-- A cobweb for a top corner (drawn for PubQuiz, CC0). -->
+  <g fill="none" stroke="#d9cdf2" stroke-opacity=".5" stroke-linecap="round">
+    <path d="M0 0L300 40M0 0L270 140M0 0L210 230M0 0L130 290M0 0L40 300" stroke-width="1.6"/>
+    <path d="M60 8Q48 26 54 36Q40 46 42 56Q26 58 20 72Q12 70 8 60" stroke-width="1.1"/>
+    <path d="M120 16Q98 44 108 72Q86 92 84 112Q58 116 48 144Q28 140 16 120" stroke-width="1.1"/>
+    <path d="M190 26Q160 66 170 108Q138 136 134 170Q98 178 84 214Q52 210 30 186" stroke-width="1"/>
+    <path d="M262 36Q222 92 236 138Q194 176 186 222Q140 236 124 278Q80 274 40 254" stroke-width=".9"/>
+  </g>
+</svg>

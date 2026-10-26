@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 520" preserveAspectRatio="xMidYMax slice">
+  <!-- PubQuiz Halloween scenery (drawn for PubQuiz, CC0): hills, a manor on the hill, a dead tree, a graveyard and
+       jack-o'-lanterns, as silhouettes against the sky behind. -->
+  <defs>
+    <radialGradient id="window" cx="50%" cy="60%" r="70%"><stop offset="0" stop-color="#ffd27a"/><stop offset=".6" stop-color="#ff9a2e"/><stop offset="1" stop-color="#c2410c"/></radialGradient>
+    <radialGradient id="halo" r="50%"><stop offset="0" stop-color="#ff9a2e" stop-opacity=".55"/><stop offset="1" stop-color="#ff7a1a" stop-opacity="0"/></radialGradient>
+    <radialGradient id="pumpkin" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#ffab4a"/><stop offset=".55" stop-color="#f06a12"/><stop offset="1" stop-color="#8a2c05"/></radialGradient>
+    <linearGradient id="farHill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2163"/><stop offset="1" stop-color="#1c0f33"/></linearGradient>
+    <linearGradient id="midHill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#21113a"/><stop offset="1" stop-color="#120a22"/></linearGradient>
+    <g id="lantern">
+      <ellipse cx="0" cy="0" rx="58" ry="46" fill="url(#halo)" transform="scale(1.9)"/>
+      <path d="M-4-40c2-10 8-16 16-18l3 5c-7 3-10 7-11 13z" fill="#3d5a1e"/>
+      <ellipse cx="-22" cy="2" rx="22" ry="36" fill="url(#pumpkin)"/>
+      <ellipse cx="22" cy="2" rx="22" ry="36" fill="url(#pumpkin)"/>
+      <ellipse cx="0" cy="0" rx="24" ry="38" fill="url(#pumpkin)"/>
+      <path d="M-22-10l10-14 9 14z M3-10l10-14 9 14z M-4 2l4-8 4 8z M-26 12q26 22 52 0l-6 3-4-6-6 7-6-7-6 7-6-7-4 6z" fill="#ffe28a"/>
+    </g>
+    <g id="stone"><path d="M-22 0v-46q0-22 22-22t22 22v46z" fill="#170c29"/><path d="M-12-40h24M-12-30h18" stroke="#2b1a47" stroke-width="3"/></g>
+    <g id="cross"><path d="M-5 0v-70h10v70zM-20-52h40v10h-40z" fill="#130a23"/></g>
+  </defs>
+
+  <!-- Far hills -->
+  <path d="M0 330C160 290 300 300 430 318S700 270 860 286 1120 250 1300 262 1640 228 1920 262V520H0z" fill="url(#farHill)"/>
+
+  <!-- The manor's hill -->
+  <path d="M760 520C900 410 1060 300 1240 288S1560 330 1700 390 1880 470 1920 480V520z" fill="url(#midHill)"/>
+
+  <!-- The manor -->
+  <g fill="#0f0820">
+    <path d="M1180 445V170h-14l58-62 58 62h-14v275z"/>
+    <path d="M1296 445V214l-12 0 74-70 74 70h-12v231z"/>
+    <path d="M1420 445V196h-10l50-50 50 50h-10v249z"/>
+    <!-- Tower and spire -->
+    <path d="M1330 214V110h-8l42-92 42 92h-8v104z"/>
+    <path d="M1362 20h4v-18h-4zM1356 8h16v4h-16z"/>
+    <path d="M1250 120v-34h16v26z M1484 160v-36h14v40z"/>
+    <path d="M1350 340v-50q14-16 28 0v50z" fill="url(#window)" opacity=".55"/>
+    <path d="M1150 440q90-40 220-36t190 30v12h-410z" fill="#140a24"/>
+  </g>
+  <g fill="url(#window)">
+    <rect x="1206" y="190" width="18" height="30" rx="9"/><rect x="1238" y="190" width="18" height="30" rx="9"/>
+    <rect x="1206" y="246" width="18" height="30"/><rect x="1238" y="246" width="18" height="30"/>
+    <rect x="1352" y="120" width="24" height="38" rx="12"/>
+    <rect x="1328" y="236" width="20" height="34"/><rect x="1394" y="236" width="20" height="34"/>
+    <circle cx="1460" cy="200" r="13"/>
+    <rect x="1446" y="242" width="16" height="28"/><rect x="1476" y="242" width="16" height="28" opacity=".35"/>
+  </g>
+  <g stroke="#0f0820" stroke-width="4">
+    <path d="M1364 120v38M1352 139h24M1215 190v30M1247 190v30M1460 187v26M1447 200h26"/>
+  </g>
+  <circle cx="1364" cy="139" r="70" fill="url(#halo)" opacity=".5"/>
+  <circle cx="1231" cy="230" r="80" fill="url(#halo)" opacity=".35"/>
+
+  <!-- Path winding down from the manor -->
+  <path d="M1350 318c-40 40-150 60-160 110s80 60 40 92h-90c40-30-60-50-30-100s120-70 180-102z" fill="#1c1030" opacity=".8"/>
+
+  <!-- The dead tree -->
+  <g stroke="#08040f" stroke-linecap="round" fill="none">
+    <path d="M300 520C310 420 286 360 318 280S300 170 330 120" stroke-width="40"/>
+    <path d="M318 290C260 250 200 250 150 200S90 150 60 160" stroke-width="18"/>
+    <path d="M150 200C140 160 160 130 140 96" stroke-width="9"/>
+    <path d="M84 168C60 140 40 150 20 128" stroke-width="7"/>
+    <path d="M326 200C380 170 420 180 470 140S540 120 580 70" stroke-width="16"/>
+    <path d="M470 142C500 150 540 170 600 160" stroke-width="8"/>
+    <path d="M520 104C520 70 548 50 540 18" stroke-width="7"/>
+    <path d="M330 130C320 90 360 60 350 20" stroke-width="10"/>
+    <path d="M340 70C370 50 400 60 420 30" stroke-width="6"/>
+    <path d="M196 236C186 270 150 284 128 310" stroke-width="8"/>
+    <path d="M584 72C600 60 610 40 630 36M598 160C620 170 640 160 660 172M60 160C40 170 26 186 6 184M140 96C130 80 132 66 118 52" stroke-width="4"/>
+  </g>
+  <!-- A crow on a branch -->
+  <path d="M452 136c6-12 22-14 30-6l10-2-8 6c2 8-4 14-14 14l-6 8-2-8c-6-2-10-6-10-12z" fill="#08040f"/>
+
+  <!-- Graveyard ground -->
+  <path d="M0 430C200 400 420 396 620 412S900 440 1060 430 1500 450 1920 440V520H0z" fill="#0b0614"/>
+  <g transform="translate(560 432) rotate(-6)"><use href="#stone"/></g>
+  <g transform="translate(660 438) scale(.85)"><use href="#cross"/></g>
+  <g transform="translate(760 440) rotate(5) scale(.9)"><use href="#stone"/></g>
+  <g transform="translate(880 446) rotate(-10) scale(.75)"><use href="#cross"/></g>
+  <g transform="translate(980 444) scale(.7)"><use href="#stone"/></g>
+  <g transform="translate(1660 450) rotate(4) scale(.8)"><use href="#stone"/></g>
+  <g transform="translate(1760 452) rotate(-4) scale(.9)"><use href="#cross"/></g>
+  <!-- Iron fence -->
+  <g fill="#0b0614">
+    <path d="M1040 470h560v6h-560zM1040 446h560v5h-560z"/>
+    <path id="spike" d="M1046 486v-56l-6 0 9-16 9 16h-6v56z"/>
+    <use href="#spike" x="28"/><use href="#spike" x="56"/><use href="#spike" x="84"/><use href="#spike" x="112"/><use href="#spike" x="140"/><use href="#spike" x="168"/><use href="#spike" x="196"/><use href="#spike" x="224"/><use href="#spike" x="252"/><use href="#spike" x="280"/><use href="#spike" x="308"/><use href="#spike" x="336"/><use href="#spike" x="364"/><use href="#spike" x="392"/><use href="#spike" x="420"/><use href="#spike" x="448"/><use href="#spike" x="476"/><use href="#spike" x="504"/><use href="#spike" x="532"/>
+  </g>
+  <!-- Front edge -->
+  <path d="M0 482C240 466 500 470 760 486S1300 496 1920 478V520H0z" fill="#06030b"/>
+
+  <!-- Jack-o'-lanterns -->
+  <use href="#lantern" transform="translate(150 470)"/>
+  <use href="#lantern" transform="translate(240 488) scale(.72)"/>
+  <use href="#lantern" transform="translate(1800 474) scale(.95)"/>
+  <use href="#lantern" transform="translate(1700 492) scale(.6)"/>
+</svg>

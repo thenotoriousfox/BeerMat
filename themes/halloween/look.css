@@ -1,0 +1,80 @@
+/* Halloween: a haunted hill at night. On the TV the moon rises behind a manor, bats cross the sky, fog drifts through
+   the graveyard and embers rise from the jack-o'-lanterns; phones get the same hill, quieter. The decorations use the
+   page's .decor layer (<i> 1 moon, 2 hill, 3–6 bats, 7–8 fog, 9 cobweb, 10 spider, 11–14 embers). */
+:root[data-look=halloween] {
+  --bg: #0a0614; --bg-2: #1d0d33; --surface-solid: #241136; --field: #12081d;
+  --surface: rgba(20, 9, 34, .86); --surface-2: rgba(42, 18, 64, .9);
+  --line: rgba(255, 150, 70, .2); --line-strong: rgba(255, 150, 70, .42);
+  --gold: #ff7a1a; --gold-hi: #ffa552; --gold-pale: #ffdcb0; --gold-2: #e2470f; --on-accent: #1a0800;
+  --pink: #9dff5a; --violet: #8a3ad1; --spot-1: #6b2bb0; --spot-2: #ff7a1a; --spot-3: #3fbf3f; --muted: #cbb6dc;
+  --scene: calc(max(100vw, 150vh) * 520 / 1920);
+  background-color: #090512;
+  background-image:
+    radial-gradient(120vmax 60vmax at 70% 100%, rgba(255, 122, 40, .22), transparent 60%),
+    radial-gradient(80vmax 50vmax at 10% -10%, rgba(120, 50, 200, .35), transparent 60%),
+    linear-gradient(180deg, #0c0618 0%, #1b0b30 45%, #3a1648 75%, #5a2140 100%);
+}
+:root[data-look=halloween] section {
+  background: linear-gradient(180deg, rgba(44, 20, 68, .9), rgba(16, 7, 28, .93));
+  border-color: rgba(255, 140, 60, .3);
+  box-shadow: inset 0 1px 0 rgba(255, 190, 120, .14), inset 0 0 80px rgba(255, 110, 30, .07), 0 18px 50px rgba(0, 0, 0, .55);
+}
+:root[data-look=halloween] h1 {
+  background: linear-gradient(180deg, #ffe7c2 0%, #ffa552 45%, #ff6a12 70%, #b8360a 100%); -webkit-background-clip: text; background-clip: text;
+  filter: drop-shadow(0 0 .35em rgba(255, 110, 20, .55));
+}
+:root[data-look=halloween] .eyebrow { color: #9dff5a; text-shadow: 0 0 12px rgba(157, 255, 90, .45); }
+:root[data-look=halloween] .leaderboard li:first-child { box-shadow: 0 0 0 1px rgba(255, 140, 60, .6), 0 0 30px rgba(255, 110, 30, .35); }
+
+/* ---- The scenery ---- */
+:root[data-look=halloween] .decor { display: block; }
+:root[data-look=halloween] .decor i { position: absolute; display: block; background: no-repeat center / contain; }
+/* The moon, rising behind the manor's tower (the hill picture puts the tower at 71% across). */
+:root[data-look=halloween] .decor i:nth-child(1) { background-image: url(/themes/halloween/art/moon.svg); width: calc(var(--scene) * .9); aspect-ratio: 1; left: calc(50% + (71% - 50%) * max(1, 150vh / 100vw) - var(--scene) * .45); bottom: calc(var(--scene) * .2); }
+:root[data-look=halloween] .decor i:nth-child(2) { background: url(/themes/halloween/art/scene.svg) no-repeat center bottom / max(100vw, 150vh) auto; left: 0; right: 0; bottom: 0; height: var(--scene); }
+/* Bats: two crossing low over the hill, two in the band above the quiz. */
+:root[data-look=halloween] .decor i:nth-child(n+3):nth-child(-n+6) { background-image: url(/themes/halloween/art/bat.svg); width: 5vmin; aspect-ratio: 3 / 2; left: -8vw; opacity: .95; }
+:root[data-look=halloween] .decor i:nth-child(3) { bottom: calc(var(--scene) * .95); }
+:root[data-look=halloween] .decor i:nth-child(4) { bottom: calc(var(--scene) * 1.15); width: 3.4vmin; }
+:root[data-look=halloween] .decor i:nth-child(5) { top: 2vh; width: 3vmin; }
+:root[data-look=halloween] .decor i:nth-child(6) { bottom: calc(var(--scene) * .8); width: 4vmin; }
+/* Ground fog, two layers drifting at different speeds. */
+:root[data-look=halloween] .decor i:nth-child(7), :root[data-look=halloween] .decor i:nth-child(8) {
+  left: -50vw; width: 200vw; bottom: -2vh; height: calc(var(--scene) * .45); opacity: .5;
+  background: radial-gradient(30% 60% at 20% 70%, rgba(220, 200, 255, .32), transparent 70%), radial-gradient(25% 50% at 55% 80%, rgba(220, 200, 255, .26), transparent 70%), radial-gradient(30% 55% at 85% 75%, rgba(220, 200, 255, .3), transparent 70%);
+}
+:root[data-look=halloween] .decor i:nth-child(8) { bottom: -5vh; opacity: .35; transform: scaleX(-1); }
+/* A cobweb in the top-left corner and its spider. */
+:root[data-look=halloween] .decor i:nth-child(9) { background-image: url(/themes/halloween/art/web.svg); top: 0; left: 0; width: 24vmin; aspect-ratio: 1; opacity: .8; }
+:root[data-look=halloween] .decor i:nth-child(10) { background-image: url(/themes/halloween/art/spider.svg); top: -40vmin; left: .6vmin; width: 3.2vmin; height: 60vmin; background-position: center bottom; }
+/* Embers rising from the lanterns. */
+:root[data-look=halloween] .decor i:nth-child(n+11) { width: .6vmin; aspect-ratio: 1; border-radius: 50%; background: #ffb347; box-shadow: 0 0 1vmin .3vmin #ff7a1a; bottom: calc(var(--scene) * .1); opacity: 0; }
+:root[data-look=halloween] .decor i:nth-child(11) { left: 7.5%; } :root[data-look=halloween] .decor i:nth-child(12) { left: 12%; }
+:root[data-look=halloween] .decor i:nth-child(13) { left: 93%; } :root[data-look=halloween] .decor i:nth-child(14) { left: 88%; }
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-look=halloween] .decor i:nth-child(3) { animation: hw-fly 19s linear infinite; }
+  :root[data-look=halloween] .decor i:nth-child(4) { animation: hw-fly 27s linear -9s infinite; }
+  :root[data-look=halloween] .decor i:nth-child(5) { animation: hw-fly 34s linear -20s infinite; }
+  :root[data-look=halloween] .decor i:nth-child(6) { animation: hw-fly-back 23s linear -6s infinite; }
+  :root[data-look=halloween] .decor i:nth-child(7) { animation: hw-drift 60s ease-in-out infinite alternate; }
+  :root[data-look=halloween] .decor i:nth-child(8) { animation: hw-drift-back 45s ease-in-out infinite alternate; }
+  :root[data-look=halloween] .decor i:nth-child(10) { animation: hw-dangle 7s ease-in-out infinite; }
+  :root[data-look=halloween] .decor i:nth-child(n+11) { animation: hw-ember 6s ease-out infinite; }
+  :root[data-look=halloween] .decor i:nth-child(12) { animation-delay: -2s; } :root[data-look=halloween] .decor i:nth-child(13) { animation-delay: -4s; } :root[data-look=halloween] .decor i:nth-child(14) { animation-delay: -1s; }
+  :root[data-look=halloween] .decor i:nth-child(1) { animation: hw-moon 9s ease-in-out infinite alternate; }
+  :root[data-look=halloween]:has(body[data-role=display]) h1 { animation: hw-flicker 6s infinite; }
+}
+@keyframes hw-fly { 0% { transform: translate(0, 0); } 25% { transform: translate(30vw, -4vh); } 50% { transform: translate(60vw, 2vh); } 75% { transform: translate(90vw, -3vh); } 100% { transform: translate(120vw, 1vh); } }
+@keyframes hw-fly-back { from { transform: translate(120vw, 0) scaleX(-1); } 50% { transform: translate(60vw, -5vh) scaleX(-1); } to { transform: translate(-10vw, 0) scaleX(-1); } }
+@keyframes hw-drift { from { transform: translateX(0); } to { transform: translateX(30vw); } }
+@keyframes hw-drift-back { from { transform: scaleX(-1) translateX(0); } to { transform: scaleX(-1) translateX(25vw); } }
+@keyframes hw-dangle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6vmin); } }
+@keyframes hw-ember { 0% { opacity: 0; transform: translate(0, 0); } 15% { opacity: .9; } 100% { opacity: 0; transform: translate(2vmin, -22vh); } }
+@keyframes hw-moon { from { filter: brightness(1); } to { filter: brightness(1.08); } }
+@keyframes hw-flicker { 0%, 100% { opacity: 1; } 41% { opacity: 1; } 42% { opacity: .82; } 43% { opacity: 1; } 77% { opacity: 1; } 78% { opacity: .88; } 80% { opacity: 1; } }
+
+/* Phones: the hill and moon only, smaller, behind the page. */
+:root[data-look=halloween] body[data-role=player] .decor i:nth-child(n+3):nth-child(-n+10), :root[data-look=halloween] body[data-role=player] .decor i:nth-child(n+11) { display: none; }
+:root[data-look=halloween] body[data-role=player] .decor i:nth-child(1) { width: calc(var(--scene) * .75); left: auto; right: calc(var(--scene) * -.02); bottom: calc(var(--scene) * .35); }
+:root[data-look=halloween] body[data-role=player] .decor i:nth-child(2) { background-position: 74% bottom; }

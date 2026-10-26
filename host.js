@@ -1,7 +1,6 @@
 import {$, element, api, message, readStorage, writeStorage, download, renderMedia, renderSolution, timeText, selectOptions, letters, live, enableSound, useSounds, buzzSound, renderPinpoint, bingoCall, avatar} from './app.js';
 import {parseSqRound, parseQuickQuestion} from './sqimport.js';
 import {slotFiles} from './soundnames.js';
-import {looks} from './looks.js';
 let key = readStorage('pubquiz-host', true), state = null, library = null, editingId = null, tab = 'live', dirty = false, reviewId = '', reviewSignature = '', busy = false;
 const uid = () => 'id-' + crypto.getRandomValues(new Uint32Array(4)).join('-');
 const request = (p, body = {}) => api('host/' + p, body, key);
@@ -503,11 +502,14 @@ function renderSounds(s) {
   $('callsStatus').textContent = s.bingoCalls ? `Your own bingo calls are in use (e.g. 4: “${s.bingoCalls[3] || bingoCall(4)}”)` : 'Built-in bingo calls';
   $('defaultCalls').disabled = !s.bingoCalls;
 }
-// The TV and phones' look: one look, a random one for each question, or one per question type.
+// The TV and phones' look: one look, a random one for each question, or one per question type. The looks are the
+// themes found in themes/ (the server lists them).
+let looks = [];
 const lookName = id => looks.find(([value]) => value === id)?.[1] || id;
 let looksSignature = '';
 function renderLooks(s) {
-  const signature = JSON.stringify([s.settings.look, s.looksByType, s.look]); if (signature === looksSignature) return; looksSignature = signature;
+  const signature = JSON.stringify([s.settings.look, s.looksByType, s.look, s.looks]); if (signature === looksSignature) return; looksSignature = signature;
+  looks = s.looks || [];
   if (document.activeElement !== $('look')) selectOptions($('look'), [...looks, ['@random', 'Random look for each question'], ['@type', 'Look by question type']], s.settings.look);
   $('lookNow').textContent = s.settings.look.startsWith('@') ? `(now: ${lookName(s.look)})` : '';
   $('lookByType').hidden = s.settings.look !== '@type';

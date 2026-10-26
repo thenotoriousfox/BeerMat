@@ -1,0 +1,2 @@
+/* Sunset: colours for the TV and phones. */
+:root[data-look=sunset] { --bg: #190710; --bg-2: #3a0f1f; --surface-solid: #3a1424; --field: #1e0811; --gold: #ff9f43; --gold-hi: #ffc58a; --gold-pale: #ffe0c2; --gold-2: #ff4f5e; --on-accent: #2a0a00; --pink: #ff4f8b; --violet: #ff6a3d; --spot-1: #ff6a3d; --spot-2: #ff2d6f; --spot-3: #ffb347; --muted: #e3b7bf; }

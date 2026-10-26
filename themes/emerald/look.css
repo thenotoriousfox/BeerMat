@@ -1,0 +1,2 @@
+/* Emerald casino: colours for the TV and phones. */
+:root[data-look=emerald] { --bg: #03130c; --bg-2: #0a2c1d; --surface-solid: #0e2e20; --field: #04170e; --gold: #ffd34d; --gold-hi: #ffe58f; --gold-pale: #fff1c4; --gold-2: #e8a317; --on-accent: #1d1300; --pink: #2fe39a; --violet: #18a868; --spot-1: #18a868; --spot-2: #ffd34d; --spot-3: #2fe39a; --muted: #a9d6c0; }

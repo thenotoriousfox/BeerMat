@@ -1,13 +1,13 @@
-// Makes the Halloween sound theme (sounds/Themes/Halloween/) from scratch: pipe organ, church bells, theremin, a music
-// box and timpani, all synthesised here, so the files are PubQuiz's own (CC0, see sounds/CREDITS.md).
-// Needs ffmpeg. Run again after changing it: node scripts/halloween-sounds.mjs
+// Makes this theme's sounds (sounds/) from scratch: pipe organ, church bells, theremin, a music box and timpani, all
+// synthesised here, so the files are PubQuiz's own (CC0, see CREDITS.md).
+// Needs ffmpeg. Run again after changing it: node themes/halloween/make-sounds.mjs
 import {writeFileSync, mkdirSync, rmSync, mkdtempSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import {fileURLToPath} from 'node:url';
 
-const RATE = 44100, out = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'sounds', 'Themes', 'Halloween');
+const RATE = 44100, out = path.join(path.dirname(fileURLToPath(import.meta.url)), 'sounds');
 const note = name => {
   const [, letter, accidental, octave] = /^([A-G])(#|b)?(\d)$/.exec(name);
   const semis = {C: -9, D: -7, E: -5, F: -4, G: -2, A: 0, B: 2}[letter] + (accidental === '#' ? 1 : accidental === 'b' ? -1 : 0);
