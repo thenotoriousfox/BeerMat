@@ -419,7 +419,12 @@ body[data-role=player] input, body[data-role=player] select { font-size: 1.1rem;
 body[data-role=player] #message { position: fixed; left: 14px; right: 14px; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 20; max-width: 612px; margin: 0 auto; padding: 12px 16px; border-radius: 14px; background: var(--surface-solid); border: 1px solid var(--line-strong); box-shadow: var(--shadow); min-height: 0; }
 body[data-role=player] #message:empty { display: none; }
 body[data-role=player] #message.error { background: #4a1426; border-color: rgba(255, 84, 112, .6); color: #ffd1d9; }
-.timer-bar { position: sticky; top: 62px; z-index: 4; height: 8px; margin: 2px 0 14px; border-radius: 4px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+/* Send answer and the timer ride in the top bar, across the full width, so they never need scrolling to. */
+.topbar { flex-wrap: wrap; row-gap: 8px; }
+.topbar #submit { flex-basis: 100%; margin: 0; padding: 12px 16px; font-size: 1.15rem; }
+body[data-role=player]:has(#game[hidden], #answerForm[hidden]) .topbar #submit { display: none; }
+.topbar .timer-bar { flex-basis: 100%; margin: 0; }
+.timer-bar { height: 8px; margin: 2px 0 14px; border-radius: 4px; background: rgba(255, 255, 255, .08); overflow: hidden; }
 .timer-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--good), var(--gold), var(--gold-2)); transition: width .25s linear; box-shadow: 0 0 12px color-mix(in srgb, var(--gold) 60%, transparent); }
 .timer-bar.low span { background: linear-gradient(90deg, var(--bad), var(--pink)); box-shadow: 0 0 12px rgba(255, 84, 112, .7); }
 .play #question { font-family: var(--display); font-size: clamp(1.4rem, 6vw, 2rem); line-height: 1.22; margin: 4px 0 8px; font-weight: 850; }

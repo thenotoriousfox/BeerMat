@@ -68,6 +68,7 @@ try {
 
   for (const [page, name] of [[app, 'App Foxes'], [web, 'Browser Owls']]) {await page.fill('#name', name); await page.click('#joinButton'); await page.locator('#game').waitFor({state: 'visible'});}
   assert.equal(await app.evaluate(() => window.vibrations.length), 0);
+  await post(base + '/api/host/admit', {}, host);
   await post(base + '/api/host/next', {expectedQuestion: null}, host);
   for (const [page, answer] of [[app, 'Cardiff'], [web, 'Swansea']]) {
     await page.locator('#inputs input').first().waitFor({state: 'visible'});
