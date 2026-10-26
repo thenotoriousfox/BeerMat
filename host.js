@@ -119,6 +119,42 @@ function formTypes() {
   $('sheetItems').querySelectorAll('input').forEach(input => input.disabled = type !== 'sheet');
   $('mediaUpload').accept = type === 'picture' || type === 'pinpoint' ? 'image/png,image/jpeg,image/webp' : type === 'audio' ? 'audio/mpeg,audio/ogg,audio/wav' : 'image/png,image/jpeg,image/webp,audio/mpeg,audio/ogg,audio/wav';
 }
+// "Title | /media/file.mp3" plays an uploaded file; "Title | spotify:track:…" (or a Spotify song link) plays on
+// Spotify. "| start | seconds" after it gives that song its own start point and play time.
+function songLine(line) {
+  const [title, rest = ''] = line.split(/\s*\|\s*(?=\/media\/|spotify:track:|https:\/\/open\.spotify\.com\/)/), [file = '', start = '', seconds = ''] = rest.split('|').map(s => s.trim());
+  return {title: title.trim(), media: file.startsWith('/media/') ? file : null, ...(/^(spotify:|https:)/.test(file) ? {spotify: file} : {}), ...(start !== '' && {start: Number(start)}), ...(seconds !== '' && {seconds: Number(seconds)})};
+}
+// Build quiz previews, heard only at the desk: a Spotify track plays on the chosen Spotify player from its start
+// point, an uploaded song plays here; either stops after its play time (or on Stop).
+let previewing = null;
+function stopPreview() {
+  const was = previewing; previewing = null; if (!was) return;
+  clearTimeout(was.timer); was.audio?.pause();
+  if (was.spotify) return request('spotify/pause').catch(() => {});
+}
+async function preview({spotify: link, media, start = 0, seconds = 0, title = ''}) {
+  await stopPreview();
+  if (link) {
+    if (!spotify?.connected) throw Error('Connect Spotify first (Build quiz → Spotify)');
+    await request('spotify/preview', {link, start});
+    previewing = {spotify: true};
+  } else if (media) {
+    const audio = new Audio(media); audio.currentTime = start; await audio.play();
+    previewing = {audio};
+  } else throw Error('Nothing to preview: add a Spotify link or a song file first');
+  const mine = previewing;
+  if (seconds > 0) mine.timer = setTimeout(() => {if (previewing === mine) stopPreview();}, seconds * 1000);
+  return `▶ Previewing${title ? ' ' + title : ''}${link ? ' on Spotify' : ''}${seconds > 0 ? ` for ${seconds} s` : ''}`;
+}
+document.querySelectorAll('.stop-preview').forEach(b => b.onclick = () => action(async () => {await stopPreview(); return 'Preview stopped';}));
+$('previewClip').onclick = () => action(() => preview({spotify: $('qClipLink').value.trim() || null, start: Number($('qClipStart').value), seconds: Number($('qClipPlay').value)}));
+$('previewSong').onclick = () => action(() => {
+  const box = $('qSongs'), before = box.value.slice(0, box.selectionStart), line = box.value.split('\n')[before.split('\n').length - 1] || '';
+  if (!line.trim()) throw Error('Click on a song line first');
+  const song = songLine(line);
+  return preview({...song, start: song.start ?? Number($('qStartAt').value), seconds: song.seconds ?? Number($('qSongSeconds').value)});
+});
 function renderClipList() {
   $('clipList').replaceChildren(...clipItems.map((clip, i) => {
     const li = element('li', undefined, 'clip-row'), pick = element('input'), name = element('input'), remove = element('button', 'Remove', 'subtle');
@@ -126,7 +162,11 @@ function renderClipList() {
     const play = clip.spotify ? element('label', 'Spotify · start (s)') : element('audio');
     pick.type = 'radio'; pick.name = 'targetClip'; pick.checked = i === targetClip; pick.title = 'The right clip'; pick.onchange = () => {targetClip = i; editorChanged();};
     name.value = clip.label; name.maxLength = 100; name.oninput = () => {clip.label = name.value;}; name.setAttribute('aria-label', `Clip ${i + 1} name`);
-    if (clip.spotify) {const start = element('input'); start.type = 'number'; start.min = '0'; start.max = '3600'; start.value = clip.start ?? 0; start.oninput = () => {clip.start = Number(start.value);}; play.append(start);}
+    if (clip.spotify) {
+      const start = element('input'), listen = element('button', '▶', 'subtle'); start.type = 'number'; start.min = '0'; start.max = '3600'; start.value = clip.start ?? 0; start.oninput = () => {clip.start = Number(start.value);};
+      listen.type = 'button'; listen.title = 'Preview this clip'; listen.onclick = () => action(() => preview({spotify: clip.spotify, start: clip.start ?? 0, seconds: clip.seconds ?? Number($('qClipSeconds').value), title: clip.label}));
+      play.append(start, listen);
+    }
     else {play.src = clip.media; play.controls = true; play.preload = 'none';}
     remove.type = 'button'; remove.onclick = () => {clipItems.splice(i, 1); targetClip = Math.min(targetClip, Math.max(0, clipItems.length - 1)); renderClipList(); editorChanged();};
     li.append(pick, name, play, remove); return li;
@@ -203,12 +243,7 @@ function readQuestion() {
   if (type === 'pinpoint' || type === 'wordsnake') Object.assign(q, {goWide: $('qGoWide').checked, goWidePoints: Number($('qGoWidePoints').value)});
   const stagePoints = $('qMode').value === 'progressive' ? {stagePoints: [Number($('qLinePoints').value), Number($('qTwoLinePoints').value), Number($('qHousePoints').value)]} : {};
   if (type === 'bingo') Object.assign(q, {mode: $('qMode').value, media: '', ...stagePoints});
-  if (type === 'musicbingo') Object.assign(q, {...stagePoints, mode: $('qMode').value, revealNow: $('qRevealNow').checked, startAt: Number($('qStartAt').value), songSeconds: Number($('qSongSeconds').value), autoNext: $('qAutoNext').checked, media: '', songs: lines('qSongs').map(line => {
-    // "Title | /media/file.mp3" plays an uploaded file; "Title | spotify:track:…" (or a Spotify song link) plays on
-    // Spotify. "| start | seconds" after it gives that song its own start point and play time.
-    const [title, rest = ''] = line.split(/\s*\|\s*(?=\/media\/|spotify:track:|https:\/\/open\.spotify\.com\/)/), [file = '', start = '', seconds = ''] = rest.split('|').map(s => s.trim());
-    return {title: title.trim(), media: file.startsWith('/media/') ? file : null, ...(/^(spotify:|https:)/.test(file) ? {spotify: file} : {}), ...(start !== '' && {start: Number(start)}), ...(seconds !== '' && {seconds: Number(seconds)})};
-  })});
+  if (type === 'musicbingo') Object.assign(q, {...stagePoints, mode: $('qMode').value, revealNow: $('qRevealNow').checked, startAt: Number($('qStartAt').value), songSeconds: Number($('qSongSeconds').value), autoNext: $('qAutoNext').checked, media: '', songs: lines('qSongs').map(songLine)});
   if (type === 'clips') Object.assign(q, {clips: clipItems.map(c => c.spotify ? {spotify: c.spotify, start: c.start ?? 0, ...(c.seconds !== undefined && {seconds: c.seconds}), label: c.label.trim()} : {media: c.media, label: c.label.trim()}), targetClip, clipSeconds: Number($('qClipSeconds').value), media: ''});
   if (type === 'sequence') q.items = lines('qItems');
   // A sheet answer can list alternatives after the answer: "Shakespeare / William Shakespeare".

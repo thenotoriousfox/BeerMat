@@ -126,6 +126,21 @@ test('music bingo plays Spotify songs from the start time; clips play and log; n
   assert.equal((await call('state', {}, team.secret)).question.clip, undefined);
 }));
 
+test('Build quiz previews a track from its start point on the chosen player, for the desk only', () => fixture(async ctx => {
+  const {call, fake} = ctx; await connect(ctx);
+  const plays = () => fake.log.filter(l => l.path === '/v1/me/player/play').length;
+  assert.equal((await call('host/spotify/preview', {link: `https://open.spotify.com/track/${id(4)}?si=abc`, start: 30})).ok, true);
+  assert.deepEqual(JSON.parse(fake.log.findLast(l => l.path === '/v1/me/player/play').body), {uris: [`spotify:track:${id(4)}`], position_ms: 30000});
+  await call('host/spotify/preview', {link: `spotify:track:${id(5)}`});
+  assert.deepEqual(JSON.parse(fake.log.findLast(l => l.path === '/v1/me/player/play').body), {uris: [`spotify:track:${id(5)}`], position_ms: 0});
+  const before = plays();
+  for (const body of [{link: 'https://example.com/song'}, {link: `spotify:track:${id(5)}`, start: -1}, {link: `spotify:track:${id(5)}`, start: 1.5}, {}]) assert.equal((await call('host/spotify/preview', body)).status, 400);
+  assert.equal((await call('host/spotify/preview', {link: `spotify:track:${id(5)}`}, 'not-the-host')).status, 403);
+  assert.equal(plays(), before, 'refused previews play nothing');
+  // Previews leave nothing behind: no question, no clip log.
+  assert.equal((await call('host/state')).history.length, 0);
+}));
+
 test('only the desk page may load Spotify\'s player; phones and the TV stay local-only', () => fixture(async ({base}) => {
   const policy = async route => (await fetch(base + route)).headers.get('content-security-policy');
   assert.match(await policy('/host'), /script-src 'self' https:\/\/sdk\.scdn\.co/); assert.match(await policy('/host'), /frame-src https:\/\/sdk\.scdn\.co/);

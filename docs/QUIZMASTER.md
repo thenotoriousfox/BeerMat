@@ -83,13 +83,14 @@ It needs Spotify Premium and internet on the laptop (run the hotspot with `--kee
 
 1. Create an app at developer.spotify.com/dashboard (tick *Web API*) and add the Redirect URI shown under **Build quiz → Spotify** (`http://127.0.0.1:3000/spotify/callback`; Spotify requires the 127.0.0.1 form).
 2. Paste its Client ID and press **Connect Spotify**, then sign in in the tab that opens.
-3. On quiz night, press **🎵 Start Spotify player on this desk** (Build quiz → Spotify, or the same button that appears on Run quiz when a Spotify round is live). The desk tab becomes a Spotify player called “PubQuiz desk” and plays through the laptop's speakers or HDMI. Keep the tab open. It needs Chrome, Firefox or Edge (protected-media support); plain Chromium builds may refuse.
+3. On quiz night, press **🎵 Start Spotify player on this desk** (Build quiz → Spotify, or the same button that appears on Run quiz when a Spotify round is live). The desk becomes a Spotify player called “PubQuiz desk” and plays through the laptop's speakers or HDMI. Keep the desk open. It works in the PubQuiz desktop app (once it has been online once, to fetch Widevine) and in Chrome, Firefox or Edge; plain Chromium builds may refuse.
 4. Fallback: open the Spotify app on the laptop, play any song once, and pick it under **Play on**.
 
 If you connected Spotify before the desk player existed, press **Connect Spotify** again: the desk player needs an extra permission. Spotify's player script is only downloaded when you press Start, and only by the desk page; phones and the TV never load anything from the internet.
 
 - **Music bingo:** paste playlist or track links and press **Add songs from Spotify**; titles become `Song — Artist | spotify:track:…` lines. **Play next song** starts the song on the laptop's Spotify at **Start Spotify songs at** seconds (e.g. the chorus). A song can have its own start and play time: add them after its link, `Song — Artist | spotify:track:… | 45 | 20` (start 45 s in, play 20 s). Song links copied from Spotify (`https://open.spotify.com/track/…`) work too. Quiz files can carry the same per song as `start` and `seconds`; `docs/QUIZ-MAKER-PROMPT.md` is a ready prompt for an AI that writes quiz files. If Spotify can't play (no player, offline), the number still counts and the desk says why.
 - **Sound clips:** add Spotify tracks with a start time each; each plays for the **Spotify clip length**, then the next starts. Uploaded and Spotify clips can be mixed.
+- **Previewing while building:** **▶ Preview** under an audio question's Spotify link, **▶** beside each Spotify clip, and **▶ Preview the song the cursor is on** under the music bingo songs play the track from its start point for its play time, on the chosen Spotify player (uploaded songs play on the desk). **■ Stop** ends it early. Teams and the TV never hear or see a preview.
 - Playlists made by Spotify itself (editorial and algorithmic ones) can't be read by personal apps; copy their songs into a playlist of your own first.
 - Sign-in tokens stay in the quiz database on the laptop and are never exported. **Disconnect** removes them.
 

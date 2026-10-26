@@ -62,4 +62,6 @@ Numbers at the time of writing: 96 node tests, 15 Python tests, 27 browser secti
   quiz pages inside the app, the Quizzes button and result hand-over), and captive sign-in windows.
 * App-store submission and signed builds (Google Play, App Store, Windows code signing).
 * PubQuiz Online on the internet (it runs locally in tests only; no deployment, email or HTTPS).
-* Spotify playback inside the desktop app (expected not to work: no Widevine; see DESKTOP.md).
+* Spotify playback inside the desktop app. Checked here: the app (castlabs Electron) downloads Widevine and the desk
+  page gets `com.widevine.alpha`; not checked: a real Spotify sign-in playing a song, and Windows (needs VMP signing).
+* Build quiz previews heard from a real Spotify player (the server side is tested with a fake Spotify).

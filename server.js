@@ -13,7 +13,7 @@ import {newVenueKey, signClaim, keyId} from './claims.js';
 import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from './soundnames.js';
 import {looks, typeGroups} from './looks.js';
 import {fetchDriveQuiz} from './drive.js';
-import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern, sheetPoints} from './model.js';
+import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern, sheetPoints, spotifyTrack} from './model.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(24).toString('hex');
@@ -30,7 +30,7 @@ const deskSecurity = {...security, 'Content-Security-Policy': security['Content-
 const DELIVERY_GRACE_MS = 2000;
 const SESSION_MS = 12 * 60 * 60 * 1000;
 // Read-only routes never notify clients of a change.
-const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token', '/api/host/drive']);
+const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token', '/api/host/drive', '/api/host/spotify/preview', '/api/host/spotify/pause']);
 
 // Sound packs are laid out like SpeedQuizzing's Sounds folder: general/<name>.mp3 for each moment (soundnames.js),
 // buzzers/<pack>/*.mp3, and optionally its bingo calls file at the top. `prefix` is the URL they are served under.
@@ -958,6 +958,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/drive') return send(200, {quiz: await fetchDriveQuiz(body.url, fetchImpl)});
         if (p === '/api/host/spotify/import') return send(200, {songs: await spotify.tracks(body.links)});
         if (p === '/api/host/spotify/pause') {await spotify.pause(); return send(200, {ok: true});}
+        // Build quiz: hear a track from its start point on the chosen Spotify player; nothing is logged or shown to teams.
+        if (p === '/api/host/spotify/preview') {
+          const uri = spotifyTrack(body.link), start = body.start ?? 0;
+          requireValue(uri, 'Not a Spotify song link'); requireValue(Number.isInteger(start) && start >= 0 && start <= 3600, 'Start must be 0–3,600 seconds');
+          await spotify.play(uri, start); return send(200, {ok: true});
+        }
         // A Spotify sound clip: start it, then log it as playing so taps count against it.
         if (p === '/api/host/spotify/play') {
           const q = questionById(body.question), data = q && dataOf(q);
