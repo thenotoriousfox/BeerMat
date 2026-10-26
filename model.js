@@ -368,7 +368,7 @@ export function validateLibrary(input, mediaDir) {
       requireValue(++count <= 1000, 'Maximum 1,000 questions per quiz');
       return {...validateQuestion(q, mediaDir), id: id(q.id)};
     });
-    return {id: roundId, title: round.title.trim(), questions};
+    return {id: roundId, title: round.title.trim(), questions, ...round.secret === true && {secret: true}};
   });
   return {title: input.title.trim(), rounds};
 }

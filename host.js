@@ -181,6 +181,7 @@ function roundOptions(preferredRound, preferredQuestion) {
   selectOptions($('roundSelect'), library.rounds.map(r => [r.id, r.title]), preferredRound);
   selectedRoundId = $('roundSelect').value;
   const r = round();
+  $('secretRound').checked = !!r?.secret; $('secretRound').disabled = !r;
   selectOptions($('questionSelect'), [['', 'New question'], ...(r?.questions || []).map((q, i) => [q.id, `${i + 1}. ${q.text}`])], preferredQuestion ?? '');
   fillQuestion(r?.questions.find(q => q.id === $('questionSelect').value));
   $('libraryStatus').textContent = `${library.rounds.length} ${library.rounds.length === 1 ? 'round' : 'rounds'} · ${library.rounds.reduce((n, r) => n + r.questions.length, 0)} questions · saved on this laptop`;
@@ -236,6 +237,7 @@ $('addRound').onclick = () => action(async () => {
   const next = cloneLibrary(), id = uid(); next.rounds.push({id, title, questions: []}); await saveLibrary(next, id);
 });
 $('renameRound').onclick = () => action(async () => {const r = round(); if (!r || !guardEditor()) return; const title = prompt('Round name', r.title); if (!title?.trim()) return; const next = cloneLibrary(); next.rounds.find(x => x.id === r.id).title = title; await saveLibrary(next, r.id, editingId);});
+$('secretRound').onchange = () => action(async () => {const r = round(); if (!r || !guardEditor()) {$('secretRound').checked = !!r?.secret; return;} const next = cloneLibrary(), x = next.rounds.find(x => x.id === r.id); if ($('secretRound').checked) x.secret = true; else delete x.secret; await saveLibrary(next, r.id, editingId);});
 $('deleteRound').onclick = () => action(async () => {const r = round(); if (!r || !confirm(`Delete ${r.title} and its saved questions? Played history is retained.`)) return; const next = cloneLibrary(); next.rounds = next.rounds.filter(x => x.id !== r.id); await saveLibrary(next);});
 $('deleteQuestion').onclick = () => action(async () => {if (!savedQuestion() || !confirm('Delete this saved question? Played history is retained.')) return; const next = cloneLibrary(); next.rounds.find(r => r.id === round().id).questions = round().questions.filter(q => q.id !== editingId); await saveLibrary(next, round().id);});
 for (const [id, delta] of [['moveUp', -1], ['moveDown', 1]]) $(id).onclick = () => action(async () => {
@@ -896,7 +898,7 @@ function renderState(s) {
   if (!$('eventName').value) $('eventName').value = s.settings.title;
   if (!$('joinDetails').contains(document.activeElement)) {$('joinSsidInput').value = s.settings.joinSsid; $('joinUrlInput').value = s.settings.joinUrl;}
   const q = s.question, pending = q?.live;
-  $('liveRound').textContent = q?.round || ''; $('liveText').textContent = q?.text || 'Ready when you are'; $('liveTimer').textContent = timeText(q, offset);
+  $('liveRound').textContent = (q?.secret && !s.settings.ended ? '🤫 Secret round · ' : '') + (q?.round || ''); $('liveText').textContent = q?.text || 'Ready when you are'; $('liveTimer').textContent = timeText(q, offset);
   $('liveKey').textContent = q ? answerKey(q) : '';
   if (q?.id !== liveQuestion) {liveQuestion = q?.id; $('announced').value = '';}
   renderBuzzPanel(q); renderBingoPanel(q); audioClipCue(q); showDeskPlayer(); renderSounds(s); useSounds(s.sounds); renderLooks(s);

@@ -126,6 +126,28 @@ test('automatic TV: join, question, leaderboard after a round, winner; a manual 
   await call('host/settings', {displayMode: 'auto', ended: true}); assert.equal(await view(), 'winner');
 }));
 
+test('a secret round hides marks, the reveal and the leaderboard from teams and the TV until the quiz ends', () => fixture(async ({call, board}) => {
+  const team = await call('join', {name: 'Owls'});
+  await call('host/library/save', {revision: 0, quiz: {title: 'Secret', rounds: [{id: 'r1', title: 'Round 1', questions: [{id: 'a', ...question()}]}, {id: 'r2', title: 'Final', secret: true, questions: [{id: 'b', ...question({text: 'Capital of Scotland?', answer: 'Edinburgh'})}]}]}});
+  assert.equal((await call('host/library')).rounds[1].secret, true);
+  let {id} = await call('host/next', {expectedQuestion: null}); await call('answer', {question: id, value: 'Cardiff'}, team.secret); await call('host/close');
+  assert.equal(score(await board(), 'Owls'), 2);
+  ({id} = await call('host/next', {expectedQuestion: id})); await call('answer', {question: id, value: 'Edinburgh'}, team.secret);
+  // Once the secret round starts the board is gone, even before any of its marks would count.
+  let tv = await board(); assert.deepEqual(tv.teams, []); assert.equal(tv.settings.secretRound, true); assert.equal(tv.settings.leaderboardVisible, false);
+  await call('host/close'); await call('host/reveal', {question: id});
+  const mine = await call('state', {}, team.secret);
+  assert.deepEqual(mine.answer, {value: 'Edinburgh'}); assert.deepEqual(mine.teams, []);
+  assert.equal(mine.question.revealed, false); assert.equal(mine.question.answer, undefined); assert.equal(mine.question.scorers, undefined);
+  tv = await board(); assert.equal(tv.question.revealed, false); assert.equal(tv.question.correctCount, undefined);
+  // The desk still sees everything.
+  const desk = await call('host/state');
+  assert.equal(desk.question.answer, 'Edinburgh'); assert.equal(desk.teams.find(t => t.name === 'Owls').score, 4); assert.equal(desk.settings.leaderboardVisible, true);
+  await call('host/settings', {ended: true});
+  tv = await board(); assert.equal(score(tv, 'Owls'), 4); assert.equal(tv.settings.secretRound, undefined); assert.equal(tv.view, 'winner');
+  assert.equal((await call('state', {}, team.secret)).answer.points, 2);
+}));
+
 test('reveal lists who scored, quickest answer first, with their time', () => fixture(async ({call, tick}) => {
   const [slow, fast, wrong] = [await call('join', {name: 'Slow'}), await call('join', {name: 'Fast'}), await call('join', {name: 'Wrong'})];
   const {id} = await call('host/open', question({fastestFingers: true, speedBonus: 30}));

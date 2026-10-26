@@ -311,14 +311,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const {answer, aliases, itemAnswers, itemAliases, answerNote, correct, target, clips, targetClip, songs, snake, tiles, clip, ...safe} = data;
     // Sequence items are shown shuffled; the stored order is the answer.
     const result = {...safe, id: q.id, deadline: q.deadline, open: accepting(q), live: pending(q), paused: pending(q) && q.paused_ms !== null,
-      remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: revealedNow(q), revealing: !!q.revealed && !revealedNow(q), buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId, host), clipGame: clipState(q, data, teamId)};
+      remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: revealedNow(q) && (host || !secretQuestion(q)), revealing: !!q.revealed && !revealedNow(q) && (host || !secretQuestion(q)), buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId, host), clipGame: clipState(q, data, teamId)};
     if (data.type === 'sequence') result.order = shuffleOrder(data.items.length, q.id);
     if (snake) {
       result.grid = {size: snake.size, letters: snake.grid};
       // Going wide shows a team only the squares on the answer's path.
       if (teamId && one('SELECT 1 FROM go_wide WHERE team=? AND question=?', teamId, q.id)) result.wideCells = snake.path;
     }
-    if (host || revealedNow(q)) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], itemAliases: itemAliases || [], correct, target, clips, clip, targetClip, songs, snakePath: snake?.path, tiles, tally: tally(q, data),
+    if (host || revealedNow(q) && !secretQuestion(q)) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], itemAliases: itemAliases || [], correct, target, clips, clip, targetClip, songs, snakePath: snake?.path, tiles, tally: tally(q, data),
       correctCount: one('SELECT COUNT(*) n FROM answers WHERE question=? AND points>0', q.id).n, scorers: scorers(q), first: firstPlace(q, data)});
     return result;
   }
@@ -393,7 +393,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const shown = settings().showScores;
     // After a closest-wins answer is revealed, the board shows what each team put until the next question.
     const q = latest(), put = q && revealedNow(q) && dataOf(q).type === 'nearest' ? new Map(rows('SELECT team,value FROM answers WHERE question=? AND submitted IS NOT NULL', q.id).map(a => [a.team, a.value])) : null;
-    return settings().leaderboardVisible ? scores().map(({seen, connected, enabled, waiting, photo, photo_status, note, ...t}) => ({...t, score: shown ? t.score : null, photo: publicPhoto({photo, photo_status}), ...put && {answer: put.get(t.id) ?? null}})) : [];
+    return settings().leaderboardVisible && !secretRound() ? scores().map(({seen, connected, enabled, waiting, photo, photo_status, note, ...t}) => ({...t, score: shown ? t.score : null, photo: publicPhoto({photo, photo_status}), ...put && {answer: put.get(t.id) ?? null}})) : [];
   }
   // Desk-only statistics: answers given, answers that scored, and the quickest scoring answer.
   function teamStats() {
@@ -471,7 +471,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const syncTimer = setInterval(flushOutbox, 5 * 60 * 1000); syncTimer.unref?.();
   // Online mode: phones and the TV get the public link as the join address.
   const onlineUrl = () => laptop?.online?.()?.ready ? laptop.online().url : null;
-  const shownSettings = () => {const url = onlineUrl(); return url ? {...settings(), joinUrl: url, joinPassword: '', online: true} : settings();};
+  // A secret round (usually the last): from its first question until the quiz ends, phones and the TV get no marks, no
+  // answer reveal and no leaderboard, so the winner is only known when the quizmaster ends the quiz.
+  const secretQuestion = q => !!q && dataOf(q).secret === true && !settings().ended;
+  const secretRound = () => !settings().ended && rows('SELECT data FROM questions').some(q => dataOf(q).secret === true);
+  const shownSettings = () => {
+    const url = onlineUrl(), secret = secretRound(), s = {...settings(), ...secret && {leaderboardVisible: false, secretRound: true}};
+    return url ? {...s, joinUrl: url, joinPassword: '', online: true} : s;
+  };
   function publicState() { return {serverTime: now(), build, settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
 
   // Final scoring once answers stop: nearest-wins needs every answer before it can rank them.
@@ -504,6 +511,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     settle(current);
     const q = validateQuestion(data, mediaDir), random = () => randomInt(2 ** 32) / 2 ** 32;
     if (sourceId) q.sourceId = sourceId;
+    // A secret round's questions keep their marks and the scores to themselves until the quiz ends.
+    if (data.secret === true) q.secret = true;
     // Each play gets a fresh word-snake grid and tile shuffle.
     if (q.type === 'wordsnake') q.snake = snakeGrid(q.answer, random);
     if (q.type === 'tiles') q.pieces = shuffleTiles(q.tiles, random);
@@ -874,7 +883,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/open') return send(200, openQuestion(body));
         if (p === '/api/host/start' || p === '/api/host/next') {
           requireValue(body.expectedQuestion === (latest()?.id || null), 'Current question changed; refresh before opening another', 409);
-          const all = library().rounds.flatMap(r => r.questions.map(q => ({...q, round: r.title})));
+          const all = library().rounds.flatMap(r => r.questions.map(q => ({...q, round: r.title, ...r.secret && {secret: true}})));
           const played = new Set(rows('SELECT data FROM questions').map(q => dataOf(q).sourceId).filter(Boolean));
           const chosen = p === '/api/host/start' ? all.find(q => q.id === body.id) : all.find(q => !played.has(q.id));
           requireValue(chosen, 'No unplayed questions. Add questions or choose a saved question.', 409);
@@ -1124,7 +1133,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (q && pending(q)) run('INSERT OR IGNORE INTO deliveries VALUES(?,?,?)', team.id, q.id, now());
         const a = q && one('SELECT value,points,marks,submitted FROM answers WHERE team=? AND question=?', team.id, q.id);
         // Points stay hidden until scoring is final.
-        const answer = !a || a.submitted === null && !q.settled && !q.closed ? null : pending(q) ? {value: a.value} : {value: a.value, points: a.points, marks: a.marks};
+        const answer = !a || a.submitted === null && !q.settled && !q.closed ? null : pending(q) || secretQuestion(q) ? {value: a.value} : {value: a.value, points: a.points, marks: a.marks};
         return send(200, {...publicState(), question: publicQuestion(q, false, team.id), team: teamInfo, answer,
           draft: one('SELECT value FROM drafts WHERE team=? AND question=?', team.id, q?.id || 0) || null});
       }

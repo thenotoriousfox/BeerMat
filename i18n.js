@@ -159,6 +159,8 @@ const T = {
   '{n} teams have tapped': ['{n} équipes ont touché', '{n} equipos han tocado'],
   'Buzzers open': ['Buzzers ouverts', 'Pulsadores abiertos'],
   'The quizmaster has hidden scores for now.': ['L’animateur a masqué les scores pour l’instant.', 'El presentador ha ocultado las puntuaciones por ahora.'],
+  'Secret round: the scores stay hidden until the end of the quiz.': ['Manche secrète : les scores restent cachés jusqu’à la fin du quiz.', 'Ronda secreta: las puntuaciones siguen ocultas hasta el final del quiz.'],
+  'Secret round: you find out how you did when the quiz ends.': ['Manche secrète : vous saurez comment vous avez fait à la fin du quiz.', 'Ronda secreta: sabréis cómo os ha ido al final del quiz.'],
   'Final standings': ['Classement final', 'Clasificación final'],
   'Ties share the same rank.': ['Les ex æquo partagent le même rang.', 'Los empates comparten puesto.'],
   'Waiting for teams': ['En attente des équipes', 'Esperando equipos'],

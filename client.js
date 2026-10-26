@@ -253,7 +253,7 @@ function playerState(s) {
   if (s.team.photo && $('myPhoto').getAttribute('src') !== s.team.photo) $('myPhoto').src = s.team.photo;
   $('photoStatus').textContent = !s.team.photo ? t('Add a team photo to appear on the big screen. The quizmaster approves it first.') : s.team.photoStatus === 'approved' ? t('✓ Approved — showing on the big screen') : t('Waiting for the quizmaster to approve it');
   selectOptions($('sound'), buzzerNames().map((label, i) => [String(i), label]), document.activeElement === $('sound') ? undefined : String(s.team.sound ?? ''));
-  if (s.answer && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? t('Your final answer is safely stored on the quiz laptop.') : ''; localDraft = null; writeStorage(draftKey(q.id), '');}
+  if (s.answer && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? (q.secret && !q.live ? t('Secret round: you find out how you did when the quiz ends.') : t('Your final answer is safely stored on the quiz laptop.')) : ''; localDraft = null; writeStorage(draftKey(q.id), '');}
   renderResult(s);
   // Between questions the phone shows the leaderboard; during one, only the question.
   $('boardSection').hidden = !!q?.live;
@@ -282,7 +282,7 @@ function sharedState(s) {
   document.documentElement.dataset.look = s.look || 'stage';
   $('title').textContent = s.settings.title; document.title = s.settings.title + ' — ' + (role === 'player' ? 'Team' : 'Projector');
   renderBoard($('leaderboard'), s.teams);
-  $('boardStatus').textContent = !s.settings.leaderboardVisible ? t('The quizmaster has hidden scores for now.') : s.settings.ended ? t('Final standings') : s.teams.length ? t('Ties share the same rank.') : t('Waiting for teams');
+  $('boardStatus').textContent = s.settings.secretRound ? t('Secret round: the scores stay hidden until the end of the quiz.') : !s.settings.leaderboardVisible ? t('The quizmaster has hidden scores for now.') : s.settings.ended ? t('Final standings') : s.teams.length ? t('Ties share the same rank.') : t('Waiting for teams');
 }
 function renderQr(container, text) {
   if (container.dataset.qr === text) return;
