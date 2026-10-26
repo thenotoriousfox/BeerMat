@@ -4,7 +4,7 @@
 // Processes: this main process (windows, menus, files) holds no quiz data; the quiz server runs in a utility process
 // (server-host.js) and is restarted if it fails; the desk and TV pages run sandboxed, with context isolation, and
 // reach the app only through the few calls in preload.cjs, accepted only from the desk page itself.
-import {app, BrowserWindow, screen, ipcMain, dialog, Menu, shell, utilityProcess, safeStorage, session, clipboard} from 'electron';
+import electron, {app, BrowserWindow, screen, ipcMain, dialog, Menu, shell, utilityProcess, safeStorage, session, clipboard} from 'electron';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
@@ -140,7 +140,8 @@ function run() {
     });
   });
   function lockDown() {
-    const allowed = {'persist:desk': ['clipboard-sanitized-write', 'fullscreen'], audience: ['fullscreen']};
+    // mediaKeySystem: Widevine, for the desk's Spotify player.
+    const allowed = {'persist:desk': ['clipboard-sanitized-write', 'fullscreen', 'mediaKeySystem'], audience: ['fullscreen']};
     for (const [partition, permissions] of Object.entries(allowed)) {
       const s = session.fromPartition(partition);
       s.setPermissionRequestHandler((_, permission, callback) => callback(permissions.includes(permission)));
@@ -257,6 +258,9 @@ function run() {
   app.whenReady().then(async () => {
     log(`PubQuiz ${app.getVersion()} starting (Electron ${process.versions.electron}, ${process.platform}); data in ${data}`);
     lockDown();
+    // castlabs' Electron fetches Widevine (Google's protected-media module) by itself, the first time with internet; the
+    // desk's Spotify player needs it. The quiz never waits for it. Plain Electron has no `components`.
+    if (electron.components && !test) electron.components.whenReady().then(() => log('Widevine ready', electron.components.status()), e => log('Widevine not available (Spotify on the desk needs it; the Spotify app still works)', e));
     try {
       key = hostKey(path.join(data, 'host-key'), safeStorage.isEncryptionAvailable() && !test ? {encrypt: t => safeStorage.encryptString(t), decrypt: b => safeStorage.decryptString(b)} : null);
       await startServer();

@@ -107,7 +107,8 @@ Third-party code and assets that ship:
 
 | Component | Where | Licence | Notes |
 |---|---|---|---|
-| Electron 39 (Chromium, Node, FFmpeg) | desktop builds | MIT, with Chromium's licences in `LICENSES.chromium.html` (shipped by the build) | |
+| Electron 39, castlabs ECS build (Chromium, Node, FFmpeg) | desktop builds | MIT, with Chromium's licences in `LICENSES.chromium.html` (shipped by the build) | castlabs' Widevine-enabled Electron; free to use |
+| Widevine CDM | downloaded by the desktop app at run time, for the desk's Spotify player | Google's licence | not shipped or redistributed: fetched from Google by the app's component updater |
 | Capacitor 8 core, Android, iOS, local notifications | phone app | MIT | |
 | Capacitor ML Kit barcode scanning | phone app | Apache-2.0 | uses Google ML Kit (Google APIs terms; free to ship in apps) |
 | Built-in sounds | `sounds/` | CC0 | listed in `sounds/CREDITS.md` |

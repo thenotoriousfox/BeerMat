@@ -101,8 +101,10 @@ yourself).
 * **Opening PubQuiz twice** brings the open window to the front.
 * **The desk in a browser** (fallback, or a second device): **PubQuiz → Open the desk in a browser** and the
   quizmaster key. The Linux scripts in `scripts/` also still work without the app.
-* **Spotify**: the desk's built-in Spotify player needs Widevine, which the app's browser engine does not include.
-  Use the Spotify app on the laptop (the default), or open the desk in Chrome/Firefox for the built-in player.
+* **Spotify**: the app is built on castlabs' Electron for Content Security (Electron with Widevine), so the desk's own
+  Spotify player (**🎵 Start Spotify player on this desk**) works inside the app. Widevine is Google's protected-media
+  module: the app downloads it by itself the first time it runs with internet (it is not shipped in the app) and the
+  quiz never waits for it; the log says "Widevine ready". Offline, use the Spotify app on the laptop instead.
 
 ## Building
 
@@ -115,7 +117,19 @@ npm run dist:win          # dist/PubQuiz Setup <v>.exe and PubQuiz-<v>-portable.
 npm run desktop           # run from source
 ```
 
-`npm ci` may report blocked install scripts (npm 12+); approve Electron's with `npm install-scripts approve electron`.
+Electron comes from castlabs' releases (`github:castlabs/electron-releases#v<version>+wvcus`), which npm 12 only
+fetches because `.npmrc` sets `allow-git=root`; electron-builder downloads the matching castlabs build
+(`build.electronDownload`). `npm ci` may report blocked install scripts (npm 12+); approve Electron's with
+`npm install-scripts approve electron`. If `node_modules/electron/dist` ends up nearly empty, unzip the cached
+`~/.cache/electron/*/electron-v<version>+wvcus-linux-x64.zip` into it and write `electron` to
+`node_modules/electron/path.txt`.
+
+**Spotify on Windows needs a Widevine (VMP) signature.** Widevine on Windows only plays for apps signed through
+castlabs' free Electron Verified Media Path service: create an account (`python3 -m pip install castlabs-evs`, then
+`python3 -m castlabs_evs.account signup`) and sign the unpacked app before the installer is made
+(`python3 -m castlabs_evs.vmp sign-pkg dist/win-unpacked`, e.g. from an electron-builder `afterPack` hook). This
+must happen after code signing. Not done yet, so the Windows build's desk player will probably be refused; the
+Spotify app on the laptop still works. Linux needs no VMP signature.
 
 Signing (not done; needs credentials):
 
