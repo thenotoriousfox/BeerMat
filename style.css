@@ -440,6 +440,13 @@ body[data-role=display] .winner { min-height: 0; }
 body[data-role=display] #question { font-size: clamp(2rem, 5vw, 4rem); font-weight: 900; line-height: 1.12; text-shadow: 0 0 40px color-mix(in srgb, var(--violet) 45%, transparent); }
 body[data-role=display] #projectQuestion .eyebrow { font-size: 1rem; }
 body[data-role=display] .timer { font-size: 2.5rem; }
+/* At the reveal the answer is the star: the question, timer, picture and options step back. */
+body[data-role=display] .solution { font-size: clamp(2.6rem, 6vw, 5.5rem); line-height: 1.1; margin: .2em 0; }
+body[data-role=display] #solution h3 { font-size: 1.4rem; margin: .4em 0 0; }
+body[data-role=display] #projectQuestion.revealed #question { font-size: clamp(1.4rem, 2.8vw, 2.4rem); }
+body[data-role=display] #projectQuestion.revealed .timer { display: none; }
+body[data-role=display] #projectQuestion.revealed #media :is(img, video) { max-height: 30vh; width: auto; }
+body[data-role=display] #projectQuestion.revealed #projectItems { font-size: .7em; }
 body[data-role=display] .leaderboard li { font-size: clamp(1.4rem, 3vw, 2.7rem); padding: .35em .7em; }
 body[data-role=display] .scorers { font-size: 1.25em; grid-template-columns: repeat(auto-fill, minmax(min(100%, 16em), 1fr)); }
 body[data-role=display] .scorers-title { font-size: 1.1rem; }

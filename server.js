@@ -323,6 +323,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     // Sequence items are shown shuffled; the stored order is the answer.
     const result = {...safe, id: q.id, deadline: q.deadline, open: accepting(q), live: pending(q), paused: pending(q) && q.paused_ms !== null,
       remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: revealedNow(q) && (host || !secretQuestion(q)), revealing: !!q.revealed && !revealedNow(q) && (host || !secretQuestion(q)), buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId, host), clipGame: clipState(q, data, teamId)};
+    // A question playing a Spotify song says so (not which song), so the TV keeps its music and countdown quiet.
+    if (clip) result.playsSong = true;
     if (data.type === 'sequence') result.order = shuffleOrder(data.items.length, q.id);
     if (snake) {
       result.grid = {size: snake.size, letters: snake.grid};
@@ -437,7 +439,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     // A spin takes over the TV while the wheel turns and its result shows, then Auto carries on.
     const wheel = getMeta('wheel', null);
     if (wheel && now() - wheel.spun < WHEEL_SHOW_MS) return 'wheel';
-    if (s.ended) return 'winner';
+    if (s.ended) return 'leaderboard';
     const q = latest();
     if (!q) return s.registrationOpen ? 'join' : 'leaderboard';
     if (pending(q) || !roundOver(q)) return 'question';

@@ -105,7 +105,7 @@ test('TV countdown: start, pause, resume, stop', () => fixture(async ({call, boa
   assert.equal((await call('host/timer', {action: 'start', seconds: 0})).status, 400);
 }));
 
-test('automatic TV: join, question, leaderboard after a round, winner; a manual view overrides it', () => fixture(async ({call, board, tick}) => {
+test('automatic TV: join, question, leaderboard after a round, final leaderboard; a manual view overrides it', () => fixture(async ({call, board, tick}) => {
   const view = async () => (await board()).view;
   assert.equal(await view(), 'join');
   const saved = id => ({id, ...question({text: `Question ${id}`})});
@@ -123,7 +123,7 @@ test('automatic TV: join, question, leaderboard after a round, winner; a manual 
   // In Auto, a spin shows the wheel while it turns and its result shows, then Auto carries on.
   await call('host/settings', {displayMode: 'auto'}); await call('host/wheel', {items: ['Red', 'Blue']}); assert.equal(await view(), 'wheel');
   tick(15000); assert.equal(await view(), 'wheel'); tick(1500); assert.equal(await view(), 'leaderboard');
-  await call('host/settings', {displayMode: 'auto', ended: true}); assert.equal(await view(), 'winner');
+  await call('host/settings', {displayMode: 'auto', ended: true}); assert.equal(await view(), 'leaderboard');
 }));
 
 test('a secret round hides marks, the reveal and the leaderboard from teams and the TV until the quiz ends', () => fixture(async ({call, board}) => {
@@ -144,7 +144,7 @@ test('a secret round hides marks, the reveal and the leaderboard from teams and 
   const desk = await call('host/state');
   assert.equal(desk.question.answer, 'Edinburgh'); assert.equal(desk.teams.find(t => t.name === 'Owls').score, 4); assert.equal(desk.settings.leaderboardVisible, true);
   await call('host/settings', {ended: true});
-  tv = await board(); assert.equal(score(tv, 'Owls'), 4); assert.equal(tv.settings.secretRound, undefined); assert.equal(tv.view, 'winner');
+  tv = await board(); assert.equal(score(tv, 'Owls'), 4); assert.equal(tv.settings.secretRound, undefined); assert.equal(tv.view, 'leaderboard');
   assert.equal((await call('state', {}, team.secret)).answer.points, 2);
 }));
 

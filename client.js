@@ -316,7 +316,7 @@ function displayState(s) {
   $('boardSection').hidden = s.view !== 'leaderboard'; $('projectQuestion').hidden = s.view !== 'question';
   const q = s.question; $('question').textContent = q?.text || t('Waiting for the quizmaster'); $('round').textContent = q?.round || ''; $('status').textContent = timeText(q, offset);
   if (q?.type === 'pinpoint') renderPinpoint($('media'), q); else renderMedia($('media'), q);
-  renderSolution($('solution'), q);
+  renderSolution($('solution'), q); $('projectQuestion').classList.toggle('revealed', !!q?.revealed);
   renderFirst(q);
   if (q?.id !== renderedQuestion) {
     renderedQuestion = q?.id;
@@ -418,18 +418,20 @@ function renderWheel(wheel, fresh) {
 let heard = null, musicOn = false, countdownFor = null;
 // The final countdown is timed to end at the deadline; the answering music stops when it starts.
 function countdownCue() {
-  const q = current?.question, timed = !!q?.open && !q.paused && !silentTypes.includes(q.type) && !/\.(mp3|ogg|wav)$/i.test(q.media || '');
+  const q = current?.question, timed = !!q?.open && !q.paused && !quiet(q);
   const left = q?.deadline - Date.now() - offset;
   // At time's up the countdown rings out; it is cut short only if the question closes early or pauses.
   if (!timed) {if (countdownFor !== null) {if (!q || q.paused || left > 300) stopSound('countdown'); countdownFor = null;} return;}
   if (countdownFor !== q.id && left > 300 && playEnding('countdown', left)) {countdownFor = q.id; stopSound('timerMusic'); musicOn = false;}
 }
 const silentTypes = ['audio', 'clips', 'musicbingo', 'buzzer', 'bingo'];
+// Questions with their own sound (a file or a Spotify song) get no answering music or countdown over it.
+const quiet = q => silentTypes.includes(q.type) || q.playsSong || /\.(mp3|ogg|wav)$/i.test(q.media || '');
 function soundCues(s) {
   const q = s.question, before = heard;
   heard = {id: q?.id, round: q?.round, open: !!q?.open, revealing: !!q?.revealing, revealed: !!q?.revealed, calls: q?.bingo?.count ?? 0, shouts: Object.fromEntries((q?.bingo?.shouts || []).map(x => [x.id, x.status])),
     buzz: Object.fromEntries((q?.buzz?.queue || []).map(b => [b.team, b.status])), view: s.view};
-  const music = !!q?.open && !q.paused && !silentTypes.includes(q.type) && !/\.(mp3|ogg|wav)$/i.test(q.media || '') && countdownFor !== q.id;
+  const music = !!q?.open && !q.paused && !quiet(q) && countdownFor !== q.id;
   if (music !== musicOn) {musicOn = music; if (music) playSound('timerMusic', true); else stopSound('timerMusic');}
   if (!before) return;
   if (q && q.id !== before.id && q.live) {if (!(q.round && q.round !== before.round && playSound('startRound'))) playSound('questionStart');}

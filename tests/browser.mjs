@@ -351,10 +351,11 @@ try {
   assert.deepEqual([saved.evil, saved.fastestFingers, saved.bonusMode, saved.bonusPlaces, saved.speedBonus], [true, true, 'fixed', 2, 3]);
   log('builder: Evil Mode and fixed speed bonus fields save with the question');
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await host.locator('#finish').click(); await waitFor(projector, () => document.getElementById('boardStatus').textContent === 'Final standings');
+  await visible(projector, '#boardSection'); await host.locator('#displayMode').selectOption('winner');
   await visible(projector, '#winnerSection'); await waitFor(projector, () => document.getElementById('winnerName').textContent === 'Fox team' && document.querySelectorAll('#confetti span').length === 80);
   assert.match(await projector.locator('#podium').textContent(), /🥈 Owl team/); await waitFor(player, () => document.getElementById('answerState').textContent === 'Quiz finished');
   assert.equal(await player.locator('#submit').isDisabled(), true);
-  log('host-assisted recovery retains team identity; paper scoring; finish shows the winner celebration');
+  log('host-assisted recovery retains team identity; paper scoring; finish shows the final standings, then the winner celebration');
   await quiz.close(); await start(port);
   await host.reload(); await visible(host, '#panel'); // host session persists across a server restart
   // The restarted server is a new build, so the phone reloads itself, onto the quiz's own page.

@@ -59,7 +59,7 @@ function startDeskPlayer() {
   if (!spotify.deskPlayer) return message('Press Connect Spotify again to allow playing on this desk (a permission was added)', true);
   if (deskPlayer) {deskPlayer.activateElement?.(); deskPlayer.connect(); return;}
   window.onSpotifyWebPlaybackSDKReady = () => {
-    deskPlayer = new window.Spotify.Player({name: 'PubQuiz desk', volume: 0.9,
+    deskPlayer = new window.Spotify.Player({name: 'PubQuiz desk', volume: 1,
       getOAuthToken: done => request('spotify/token').then(t => done(t.accessToken)).catch(e => message(e.message, true))});
     deskPlayer.addListener('ready', ({device_id: id}) => {deskReady = true; request('spotify/device', {id}).then(loadSpotify).then(() => message('🎵 Spotify is playing through this desk')).catch(e => message(e.message, true)); showDeskPlayer();});
     deskPlayer.addListener('not_ready', () => {deskReady = false; showDeskPlayer(); message('The Spotify desk player went offline — check this laptop’s internet', true);});
@@ -386,7 +386,9 @@ $('playSelected').onclick = () => action(async () => {
   if (played && !confirm('This question has already played. Open a fresh copy?')) return;
   await request('start', {id: editingId, expectedQuestion: state.question?.id || null, repeat: played}); chooseTab('live');
 }, 'Question opened');
-$('next').onclick = () => action(() => request('next', {expectedQuestion: state.question?.id || null}), 'Next question opened');
+// Once every saved question has been played, Next finishes the quiz instead.
+const allPlayed = s => {const played = new Set(s.history.map(q => q.sourceId)), all = library?.rounds.flatMap(r => r.questions).filter(q => !q.tieBreaker) || []; return all.length > 0 && all.every(q => played.has(q.id));};
+$('next').onclick = () => allPlayed(state) ? finishQuiz() : action(() => request('next', {expectedQuestion: state.question?.id || null}), 'Next question opened');
 // Level for first place after the last question: the desk offers the tie-breaker (Next never opens one).
 function renderTie(s) {
   const tie = s.tie; $('tiePrompt').hidden = !tie || s.settings.ended; if (!tie) return;
@@ -646,12 +648,14 @@ $('photos').onclick = () => action(() => request('settings', {teamPhotos: !state
 $('blockedForm').onsubmit = e => {e.preventDefault(); const blockedWords = $('blockedWords').value; action(() => request('settings', {blockedWords}), 'Blocked words saved');};
 $('tvLanguage').onchange = () => {const language = $('tvLanguage').value; action(() => request('settings', {language}), 'TV language updated (phones use their own language)');};
 $('displayMode').onchange = () => {const displayMode = $('displayMode').value; action(() => request('settings', {displayMode}));};
-$('finish').onclick = () => action(async () => {
+const finishQuiz = () => action(async () => {
   const tie = state.tie, tied = tie ? `${tie.teams.join(', ')} are tied for first${tie.breaker ? ' and the tie-breaker hasn\'t been played' : ''}. ` : '';
   if (!state.settings.ended && !confirm(`${tied}Finish this quiz and close answers and registration? You can resume it later.`)) return;
-  // Finishing goes straight to the winner celebration on the projector.
-  await request('settings', state.settings.ended ? {ended: false} : {ended: true, ...(state.settings.displayMode === 'auto' ? {} : {displayMode: 'winner'})});
+  // Finishing shows the final leaderboard on the projector (a secret round's scores included); the winner
+  // celebration is one choice away under Projector view.
+  await request('settings', state.settings.ended ? {ended: false} : {ended: true, leaderboardVisible: true, ...(state.settings.displayMode === 'auto' ? {} : {displayMode: 'leaderboard'})});
 }, 'Quiz status updated');
+$('finish').onclick = finishQuiz;
 document.addEventListener('pointerdown', enableSound);
 $('loginForm').onsubmit = async e => {e.preventDefault(); await action(async () => {
   key = (await api('login', {key: $('key').value})).key; writeStorage('pubquiz-host', key, true); $('key').value = ''; updates.reconnect(); await loadLibrary();
@@ -963,7 +967,7 @@ function renderState(s) {
   if (clipRun && (q?.id !== clipRun.question || !q.live)) stopClips(); else renderClipsPanel(q);
   $('liveCount').textContent = q ? `${s.answers.length} answers received · ${s.teams.filter(t => t.enabled && !t.waiting).length} active teams` : 'Add rounds in Build quiz, then start your first question.';
   renderMedia($('liveMedia'), q); renderSolution($('liveSolution'), q);
-  $('next').disabled = !!q?.live || s.settings.ended; $('close').textContent = ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type) ? 'End game' : 'Close answers'; $('close').disabled = !pending; $('pause').disabled = !q?.open; $('resume').disabled = !q?.paused; $('reveal').disabled = !q || !!pending;
+  $('next').disabled = !!q?.live || s.settings.ended; $('next').textContent = allPlayed(s) && !s.settings.ended ? 'Finish quiz' : 'Start next question'; $('close').textContent = ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type) ? 'End game' : 'Close answers'; $('close').disabled = !pending; $('pause').disabled = !q?.open; $('resume').disabled = !q?.paused; $('reveal').disabled = !q || !!pending;
   $('reveal').textContent = q?.revealing ? 'Revealing…' : q?.revealed ? 'Hide answer reveal' : 'Reveal answer';
   $('registration').textContent = s.settings.registrationOpen ? 'Close registration' : 'Open registration'; $('registration').disabled = s.settings.ended;
   $('visibility').textContent = s.settings.leaderboardVisible ? 'Hide leaderboard' : 'Show leaderboard';

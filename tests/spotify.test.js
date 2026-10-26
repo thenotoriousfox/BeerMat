@@ -123,7 +123,7 @@ test('music bingo plays Spotify songs from the start time; clips play and log; n
   const audio = await call('host/open', {text: 'Name the artist', type: 'audio', seconds: 30, points: 1, answer: 'Queen', clip: {spotify: `https://open.spotify.com/track/${id(3)}`, start: 42, seconds: 12}});
   assert.equal((await call('host/spotify/play', {question: audio.id})).seconds, 12);
   assert.deepEqual(JSON.parse(fake.log.findLast(l => l.path === '/v1/me/player/play').body), {uris: [`spotify:track:${id(3)}`], position_ms: 42000});
-  assert.equal((await call('state', {}, team.secret)).question.clip, undefined);
+  const seen = (await call('state', {}, team.secret)).question; assert.deepEqual([seen.clip, seen.playsSong], [undefined, true]);
 }));
 
 test('Build quiz previews a track from its start point on the chosen player, for the desk only', () => fixture(async ctx => {
