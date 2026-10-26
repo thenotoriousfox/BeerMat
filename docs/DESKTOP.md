@@ -5,6 +5,9 @@ display full screen on a second screen. Nothing else needs installing: no Node.j
 
 ## Installing
 
+Download from the latest release: <https://github.com/DTJW92/PubQuiz/releases/latest> (`SHA256SUMS.txt` there has
+each file's checksum).
+
 | System | File | How |
 |---|---|---|
 | Windows 10/11 | `PubQuiz Setup 0.4.0.exe` | Run it, choose where to install. Start menu and desktop shortcuts are added. |
@@ -16,7 +19,7 @@ The builds are **not code-signed yet**. Windows SmartScreen warns about an unkno
 anyway) until the installer is signed with a code-signing certificate (see "Building", below).
 
 **Updating:** install the new version over the old one. Your quizzes, settings and key are in your user folder, not
-the program folder, so they carry over. There is no automatic updater yet (it needs somewhere to host releases).
+the program folder, so they carry over. There is no automatic updater yet.
 
 ## First run
 
@@ -117,7 +120,12 @@ yourself).
 
 ## Building
 
-Needs Node 22.13+ and npm on the build machine only.
+Releases build themselves: push a tag matching `package.json`'s version (`git tag v0.4.0 && git push origin v0.4.0`)
+and `.github/workflows/release.yml` builds Windows (on Windows) and Linux, runs the tests, and publishes a GitHub
+release with the four files and their checksums. Running the workflow by hand (Actions → Release desktop app) builds
+without publishing; the files are on the run's page.
+
+To build by hand, you need Node 22.13+ and npm on the build machine only.
 
 ```bash
 npm ci

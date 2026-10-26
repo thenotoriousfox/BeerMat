@@ -6,7 +6,7 @@ Player app.
 
 | Part | For | Guide |
 |---|---|---|
-| **PubQuiz desktop app** (Windows 10/11, Linux incl. CachyOS) | quizmasters: desk window, TV on the second screen, quiz Wi-Fi or venue Wi-Fi, backups | [docs/DESKTOP.md](docs/DESKTOP.md) |
+| **PubQuiz desktop app** (Windows 10/11, Linux incl. CachyOS) | quizmasters: desk window, TV on the second screen, quiz Wi-Fi or venue Wi-Fi, backups | [download](https://github.com/DTJW92/PubQuiz/releases/latest), [docs/DESKTOP.md](docs/DESKTOP.md) |
 | **Phone browser** | teams: nothing to install, every round format | [docs/QUIZMASTER.md](docs/QUIZMASTER.md) |
 | **PubQuiz Player** (Android, iOS) | teams who want it: scan to join, profile, find quizzes | [docs/MOBILE.md](docs/MOBILE.md) |
 | **PubQuiz Online** (optional service) | profiles, statistics, achievements, venue pages, quiz listings | [docs/ONLINE.md](docs/ONLINE.md) |
