@@ -20,7 +20,6 @@ const T = {
   'Switch team on this browser': ["Changer d'équipe sur ce navigateur", 'Cambiar de equipo en este navegador'],
   'Team photo': ["Photo d'équipe", 'Foto del equipo'],
   'Add a team photo to appear on the big screen. The quizmaster approves it first.': ["Ajoutez une photo d'équipe pour apparaître sur le grand écran. L’animateur la valide d’abord.", 'Añadid una foto del equipo para salir en la pantalla grande. El presentador la aprueba primero.'],
-  'Take or choose a photo': ['Prendre ou choisir une photo', 'Hacer o elegir una foto'],
   'Waiting for the quizmaster': ["En attente de l’animateur", 'Esperando al presentador'],
   'Submit final answer': ['Envoyer la réponse finale', 'Enviar respuesta final'],
   'One final submission per question. Drafts are saved while you type. Check your answer before submitting.': ['Une seule réponse finale par question. Les brouillons sont enregistrés pendant la saisie. Vérifiez avant d’envoyer.', 'Una sola respuesta final por pregunta. Los borradores se guardan mientras escribís. Revisad antes de enviar.'],
@@ -64,7 +63,8 @@ const T = {
   '+{n} points': ['+{n} points', '+{n} puntos'],
   'Draft saved — not sent yet': ['Brouillon enregistré — pas encore envoyé', 'Borrador guardado — aún sin enviar'],
   '👀 The quizmaster sees if you leave this page': ['👀 L’animateur voit si vous quittez cette page', '👀 El presentador ve si salís de esta página'],
-  '📷 Take or choose a photo': ['📷 Prendre ou choisir une photo', '📷 Hacer o elegir una foto'],
+  '📷 Take a photo': ['📷 Prendre une photo', '📷 Hacer una foto'],
+  '🖼️ Choose a photo': ['🖼️ Choisir une photo', '🖼️ Elegir una foto'],
   'AND THE WINNER IS…': ['ET LE GAGNANT EST…', 'Y EL GANADOR ES…'],
   // Status and messages
   '● Connected': ['● Connecté', '● Conectado'],

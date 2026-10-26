@@ -644,8 +644,9 @@ if (role === 'player') {
     if (document.hidden) {if (current?.question?.open && !current.answer) {leftAt = Date.now(); reportAway('left');}}
     else if (leftAt) {leftAt = null; reportAway('back');}
   });
-  $('photoInput').onchange = async () => {
-    const file = $('photoInput').files[0]; $('photoInput').value = ''; if (!file) return;
+  // A new photo from the camera, or one already on the phone.
+  $('photoInput').onchange = $('photoPick').onchange = async e => {
+    const file = e.target.files[0]; e.target.value = ''; if (!file) return;
     try {
       $('photoStatus').textContent = t('Uploading…');
       const response = await fetch('/api/team/photo', {method: 'POST', headers: {Authorization: 'Bearer ' + secret, 'Content-Type': 'image/jpeg'}, body: await shrinkPhoto(file), signal: AbortSignal.timeout(20000)});

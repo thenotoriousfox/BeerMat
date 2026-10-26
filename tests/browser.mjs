@@ -244,7 +244,7 @@ try {
   });
   assert.ok(Math.max(...misses) < 40, `clicks land on segment edges (worst ${Math.max(...misses).toFixed(1)} ms out)`);
   log('spin the wheel on the projector; team buzzer sound choice saved');
-  await player.locator('#menuButton').click(); await player.locator('#photoInput').setInputFiles({name: 'selfie.png', mimeType: 'image/png', buffer: makePng(640, 480)});
+  await player.locator('#menuButton').click(); await player.locator('#photoPick').setInputFiles({name: 'selfie.png', mimeType: 'image/png', buffer: makePng(640, 480)});
   await waitFor(player, () => document.getElementById('photoStatus').textContent.includes('Waiting'));
   await host.locator('[data-tab=teams]').click(); await host.locator('#teamCards article', {hasText: 'Fox team'}).getByRole('button', {name: 'Approve photo'}).click();
   await waitFor(player, () => document.getElementById('photoStatus').textContent.includes('Approved')); await player.locator('#teamMenu form button').click();
