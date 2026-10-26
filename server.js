@@ -12,6 +12,7 @@ import {teamResults} from './results.js';
 import {newVenueKey, signClaim, keyId} from './claims.js';
 import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from './soundnames.js';
 import {looks, typeGroups} from './looks.js';
+import {fetchDriveQuiz} from './drive.js';
 import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern, sheetPoints} from './model.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -29,7 +30,7 @@ const deskSecurity = {...security, 'Content-Security-Policy': security['Content-
 const DELIVERY_GRACE_MS = 2000;
 const SESSION_MS = 12 * 60 * 60 * 1000;
 // Read-only routes never notify clients of a change.
-const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token']);
+const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token', '/api/host/drive']);
 
 // Sound packs are laid out like SpeedQuizzing's Sounds folder: general/<name>.mp3 for each moment (soundnames.js),
 // buzzers/<pack>/*.mp3, and optionally its bingo calls file at the top. `prefix` is the URL they are served under.
@@ -954,6 +955,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/spotify/token') return send(200, await spotify.accessToken());
         if (p === '/api/host/spotify/disconnect') {spotify.disconnect(); return send(200, {ok: true});}
         if (p === '/api/host/spotify/device') {spotify.device(body.id); return send(200, {ok: true});}
+        if (p === '/api/host/drive') return send(200, {quiz: await fetchDriveQuiz(body.url, fetchImpl)});
         if (p === '/api/host/spotify/import') return send(200, {songs: await spotify.tracks(body.links)});
         if (p === '/api/host/spotify/pause') {await spotify.pause(); return send(200, {ok: true});}
         // A Spotify sound clip: start it, then log it as playing so taps count against it.

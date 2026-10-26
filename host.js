@@ -291,14 +291,22 @@ async function packMedia(quiz) {
 }
 // Loading a quiz file starts a fresh quiz: the current one's results are saved (and downloaded if anything was
 // played), then teams and scores are cleared, as with End quiz & start next.
-$('importQuiz').onchange = () => {const file = $('importQuiz').files[0]; $('importQuiz').value = ''; if (file) action(async () => {
+async function loadQuiz(read) {
   const played = state.history.length || state.teams.length;
   if (played && !confirm('Start a fresh quiz with this file? The current quiz ends: its results are saved and downloaded, and all teams and scores are cleared.')) return;
-  const result = await request('new-event', {questions: 'load', quiz: await readQuizFile(file)});
+  const result = await request('new-event', {questions: 'load', quiz: await read()});
   if (played) download(`pubquiz-results-${result.saved.replace(/^results\//, '')}`, result.results);
   await loadLibrary(); reviewId = '';
   return `New quiz loaded: ${library.title}${played ? ` — last quiz's results saved in ${result.saved}` : ''}`;
-});};
+}
+$('importQuiz').onchange = () => {const file = $('importQuiz').files[0]; $('importQuiz').value = ''; if (file) action(() => loadQuiz(() => readQuizFile(file)));};
+// A share link from Google Drive: the laptop downloads the file (it must be shared as "Anyone with the link").
+$('loadDrive').onclick = () => action(async () => {
+  const url = $('driveLink').value.trim(); if (!url) throw Error('Paste the quiz file’s Google Drive link first');
+  const loaded = await loadQuiz(async () => unpackMedia((await request('drive', {url})).quiz));
+  if (loaded) $('driveLink').value = '';
+  return loaded;
+});
 $('exportQuiz').onclick = () => download('pubquiz-questions.json', library);
 $('exportQuizMedia').onclick = () => action(async () => download(`${library.title.replace(/[^a-zA-Z0-9]+/g, '-') || 'quiz'}-with-media.json`, await packMedia(library)), 'Quiz downloaded with its pictures and sounds');
 async function uploadMedia(file) {
