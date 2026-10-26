@@ -7,6 +7,7 @@ import {mkdtempSync, mkdirSync, rmSync, writeFileSync, readdirSync, existsSync, 
 import path from 'node:path';
 import os from 'node:os';
 import {createQuiz} from '../server.js';
+const root = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 
 const hostKey = 'a-secure-quiz-test-key';
 test('a sound pack built from a SpeedQuizzing folder becomes the default; desk choices override it', async () => {
@@ -124,5 +125,35 @@ test('sound themes can be random for each question or chosen by question type', 
     // A moment chosen on the desk applies whichever theme is playing.
     await host('sounds', {slots: {wrong: '/pack/general/correct.mp3'}});
     await open('text', {answer: 'x'}); assert.equal((await host('state')).sounds.slots.wrong, '/pack/general/correct.mp3');
+  } finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
+});
+
+test('Halloween: the shipped theme and look are there to choose, and never turn up by chance', async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-halloween-')), pack = path.join(dir, 'pack'), mp3 = Buffer.from([0xff, 0xfb, 0x90, 0x00, 1]);
+  for (const f of ['general/correct.mp3', 'Themes/Arcade Theme/correct.mp3']) {mkdirSync(path.dirname(path.join(pack, f)), {recursive: true}); writeFileSync(path.join(pack, f), mp3);}
+  const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: pack, soundsDir: path.join(root, 'sounds')});
+  await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${quiz.server.address().port}`;
+  const call = async (route, body = {}, key = '') => {const r = await fetch(`${base}/api/${route}`, {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: JSON.stringify(body)}); return {status: r.status, ...await r.json()};};
+  try {
+    const key = (await call('login', {key: hostKey})).key, host = (route, body) => call('host/' + route, body, key);
+    assert.deepEqual((await host('state')).soundThemes, ['Arcade Theme', 'Halloween']);
+    await host('settings', {soundTheme: 'Halloween', look: 'halloween'});
+    let s = await host('state');
+    for (const slot of ['startRound', 'questionStart', 'timerMusic', 'timeUp', 'endRound', 'correct', 'wrong', 'reveal']) {
+      assert.match(s.sounds.slots[slot], /^\/sounds\/Themes\/Halloween\//, slot);
+      assert.equal((await fetch(base + s.sounds.slots[slot])).headers.get('content-type'), 'audio/mpeg');
+    }
+    assert.equal((await (await fetch(base + '/api/leaderboard')).json()).look, 'halloween');
+    // Random and by-type choices leave seasonal ones out.
+    assert.equal((await host('settings', {soundTheme: '@type', look: '@type'})).look, '@type');
+    s = await host('state');
+    assert.ok(!Object.values(s.soundThemesByType).includes('Halloween') && !Object.values(s.looksByType).includes('halloween'));
+    await host('settings', {soundTheme: '@random', look: '@random'});
+    for (let i = 0; i < 30; i++) {
+      await host('close'); await host('open', {text: 'Q', type: 'text', seconds: 30, points: 1, answer: 'x'});
+      const state = await host('state');
+      assert.doesNotMatch(state.sounds.slots.correct, /Halloween/); assert.notEqual(state.look, 'halloween');
+    }
   } finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
 });

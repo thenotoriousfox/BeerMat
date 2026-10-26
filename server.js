@@ -11,7 +11,7 @@ import {lanAddresses, joinUrlFor, diagnose, hotspotAddresses} from './network.js
 import {teamResults} from './results.js';
 import {newVenueKey, signClaim, keyId} from './claims.js';
 import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from './soundnames.js';
-import {looks, typeGroups} from './looks.js';
+import {looks, typeGroups, seasonal} from './looks.js';
 import {fetchDriveQuiz} from './drive.js';
 import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern, sheetPoints, spotifyTrack} from './model.js';
 
@@ -135,7 +135,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // The theme can be fixed, random for each question (stable per question) or chosen by question type.
   // By type, the default spreads the themes over groups of formats; the desk can change any type.
   const themesByType = () => {
-    const names = Object.keys(themes).sort(), chosen = settings().soundThemeByType || {};
+    const names = Object.keys(themes).filter(name => !seasonal(name)).sort(), chosen = settings().soundThemeByType || {};
     const auto = Object.fromEntries(typeGroups.flatMap((types, i) => types.map(type => [type, names.length ? names[i % names.length] : ''])));
     return {...auto, ...Object.fromEntries(Object.entries(chosen).filter(([, theme]) => theme === '' || Object.hasOwn(themes, theme)))};
   };
@@ -144,7 +144,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (Object.hasOwn(themes, mode)) return mode;
     if (!q || !['@random', '@type'].includes(mode)) return '';
     if (mode === '@type') return themesByType()[dataOf(q).type] ?? '';
-    const pool = ['', ...Object.keys(themes).sort()];
+    const pool = ['', ...Object.keys(themes).filter(name => !seasonal(name)).sort()];
     return pool[pickFor(q.id, 0x27d4eb2f, pool.length)];
   }
   // The TV and phones' look: fixed, random for each question (stable per question), or by question type, where the
@@ -161,7 +161,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (lookIds.includes(mode)) return mode;
     if (!q) return 'stage';
     if (mode === '@type') return looksByType()[dataOf(q).type] ?? 'stage';
-    return mode === '@random' ? lookIds[pickFor(q.id, 0x5bd1e995, lookIds.length)] : 'stage';
+    const pool = lookIds.filter(id => !seasonal(id));
+    return mode === '@random' ? pool[pickFor(q.id, 0x5bd1e995, pool.length)] : 'stage';
   }
   // Desk choices for single moments sit on top of the theme (null removes a moment's sound).
   const soundPack = (q = latest()) => {
