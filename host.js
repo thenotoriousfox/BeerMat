@@ -388,7 +388,24 @@ $('playSelected').onclick = () => action(async () => {
 }, 'Question opened');
 // Once every saved question has been played, Next finishes the quiz instead.
 const allPlayed = s => {const played = new Set(s.history.map(q => q.sourceId)), all = library?.rounds.flatMap(r => r.questions).filter(q => !q.tieBreaker) || []; return all.length > 0 && all.every(q => played.has(q.id));};
-$('next').onclick = () => allPlayed(state) ? finishQuiz() : action(() => request('next', {expectedQuestion: state.question?.id || null}), 'Next question opened');
+// Next walks through the quiz: each question, the leaderboard at the end of a round (shown, then revealed position by
+// position from the bottom), and finishing, which reveals the final standings the same way.
+function nextStep(s) {
+  const b = s.board;
+  if (b?.active && !b.done) return b.shown === b.rest ? 'revealFirst' : 'reveal';
+  if (s.settings.ended) return null;
+  if (b?.canShow) return 'show';
+  if (allPlayed(s)) return 'finish';
+  return b?.roundOver ? 'round' : 'question';
+}
+const nextLabels = {reveal: 'Reveal next position', revealFirst: 'Reveal first place', show: 'Show leaderboard', finish: 'Finish quiz', round: 'Start next round', question: 'Start next question'};
+$('next').onclick = () => {
+  const step = nextStep(state);
+  if (step === 'finish') finishQuiz();
+  else if (step === 'show') action(() => request('board', {action: 'show'}), 'Leaderboard on the TV');
+  else if (step === 'reveal' || step === 'revealFirst') action(() => request('board', {action: 'next'}), step === 'revealFirst' ? 'First place revealed' : 'Next position revealed');
+  else if (step) action(() => request('next', {expectedQuestion: state.question?.id || null}), 'Next question opened');
+};
 // Level for first place after the last question: the desk offers the tie-breaker (Next never opens one).
 function renderTie(s) {
   const tie = s.tie; $('tiePrompt').hidden = !tie || s.settings.ended; if (!tie) return;
@@ -651,9 +668,11 @@ $('displayMode').onchange = () => {const displayMode = $('displayMode').value; a
 const finishQuiz = () => action(async () => {
   const tie = state.tie, tied = tie ? `${tie.teams.join(', ')} are tied for first${tie.breaker ? ' and the tie-breaker hasn\'t been played' : ''}. ` : '';
   if (!state.settings.ended && !confirm(`${tied}Finish this quiz and close answers and registration? You can resume it later.`)) return;
-  // Finishing shows the final leaderboard on the projector (a secret round's scores included); the winner
-  // celebration is one choice away under Projector view.
-  await request('settings', state.settings.ended ? {ended: false} : {ended: true, leaderboardVisible: true, ...(state.settings.displayMode === 'auto' ? {} : {displayMode: 'leaderboard'})});
+  // Finishing puts the final leaderboard on the projector (a secret round's scores included), revealed position by
+  // position with Next; the winner celebration is one choice away under Projector view.
+  if (state.settings.ended) return request('settings', {ended: false});
+  await request('settings', {ended: true, leaderboardVisible: true, ...(state.settings.displayMode === 'auto' ? {} : {displayMode: 'leaderboard'})});
+  if (state.question) await request('board', {action: 'show'});
 }, 'Quiz status updated');
 $('finish').onclick = finishQuiz;
 document.addEventListener('pointerdown', enableSound);
@@ -980,7 +999,7 @@ function renderState(s) {
   if (clipRun && (q?.id !== clipRun.question || !q.live)) stopClips(); else renderClipsPanel(q);
   $('liveCount').textContent = q ? `${s.answers.length} answers received · ${s.teams.filter(t => t.enabled && !t.waiting).length} active teams` : 'Add rounds in Build quiz, then start your first question.';
   renderMedia($('liveMedia'), q); renderSolution($('liveSolution'), q);
-  $('next').disabled = !!q?.live || s.settings.ended; $('next').textContent = allPlayed(s) && !s.settings.ended ? 'Finish quiz' : 'Start next question'; $('close').textContent = ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type) ? 'End game' : 'Close answers'; $('close').disabled = !pending; $('pause').disabled = !q?.open; $('resume').disabled = !q?.paused; $('reveal').disabled = !q || !!pending;
+  const step = nextStep(s); $('next').disabled = !!q?.live || !step; $('next').textContent = nextLabels[step] || 'Quiz finished'; $('close').textContent = ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type) ? 'End game' : 'Close answers'; $('close').disabled = !pending; $('pause').disabled = !q?.open; $('resume').disabled = !q?.paused; $('reveal').disabled = !q || !!pending;
   $('reveal').textContent = q?.revealing ? 'Revealing…' : q?.revealed ? 'Hide answer reveal' : 'Reveal answer';
   $('registration').textContent = s.settings.registrationOpen ? 'Close registration' : 'Open registration'; $('registration').disabled = s.settings.ended;
   $('visibility').textContent = s.settings.leaderboardVisible ? 'Hide leaderboard' : 'Show leaderboard';

@@ -83,6 +83,30 @@ test('the TV knows each team’s buzzer sound, so first place and the winner hea
   assert.deepEqual((await board()).teams.map(t => [t.name, t.sound]), [['Fox', 6], ['Owl', null]]);
 }));
 
+test('after a round, Next shows the leaderboard, reveals it from the bottom with first place last, then starts the next round', () => fixture(async ({call, board}) => {
+  const teams = {}; for (const name of ['Ant', 'Bee', 'Cat']) teams[name] = await call('join', {name});
+  await call('host/library/save', {revision: 0, quiz: {title: 'Steps', rounds: [{id: 'r1', title: 'One', questions: [{id: 'a', ...question()}]}, {id: 'r2', title: 'Two', questions: [{id: 'b', ...question()}]}]}});
+  let {id} = await call('host/next', {expectedQuestion: null});
+  assert.equal((await call('host/state')).board.canShow, false, 'not while the question is open');
+  await call('answer', {question: id, value: 'Cardiff'}, teams.Ant.secret); await call('host/close');
+  const desk = (await call('host/state')).board;
+  assert.deepEqual([desk.canShow, desk.active, desk.roundOver], [true, false, true]);
+  await call('host/board', {action: 'show'});
+  let tv = await board(); assert.equal(tv.view, 'leaderboard'); assert.deepEqual(tv.reveal, {question: id, shown: 0, rest: 2, done: false});
+  await call('host/board', {action: 'next'}); await call('host/board', {action: 'next'});
+  tv = await board(); assert.deepEqual([tv.reveal.shown, tv.reveal.done], [2, false]);
+  await call('host/board', {action: 'next'}); assert.equal((await board()).reveal.done, true, 'first place revealed');
+  assert.equal((await call('host/board', {action: 'next'})).status, 409);
+  // The next round's first question takes the TV back.
+  ({id} = await call('host/next', {expectedQuestion: id})); tv = await board(); assert.deepEqual([tv.view, tv.reveal], ['question', null]);
+  // No board at the end of the last round: finishing reveals the final standings instead.
+  await call('host/close'); assert.equal((await call('host/state')).board.canShow, false);
+  await call('host/settings', {ended: true}); await call('host/board', {action: 'show'});
+  assert.equal((await board()).reveal.shown, 0);
+  // Choosing a projector view ends the reveal.
+  await call('host/settings', {displayMode: 'winner'}); tv = await board(); assert.deepEqual([tv.view, tv.reveal], ['winner', null]);
+}));
+
 test('positions-only board hides scores everywhere but the desk', () => fixture(async ({call, board}) => {
   const team = await call('join', {name: 'Fox'}), other = await call('join', {name: 'Owl'});
   const {id} = await call('host/open', question());
@@ -111,7 +135,7 @@ test('TV countdown: start, pause, resume, stop', () => fixture(async ({call, boa
   assert.equal((await call('host/timer', {action: 'start', seconds: 0})).status, 400);
 }));
 
-test('automatic TV: join, question, leaderboard after a round, final leaderboard; a manual view overrides it', () => fixture(async ({call, board, tick}) => {
+test('automatic TV: join, question, the leaderboard when the quizmaster shows it, final leaderboard; a manual view overrides it', () => fixture(async ({call, board, tick}) => {
   const view = async () => (await board()).view;
   assert.equal(await view(), 'join');
   const saved = id => ({id, ...question({text: `Question ${id}`})});
@@ -120,15 +144,14 @@ test('automatic TV: join, question, leaderboard after a round, final leaderboard
   await call('host/close'); tick(60000); assert.equal(await view(), 'question'); // round 1 not over yet
   await call('host/next', {expectedQuestion: 1}); await call('host/close');
   assert.equal(await view(), 'question'); tick(5000);
-  await call('host/reveal', {question: 2}); tick(9000); assert.equal(await view(), 'question');
-  tick(1500); assert.equal(await view(), 'leaderboard');
+  await call('host/reveal', {question: 2}); tick(60000); assert.equal(await view(), 'question', 'the round is over, but the board waits for the quizmaster');
+  await call('host/board', {action: 'show'}); assert.equal(await view(), 'leaderboard');
   await call('host/next', {expectedQuestion: 2}); assert.equal(await view(), 'question');
-  tick(31000); assert.equal(await view(), 'question'); // expired unrevealed: board 10 s after the deadline
-  tick(10000); assert.equal(await view(), 'leaderboard');
+  tick(31000); assert.equal(await view(), 'question');
   await call('host/settings', {displayMode: 'wheel'}); assert.equal(await view(), 'wheel');
   // In Auto, a spin shows the wheel while it turns and its result shows, then Auto carries on.
   await call('host/settings', {displayMode: 'auto'}); await call('host/wheel', {items: ['Red', 'Blue']}); assert.equal(await view(), 'wheel');
-  tick(15000); assert.equal(await view(), 'wheel'); tick(1500); assert.equal(await view(), 'leaderboard');
+  tick(15000); assert.equal(await view(), 'wheel'); tick(1500); assert.equal(await view(), 'question');
   await call('host/settings', {displayMode: 'auto', ended: true}); assert.equal(await view(), 'leaderboard');
 }));
 

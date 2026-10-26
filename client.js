@@ -287,7 +287,7 @@ function sharedState(s) {
   // The quizmaster's look for this question (colours only; see style.css).
   document.documentElement.dataset.look = s.look || 'stage';
   $('title').textContent = s.settings.title; document.title = s.settings.title + ' — ' + (role === 'player' ? 'Team' : 'Projector');
-  renderBoard($('leaderboard'), s.teams);
+  renderBoard($('leaderboard'), s.teams); if (role === 'display') applyReveal(s);
   $('boardStatus').textContent = s.settings.secretRound ? t('Secret round: the scores stay hidden until the end of the quiz.') : !s.settings.leaderboardVisible ? t('The quizmaster has hidden scores for now.') : s.settings.ended ? t('Final standings') : s.teams.length ? t('Ties share the same rank.') : t('Waiting for teams');
 }
 function renderQr(container, text) {
@@ -376,6 +376,26 @@ function renderFirst(q) {
   buzzSound(f.name, f.sound);
   clearTimeout(firstTimer); firstTimer = setTimeout(() => {box.hidden = true;}, 7000);
 }
+// First place's turn in the leaderboard reveal: it fills the TV for a few seconds (photo, name, points, buzzer sound)
+// with the whole board behind it. Teams tied for first share the moment.
+function showLeader(s) {
+  const top = s.teams.filter(team => team.rank === 1).slice(0, 4); if (!top.length) return;
+  const box = $('firstPlace'); box.dataset.question = String(s.question?.id);
+  $('firstKind').textContent = top.length > 1 ? t('TIED FOR FIRST') : t('IN FIRST PLACE');
+  $('firstPhoto').replaceChildren(...top.map(team => team.photo ? avatar(team.photo) : element('span', [...team.name][0].toUpperCase(), 'avatar first-initial')));
+  $('firstName').textContent = top.map(team => team.name).join(' & ');
+  $('firstDetail').textContent = top[0].score === null ? '' : t('{n} points', {n: top[0].score});
+  box.hidden = false; box.classList.remove('show'); void box.offsetWidth; box.classList.add('show');
+  cheerLeaders(top, 600);
+  clearTimeout(firstTimer); firstTimer = setTimeout(() => {box.hidden = true;}, 5000 + (top.length - 1) * 2500);
+}
+// The leaderboard revealed from the desk, position by position from the bottom: rows wait hidden until their turn,
+// and first place gets the spotlight (showLeader, from soundCues) when its turn comes.
+function applyReveal(s) {
+  const r = s.reveal, rows = [...$('leaderboard').children], shown = r && !r.done ? r.shown : Infinity;
+  rows.forEach((li, i) => li.classList.toggle('shown', rows.length - i <= shown));
+  $('leaderboard').classList.toggle('revealing', shown !== Infinity);
+}
 // The wheel always turns forwards and stops with the server's chosen segment under the pointer. It clicks each time
 // a segment edge passes the pointer, so the clicks slow down with the wheel.
 const wheelSpinMs = 6000, wheelEasing = [0.12, 0.6, 0.15, 1];
@@ -431,10 +451,12 @@ const quiet = q => silentTypes.includes(q.type) || q.playsSong || /\.(mp3|ogg|wa
 function soundCues(s) {
   const q = s.question, before = heard;
   heard = {id: q?.id, round: q?.round, open: !!q?.open, revealing: !!q?.revealing, revealed: !!q?.revealed, calls: q?.bingo?.count ?? 0, shouts: Object.fromEntries((q?.bingo?.shouts || []).map(x => [x.id, x.status])),
-    buzz: Object.fromEntries((q?.buzz?.queue || []).map(b => [b.team, b.status])), view: s.view};
+    buzz: Object.fromEntries((q?.buzz?.queue || []).map(b => [b.team, b.status])), view: s.view, boardDone: s.reveal?.done ? s.reveal.question : null};
   const music = !!q?.open && !q.paused && !quiet(q) && countdownFor !== q.id;
   if (music !== musicOn) {musicOn = music; if (music) playSound('timerMusic', true); else stopSound('timerMusic');}
   if (!before) return;
+  if (s.view === 'leaderboard' && before.view === 'question' && s.settings.displayMode === 'auto') playSound('endRound');
+  if (s.reveal?.done && before.boardDone !== s.reveal.question) showLeader(s);
   if (q && q.id !== before.id && q.live) {if (!(q.round && q.round !== before.round && playSound('startRound'))) playSound('questionStart');}
   if (q?.id !== before.id) return;
   // A countdown that ran to the end has its own ring-out, so time's up only sounds without one.
@@ -448,8 +470,6 @@ function soundCues(s) {
   for (const [id, status] of Object.entries(heard.shouts)) if (status !== before.shouts[id]) {
     if (status === 'pending') playSound('bingo'); else {stopSound('bingo'); playSound(status === 'correct' ? 'correct' : 'wrong');}
   }
-  if (s.view === 'leaderboard' && before.view === 'question' && s.settings.displayMode === 'auto') playSound('endRound');
-  if (s.view === 'leaderboard' && before.view !== 'leaderboard') cheerLeaders(s.teams, 1200);
 }
 // The TV never scrolls: the visible view is scaled down until it fits the space under the header.
 // A narrower scale makes the view wider, so text reflows shorter; a few rounds settle it.

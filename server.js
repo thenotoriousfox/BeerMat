@@ -431,12 +431,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // Automatic TV: join screen before the first question, the question while it runs and after it closes,
   // the leaderboard once a round's last question has been revealed (or closed unrevealed) for a few seconds,
   // and the winner when the quiz is finished. Any other projector view chosen on the desk overrides it.
-  const ROUND_BOARD_MS = 10000, WHEEL_SHOW_MS = 16000;
+  const WHEEL_SHOW_MS = 16000;
   // A new id each time the server starts: phones and the TV reload when it changes, so they never keep running the
   // page as it was before an update.
   const build = token().slice(0, 8);
   function tvView() {
     const s = settings();
+    // The quizmaster revealing the leaderboard position by position takes the TV until the next question.
+    if (boardReveal()) return 'leaderboard';
     if (s.displayMode !== 'auto') return s.displayMode;
     // A spin takes over the TV while the wheel turns and its result shows, then Auto carries on.
     const wheel = getMeta('wheel', null);
@@ -444,9 +446,23 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (s.ended) return 'leaderboard';
     const q = latest();
     if (!q) return s.registrationOpen ? 'join' : 'leaderboard';
-    if (pending(q) || !roundOver(q)) return 'question';
-    const since = q.revealed ? q.revealed_at : q.closed_at ?? q.deadline;
-    return since && now() - since >= ROUND_BOARD_MS ? 'leaderboard' : 'question';
+    // At the end of a round the TV stays on the question until the quizmaster shows the leaderboard (boardReveal).
+    return 'question';
+  }
+  // The leaderboard revealed position by position from the desk (after a round, and when the quiz finishes): `shown`
+  // rows from the bottom; one more than the rows below first place reveals first place, and the whole board.
+  function boardReveal() {
+    const q = latest(), b = getMeta('board', null);
+    if (!b || !q || b.question !== q.id || pending(q)) return null;
+    const rest = scores().filter(t => t.rank > 1).length;
+    return {question: q.id, shown: b.shown, rest, done: b.shown > rest};
+  }
+  // What the desk's Next button can do with the board: show it at the end of a round (when there is a board to show
+  // and more questions to come; the last round's reveal comes with Finish quiz), then reveal it.
+  function boardStep() {
+    const q = latest(), reveal = boardReveal(), visible = publicScores().length > 0;
+    const played = new Set(rows('SELECT data FROM questions').map(p => dataOf(p).sourceId)), more = library().rounds.some(r => r.questions.some(x => !x.tieBreaker && !played.has(x.id)));
+    return {...reveal, active: !!reveal, canShow: !reveal && !!q && !pending(q) && roundOver(q) && more && visible && !settings().ended, roundOver: !!q && !pending(q) && roundOver(q)};
   }
   // A saved question ends its round when every question in that round has been played.
   function roundOver(q) {
@@ -540,7 +556,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const url = onlineUrl(), secret = secretRound(), s = {...settings(), ...secret && {leaderboardVisible: false, secretRound: true}};
     return url ? {...s, joinUrl: url, joinPassword: '', online: true} : s;
   };
-  function publicState() { return {serverTime: now(), build, settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
+  function publicState() { return {serverTime: now(), build, settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), reveal: publicScores().length ? boardReveal() : null, wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
 
   // Final scoring once answers stop: nearest-wins needs every answer before it can rank them.
   function settle(q) {
@@ -842,7 +858,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/logout') {run('DELETE FROM host_sessions WHERE hash=?', hash(auth)); return send(200, {ok: true});}
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats();
-          return send(200, {serverTime: now(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {serverTime: now(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board: boardStep(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -940,7 +956,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           }
           if (Object.hasOwn(body, 'maxTeams')) {requireValue(Number.isInteger(body.maxTeams) && body.maxTeams >= 0 && body.maxTeams <= 250, 'Maximum teams must be 0 (no limit) to 250'); next.maxTeams = body.maxTeams;}
           if (Object.hasOwn(body, 'language')) {requireValue(['en', 'fr', 'es'].includes(body.language), 'Unknown language'); next.language = body.language;}
-          if (Object.hasOwn(body, 'displayMode')) {requireValue(['auto', 'join', 'leaderboard', 'question', 'wheel', 'winner', 'blank'].includes(body.displayMode), 'Invalid projector view'); next.displayMode = body.displayMode;}
+          // Choosing a projector view ends a leaderboard reveal, which otherwise holds the TV until the next question.
+          if (Object.hasOwn(body, 'displayMode')) {requireValue(['auto', 'join', 'leaderboard', 'question', 'wheel', 'winner', 'blank'].includes(body.displayMode), 'Invalid projector view'); next.displayMode = body.displayMode; setMeta('board', null);}
           // Extra blocked team-name words stay private to the desk.
           if (Object.hasOwn(body, 'blockedWords')) {
             requireValue(typeof body.blockedWords === 'string' && body.blockedWords.length <= 2000, 'Blocked words must be up to 2,000 characters');
@@ -954,6 +971,13 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           return send(200, next);
         }
         if (p === '/api/host/open') return send(200, openQuestion(body));
+        if (p === '/api/host/board') {
+          requireValue(['show', 'next'].includes(body.action), 'Unknown board action');
+          const q = latest(), reveal = boardReveal();
+          if (body.action === 'show') {requireValue(q && !pending(q), 'Close the question before showing the leaderboard', 409); setMeta('board', {question: q.id, shown: 0});}
+          else {requireValue(reveal && !reveal.done, 'No leaderboard being revealed', 409); setMeta('board', {question: q.id, shown: reveal.shown + 1});}
+          return send(200, boardStep());
+        }
         if (p === '/api/host/start' || p === '/api/host/next') {
           requireValue(body.expectedQuestion === (latest()?.id || null), 'Current question changed; refresh before opening another', 409);
           const all = library().rounds.flatMap(r => r.questions.map(q => ({...q, round: r.title, ...r.secret && {secret: true}})));
@@ -1166,7 +1190,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           transaction(() => {
             for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'marking_log', 'adjustments', 'device_ips', 'actions', 'questions', 'teams']) run(`DELETE FROM ${table}`);
             if (nextLibrary) setMeta('library', {...nextLibrary, revision: library().revision + 1});
-            setMeta('timer', null); setMeta('wheel', null); setMeta('event', token().slice(0, 12));
+            setMeta('timer', null); setMeta('wheel', null); setMeta('board', null); setMeta('event', token().slice(0, 12));
             setMeta('settings', {...settings(), title: body.title?.trim() || nextLibrary?.title || library().title, ended: false, registrationOpen: true, displayMode: 'auto'});
           });
           for (const photo of photos) try {unlinkSync(path.join(mediaDir, path.basename(photo)));} catch {}

@@ -15,6 +15,8 @@ const T = {
   'Save this code to reconnect from a different browser. Only share it with your team.': ['Gardez ce code pour vous reconnecter depuis un autre navigateur. Ne le partagez qu’avec votre équipe.', 'Guardad este código para reconectaros desde otro navegador. Compartidlo solo con vuestro equipo.'],
   'While you wait: add a team photo and pick your buzzer sound.': ['En attendant : ajoutez une photo d’équipe et choisissez votre son de buzzer.', 'Mientras esperáis: añadid una foto del equipo y elegid vuestro sonido de pulsador.'],
   'You’re in! Waiting for the quiz to start': ['C’est bon ! En attendant le début du quiz', '¡Dentro! Esperando a que empiece el quiz'],
+  'IN FIRST PLACE': ['EN TÊTE', 'EN PRIMER LUGAR'],
+  'TIED FOR FIRST': ['EX ÆQUO EN TÊTE', 'EMPATE EN CABEZA'],
   '▶ Hear it': ['▶ Écouter', '▶ Escuchar'],
   'Your buzzer sound': ['Votre son de buzzer', 'Vuestro sonido de pulsador'],
   'Switch team on this browser': ["Changer d'équipe sur ce navigateur", 'Cambiar de equipo en este navegador'],
