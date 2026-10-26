@@ -16,6 +16,7 @@ Output the quiz as a quiz file for **PubQuiz**, an offline pub quiz system: the 
 - Every round `id` and question `id` must be unique across the whole file, and use only letters, digits, `-` and `_` (1–80 characters). For example: `r1`, `r1-q1`, `r1-q2`, `r2`, `r2-q1`.
 - Up to 1,000 questions in total.
 - The TV shows the leaderboard automatically after the last question of each round.
+- A round may add `"secret": true` (usually the final round): teams don't see their marks or the answers for its questions, and the leaderboard stays hidden, until the quizmaster ends the quiz. For example: `{"id": "r6", "title": "Final round", "secret": true, "questions": [ … ]}`. Leave it out for normal rounds.
 
 ## Fields every question has
 
