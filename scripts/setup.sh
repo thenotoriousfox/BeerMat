@@ -17,7 +17,23 @@ app() {
   fi
   printf '%s\n' '[Desktop Entry]' 'Type=Application' 'Name=PubQuiz' 'Comment=Run a pub quiz: desk, TV screen and quiz Wi-Fi' \
     "$exec" 'Icon=pubquiz' 'Terminal=false' 'Categories=Game;' >"$apps/pubquiz.desktop"
+  refresh_menu "$apps"
   echo "PubQuiz is in the app menu (Games). Remove it with: rm $apps/pubquiz.desktop"
+}
+# Menus that cache their entries pick up the new icon straight away. KDE keeps one cache per environment and reads
+# the one matching Plasma's, so while Plasma runs the cache is rebuilt with Plasma's environment (a terminal or SSH
+# session can differ and would otherwise rebuild a cache Plasma never reads).
+refresh_menu() {
+  local build plasma env
+  if command -v update-desktop-database >/dev/null; then update-desktop-database "$1" 2>/dev/null || true; fi
+  build=$(command -v kbuildsycoca6 || command -v kbuildsycoca5) || return 0
+  plasma=$(pgrep -u "$(id -u)" -x plasmashell | head -n 1) || true
+  if [[ -n $plasma && -r /proc/$plasma/environ ]]; then
+    mapfile -d '' env <"/proc/$plasma/environ"
+    env -i "${env[@]}" "$build" --noincremental >/dev/null 2>&1 || true
+  else
+    "$build" >/dev/null 2>&1 || true
+  fi
 }
 if [[ ${1:-} == --app ]]; then app; exit 0; fi
 if [[ ${1:-} == --browser-app ]]; then app browser; exit 0; fi
