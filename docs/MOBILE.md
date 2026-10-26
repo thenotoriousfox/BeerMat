@@ -52,20 +52,32 @@ npx cap sync
 ```bash
 npm run android:debug        # android/app/build/outputs/apk/debug/app-debug.apk
 npm run android:release      # android/app/build/outputs/bundle/release/app-release.aab (signed if set up, below)
+cd android && ./gradlew assembleRelease   # a signed APK for installing directly, as the releases carry
 ```
 
 **iOS** (macOS with Xcode 16+): `npm run ios` opens the project in Xcode; choose a team and run, or Product →
 Archive for the App Store.
+
+## Android download (no store)
+
+Each release on <https://github.com/DTJW92/PubQuiz/releases/latest> has `PubQuiz-Player-<version>.apk`. On the
+phone: open that page, download the APK, allow your browser to "install unknown apps" when asked, and install. A
+newer APK installs over the old one.
+
+The release workflow (`.github/workflows/release.yml`) signs it with the upload key kept in the repository's
+secrets `ANDROID_KEYSTORE_BASE64` (the keystore, base64) and `ANDROID_KEYSTORE_PASSWORD`. The same key must sign
+every release, or phones refuse the update: keep a backup of the keystore and its password (the maintainer's copy is
+in `~/.local/share/pubquiz/`). Raise `versionCode` in `android/app/build.gradle` and `version` in
+`mobile/package.json` (it must match the release tag) for each release.
 
 ## Signing and store submission (not done: needs your accounts)
 
 **Google Play**
 
 1. A Google Play developer account (one-off fee).
-2. An upload key: `keytool -genkeypair -v -keystore upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload`.
-   Keep it out of the repository. Create `mobile/android/keystore.properties` (ignored by git):
-   `storeFile=../upload.jks`, `storePassword=…`, `keyAlias=upload`, `keyPassword=…`. The release build then signs
-   with it; enrol in Play App Signing.
+2. The upload key already exists (above). To sign on your own machine, create `mobile/android/keystore.properties`
+   (ignored by git): `storeFile=<path to the keystore>`, `storePassword=…`, `keyAlias=upload`, `keyPassword=…`.
+   The release build then signs with it; enrol in Play App Signing.
 3. Raise `versionCode` in `android/app/build.gradle` for every upload.
 4. Play Console: Data safety form (below), content rating, target audience (not aimed at children), privacy policy
    URL (needed because of accounts and location), and a note for reviewers on how to reach a quiz (a demo quiz

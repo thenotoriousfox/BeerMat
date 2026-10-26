@@ -122,8 +122,8 @@ yourself).
 
 Releases build themselves: push a tag matching `package.json`'s version (`git tag v0.4.0 && git push origin v0.4.0`)
 and `.github/workflows/release.yml` builds Windows (on Windows) and Linux, runs the tests, and publishes a GitHub
-release with the four files and their checksums. Running the workflow by hand (Actions → Release desktop app) builds
-without publishing; the files are on the run's page.
+release with the four files, the Android PubQuiz Player APK (docs/MOBILE.md) and their checksums. Running the
+workflow by hand (Actions → Release) builds without publishing; the files are on the run's page.
 
 To build by hand, you need Node 22.13+ and npm on the build machine only.
 

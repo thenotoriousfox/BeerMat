@@ -1,6 +1,7 @@
-name: Release desktop app
-# Push a tag like v0.4.0 (matching package.json's version) to build the Windows and Linux apps and publish them as a
-# GitHub release: https://github.com/DTJW92/PubQuiz/releases/latest. Run it by hand to build without publishing.
+name: Release
+# Push a tag like v0.4.0 (matching package.json's version) to build the Windows and Linux apps and the Android
+# PubQuiz Player APK, and publish them as a GitHub release: https://github.com/DTJW92/PubQuiz/releases/latest.
+# Run it by hand to build without publishing.
 on:
   push:
     tags: ['v*']
@@ -46,8 +47,46 @@ jobs:
           path: ${{ matrix.files }}
           if-no-files-found: error
 
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Tag matches mobile/package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: test "${GITHUB_REF_NAME#v}" = "$(node -p 'require("./mobile/package.json").version')" || { echo "Tag $GITHUB_REF_NAME does not match mobile/package.json version"; exit 1; }
+      # The upload key lives in the repository's secrets, never in the repository (docs/MOBILE.md).
+      - name: Signing key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE" && test -n "$PASSWORD" || { echo "ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD secrets are missing"; exit 1; }
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=upload\nkeyPassword=%s\n' "$RUNNER_TEMP/upload.jks" "$PASSWORD" "$PASSWORD" > mobile/android/keystore.properties
+      - name: Build
+        working-directory: mobile
+        run: |
+          npm install -g npm@12
+          npm ci
+          node scripts/build-web.mjs
+          npx cap sync android
+          cd android && ./gradlew assembleRelease
+          mkdir -p ../../dist && cp app/build/outputs/apk/release/app-release.apk "../../dist/PubQuiz-Player-$(node -p 'require("../package.json").version').apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android
+          path: dist/*.apk
+          if-no-files-found: error
+
   release:
-    needs: build
+    needs: [build, android]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
