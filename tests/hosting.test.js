@@ -15,7 +15,7 @@ async function fixture(fn) {
     const response = await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/${route}`, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body)});
     return {status: response.status, ...await response.json()};
   };
-  const host = (await call('login', {key: hostKey})).key;
+  const host = (await call('login', {key: hostKey})).key; await call('host/settings', {waitingRoom: false});
   const board = async () => (await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/leaderboard`)).json();
   const upload = async (name, data) => (await (await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/host/media?name=${name}`, {method: 'POST', headers: {Authorization: 'Bearer ' + host}, body: data})).json()).media;
   try {await fn({call, board, upload, tick: ms => time += ms});} finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}

@@ -85,6 +85,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     CREATE TABLE IF NOT EXISTS bingo_claims(question INTEGER REFERENCES questions(id),team TEXT REFERENCES teams(id),stage INTEGER NOT NULL,seq INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,team,stage));
     CREATE TABLE IF NOT EXISTS bingo_calls(question INTEGER REFERENCES questions(id),seq INTEGER NOT NULL,number INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,seq));
     CREATE TABLE IF NOT EXISTS event_results(event TEXT PRIMARY KEY,title TEXT NOT NULL,finished INTEGER NOT NULL,data TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS regulars(id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE COLLATE NOCASE,pin TEXT NOT NULL UNIQUE,sound INTEGER,photo TEXT,last_played INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS sync_outbox(id TEXT PRIMARY KEY,kind TEXT NOT NULL,payload TEXT NOT NULL,created INTEGER NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,last_error TEXT,sent INTEGER);
   `);
   function column(table, name, definition) {
@@ -98,6 +99,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   column('teams', 'transfer_code', 'TEXT');
   column('teams', 'transfer_expires', 'INTEGER');
   column('teams', 'waiting', 'INTEGER NOT NULL DEFAULT 0');
+  column('teams', 'regular', 'TEXT');
   column('questions', 'paused_ms', 'INTEGER');
   column('questions', 'revealed', 'INTEGER NOT NULL DEFAULT 0');
   column('questions', 'settled', 'INTEGER NOT NULL DEFAULT 0');
@@ -121,7 +123,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', joinMode: 'hotspot', joinPassword: '', shareResults: false, onlineService: '', scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, bingoBoard: false, teamPhotos: true, language: 'en', onlineAfterJoin: true, deskOnline: false, waitingRoom: false, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {}};
+  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', joinMode: 'hotspot', joinPassword: '', shareResults: false, onlineService: '', scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, bingoBoard: false, teamPhotos: true, language: 'en', onlineAfterJoin: true, deskOnline: false, waitingRoom: true, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {}};
   const SOUNDS = 8;
   // Sound effects for the TV and extra buzzer sounds, both from the quizmaster's own files; custom bingo calls (1–90).
   // This laptop's sound pack (scripts/sound-pack.mjs) supplies the defaults until the desk changes them; a desk choice of
@@ -409,7 +411,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // Only photos the quizmaster approved are ever shown to other teams or on the TV.
   const publicPhoto = t => settings().teamPhotos && t.photo_status === 'approved' ? t.photo : null;
   function removePhoto(team) {
-    if (team.photo) try {unlinkSync(path.join(mediaDir, path.basename(team.photo)));} catch {}
+    if (team.photo && !one('SELECT 1 FROM regulars WHERE photo=?', team.photo)) try {unlinkSync(path.join(mediaDir, path.basename(team.photo)));} catch {}
     run('UPDATE teams SET photo=NULL,photo_status=NULL WHERE id=?', team.id);
   }
   function publicScores() {
@@ -467,6 +469,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function recordResults() {
     const event = getMeta('event', ''), results = eventResults();
     if (!results.length) return;
+    rememberTeams();
     run('INSERT INTO event_results VALUES(?,?,?,?) ON CONFLICT(event) DO UPDATE SET title=excluded.title,finished=excluded.finished,data=excluded.data', event, settings().title, now(), JSON.stringify(results));
     // Shared online only when the quizmaster has switched it on: team names, positions and points, signed by this laptop.
     if (settings().shareResults && settings().onlineService) {
@@ -474,6 +477,40 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       run('INSERT INTO sync_outbox(id,kind,payload,created) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,sent=NULL,attempts=0', 'event:' + event, 'event', JSON.stringify(summary), now());
       flushOutbox();
     }
+  }
+  // Returning teams: every team that answered is remembered with a 4-digit PIN. At a later quiz the quizmaster reads
+  // a team its PIN, and the phone gets the team back with its name, approved photo and buzzer sound.
+  const newPin = () => {let pin; do pin = String(randomInt(1000, 10000)); while (one('SELECT 1 FROM regulars WHERE pin=?', pin) || one('SELECT 1 FROM teams WHERE transfer_code=? AND transfer_expires>?', pin, now())); return pin;};
+  function rememberTeams() {
+    for (const t of rows('SELECT id,name,sound,photo,photo_status,regular FROM teams WHERE enabled=1 AND waiting=0 AND id IN (SELECT team FROM answers WHERE submitted IS NOT NULL)')) {
+      const photo = t.photo_status === 'approved' ? t.photo : null;
+      const known = (t.regular && one('SELECT * FROM regulars WHERE id=?', t.regular)) || one('SELECT * FROM regulars WHERE name=?', t.name);
+      if (!known) {
+        const id = token(); run('INSERT INTO regulars VALUES(?,?,?,?,?,?)', id, t.name, newPin(), t.sound, photo, now());
+        run('UPDATE teams SET regular=? WHERE id=?', id, t.id); continue;
+      }
+      // A rename keeps the PIN, unless another returning team already has that name.
+      const name = one('SELECT 1 FROM regulars WHERE name=? AND id<>?', t.name, known.id) ? known.name : t.name;
+      if (photo && known.photo && known.photo !== photo && !one('SELECT 1 FROM teams WHERE photo=?', known.photo)) try {unlinkSync(path.join(mediaDir, path.basename(known.photo)));} catch {}
+      run('UPDATE regulars SET name=?,sound=?,photo=?,last_played=? WHERE id=?', name, t.sound, photo || known.photo, now(), known.id);
+      run('UPDATE teams SET regular=? WHERE id=?', known.id, t.id);
+    }
+  }
+  // A returning team's PIN: back into its team if it is already in this quiz, otherwise it joins as itself.
+  function comeBack(regular, req) {
+    const here = one('SELECT id,secret FROM teams WHERE regular=?', regular.id);
+    if (here) {rememberDevice(req, here.id); return here.secret;}
+    requireValue(settings().registrationOpen && !settings().ended, 'Registration is closed. Ask the quizmaster.', 409);
+    requireValue(!one('SELECT id FROM teams WHERE name=?', regular.name), 'A team with your name has already joined. Ask the quizmaster.', 409);
+    requireValue(one('SELECT COUNT(*) n FROM teams').n < 250, 'Team limit reached. Ask the quizmaster.', 409);
+    const {maxTeams} = settings();
+    requireValue(!maxTeams || one('SELECT COUNT(*) n FROM teams WHERE enabled=1').n < maxTeams, 'The quiz is full. Ask the quizmaster.', 409);
+    const sound = regular.sound !== null && regular.sound < SOUNDS + soundPack().buzzers.length ? regular.sound : null;
+    const photo = regular.photo && existsSync(path.join(mediaDir, path.basename(regular.photo))) ? regular.photo : null;
+    // The PIN came from the quizmaster, so a returning team skips the waiting room.
+    const id = token(), secret = token();
+    run('INSERT INTO teams(id,name,secret,seen,waiting,sound,photo,photo_status,regular) VALUES(?,?,?,?,0,?,?,?,?)', id, regular.name, secret, now(), sound, photo, photo && 'approved', regular.id);
+    rememberDevice(req, id); return secret;
   }
   // Sends queued results when the online service can be reached; until then they wait, however long that takes.
   // The service treats a repeat of the same event as the same upload, so a retry never counts twice.
@@ -852,11 +889,18 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/results') {
           const outbox = one('SELECT COUNT(*) n, MAX(last_error) error FROM sync_outbox WHERE sent IS NULL');
           return send(200, {events: rows('SELECT event,title,finished,data FROM event_results ORDER BY finished DESC').map(e => {const r = JSON.parse(e.data); return {event: e.event, title: e.title, finished: e.finished, teams: r.length, winner: r.find(t => t.rank === 1)?.name || ''};}),
-            venueKey: venueKey().publicKey, venueKeyId: keyId(venueKey().publicKey), pending: outbox.n, lastError: outbox.error});
+            venueKey: venueKey().publicKey, venueKeyId: keyId(venueKey().publicKey), pending: outbox.n, lastError: outbox.error,
+            regulars: rows('SELECT id,name,pin,photo,last_played lastPlayed FROM regulars ORDER BY name COLLATE NOCASE')});
         }
         if (p === '/api/host/results/delete') {
           requireValue(body.all === true || typeof body.event === 'string', 'Choose a quiz to delete');
           if (body.all === true) run('DELETE FROM event_results'); else run('DELETE FROM event_results WHERE event=?', body.event);
+          return send(200, {ok: true});
+        }
+        if (p === '/api/host/regulars/forget') {
+          const regular = one('SELECT * FROM regulars WHERE id=?', body.id); requireValue(regular, 'Unknown returning team', 404);
+          transaction(() => {run('DELETE FROM regulars WHERE id=?', regular.id); run('UPDATE teams SET regular=NULL WHERE regular=?', regular.id);});
+          if (regular.photo && !one('SELECT 1 FROM teams WHERE photo=?', regular.photo)) try {unlinkSync(path.join(mediaDir, path.basename(regular.photo)));} catch {}
           return send(200, {ok: true});
         }
         if (p === '/api/host/results/sync') {await flushOutbox(); return send(200, {pending: one('SELECT COUNT(*) n FROM sync_outbox WHERE sent IS NULL').n});}
@@ -1012,7 +1056,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             requireValue(Array.isArray(body.buzzers) && body.buzzers.length <= 200 && body.buzzers.every(b => b && typeof b.name === 'string' && b.name.trim() && b.name.length <= 60 && exists(b.media)), 'Buzzer sounds need a name (up to 60 characters) and an uploaded audio file; 200 at most');
             pack.buzzers = body.buzzers.map(b => ({name: b.name.trim(), media: b.media}));
             // Teams whose custom sound no longer exists go back to the default.
-            run('UPDATE teams SET sound=NULL WHERE sound>=?', SOUNDS + pack.buzzers.length);
+            run('UPDATE teams SET sound=NULL WHERE sound>=?', SOUNDS + pack.buzzers.length); run('UPDATE regulars SET sound=NULL WHERE sound>=?', SOUNDS + pack.buzzers.length);
           }
           const saved = getMeta('soundPack', {});
           setMeta('soundPack', {...saved, ...(Object.hasOwn(body, 'slots') ? {slots: {...saved.slots, ...body.slots}} : {}), ...(Object.hasOwn(body, 'buzzers') ? {buzzers: pack.buzzers} : {})});
@@ -1093,7 +1137,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           }
           if (body.action === 'transfer') {
             // A short code to move a team to another phone; valid for five minutes, used once.
-            let code; do code = String(randomInt(1000, 10000)); while (one('SELECT 1 FROM teams WHERE transfer_code=? AND transfer_expires>?', code, now()));
+            let code; do code = String(randomInt(1000, 10000)); while (one('SELECT 1 FROM teams WHERE transfer_code=? AND transfer_expires>?', code, now()) || one('SELECT 1 FROM regulars WHERE pin=?', code));
             run('UPDATE teams SET transfer_code=?,transfer_expires=? WHERE id=?', code, now() + 5 * 60 * 1000, team.id); return send(200, {code});
           }
           if (body.action === 'recover') {const secret = token(); run('UPDATE teams SET secret=?,seen=0 WHERE id=?', secret, team.id); return send(200, {secret});}
@@ -1118,7 +1162,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const results = exportResults(), folder = path.join(path.dirname(path.resolve(database)), 'results');
           const file = `${new Date(now()).toISOString().replace(/[:.]/g, '-').slice(0, 19)}-${settings().title.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'quiz'}.json`;
           mkdirSync(folder, {recursive: true}); writeFileSync(path.join(folder, file), JSON.stringify(results, null, 2), {mode: 0o600});
-          const photos = rows('SELECT photo FROM teams WHERE photo IS NOT NULL').map(t => t.photo);
+          const photos = rows('SELECT photo FROM teams WHERE photo IS NOT NULL AND photo NOT IN (SELECT photo FROM regulars WHERE photo IS NOT NULL)').map(t => t.photo);
           transaction(() => {
             for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'marking_log', 'adjustments', 'device_ips', 'actions', 'questions', 'teams']) run(`DELETE FROM ${table}`);
             if (nextLibrary) setMeta('library', {...nextLibrary, revision: library().revision + 1});
@@ -1135,6 +1179,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (now() - a.time >= 60000) {a.n = 0; a.time = now();} attempts.set('transfer:' + ip, a);
         requireValue(++a.n <= 10, 'Wait one minute before trying again', 429);
         const team = typeof body.code === 'string' && /^\d{4}$/.test(body.code) && one('SELECT id,secret FROM teams WHERE transfer_code=? AND transfer_expires>?', body.code, now());
+        const regular = !team && typeof body.code === 'string' && /^\d{4}$/.test(body.code) && one('SELECT * FROM regulars WHERE pin=?', body.code);
+        if (regular) return send(200, {secret: comeBack(regular, req)});
         requireValue(team, 'That code is wrong or has expired. Ask the quizmaster for a new one.', 403);
         run('UPDATE teams SET transfer_code=NULL,transfer_expires=NULL WHERE id=?', team.id);
         return send(200, {secret: team.secret});

@@ -11,6 +11,7 @@ const dir = mkdtempSync(path.join(os.tmpdir(), 'pubquiz-browser-'));
 let quiz;
 async function start(port = 0) {quiz = createQuiz({database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, hostKey: 'browser-test-private-key'}); await new Promise(r => quiz.server.listen(port, '127.0.0.1', r));}
 await start(); const port = quiz.server.address().port, base = `http://127.0.0.1:${port}`;
+{const {key} = await (await fetch(base + '/api/login', {method: 'POST', body: JSON.stringify({key: 'browser-test-private-key'})})).json(); await fetch(base + '/api/host/settings', {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: JSON.stringify({waitingRoom: false})});}
 const errors = [], external = [];
 async function context(options) {
   const c = await browser.newContext(options); c.on('page', page => {page.on('pageerror', e => errors.push(e.message)); page.on('request', r => {if (!r.url().startsWith(base) && !r.url().startsWith('blob:')) external.push(r.url());});}); return c;
@@ -78,9 +79,9 @@ try {
   await host.locator('#visibility').click(); await waitFor(host, () => document.getElementById('visibility').textContent === 'Show leaderboard');
   await host.locator('#visibility').click(); await waitFor(host, () => document.getElementById('visibility').textContent === 'Hide leaderboard');
   await waitFor(projector, () => document.getElementById('connection').textContent.includes('Connected')); await waitFor(host, () => document.getElementById('autoView').textContent === '(now: join screen)');
-  await waitFor(projector, () => document.querySelector('#wifiQr svg')?.getAttribute('aria-label') === 'QR code: WIFI:T:nopass;S:PubQuiz;;');
+  await waitFor(projector, () => document.querySelector('#quizQr svg')?.getAttribute('aria-label') === 'QR code: http://10.42.0.1');
   assert.equal(await projector.locator('.qr:visible').count(), 1, 'one code to scan'); assert.match(await projector.locator('#joinStepWifi').textContent(), /“PubQuiz”/);
-  assert.match(await projector.locator('#joinFallback').textContent(), /10\.42\.0\.1/); await waitFor(projector, () => /1 team has joined/.test(document.getElementById('joinStatus').textContent));
+  assert.match(await projector.locator('#joinStepUrl').textContent(), /10\.42\.0\.1/); await waitFor(projector, () => /1 team has joined/.test(document.getElementById('joinStatus').textContent));
   await host.locator('#joinSsidInput').fill('Fox Quiz'); await host.locator('#joinDetails button').click(); await waitFor(projector, () => document.getElementById('joinStepWifi').textContent.includes('Fox Quiz'));
   await projector.mouse.move(5, 5); await projector.mouse.move(20, 20); await projector.locator('#fullscreen').click(); await waitFor(projector, () => !!document.fullscreenElement && document.getElementById('fullscreen').textContent.includes('Exit'));
   await projector.keyboard.press('f'); await waitFor(projector, () => !document.fullscreenElement);

@@ -15,7 +15,7 @@ async function fixture(fn, options = {}) {
     const response = await fetch(url() + '/api/' + route, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body)});
     return {status: response.status, ...await response.json()};
   };
-  await start();
+  await start(); await call('host/settings', {waitingRoom: false});
   const teams = async (...names) => Promise.all(names.map(name => call('join', {name})));
   const score = async (team) => (await call('host/state')).teams.find(t => t.id === team.id).score;
   try {await fn({call, url, teams, score, tick: ms => time += ms, restart: async () => {await quiz.close(); await start();}});} finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
@@ -243,6 +243,45 @@ test('team photos stay private until approved and are deleted when rejected', ()
   await call('host/settings', {teamPhotos: true}); await call('host/team', {id: a.id, action: 'rejectPhoto'});
   assert.equal(await board(), null); assert.equal((await fetch(url() + photo)).status, 404);
 }));
+
+test('returning teams: a PIN from the quizmaster brings a team back with its photo and buzzer sound', () => fixture(async ({call, url, teams}) => {
+  const [a, b] = await teams('Alpha', 'Bravo');
+  const photo = (await fetch(url() + '/api/team/photo', {method: 'POST', headers: {Authorization: 'Bearer ' + a.secret}, body: Buffer.from([255, 216, 255, 224, 1, 2])}).then(r => r.json())).photo;
+  await call('host/team', {id: a.id, action: 'approvePhoto'}); await call('team/sound', {sound: 5}, a.secret);
+  const {id} = await call('host/open', {text: 'Capital of Wales?', type: 'text', seconds: 30, points: 1, answer: 'Cardiff'});
+  await call('answer', {question: id, value: 'Cardiff'}, a.secret); await call('host/close');
+  // Only teams that answered are remembered, when the quiz finishes.
+  assert.deepEqual((await call('host/results')).regulars, []);
+  await call('host/settings', {ended: true});
+  const [alpha, ...others] = (await call('host/results')).regulars;
+  assert.deepEqual([alpha.name, others.length, alpha.photo], ['Alpha', 0, photo]); assert.match(alpha.pin, /^\d{4}$/);
+  // A new quiz: the photo is kept for the returning team, the PIN rejoins as the same team, straight past the waiting room.
+  await call('host/new-event', {questions: 'keep'}); await call('host/settings', {waitingRoom: true});
+  assert.equal((await fetch(url() + photo)).status, 200);
+  const back = await call('transfer', {code: alpha.pin});
+  const me = (await call('state', {}, back.secret)).team;
+  assert.deepEqual([me.name, me.sound, me.photo, me.photoStatus, me.waiting], ['Alpha', 5, photo, 'approved', false]);
+  // The PIN again (a second phone) gets the same team, not a second one.
+  assert.equal((await call('transfer', {code: alpha.pin})).secret, back.secret);
+  assert.equal((await call('host/state')).teams.length, 1);
+  // Registration closed, or the name taken by a new team: the PIN says so.
+  await call('host/new-event', {questions: 'keep'}); await call('host/settings', {waitingRoom: false});
+  await teams('alpha'); assert.equal((await call('transfer', {code: alpha.pin})).status, 409);
+  await call('host/new-event', {questions: 'keep'}); await call('host/settings', {registrationOpen: false});
+  assert.equal((await call('transfer', {code: alpha.pin})).status, 409);
+  // Forgetting a team stops its PIN and deletes its photo.
+  await call('host/regulars/forget', {id: alpha.id});
+  assert.equal((await call('transfer', {code: alpha.pin})).status, 403); assert.equal((await fetch(url() + photo)).status, 404);
+  assert.equal(b.waiting, false);
+}));
+
+test('a new team waits to be let in unless the quizmaster switches the waiting room off', async () => {
+  const quiz = createQuiz({database: ':memory:', hostKey, packDir: '/nonexistent', soundsDir: '/nonexistent'}); await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
+  try {
+    const team = await (await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/join`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name: 'Newcomers'})})).json();
+    assert.equal(team.waiting, true);
+  } finally {await quiz.close();}
+});
 
 test('sound clips: taps score only during the right clip, with a fading bonus', () => fixture(async ({call, url, teams, score, tick}) => {
   const [a, b, c] = await teams('Alpha', 'Bravo', 'Charlie');

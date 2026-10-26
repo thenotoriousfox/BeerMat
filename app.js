@@ -132,7 +132,7 @@ export function live(refresh, key = () => '', slowPoll = 5000) {
   return {update, reconnect: () => {currentKey = null; connect();}};
 }
 let audio = null;
-export function enableSound() {try {audio ||= new AudioContext(); audio.resume();} catch {}}
+export function enableSound() {try {audio ||= new AudioContext(); return audio.resume().catch(() => {});} catch {return Promise.resolve();}}
 // Synthesised buzzer sounds teams can choose from; no audio files needed.
 export const sounds = [['Classic buzz', 'square', [330, 495]], ['Doorbell', 'sine', [660, 523]], ['Siren', 'sawtooth', [440, 660, 440]], ['Beep beep', 'square', [880, 0, 880]],
   ['Low horn', 'sawtooth', [147, 147]], ['Chime', 'triangle', [784, 988, 1175]], ['Laser', 'square', [1200, 600, 300]], ['Boing', 'sine', [220, 440]]];
@@ -194,8 +194,8 @@ export function playEnding(slot, ms) {
   player.loop = false; player.currentTime = Math.max(0, zero - ms / 1000); player.play().catch(() => {}); return true;
 }
 export function buzzSound(name = '', sound = null) {
-  if (!audio || audio.state !== 'running') return;
   if (sound >= sounds.length) {const custom = pack.buzzers[sound - sounds.length]; if (custom) playFile(custom.media); return;}
+  if (!audio || audio.state !== 'running') return;
   const [, wave, notes] = sounds[sound ?? [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % sounds.length];
   notes.forEach((freq, i) => {
     if (!freq) return;

@@ -16,7 +16,7 @@ async function fixture(fn) {
     const response = await fetch(url() + '/api/' + route, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body)});
     return {status: response.status, ...await response.json()};
   };
-  await start();
+  await start(); await call('host/settings', {waitingRoom: false});
   try {await fn({call, url, dir, tick: ms => time += ms, restart: async () => {await quiz.close(); await start();}});} finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
 }
 

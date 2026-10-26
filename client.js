@@ -1,4 +1,4 @@
-import {qrMatrix, wifiCode} from './qr.js';
+import {qrMatrix} from './qr.js';
 import {t, setLanguage, language, languages, translatePage} from './i18n.js';
 import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
 const role = document.body.dataset.role;
@@ -234,7 +234,7 @@ function playerState(s) {
     if (q) seenQuestion = q.id; else seenQuestion ??= 0;
     clearTimeout(draftTimer); draftGeneration++; localDraft = null; inputRevision = 0;
     renderedQuestion = shown; $('inputs').replaceChildren(); $('draftStatus').textContent = '';
-    $('question').textContent = s.team.waiting ? t('You’re in the waiting room — the quizmaster will let you in shortly') : q?.text || t('Waiting for the next question…'); $('round').textContent = q?.round || '';
+    $('question').textContent = s.team.waiting ? t('You’re in the waiting room — the quizmaster will let you in shortly') : q ? q.text : t('You’re in! Waiting for the quiz to start'); $('round').textContent = q?.round || '';
     $('game').classList.toggle('idle', !q);
     renderMedia($('media'), q?.type === 'pinpoint' ? null : q);
     const bingo = q?.type === 'bingo' || q?.type === 'musicbingo';
@@ -249,6 +249,12 @@ function playerState(s) {
       if (localDraft !== null) $('draftStatus').textContent = t('Draft restored — submit when ready');
     }
   }
+  // Until the quiz starts (or while a team waits to be let in) the phone shows the waiting screen, with the team's
+  // photo and buzzer sound on it; after that they are in the team menu.
+  const lobby = s.team.waiting || !q;
+  $('waitingSetup').hidden = !lobby;
+  if (lobby && !$('waitingSetup').contains($('teamSetup'))) $('waitingSetup').append($('teamSetup'));
+  if (!lobby && !$('teamMenu').contains($('teamSetup'))) $('code').nextElementSibling.after($('teamSetup'));
   $('photoDetails').hidden = !s.settings.teamPhotos; $('myPhoto').hidden = !s.team.photo;
   if (s.team.photo && $('myPhoto').getAttribute('src') !== s.team.photo) $('myPhoto').src = s.team.photo;
   $('photoStatus').textContent = !s.team.photo ? t('Add a team photo to appear on the big screen. The quizmaster approves it first.') : s.team.photoStatus === 'approved' ? t('✓ Approved — showing on the big screen') : t('Waiting for the quizmaster to approve it');
@@ -295,20 +301,15 @@ function renderQr(container, text) {
 function displayState(s) {
   current = s; offset = s.serverTime - Date.now();
   const {joinSsid, joinUrl, joinPassword, registrationOpen, ended, online} = s.settings, joining = registrationOpen && !ended, address = joinUrl.replace(/^https?:\/\//, '');
-  // On the venue's own network phones only need the address; a hotspot with a password (Windows) has no sign-in window,
-  // so it gets a second code for the quiz itself.
+  // The code always opens the quiz page; on the quiz Wi-Fi or the venue's network, phones join that Wi-Fi first.
   const lan = !online && s.settings.joinMode === 'lan', locked = !online && !lan && !!joinPassword;
   $('projection').hidden = s.view === 'blank';
   $('joinSection').hidden = s.view !== 'join';
   if (s.view === 'join') {
-    // One code does it all: it joins the quiz Wi-Fi, and the phone's sign-in window then opens the quiz.
-    // Online, the code is the quiz's public link instead.
-    renderQr($('wifiQr'), online || lan ? joinUrl : wifiCode(joinSsid, joinPassword));
-    $('quizQr').hidden = !locked; if (locked) renderQr($('quizQr'), joinUrl);
-    $('joinStepWifi').textContent = online ? t('Or go to {url}', {url: address}) : lan ? t('Use the “{ssid}” Wi-Fi, then scan or go to {url}', {ssid: joinSsid, url: address})
-      : locked ? t('Join the “{ssid}” Wi-Fi (password: {password})', {ssid: joinSsid, password: joinPassword}) : t('Join the “{ssid}” Wi-Fi when your phone offers it', {ssid: joinSsid});
-    $('joinStepQuiz').textContent = online || lan ? t('Pick a team name and keep the page open') : locked ? t('Then scan the second code or go to {url}', {url: address}) : t('Tap “Sign in” when your phone asks (iPhones open it straight away) — then pick a team name');
-    $('joinFallback').textContent = online || lan || locked ? '' : t('Quiz not opening? On the {ssid} Wi-Fi, go to {url}', {ssid: joinSsid, url: address});
+    renderQr($('quizQr'), joinUrl);
+    $('joinStepWifi').hidden = !!online;
+    $('joinStepWifi').textContent = online ? '' : locked ? t('Join the “{ssid}” Wi-Fi (password: {password})', {ssid: joinSsid, password: joinPassword}) : t('Join the “{ssid}” Wi-Fi first', {ssid: joinSsid});
+    $('joinStepUrl').textContent = t('Or go to {url}', {url: address});
     $('joinWifiNote').hidden = !!online || lan;
     $('joinStatus').textContent = !joining ? t('Registration is closed — ask the quizmaster to join') : s.teams.length ? (s.teams.length === 1 ? t('1 team has joined') : t('{n} teams have joined', {n: s.teams.length})) : t('Be the first team to join!');
   }
@@ -652,7 +653,10 @@ if (role === 'player') {
       message('Photo sent — the quizmaster will approve it'); await updates.update();
     } catch (e) {message(e.message || t('That photo could not be used'), true);}
   };
-  $('sound').onchange = async () => {enableSound(); const sound = Number($('sound').value); buzzSound('', sound); try {await api('team/sound', {sound}, secret); message('Buzzer sound saved');} catch (e) {message(e.message, true);}};
+  // Each buzzer sound plays on the phone as it is picked, once the phone's sound is running.
+  const hear = async () => {await enableSound(); buzzSound('', Number($('sound').value));};
+  $('hearSound').onclick = hear;
+  $('sound').onchange = async () => {hear(); const sound = Number($('sound').value); try {await api('team/sound', {sound}, secret); message('Buzzer sound saved');} catch (e) {message(e.message, true);}};
 }
 if (role === 'display') {
   $('enableSound').onclick = () => {enableSound(); $('enableSound').hidden = true;};

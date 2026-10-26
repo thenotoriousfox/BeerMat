@@ -720,7 +720,20 @@ function renderHistory() {
   if (document.activeElement !== $('onlineServiceUrl')) $('onlineServiceUrl').value = state.settings.onlineService || '';
   $('shareResults').textContent = `Share results: ${state.settings.shareResults ? 'on' : 'off'}`;
   $('syncNow').hidden = !past.pending;
+  renderRegulars();
 }
+function renderRegulars() {
+  $('regularsPanel').hidden = !past; if (!past) return;
+  const find = $('regularsFilter').value.trim().toLowerCase(), shown = past.regulars.filter(r => r.name.toLowerCase().includes(find));
+  $('regularsList').replaceChildren(...shown.map(r => {
+    const li = element('li'); li.append(r.photo ? avatar(r.photo) : element('span', undefined, 'avatar'), element('strong', r.name), element('span', `PIN ${r.pin}`, 'pin'), element('span', `last played ${new Date(r.lastPlayed).toLocaleDateString()}`, 'muted'));
+    const forget = element('button', 'Forget', 'subtle'); forget.type = 'button';
+    forget.onclick = () => {if (confirm(`Forget “${r.name}”? Their PIN stops working and their saved photo is deleted.`)) action(async () => {await request('regulars/forget', {id: r.id}); await loadHistory();}, 'Team forgotten');};
+    li.append(forget); return li;
+  }));
+  if (!shown.length) $('regularsList').append(element('li', past.regulars.length ? 'No team by that name.' : 'No returning teams yet: teams are saved when a quiz finishes.', 'muted'));
+}
+$('regularsFilter').oninput = renderRegulars;
 $('historyClear').onclick = () => {if (confirm('Delete every past quiz’s results from this laptop? This cannot be undone.')) action(async () => {await request('results/delete', {all: true}); await loadHistory();}, 'Past results deleted');};
 $('onlineServiceForm').onsubmit = e => {e.preventDefault(); action(async () => {await request('settings', {onlineService: $('onlineServiceUrl').value.trim()}); await loadHistory();}, 'Online service saved');};
 $('shareResults').onclick = () => action(async () => {await request('settings', {shareResults: !state.settings.shareResults}); await loadHistory();}, 'Sharing updated');
@@ -845,7 +858,7 @@ $('newEventDialog').onclose = () => {
     }
     const result = await request('new-event', body);
     download(`pubquiz-results-${result.saved.replace(/^results\//, '')}`, result.results);
-    await loadLibrary(); reviewId = ''; return `New quiz ready. Last quiz's results downloaded and saved in ${result.saved}`;
+    await loadLibrary(); await loadHistory(); reviewId = ''; return `New quiz ready. Last quiz's results downloaded and saved in ${result.saved}`;
   });
 };
 $('exportResults').onclick = () => action(async () => download('pubquiz-results.json', await request('export')), 'Results downloaded');

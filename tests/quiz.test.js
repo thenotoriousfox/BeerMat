@@ -12,7 +12,7 @@ test('persistent identities, authoritative deadlines, validation, scoring and ac
  async function api(p,b={},auth=''){const r=await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/${p}`,{method:'POST',headers:{Authorization:'Bearer '+auth,'Content-Type':'application/json'},body:JSON.stringify(b)});return {status:r.status,...await r.json()};}
  try{
  assert.equal((await api('host/open')).status,403);
- const host=(await api('login',{key})).key;
+ const host=(await api('login',{key})).key;await api('host/settings',{waitingRoom:false},host);
  const team=await api('join',{name:'Fox Team'});assert.equal(team.status,200);
  assert.equal((await api('join',{name:'fox team'})).status,409);
  const q={text:'Capital?',type:'text',seconds:10,points:2,answer:'Cardiff'};
@@ -56,7 +56,7 @@ test('concurrent teams, choices, manual close, portal fallback and request guard
  for(const p of ['/','/generate_204','/hotspot-detect.html','/connecttest.txt','/host','/display','/app.js','/style.css']){const r=await fetch(base+p);assert.equal(r.status,200);assert.ok(r.headers.get('content-security-policy'));}
  const csrf=await fetch(base+'/api/join',{method:'POST',headers:{Origin:'http://evil.example'},body:'{"name":"Stolen"}'});assert.equal(csrf.status,403);
  const malformed=await fetch(base+'/api/join',{method:'POST',body:'{'});assert.equal(malformed.status,400);
- const host=(await api('login',{key})).key;
+ const host=(await api('login',{key})).key;await api('host/settings',{waitingRoom:false},host);
  const teams=await Promise.all(Array.from({length:20},(_,i)=>api('join',{name:'Team '+i})));
  const q={text:'Prime?',type:'choice',seconds:30,points:1,options:['8','11'],answer:'11'};
  assert.equal((await api('host/open',q,host)).status,200);

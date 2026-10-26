@@ -78,7 +78,7 @@ async function fixture(options, fn) {
     const response = await fetch(`http://${address}:${port}/api/${route}`, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body)});
     return {status: response.status, ...await response.json()};
   };
-  const host = (await call('login', {key: hostKey})).key;
+  const host = (await call('login', {key: hostKey})).key; await call('host/settings', {waitingRoom: false});
   try {await fn({call, port, quiz});} finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
 }
 // A stand-in for the laptop: the Wi-Fi is whatever the test says, and jobs finish when the test lets them.

@@ -68,7 +68,7 @@ test('finishing a quiz keeps its results on the laptop, gives each team a signed
   };
   let host;
   try {
-    host = (await call('login', {key: hostKey})).key;
+    host = (await call('login', {key: hostKey})).key; await call('host/settings', {waitingRoom: false});
     await call('host/library/save', {revision: 0, quiz: {title: 'Lion quiz', rounds: [{id: 'r1', title: 'Capitals', questions: [question('q1'), question('q2', {answer: 'Paris'})]}]}});
     const fox = await call('join', {name: 'Foxes'}), owl = await call('join', {name: 'Owls'});
     let last = null;

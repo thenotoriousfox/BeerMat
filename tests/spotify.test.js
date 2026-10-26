@@ -51,7 +51,7 @@ async function fixture(fn) {
     const response = await fetch(`${base}/api/${route}`, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body)});
     return {status: response.status, ...await response.json()};
   };
-  const host = (await call('login', {key: hostKey})).key;
+  const host = (await call('login', {key: hostKey})).key; await call('host/settings', {waitingRoom: false});
   try {await fn({call, base, fake, tick: ms => time += ms});} finally {await quiz.close(); fake.server.close(); rmSync(dir, {recursive: true, force: true});}
 }
 async function connect({call, base, fake}) {
