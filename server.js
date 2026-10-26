@@ -387,6 +387,17 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       return {...t, rank, connected: !!t.enabled && (live.has(t.id) || now() - t.seen < 15000)};
     });
   }
+  // Teams level for first place once every saved question but the tie-breakers has been played (and nothing is live):
+  // the desk offers the first unplayed tie-breaker. Null when there is no tie for first, or the quiz isn't over yet.
+  function tieForFirst() {
+    const q = latest(); if (!q || pending(q)) return null;
+    const all = library().rounds.flatMap(r => r.questions), played = new Set(rows('SELECT data FROM questions').map(p => dataOf(p).sourceId).filter(Boolean));
+    if (all.some(x => !x.tieBreaker && !played.has(x.id))) return null;
+    const top = scores().filter(t => t.rank === 1);
+    if (top.length < 2) return null;
+    const breaker = all.find(x => x.tieBreaker && !played.has(x.id));
+    return {teams: top.map(t => t.name), points: top[0].score, breaker: breaker ? {id: breaker.id, text: breaker.text} : null};
+  }
   function tieOrder() {
     const q = rows('SELECT * FROM questions WHERE closed=1 OR settled=1 ORDER BY id DESC').find(q => dataOf(q).tieBreaker);
     if (!q) return null;
@@ -792,7 +803,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/logout') {run('DELETE FROM host_sessions WHERE hash=?', hash(auth)); return send(200, {ok: true});}
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats();
-          return send(200, {serverTime: now(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {serverTime: now(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -901,7 +912,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           requireValue(body.expectedQuestion === (latest()?.id || null), 'Current question changed; refresh before opening another', 409);
           const all = library().rounds.flatMap(r => r.questions.map(q => ({...q, round: r.title, ...r.secret && {secret: true}})));
           const played = new Set(rows('SELECT data FROM questions').map(q => dataOf(q).sourceId).filter(Boolean));
-          const chosen = p === '/api/host/start' ? all.find(q => q.id === body.id) : all.find(q => !played.has(q.id));
+          // Next never opens a tie-breaker: the desk offers one when teams are level for first place (tieForFirst).
+          const chosen = p === '/api/host/start' ? all.find(q => q.id === body.id) : all.find(q => !played.has(q.id) && !q.tieBreaker);
           requireValue(chosen, 'No unplayed questions. Add questions or choose a saved question.', 409);
           requireValue(!played.has(chosen.id) || body.repeat === true, 'Question already played. Confirm repeat explicitly.', 409);
           return send(200, openQuestion(chosen, chosen.id));

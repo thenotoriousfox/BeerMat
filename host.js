@@ -387,6 +387,14 @@ $('playSelected').onclick = () => action(async () => {
   await request('start', {id: editingId, expectedQuestion: state.question?.id || null, repeat: played}); chooseTab('live');
 }, 'Question opened');
 $('next').onclick = () => action(() => request('next', {expectedQuestion: state.question?.id || null}), 'Next question opened');
+// Level for first place after the last question: the desk offers the tie-breaker (Next never opens one).
+function renderTie(s) {
+  const tie = s.tie; $('tiePrompt').hidden = !tie || s.settings.ended; if (!tie) return;
+  $('tieText').textContent = `🎯 ${tie.teams.length} teams are tied for first on ${tie.points} ${tie.points === 1 ? 'point' : 'points'}: ${tie.teams.join(', ')}.` +
+    (tie.breaker ? '' : ' No tie-breaker is saved: add a Nearest wins question with Tie-breaker ticked in Build quiz.');
+  $('playTie').hidden = !tie.breaker; if (tie.breaker) $('playTie').textContent = `Play the tie-breaker: ${tie.breaker.text}`;
+}
+$('playTie').onclick = () => action(() => request('start', {id: state.tie.breaker.id, expectedQuestion: state.question?.id || null}), 'Tie-breaker opened');
 for (const id of ['close', 'pause', 'resume']) $(id).onclick = () => action(() => request(id, {expectedQuestion: state.question?.id || null}), id === 'close' ? 'Answers closed' : id === 'pause' ? 'Timer paused' : 'Timer resumed');
 for (const [id, act, done] of [['buzzCorrect', 'correct', 'Marked correct'], ['buzzWrong', 'wrong', 'Marked wrong'], ['buzzPass', 'pass', 'Passed to the next buzzer'], ['startAgree', 'agree', 'Agree countdown started']]) {
   $(id).onclick = () => action(() => request('buzz', {question: state.question.id, action: act, announced: $('announced').value}), done);
@@ -639,7 +647,8 @@ $('blockedForm').onsubmit = e => {e.preventDefault(); const blockedWords = $('bl
 $('tvLanguage').onchange = () => {const language = $('tvLanguage').value; action(() => request('settings', {language}), 'TV language updated (phones use their own language)');};
 $('displayMode').onchange = () => {const displayMode = $('displayMode').value; action(() => request('settings', {displayMode}));};
 $('finish').onclick = () => action(async () => {
-  if (!state.settings.ended && !confirm('Finish this quiz and close answers and registration? You can resume it later.')) return;
+  const tie = state.tie, tied = tie ? `${tie.teams.join(', ')} are tied for first${tie.breaker ? ' and the tie-breaker hasn\'t been played' : ''}. ` : '';
+  if (!state.settings.ended && !confirm(`${tied}Finish this quiz and close answers and registration? You can resume it later.`)) return;
   // Finishing goes straight to the winner celebration on the projector.
   await request('settings', state.settings.ended ? {ended: false} : {ended: true, ...(state.settings.displayMode === 'auto' ? {} : {displayMode: 'winner'})});
 }, 'Quiz status updated');
@@ -950,7 +959,7 @@ function renderState(s) {
   $('liveRound').textContent = (q?.secret && !s.settings.ended ? '🤫 Secret round · ' : '') + (q?.round || ''); $('liveText').textContent = q?.text || 'Ready when you are'; $('liveTimer').textContent = timeText(q, offset);
   $('liveKey').textContent = q ? answerKey(q) : '';
   if (q?.id !== liveQuestion) {liveQuestion = q?.id; $('announced').value = '';}
-  renderBuzzPanel(q); renderBingoPanel(q); audioClipCue(q); showDeskPlayer(); renderSounds(s); useSounds(s.sounds); renderLooks(s);
+  renderBuzzPanel(q); renderBingoPanel(q); audioClipCue(q); showDeskPlayer(); renderSounds(s); useSounds(s.sounds); renderLooks(s); renderTie(s);
   if (clipRun && (q?.id !== clipRun.question || !q.live)) stopClips(); else renderClipsPanel(q);
   $('liveCount').textContent = q ? `${s.answers.length} answers received · ${s.teams.filter(t => t.enabled && !t.waiting).length} active teams` : 'Add rounds in Build quiz, then start your first question.';
   renderMedia($('liveMedia'), q); renderSolution($('liveSolution'), q);

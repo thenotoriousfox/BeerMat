@@ -148,6 +148,40 @@ test('a secret round hides marks, the reveal and the leaderboard from teams and 
   assert.equal((await call('state', {}, team.secret)).answer.points, 2);
 }));
 
+test('a tie for first after the last question: Next skips the tie-breaker, the desk offers it, and it settles first place', () => fixture(async ({call}) => {
+  const [owls, foxes, bats] = [await call('join', {name: 'Owls'}), await call('join', {name: 'Foxes'}), await call('join', {name: 'Bats'})];
+  const breaker = {id: 'tb', text: 'How tall is the Eiffel Tower in metres?', type: 'nearest', seconds: 30, points: 0, answer: '330', tieBreaker: true};
+  await call('host/library/save', {revision: 0, quiz: {title: 'Tied', rounds: [{id: 'r', title: 'R', questions: [{id: 'a', ...question()}, breaker, {id: 'b', ...question({text: 'Capital of Scotland?', answer: 'Edinburgh'})}]}]}});
+  let {id} = await call('host/next', {expectedQuestion: null});
+  for (const t of [owls, foxes]) await call('answer', {question: id, value: 'Cardiff'}, t.secret);
+  await call('host/close');
+  assert.equal((await call('host/state')).tie, null, 'questions left: no prompt yet');
+  ({id} = await call('host/next', {expectedQuestion: id}));
+  assert.equal((await call('host/state')).question.sourceId, 'b', 'Next skipped the tie-breaker');
+  await call('answer', {question: id, value: 'Leith'}, bats.secret);
+  assert.equal((await call('host/state')).tie, null, 'nothing offered while a question is live');
+  await call('host/close');
+  const tie = (await call('host/state')).tie;
+  assert.deepEqual(tie, {teams: ['Foxes', 'Owls'], points: 2, breaker: {id: 'tb', text: breaker.text}});
+  assert.equal((await call('host/next', {expectedQuestion: id})).status, 409, 'Next has nothing left to open');
+  ({id} = await call('host/start', {id: 'tb', expectedQuestion: id}));
+  await call('answer', {question: id, value: '320'}, owls.secret); await call('answer', {question: id, value: '300'}, foxes.secret);
+  await call('host/close');
+  const s = await call('host/state');
+  assert.equal(s.tie, null, 'first place settled');
+  assert.deepEqual(s.teams.filter(t => t.rank === 1).map(t => t.name), ['Owls']);
+}));
+
+test('only a tie for first place counts, and with no tie-breaker saved the desk says so', () => fixture(async ({call}) => {
+  const [a] = [await call('join', {name: 'Alpha'}), await call('join', {name: 'Beta'}), await call('join', {name: 'Gamma'})];
+  await call('host/library/save', {revision: 0, quiz: {title: 'T', rounds: [{id: 'r', title: 'R', questions: [{id: 'a', ...question()}]}]}});
+  const {id} = await call('host/next', {expectedQuestion: null});
+  await call('answer', {question: id, value: 'Cardiff'}, a.secret); await call('host/close');
+  assert.equal((await call('host/state')).tie, null, 'Beta and Gamma are level, but only for second place');
+  await call('host/adjust', {team: (await call('host/state')).teams.find(t => t.name === 'Beta').id, points: 2, reason: 'Paper round'});
+  assert.deepEqual((await call('host/state')).tie, {teams: ['Alpha', 'Beta'], points: 2, breaker: null});
+}));
+
 test('reveal lists who scored, quickest answer first, with their time', () => fixture(async ({call, tick}) => {
   const [slow, fast, wrong] = [await call('join', {name: 'Slow'}), await call('join', {name: 'Fast'}), await call('join', {name: 'Wrong'})];
   const {id} = await call('host/open', question({fastestFingers: true, speedBonus: 30}));
