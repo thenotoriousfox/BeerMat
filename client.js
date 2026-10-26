@@ -347,7 +347,7 @@ function displayState(s) {
   $('wheelSection').hidden = s.view !== 'wheel';
   if (s.view !== 'wheel') stopWheelTicks();
   $('leaderboard').classList.toggle('cols', s.teams.length > 10);
-  renderCountdown(); fitStage(); soundCues(s);
+  renderCountdown(); fitTitle(); fitStage(); soundCues(s);
   $('winnerSection').hidden = s.view !== 'winner';
   if (s.view === 'winner') renderWinner(s); else winnerShown = '';
   if (s.view === 'wheel' && s.wheel) renderWheel(s.wheel, s.serverTime - s.wheel.spun < 3000);
@@ -470,6 +470,15 @@ function soundCues(s) {
   for (const [id, status] of Object.entries(heard.shouts)) if (status !== before.shouts[id]) {
     if (status === 'pending') playSound('bingo'); else {stopSound('bingo'); playSound(status === 'correct' ? 'correct' : 'wrong');}
   }
+}
+// The event name stays on one line on the TV: its text shrinks until it fits beside the countdown and buttons.
+let titleFit = '';
+function fitTitle() {
+  const h1 = $('title'); if (role !== 'display' || !h1) return;
+  // Only when the name, the countdown or the screen changes.
+  const key = `${h1.textContent}|${$('countdown').hidden}|${innerWidth}x${innerHeight}`; if (key === titleFit) return; titleFit = key;
+  h1.style.fontSize = '';
+  for (let size = parseFloat(getComputedStyle(h1).fontSize); h1.scrollWidth > h1.clientWidth && size > 14; size -= 1) h1.style.fontSize = size - 1 + 'px';
 }
 // The TV never scrolls: the visible view is scaled down until it fits the space under the header.
 // A narrower scale makes the view wider, so text reflows shorter; a few rounds settle it.
@@ -698,7 +707,7 @@ if (role === 'display') {
   wake();
   // Refit when the screen or header changes size, and when a picture or font finishes loading.
   new ResizeObserver(fitStage).observe($('stage'));
-  $('stage').addEventListener('load', fitStage, true); document.fonts?.ready.then(fitStage);
+  $('stage').addEventListener('load', fitStage, true); document.fonts?.ready.then(() => {titleFit = ''; fitTitle(); fitStage();});
 }
-setInterval(() => {if (role === 'player') updateControls(); else if (current) {$('status').textContent = timeText(current.question, offset); renderCountdown(); fitStage(); countdownCue();}}, 200);
+setInterval(() => {if (role === 'player') updateControls(); else if (current) {$('status').textContent = timeText(current.question, offset); renderCountdown(); fitTitle(); fitStage(); countdownCue();}}, 200);
 const updates = live(refresh, () => role === 'player' ? secret : '');
