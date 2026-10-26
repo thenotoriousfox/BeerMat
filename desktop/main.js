@@ -8,6 +8,7 @@ import electron, {app, BrowserWindow, screen, ipcMain, dialog, Menu, shell, util
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
+import {spawn} from 'node:child_process';
 import {createPrefs, hostKey} from './store.js';
 import {createLog} from './log.js';
 import {createScreens} from './screens.js';
@@ -19,7 +20,12 @@ if (process.env.PUBQUIZ_USER_DATA) app.setPath('userData', process.env.PUBQUIZ_U
 // Wayland does not let a window choose its screen, which the TV window must; XWayland does. The display system is
 // chosen before this file runs, so on a Wayland desktop the app starts itself again on X11 (PUBQUIZ_WAYLAND=1 opts out).
 const toX11 = process.platform === 'linux' && process.env.DISPLAY && (process.env.WAYLAND_DISPLAY || process.env.XDG_SESSION_TYPE === 'wayland') && process.env.PUBQUIZ_WAYLAND !== '1' && !process.argv.some(a => a.startsWith('--ozone-platform'));
-if (toX11) {app.relaunch({args: [...process.argv.slice(1), '--ozone-platform=x11']}); app.exit(0);}
+// Started as a detached child without CHROME_DESKTOP, which Electron sets in this process: castlabs' Electron crashes at
+// startup when it inherits it (as it would through app.relaunch).
+if (toX11) {
+  const {CHROME_DESKTOP, ...env} = process.env;
+  spawn(process.execPath, [...process.argv.slice(1), '--ozone-platform=x11'], {detached: true, stdio: 'ignore', env}).unref(); app.exit(0);
+}
 else if (!app.requestSingleInstanceLock()) app.quit();
 else run();
 
