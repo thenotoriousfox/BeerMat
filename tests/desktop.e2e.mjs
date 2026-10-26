@@ -40,7 +40,7 @@ try {
 
   assert.equal(await desk.evaluate(() => typeof window.require), 'undefined');
   assert.equal(await desk.evaluate(() => typeof window.process), 'undefined');
-  assert.deepEqual(await desk.evaluate(() => Object.keys(window.pubquizDesktop).sort()).then(k => k.length), 14);
+  assert.deepEqual(await desk.evaluate(() => Object.keys(window.pubquizDesktop).sort()).then(k => k.length), 15);
   await desk.locator('#screensPanel').waitFor({state: 'visible'});
   assert.match(await desk.locator('#screensInfo').textContent(), /One screen connected/);
   pass('desk page: no Node access, only the desktop calls; Screens panel shows one screen');
@@ -60,6 +60,20 @@ try {
   await desk.locator('#tvBlank').click();
   await tv.waitForFunction(() => !document.documentElement.classList.contains('pubquiz-blank'));
   pass('TV preview window opens from the desk, blanks and unblanks without reloading; it has no desk access');
+
+  // TV sound: a preview window plays with the laptop; choosing an output moves the TV page's sound (and only the TV's).
+  let sound = (await desk.evaluate(() => window.pubquizDesktop.screens())).sound;
+  assert.equal(sound.choice, 'auto'); assert.equal(sound.active, null);
+  if (sound.outputs.length) {
+    sound = (await desk.evaluate(name => window.pubquizDesktop.tvSound(name), sound.outputs[0])).sound;
+    assert.equal(sound.active, sound.outputs[0]);
+    await tv.waitForFunction(() => window.__pubquizSink?.id && window.__pubquizSink.id !== 'default');
+    assert.equal(await desk.evaluate(() => window.__pubquizSink), undefined, 'the desk keeps the laptop output');
+    sound = (await desk.evaluate(() => window.pubquizDesktop.tvSound('auto'))).sound;
+    assert.equal(sound.active, null); await tv.waitForFunction(() => window.__pubquizSink.id === '');
+    await assert.rejects(desk.evaluate(() => window.pubquizDesktop.tvSound('No such speaker')), /no longer connected/);
+    pass(`TV sound: the TV page plays through a chosen output (${sound.outputs.length} found) and back to the laptop's`);
+  } else pass('TV sound: no sound outputs on this machine, so only the automatic choice was checked');
 
   await desk.evaluate(() => {location.href = 'https://example.com/';}).catch(() => {});
   await new Promise(r => setTimeout(r, 500));

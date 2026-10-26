@@ -46,6 +46,15 @@ On the desk, **Screens** (and the **TV** menu) choose the TV screen, swap the de
 (**F8**: black and silent, the quiz carries on underneath) and switch the automatic opening off. The TV window is a
 separate, locked-down page: it never has the desk's login and cannot show answers before they are revealed.
 
+**TV sound.** The TV window's sounds (reveals, buzzers, bingo calls, songs) and the desk's Spotify player play
+through the TV's own sound output, while the desk's sounds stay on the laptop. Each page chooses its output itself
+(Chromium's `setSinkId`), so the system's sound settings are never changed. **Automatic** (the default) uses an
+HDMI or DisplayPort output whenever the TV is full screen on its own screen, and the laptop's output for a preview
+window; **TV sound** under Screens can name an output instead (remembered by name) or keep everything on the
+laptop. A TV whose sound output appears a moment after its picture is picked up a few seconds later. Spotify's player
+lives in a frame from Spotify's own site, so the app sets that frame's output from the main process; how Spotify
+plays inside its frame is undocumented, so check it once with a real song.
+
 On Linux the app runs through XWayland on Wayland desktops (KDE Plasma, GNOME), because Wayland does not let an app
 put a window on a chosen screen. Set `PUBQUIZ_WAYLAND=1` to run natively on Wayland instead (then move the TV window
 yourself).

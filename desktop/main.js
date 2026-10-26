@@ -13,6 +13,7 @@ import {createPrefs, hostKey} from './store.js';
 import {createLog} from './log.js';
 import {createScreens} from './screens.js';
 import {restoreDatabase} from './database.js';
+import {pickOutput, sinkScript, listScript} from './sound.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // Tests (and a portable copy) can keep everything in one folder.
@@ -32,7 +33,7 @@ else run();
 function run() {
   const data = app.getPath('userData'), test = process.env.PUBQUIZ_TEST === '1';
   const log = createLog(path.join(app.getPath('logs'), 'pubquiz.log'), {echo: test}), serverLog = createLog(path.join(app.getPath('logs'), 'server.log'));
-  const prefs = createPrefs(path.join(data, 'desktop.json'), {port: 3000, autoOpen: true, audience: null, desk: null, welcomed: false});
+  const prefs = createPrefs(path.join(data, 'desktop.json'), {port: 3000, autoOpen: true, audience: null, desk: null, welcomed: false, tvSound: 'auto'});
   const icon = path.join(here, '..', 'scripts', 'pubquiz.png');
   let key, server = null, info = null, desk = null, screens = null, quitting = false, crashes = [];
   const pending = new Map();
@@ -118,6 +119,7 @@ function run() {
       });
       desk.webContents.on('render-process-gone', (_, details) => {log('Desk page stopped', details); if (!quitting) setTimeout(() => desk?.reload(), 1000);});
       desk.webContents.on('console-message', event => {if (event.level === 'error') log('Desk:', event.message);});
+      desk.webContents.on('did-frame-finish-load', (_, isMainFrame) => {if (!isMainFrame) soundSoon();});
     }
     await desk.loadURL(`${origin()}/host#ticket=${ticket}`);
   }
@@ -127,6 +129,7 @@ function run() {
     tv.setMenuBarVisibility(false);
     // The TV page waits for a click before it makes sound (a browser rule); the app clicks it once.
     tv.webContents.on('did-finish-load', () => {for (const type of ['mouseDown', 'mouseUp']) tv.webContents.sendInputEvent({type, x: 1, y: 1, button: 'left', clickCount: 1});});
+    tv.webContents.on('dom-ready', () => soundSoon());
     tv.webContents.on('render-process-gone', (_, details) => {log('TV page stopped', details); if (!tv.isDestroyed()) setTimeout(() => tv.reload(), 1000);});
     tv.loadURL(`${origin()}/display`);
     return tv;
@@ -148,23 +151,55 @@ function run() {
   function lockDown() {
     // mediaKeySystem: Widevine, for the desk's Spotify player.
     const allowed = {'persist:desk': ['clipboard-sanitized-write', 'fullscreen', 'mediaKeySystem'], audience: ['fullscreen']};
+    // Listing sound outputs and choosing one (TV sound, sound.js) is a permission check only; microphones stay refused.
+    const hearing = (permission, details) => permission === 'speaker-selection' || permission === 'media' && details?.mediaType === 'audio';
     for (const [partition, permissions] of Object.entries(allowed)) {
       const s = session.fromPartition(partition);
       s.setPermissionRequestHandler((_, permission, callback) => callback(permissions.includes(permission)));
-      s.setPermissionCheckHandler((_, permission) => permissions.includes(permission));
+      s.setPermissionCheckHandler((_, permission, origin, details) => permissions.includes(permission) || hearing(permission, details));
     }
+  }
+
+  // ---- TV sound (sound.js): the TV window and Spotify's player frame on the desk play through the TV's output ----
+  let outputs = [], tvOutput = null, soundTimers = [];
+  const spotifyFrames = () => desk && !desk.isDestroyed() ? desk.webContents.mainFrame.framesInSubtree.filter(f => f.origin === 'https://sdk.scdn.co') : [];
+  const screensState = () => ({...screens.info(), sound: {choice: prefs.get().tvSound, active: tvOutput, outputs}});
+  const pushScreens = () => {try {if (desk && !desk.isDestroyed()) desk.webContents.send('pubquiz:screens', screensState());} catch {}};
+  async function listOutputs() {
+    if (!desk || desk.isDestroyed()) return outputs;
+    try {outputs = await desk.webContents.executeJavaScript(listScript);} catch {outputs = [];}
+    return outputs;
+  }
+  async function applySound() {
+    if (!screens || !desk || desk.isDestroyed()) return;
+    await listOutputs();
+    const shown = screens.info(), next = pickOutput(outputs, prefs.get().tvSound, shown.fullscreen && !shown.windowed), script = sinkScript(next);
+    const pages = [screens.tv()?.webContents, ...spotifyFrames()].filter(Boolean);
+    await Promise.all(pages.map(page => page.executeJavaScript(script).catch(e => log('TV sound:', e.message))));
+    if (next !== tvOutput) {tvOutput = next; log(`TV sound: ${next || 'same as the laptop'}`);}
+    pushScreens();
+  }
+  // Again a few seconds later: a TV's sound output often appears after its picture.
+  function soundSoon() {
+    for (const t of soundTimers) clearTimeout(t);
+    soundTimers = [200, 3000].map(ms => setTimeout(() => applySound().catch(e => log('TV sound:', e.message)), ms));
   }
 
   // ---- Desk calls (preload.cjs) ----
   const fromDesk = event => {try {const u = new URL(event.senderFrame.url); return sameOrigin(u.href) && u.pathname === '/host';} catch {return false;}};
   const handle = (name, fn) => ipcMain.handle('pubquiz:' + name, (event, ...args) => {if (!fromDesk(event)) throw Error('Not allowed'); return fn(...args);});
-  handle('screens', () => screens.info());
-  handle('open-tv', () => {screens.open(); return screens.info();});
-  handle('close-tv', () => {screens.close(); return screens.info();});
-  handle('blank', on => {screens.setBlank(on === true); return screens.info();});
-  handle('swap', () => {screens.swap(); return screens.info();});
-  handle('choose-tv', id => {if (id !== null && !Number.isSafeInteger(id)) throw Error('Unknown screen'); screens.chooseAudience(id); return screens.info();});
-  handle('auto-open', on => {screens.setAutoOpen(on === true); return screens.info();});
+  handle('screens', async () => {await listOutputs(); return screensState();});
+  handle('open-tv', () => {screens.open(); return screensState();});
+  handle('close-tv', () => {screens.close(); return screensState();});
+  handle('blank', on => {screens.setBlank(on === true); return screensState();});
+  handle('swap', () => {screens.swap(); return screensState();});
+  handle('choose-tv', id => {if (id !== null && !Number.isSafeInteger(id)) throw Error('Unknown screen'); screens.chooseAudience(id); return screensState();});
+  handle('tv-sound', async choice => {
+    await listOutputs();
+    if (!['auto', 'laptop'].includes(choice) && !outputs.includes(choice)) throw Error('That sound output is no longer connected');
+    prefs.set({tvSound: choice}); await applySound(); return screensState();
+  });
+  handle('auto-open', on => {screens.setAutoOpen(on === true); return screensState();});
   handle('open-logs', () => shell.openPath(app.getPath('logs')));
   handle('open-data', () => shell.openPath(data));
   handle('backup', () => backup());
@@ -271,7 +306,7 @@ function run() {
       key = hostKey(path.join(data, 'host-key'), safeStorage.isEncryptionAvailable() && !test ? {encrypt: t => safeStorage.encryptString(t), decrypt: b => safeStorage.decryptString(b)} : null);
       await startServer();
       screens = createScreens({screen, openAudience, deskWindow: () => desk, prefs: prefs.get, savePrefs: prefs.set, log,
-        changed: () => {if (quitting) return; try {if (desk && !desk.isDestroyed()) desk.webContents.send('pubquiz:screens', screens.info());} catch {} menu();}});
+        changed: () => {if (quitting) return; pushScreens(); menu(); soundSoon();}});
       menu();
       await openDesk();
       screens.start();

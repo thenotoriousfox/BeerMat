@@ -76,6 +76,7 @@ export function createScreens({screen, openAudience, deskWindow = () => null, pr
       savePrefs(next); place();
     },
     setAutoOpen(on) {savePrefs({autoOpen: !!on}); changed();},
+    tv: () => alive(tv) ? tv : null,
     info() {
       const displays = screen.getAllDisplays(), primary = screen.getPrimaryDisplay().id, l = layout();
       return {displays: displays.map(d => ({...describe(d), primary: d.id === primary, width: d.bounds.width, height: d.bounds.height, desk: d.id === l.desk?.id, audience: d.id === l.audience?.id})),

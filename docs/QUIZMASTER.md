@@ -83,7 +83,7 @@ It needs Spotify Premium and internet on the laptop (run the hotspot with `--kee
 
 1. Create an app at developer.spotify.com/dashboard (tick *Web API*) and add the Redirect URI shown under **Build quiz → Spotify** (`http://127.0.0.1:3000/spotify/callback`; Spotify requires the 127.0.0.1 form).
 2. Paste its Client ID and press **Connect Spotify**, then sign in in the tab that opens.
-3. On quiz night, press **🎵 Start Spotify player on this desk** (Build quiz → Spotify, or the same button that appears on Run quiz when a Spotify round is live). The desk becomes a Spotify player called “PubQuiz desk” and plays through the laptop's speakers or HDMI. Keep the desk open. It works in the PubQuiz desktop app (once it has been online once, to fetch Widevine) and in Chrome, Firefox or Edge; plain Chromium builds may refuse.
+3. On quiz night, press **🎵 Start Spotify player on this desk** (Build quiz → Spotify, or the same button that appears on Run quiz when a Spotify round is live). The desk becomes a Spotify player called “PubQuiz desk” and plays through the laptop's speakers or HDMI. Keep the desk open. In the desktop app it plays through the TV's sound output, like the TV's own sounds (desk → **Screens → TV sound**). It works in the PubQuiz desktop app (once it has been online once, to fetch Widevine) and in Chrome, Firefox or Edge; plain Chromium builds may refuse.
 4. Fallback: open the Spotify app on the laptop, play any song once, and pick it under **Play on**.
 
 If you connected Spotify before the desk player existed, press **Connect Spotify** again: the desk player needs an extra permission. Spotify's player script is only downloaded when you press Start, and only by the desk page; phones and the TV never load anything from the internet.

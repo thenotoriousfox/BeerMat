@@ -77,10 +77,11 @@ uses `192.168.137.1`), and a join screen that assumed the quiz Wi-Fi (venue LAN 
 
 Security review of the new parts:
 
-* **Desktop (Electron)**: context isolation, sandboxed renderers, no Node in pages; the desk's preload exposes 14
+* **Desktop (Electron)**: context isolation, sandboxed renderers, no Node in pages; the desk's preload exposes 15
   calls and the main process accepts them only from the desk page on its own server; every page is kept on the quiz
   server (other links go to the system browser, only http/https); `<webview>` blocked; permissions denied except
-  clipboard/full screen; the TV window has its own session, so it never holds the desk login; DevTools only in
+  clipboard/full screen, plus permission *checks* for audio devices and speaker selection (TV sound: pages can list
+  sound devices by name and choose an output; microphone requests are still refused); the TV window has its own session, so it never holds the desk login; DevTools only in
   development. The quiz server runs in a separate utility process. The quizmaster key is random and kept with
   safeStorage where available.
 * **Uploads and imports**: unchanged checks (file signatures, sizes, schema validation of quiz files); restore only

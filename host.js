@@ -661,6 +661,9 @@ function renderScreens(info) {
   $('tvBlank').textContent = info.blanked ? 'Show the TV again' : 'Blank the TV';
   $('tvSwap').disabled = info.displays.length < 2;
   $('tvAuto').textContent = `Open by itself: ${info.autoOpen ? 'on' : 'off'}`;
+  const sound = info.sound || {choice: 'auto', active: null, outputs: []}, names = [...new Set([...sound.outputs, ...(['auto', 'laptop'].includes(sound.choice) ? [] : [sound.choice])])];
+  if (document.activeElement !== $('tvSound')) selectOptions($('tvSound'), [['auto', 'Automatic: the TV’s HDMI or DisplayPort sound when it is full screen'], ['laptop', 'Same as the laptop'], ...names.map(n => [n, sound.outputs.includes(n) ? n : `${n} (not connected)`])], sound.choice);
+  $('tvSoundState').textContent = sound.active ? `🔊 Playing through ${sound.active}` : '🔊 Playing through the laptop’s sound output';
   screensInfo = info;
 }
 let screensInfo = null;
@@ -673,6 +676,7 @@ if (desktop) {
   $('tvBlank').onclick = () => run(() => desktop.blank(!screensInfo?.blanked), 'TV updated');
   $('tvSwap').onclick = () => run(() => desktop.swap(), 'Screens swapped');
   $('tvAuto').onclick = () => run(() => desktop.autoOpen(!screensInfo?.autoOpen), 'Saved');
+  $('tvSound').onchange = () => run(() => desktop.tvSound($('tvSound').value), 'TV sound chosen');
   $('tvScreen').onchange = () => run(() => desktop.chooseTv($('tvScreen').value === 'auto' ? null : Number($('tvScreen').value)), 'TV screen chosen');
   $('appBackup').onclick = () => action(async () => {const file = await desktop.backup(); return file ? `Backup saved: ${file}` : 'No backup made';});
   $('appRestore').onclick = () => desktop.restore();

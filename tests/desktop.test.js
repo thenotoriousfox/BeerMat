@@ -13,6 +13,7 @@ import {createScreens} from '../desktop/screens.js';
 import {createPrefs, hostKey} from '../desktop/store.js';
 import {prepareDatabase, restoreDatabase, listBackups, checkDatabase, backupDatabase} from '../desktop/database.js';
 import {createLog} from '../desktop/log.js';
+import {pickOutput, sinkScript} from '../desktop/sound.js';
 import {createQuiz} from '../server.js';
 
 const temp = () => mkdtempSync(path.join(os.tmpdir(), 'quiz-desktop-'));
@@ -116,6 +117,21 @@ test('TV window: choosing a screen, swapping with the desk, blanking without rel
   assert.equal(opened.length, 1, 'auto-open off: a new screen does not open the TV');
   const one = screensFixture([laptopScreen]);
   assert.throws(() => one.screens.swap(), /two screens/);
+});
+
+test('TV sound: automatic picks the TV\'s HDMI or DisplayPort output only while the TV is full screen; a chosen output only while connected', () => {
+  const outputs = ['USB Audio Speakers', 'TU104 HD Audio Controller Digital Stereo (HDMI)', 'Built-in Audio'];
+  assert.equal(pickOutput(outputs, 'auto', true), 'TU104 HD Audio Controller Digital Stereo (HDMI)');
+  assert.equal(pickOutput(outputs, 'auto', false), null, 'a preview window plays with the laptop');
+  assert.equal(pickOutput(['Speakers', 'LG TV (DisplayPort 2)'], 'auto', true), 'LG TV (DisplayPort 2)');
+  assert.equal(pickOutput(['Speakers', 'Monitor DP-1 Audio'], 'auto', true), 'Monitor DP-1 Audio');
+  assert.equal(pickOutput(['Speakers', 'DPS Headphones'], 'auto', true), null, 'no HDMI output: the laptop\'s');
+  assert.equal(pickOutput(outputs, 'laptop', true), null);
+  assert.equal(pickOutput(outputs, 'USB Audio Speakers', false), 'USB Audio Speakers', 'a chosen output is used even for a preview');
+  assert.equal(pickOutput(outputs, 'Unplugged TV', true), null);
+  // The page script carries the name as data, never as code.
+  assert.match(sinkScript('Evil"); alert(1); ("'), /\("Evil\\"\); alert\(1\); \(\\""\)$/);
+  assert.match(sinkScript(null), /\(null\)$/);
 });
 
 test('settings and key: written whole or not at all, broken settings start from defaults, the key is kept encrypted when possible', () => {

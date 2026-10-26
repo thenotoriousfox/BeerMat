@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('pubquizDesktop', {
   swap: () => call('swap'),
   chooseTv: id => call('choose-tv', id === null ? null : Number(id)),
   autoOpen: on => call('auto-open', on === true),
+  tvSound: choice => call('tv-sound', String(choice)),
   openLogs: () => call('open-logs'),
   openDataFolder: () => call('open-data'),
   backup: () => call('backup'),

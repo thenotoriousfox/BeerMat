@@ -65,3 +65,6 @@ Numbers at the time of writing: 96 node tests, 15 Python tests, 27 browser secti
 * Spotify playback inside the desktop app. Checked here: the app (castlabs Electron) downloads Widevine and the desk
   page gets `com.widevine.alpha`; not checked: a real Spotify sign-in playing a song, and Windows (needs VMP signing).
 * Build quiz previews heard from a real Spotify player (the server side is tested with a fake Spotify).
+* TV sound with a real TV: Automatic picking its HDMI/DisplayPort output when full screen, and Spotify's player following
+  it. Checked here: choosing an output moves the TV page's sound (`desktop.e2e.mjs`, using this machine's outputs) and
+  the choice rules (`desktop.test.js`).
