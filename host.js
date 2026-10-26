@@ -792,7 +792,7 @@ function renderLaptop() {
   const o = laptop.online;
   $('goOnline').hidden = !!o; $('goOffline').hidden = !o; $('goOnline').disabled = !laptop.cloudflared;
   $('onlineLink').hidden = $('copyOnline').hidden = !o?.ready; $('onlineLink').value = o?.url || '';
-  $('onlineInfo').textContent = !laptop.cloudflared ? 'Install cloudflared first (sudo pacman -S cloudflared), then reload this page.'
+  $('onlineInfo').textContent = !laptop.cloudflared ? `Install cloudflared first (${laptop.platform === 'windows' ? 'winget install Cloudflare.cloudflared' : 'sudo pacman -S cloudflared'}), then reload this page.`
     : o?.ready ? 'Share this link with the players; the TV join screen shows it too, with a QR code. In person, the TV page (Projector ↗) plays sound as usual. Remote players: share the TV page with sound over a video call, or they can open the link + /display themselves. Anyone with the link can join, so the waiting room (Room controls) lets you check teams first.' + (state?.settings.deskOnline ? '' : ' The desk stays on this laptop.')
     : o ? 'Connecting to Cloudflare…'
     : laptop.onlineError || 'Play over the internet: Go online makes a free public link (a Cloudflare quick tunnel) to the players’ page and the TV, never the desk. The link changes each time you go online.';

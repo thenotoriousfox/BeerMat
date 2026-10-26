@@ -215,3 +215,15 @@ test('online players get live nudges over a WebSocket, and their https pages may
   assert.equal(await new Promise(r => {bad.onopen = () => r('open'); bad.onerror = () => r('refused');}), 'refused');
   socket.close();
 }));
+
+test('cloudflared installed while PubQuiz runs is found without a restart', async () => {
+  const {mkdtempSync, writeFileSync, rmSync} = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-path-')), saved = process.env.PATH, home = process.env.HOME;
+  process.env.PATH = dir; process.env.HOME = dir;
+  try {
+    const laptop = createLaptop({root: '/quiz', run: async () => ({ok: true, code: 0, out: '{}'})});
+    assert.equal((await laptop.status()).cloudflared, false);
+    writeFileSync(path.join(dir, 'cloudflared'), '');
+    assert.equal((await laptop.status()).cloudflared, true);
+  } finally {process.env.PATH = saved; process.env.HOME = home; rmSync(dir, {recursive: true, force: true});}
+});

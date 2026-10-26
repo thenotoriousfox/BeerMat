@@ -22,7 +22,7 @@ const tidy = out => out.split('\n').filter(l => l.trim() && !/^usage: /.test(l))
 const nodeEnv = () => process.versions.electron ? {...process.env, ELECTRON_RUN_AS_NODE: '1'} : undefined;
 export const hotspotAddress = platform => platform === 'win32' ? '192.168.137.1' : '10.42.0.1';
 
-export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cloudflared = onPath('cloudflared'), python = '/usr/bin/python3', platform = process.platform,
+export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cloudflared, python = '/usr/bin/python3', platform = process.platform,
   powershell = 'powershell.exe', packDir = path.join(root, 'soundpack'),
   speedQuizzing = process.env.SQ_DOCUMENTS || path.join(os.homedir(), 'SpeedQuizzing Documents'),
   piper = [path.join(os.homedir(), '.local/opt/piper/bin/python'), path.join(os.homedir(), '.local/share/piper/en_GB-cori-high.onnx')]} = {}) {
@@ -30,6 +30,8 @@ export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cl
   const hotspot = path.join(root, 'scripts', windows ? 'hotspot-windows.ps1' : 'hotspot.py'), script = name => path.join(root, 'scripts', name);
   const ps = (...args) => [powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', hotspot, ...args]];
   const jobs = {};
+  // Looked for each time, so installing cloudflared while PubQuiz runs is enough (tests pass a path, or null for none).
+  const tool = () => cloudflared === undefined ? onPath('cloudflared') : cloudflared;
   // Online mode: one cloudflared process while it lasts. The link counts once Cloudflare has registered a connection.
   let tunnel = null, tunnelError = '';
   process.once('exit', () => tunnel?.child.kill());
@@ -55,7 +57,7 @@ export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cl
   return {
     wifi,
     async status() {
-      return {wifi: await wifi(), jobs, online: online(), onlineError: tunnelError, cloudflared: !!cloudflared, platform: windows ? 'windows' : 'linux',
+      return {wifi: await wifi(), jobs, online: online(), onlineError: tunnelError, cloudflared: !!tool(), platform: windows ? 'windows' : 'linux',
         setup: {speedQuizzing: existsSync(path.join(speedQuizzing, 'Sounds')), piper: piper.every(f => existsSync(f))}};
     },
     // `port` is PubQuiz's own port: Linux sends phones that open http://10.42.0.1 there.
@@ -73,9 +75,10 @@ export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cl
     },
     online,
     goOnline(port, changed) {
-      requireValue(cloudflared, windows ? 'Install cloudflared first: winget install Cloudflare.cloudflared' : 'Install cloudflared first: sudo pacman -S cloudflared');
+      const cloudflaredPath = tool();
+      requireValue(cloudflaredPath, windows ? 'Install cloudflared first: winget install Cloudflare.cloudflared' : 'Install cloudflared first: sudo pacman -S cloudflared');
       requireValue(!tunnel, 'Already online');
-      const child = launch(cloudflared, ['tunnel', '--no-autoupdate', '--url', `http://127.0.0.1:${port}`]), mine = {child, url: '', ready: false, log: ''};
+      const child = launch(cloudflaredPath, ['tunnel', '--no-autoupdate', '--url', `http://127.0.0.1:${port}`]), mine = {child, url: '', ready: false, log: ''};
       tunnel = mine; tunnelError = '';
       child.stderr?.setEncoding('utf8');
       child.stderr?.on('data', text => {
