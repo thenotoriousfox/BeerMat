@@ -2,8 +2,8 @@
 
 The optional internet service for **player profiles, statistics and achievements across venues, venue pages and quiz
 listings**. Quizzes never depend on it. It is a complete, tested reference implementation (`online/service.js`,
-Node 22 + SQLite). It runs at **https://beermatquiz.co.uk** (an Oracle Cloud Always Free VM in London, set
-up by `online/deploy.sh ubuntu@130.162.161.81 beermatquiz.co.uk`); the BeerMat app is built to use it. This document is the design and how it is
+Node 22 + SQLite). It runs at **https://online.beermatquiz.co.uk** (an Oracle Cloud Always Free VM in London, set
+up by `online/deploy.sh ubuntu@130.162.161.81 online.beermatquiz.co.uk`); the BeerMat app is built to use it. This document is the design and how it is
 deployed.
 
 ## API (JSON over HTTPS, `/v1`)
@@ -166,8 +166,8 @@ that does it every day). Admin jobs run on the server:
 
 The live server: Oracle Cloud, UK South (London), VM.Standard.E2.1.Micro (1 OCPU, 1 GB), Ubuntu 24.04, public IP
 130.162.161.81, SSH as `ubuntu`. Ports 80 and 443 are open in its subnet's Default Security List. The domain
-`beermatquiz.co.uk` is at Cloudflare (DNS only, not proxied: Caddy gets its own certificate): `A @ 130.162.161.81` and
-`CNAME www beermatquiz.co.uk`. The old address, https://130-162-161-81.sslip.io, still works for apps built before
+`beermatquiz.co.uk` is at Cloudflare. The service's record is `A online 130.162.161.81`, DNS only (not proxied: Caddy
+gets its own certificate); the domain itself is the website (`site/`, a Cloudflare Worker). The old address, https://130-162-161-81.sslip.io, still works for apps built before
 the domain (v0.5.0 and earlier); a new IP only needs the A record changed.
 
 What a deployment needs in general:

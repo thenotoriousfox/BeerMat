@@ -3,7 +3,7 @@
 # repository on your own machine:
 #   online/deploy.sh ubuntu@<server ip> [domain]
 # Without a domain it uses <ip>.sslip.io, a free name that points at the server's IP; with one, <ip>.sslip.io keeps
-# working too (for apps built before the domain) and www.<domain> redirects to it. Run it again to update the
+# working too (for apps built before the domain). Run it again to update the
 # service; the database is kept. What it sets up:
 #   * Node.js 24 (official build, checksum checked) in /opt/node
 #   * the service in /opt/beermat-online, run by systemd as its own user, listening on 127.0.0.1:8080 only
@@ -126,9 +126,6 @@ $DOMAIN {
 }
 CADDY
 if [ "$DOMAIN" != "$IP_NAME" ]; then cat >> /etc/caddy/Caddyfile <<CADDY
-www.$DOMAIN {
-	redir https://$DOMAIN{uri} permanent
-}
 $IP_NAME {
 	encode gzip
 	reverse_proxy 127.0.0.1:8080

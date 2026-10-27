@@ -8,7 +8,7 @@ on:
 permissions:
   contents: write
 env:
-  ONLINE: https://beermatquiz.co.uk
+  ONLINE: https://online.beermatquiz.co.uk
 jobs:
   copy:
     runs-on: ubuntu-latest

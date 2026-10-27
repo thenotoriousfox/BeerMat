@@ -66,7 +66,7 @@ function loadPack(dir, prefix) {
 
 // BeerMat Online (online/service.js, deployed by online/deploy.sh). Only used when the quizmaster shares results or
 // runs their venue from the desk.
-export const onlineDefault = 'https://beermatquiz.co.uk';
+export const onlineDefault = 'https://online.beermatquiz.co.uk';
 
 export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), themesDir = path.join(root, 'themes'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose, fetchImpl = globalThis.fetch, plan: fixedPlan = null, licenceKey = licencePublicKey} = {}) {
   if (typeof hostKey !== 'string' || hostKey.length < 12) throw Error('HOST_KEY must contain at least 12 characters');
