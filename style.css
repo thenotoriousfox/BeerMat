@@ -519,3 +519,12 @@ body.idle .screen-controls button { opacity: 0; pointer-events: none; }
 
 .job{white-space:pre-line}
 .checks { list-style: none; padding: 0; display: grid; gap: 6px; } .checks .good { color: var(--good); }
+
+/* Desk: a venue's regular quiz nights. */
+.quiz-nights { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; margin: 10px 0; }
+.quiz-nights legend { padding: 0 6px; color: var(--muted); font-size: .9rem; }
+.quiz-nights .nights-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 16px; }
+.quiz-nights .night { display: flex; flex-direction: row; align-items: center; gap: 6px; font-weight: 700; margin: 0; }
+.quiz-nights .night input[type=checkbox] { width: auto; margin: 0; }
+.quiz-nights .night input[type=time] { width: auto; }
+.quiz-nights .night input[type=time]:disabled { opacity: .4; }

@@ -22,7 +22,7 @@ only for the app (`capacitor://localhost`, `http(s)://localhost`) and origins li
 | `GET /v1/me/stats` | signed in | statistics and badges (registered venues only) |
 | `GET/PUT/DELETE /v1/me/favourites[/:venue]` | signed in | saved venues |
 | `GET /v1/venues` | anyone | every venue, for the app's map: public details and its next quiz night |
-| `PATCH /v1/venues/:id` · `GET /v1/me/venues` | operator | edit the venue's profile (name, town, postcode, address, website, quiz night, location) · the venues you run |
+| `PATCH /v1/venues/:id` · `GET /v1/me/venues` | operator | edit the venue's profile (name, town, postcode, address, website, regular quiz nights, location) · the venues you run |
 | `POST /v1/venues` · `DELETE /v1/venues/:id` · `POST /v1/venues/:id/operator` `{email}` | admin | add or remove a venue outside the venue list · link it to its operator's account (`{email: null}` unlinks) |
 | `POST /v1/venues/:id/keys` `{publicKey}` | operator | register a quiz laptop (its key is on the desk under Past quizzes) |
 | `POST /v1/venues/:id/events` · `PATCH/DELETE /v1/events/:id` | operator | publish, change, cancel a quiz night |
@@ -38,11 +38,13 @@ edit (or, rarely, an admin adds one through the API):
 
 ```json
 {"venues": [{"id": "red-lion-bristol", "name": "The Red Lion", "town": "Bristol", "postcode": "BS1 4DJ",
-  "address": "1 King Street", "website": "https://…", "lat": 51.4545, "lon": -2.5879, "quizNight": "Tuesdays, 8pm"}]}
+  "address": "1 King Street", "website": "https://…", "lat": 51.4545, "lon": -2.5879,
+  "quizNights": [{"day": "tuesday", "time": "20:00"}, {"day": "sunday", "time": "18:30"}]}]}
 ```
 
 Only `id` (2–60 lower-case letters, digits or dashes, never changed later), `name` and `town` are required; `lat`
-and `lon` put it on the map. `venues.js` checks the file (`npm test` does too), and a bad entry is skipped without
+and `lon` put it on the map; `quizNights` are its regular weekly quizzes (a day, `monday`–`sunday`, and a 24-hour start
+time, at most one a day), which players filter the map and listings by. `venues.js` checks the file (`npm test` does too), and a bad entry is skipped without
 hiding the rest. The service imports the list when it starts (`VENUES_FILE`, the copy `online/deploy.sh` ships), or
 hourly from `VENUES_URL` once the repository is public. Listed venues are added and updated; one taken off the list is
 removed with its quiz nights.
@@ -54,8 +56,9 @@ and cancel quiz nights. Fields they change are theirs: later imports of the list
 remove or take over other venues.
 
 **The map.** The player app's Find a quiz tab shows every venue on an OpenStreetMap map (Leaflet, shipped in the
-app; tiles from tile.openstreetmap.org, with attribution). Gold pins have a quiz night coming up; tapping one opens the
-venue's page. Offline, the app shows the last list it saw, or failing that the venue list straight from GitHub (once
+app; tiles from tile.openstreetmap.org, with attribution). Gold pins (with a question mark) have a regular quiz night or a
+published one coming up; slate ones don't. Day buttons (Any day, Mon–Sun) show only venues with a quiz that day, and
+filter the search listings too. Tapping a pin opens the venue's page. Offline, the app shows the last list it saw, or failing that the venue list straight from GitHub (once
 the repository is public). OpenStreetMap's tile servers are for light use: with many players, switch to a tile
 provider's plan.
 

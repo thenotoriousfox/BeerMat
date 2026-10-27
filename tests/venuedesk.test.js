@@ -49,8 +49,8 @@ test('desk venue tab: sign in through the laptop, edit only your venue, register
     assert.equal((await call('online/locate', {postcode: 'ZZ9 9ZZ'})).status, 404);
     assert.equal((await call('online/locate', {postcode: '../../x'})).status, 400);
     assert.equal(looked.length, 2);
-    const saved = await call('online/call', {method: 'PATCH', path: '/v1/venues/red-lion-bristol', body: {quizNight: 'Tuesdays, 8pm', lat: at.lat, lon: at.lon}});
-    assert.deepEqual([saved.quizNight, saved.lat], ['Tuesdays, 8pm', 51.45451]);
+    const saved = await call('online/call', {method: 'PATCH', path: '/v1/venues/red-lion-bristol', body: {quizNights: [{day: 'tuesday', time: '20:00'}], lat: at.lat, lon: at.lon}});
+    assert.deepEqual([saved.quizNights, saved.lat], [[{day: 'tuesday', time: '20:00'}], 51.45451]);
 
     // Registering always sends this laptop's own key, whatever the page sends.
     await call('online/call', {method: 'POST', path: '/v1/venues/red-lion-bristol/keys', body: {publicKey: 'someone-elses-key'}});
@@ -61,7 +61,8 @@ test('desk venue tab: sign in through the laptop, edit only your venue, register
     const night = await call('online/call', {method: 'POST', path: '/v1/venues/red-lion-bristol/events', body: {title: 'Tuesday Quiz', startsAt: Date.now() + 86400000, entry: '£2'}});
     assert.deepEqual((await fetch(online + '/v1/venues').then(r => r.json())).venues.find(v => v.id === 'red-lion-bristol').next.title, 'Tuesday Quiz', 'on the map straight away');
     await call('online/call', {method: 'DELETE', path: '/v1/events/' + night.id});
-    assert.deepEqual((await call('online/call', {method: 'GET', path: '/v1/venues/red-lion-bristol'})).events, []);
+    const left = (await call('online/call', {method: 'GET', path: '/v1/venues/red-lion-bristol'})).events;
+    assert.deepEqual([left.filter(e => !e.regular), left.every(e => e.title === 'Quiz night' && new Date(e.startsAt).getUTCDay() === 2)], [[], true], 'only the regular Tuesday nights are left');
 
     assert.equal((await call('online/signout')).signedIn, false);
     assert.equal((await call('online/account')).signedIn, false);

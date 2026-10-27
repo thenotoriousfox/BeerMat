@@ -199,15 +199,16 @@ test('client: results wait offline and are sent once when back; listings come fr
 
 test('venue list: imported, kept up to date, operators edit their own profile only; nobody adds themselves', () => fixture(async ({call, signUp, addVenue, service}) => {
   const list = {venues: [
-    {id: 'red-lion-bristol', name: 'The Red Lion', town: 'Bristol', postcode: 'bs1 4dj', lat: 51.4545, lon: -2.5879, quizNight: 'Tuesdays, 8pm'},
+    {id: 'red-lion-bristol', name: 'The Red Lion', town: 'Bristol', postcode: 'bs1 4dj', lat: 51.4545, lon: -2.5879, quizNights: [{day: 'tuesday', time: '20:00'}]},
     {id: 'crown-bath', name: 'The Crown', town: 'Bath'},
     {id: 'Bad Id', name: 'Nope', town: 'X'}, {id: 'no-town', name: 'Nope'}, {id: 'half-located', name: 'X', town: 'Y', lat: 51},
-    {id: 'crown-bath', name: 'Twice', town: 'Bath'},
+    {id: 'crown-bath', name: 'Twice', town: 'Bath'}, {id: 'bad-day', name: 'X', town: 'Y', quizNights: [{day: 'funday', time: '20:00'}]},
+    {id: 'bad-time', name: 'X', town: 'Y', quizNights: [{day: 'monday', time: '8pm'}]}, {id: 'two-mondays', name: 'X', town: 'Y', quizNights: [{day: 'monday', time: '20:00'}, {day: 'monday', time: '21:00'}]},
   ]};
   const first = service.importVenues(list);
-  assert.deepEqual([first.imported, first.errors.length], [2, 4]);
+  assert.deepEqual([first.imported, first.errors.length], [2, 7]);
   let venues = (await call('GET', '/v1/venues')).venues;
-  assert.deepEqual(venues.map(v => [v.id, v.postcode, v.quizNight, v.next]), [['crown-bath', '', '', null], ['red-lion-bristol', 'BS1 4DJ', 'Tuesdays, 8pm', null]]);
+  assert.deepEqual(venues.map(v => [v.id, v.postcode, v.quizNights, v.next]), [['crown-bath', '', [], null], ['red-lion-bristol', 'BS1 4DJ', [{day: 'tuesday', time: '20:00'}], null]]);
   assert.equal(venues[0].owner, undefined, 'operators are not public');
 
   // Nobody adds or removes a venue but an admin; operators are linked by an admin.
@@ -222,16 +223,17 @@ test('venue list: imported, kept up to date, operators edit their own profile on
   assert.deepEqual((await call('GET', '/v1/me/venues', null, landlord)).venues.map(v => v.id), ['red-lion-bristol']);
   assert.equal((await call('PATCH', '/v1/venues/crown-bath', {name: 'Not mine'}, landlord)).status, 403, 'only their own venue');
   assert.equal((await call('PATCH', '/v1/venues/red-lion-bristol', {lat: 51.5}, landlord)).status, 400, 'a location needs both');
-  const edited = await call('PATCH', '/v1/venues/red-lion-bristol', {quizNight: 'Wednesdays, 7:30pm', lat: 51.46, lon: -2.59}, landlord);
-  assert.deepEqual([edited.quizNight, edited.lat], ['Wednesdays, 7:30pm', 51.46]);
+  assert.equal((await call('PATCH', '/v1/venues/red-lion-bristol', {quizNights: [{day: 'wednesday', time: '7.30pm'}]}, landlord)).status, 400);
+  const edited = await call('PATCH', '/v1/venues/red-lion-bristol', {quizNights: [{day: 'sunday', time: '18:00'}, {day: 'wednesday', time: '19:30'}], lat: 51.46, lon: -2.59}, landlord);
+  assert.deepEqual([edited.quizNights, edited.lat], [[{day: 'wednesday', time: '19:30'}, {day: 'sunday', time: '18:00'}], 51.46], 'in weekday order');
   assert.equal((await call('DELETE', '/v1/venues/red-lion-bristol', null, landlord)).status, 403, 'taking a venue off is for PubQuiz');
   await call('POST', '/v1/venues/red-lion-bristol/events', {title: 'Quiz', startsAt: 1700000000000 + 86400000}, landlord);
 
   // The list again: its changes apply except to what the operator changed; a venue taken off the list goes.
-  const second = service.importVenues({venues: [{...list.venues[0], name: 'The Red Lion Inn', quizNight: 'Tuesdays', lat: 1, lon: 1}]});
+  const second = service.importVenues({venues: [{...list.venues[0], name: 'The Red Lion Inn', quizNights: [{day: 'friday', time: '21:00'}], lat: 1, lon: 1}]});
   assert.deepEqual([second.imported, second.removed], [1, 1]);
   venues = (await call('GET', '/v1/venues')).venues;
-  assert.deepEqual(venues.map(v => [v.id, v.name, v.quizNight, v.lat, v.next?.title ?? null]), [[venues[0].id, 'Admin Added', '', null, null], ['red-lion-bristol', 'The Red Lion Inn', 'Wednesdays, 7:30pm', 51.46, 'Quiz']]);
+  assert.deepEqual(venues.map(v => [v.id, v.name, v.quizNights.map(n => n.day), v.lat, v.next?.title ?? null]), [[venues[0].id, 'Admin Added', [], null, null], ['red-lion-bristol', 'The Red Lion Inn', ['wednesday', 'sunday'], 51.46, 'Quiz']]);
   assert.deepEqual(service.importVenues({nope: true}), {imported: 0, removed: 0, errors: ['venues.json must be {"venues": [...]}']}, 'an unreadable list changes nothing');
   assert.equal((await call('GET', '/v1/venues')).venues.length, 2);
   // An operator's account going doesn't take the venue with it.
@@ -266,17 +268,35 @@ test('venues.json in this repository is a valid venue list', async () => {
 });
 
 test('client: the map\'s venues come from the service, then its last list offline, then the venue list on GitHub', () => fixture(async ({base, service}) => {
-  service.importVenues({venues: [{id: 'ship-hull', name: 'The Ship', town: 'Hull', lat: 53.74, lon: -0.33, quizNight: 'Thursdays'}]});
+  service.importVenues({venues: [{id: 'ship-hull', name: 'The Ship', town: 'Hull', lat: 53.74, lon: -0.33, quizNights: [{day: 'thursday', time: '19:30'}]}]});
   let online = true;
   const github = {venues: [{id: 'listed', name: 'Listed', town: 'York', website: 'javascript:alert(1)'}, {name: 'no id'}]};
   const fetchSometimes = (url, options) => url.startsWith('https://raw.githubusercontent.com/') ? Promise.resolve(new Response(JSON.stringify(github))) : online ? fetch(url, options) : Promise.reject(new TypeError('fetch failed'));
   const client = createOnlineClient({baseUrl: base, venueListUrl: 'https://raw.githubusercontent.com/x/venues.json', fetch: fetchSometimes, storage: memory()});
   const live = await client.venues();
-  assert.deepEqual([live.source, live.stale, live.venues.map(v => [v.name, v.quizNight])], ['service', false, [['The Ship', 'Thursdays']]]);
+  assert.deepEqual([live.source, live.stale, live.venues.map(v => [v.name, v.quizNights[0].day])], ['service', false, [['The Ship', 'thursday']]]);
   online = false;
   assert.deepEqual([(await client.venues()).source, (await client.venues()).venues.length], ['cache', 1]);
   const fresh = createOnlineClient({baseUrl: base, venueListUrl: 'https://raw.githubusercontent.com/x/venues.json', fetch: fetchSometimes, storage: memory()});
   const listed = await fresh.venues();
   assert.deepEqual([listed.source, listed.venues.map(v => [v.id, v.website, v.lat])], ['list', [['listed', '', null]]], 'only well-formed entries, and only https websites');
   await assert.rejects(createOnlineClient({baseUrl: base, fetch: fetchSometimes, storage: memory()}).venues(), /No connection/);
+}));
+
+test('listings include each venue\'s regular quiz nights over the next week, in UK time, unless it published one that day', () => fixture(async ({call, signUp, addVenue, service, tick}) => {
+  // 1700000000000 is Tuesday 14 November 2023, 22:13 in London.
+  service.importVenues({venues: [{id: 'vic-derby', name: 'The Victoria Inn', town: 'Derby', postcode: 'DE1 2RR', lat: 52.9168, lon: -1.4646, quizNights: [{day: 'monday', time: '20:00'}, {day: 'tuesday', time: '20:00'}]}]});
+  let found = (await call('GET', '/v1/events?q=derby')).events;
+  assert.deepEqual(found.map(e => [e.title, e.regular, new Date(e.startsAt).toISOString()]), [['Quiz night', true, '2023-11-14T20:00:00.000Z'], ['Quiz night', true, '2023-11-20T20:00:00.000Z'], ['Quiz night', true, '2023-11-21T20:00:00.000Z']], 'tonight’s (started 2 hours ago) and next week’s');
+  assert.equal((await call('GET', '/v1/events?lat=52.92&lon=-1.47&radiusKm=25')).events.length, 3, 'found by location too');
+  assert.deepEqual((await call('GET', '/v1/events?lat=51.45&lon=-2.59&radiusKm=25')).events, []);
+  // The venue publishes its own quiz for Monday: that replaces the regular one that day.
+  const landlord = await signUp('vic@example.com');
+  service.db.prepare("UPDATE venues SET owner=(SELECT id FROM accounts WHERE email='vic@example.com') WHERE id='vic-derby'").run();
+  await call('POST', '/v1/venues/vic-derby/events', {title: 'Charity Quiz', startsAt: Date.UTC(2023, 10, 20, 19, 30)}, landlord);
+  found = (await call('GET', '/v1/venues/vic-derby')).events;
+  assert.deepEqual(found.map(e => [e.title, new Date(e.startsAt).toISOString().slice(0, 16)]), [['Quiz night', '2023-11-14T20:00'], ['Charity Quiz', '2023-11-20T19:30'], ['Quiz night', '2023-11-21T20:00']]);
+  // In British Summer Time, 8pm in London is 19:00 UTC.
+  tick(Date.UTC(2024, 6, 1, 12) - 1700000000000);
+  assert.equal(new Date((await call('GET', '/v1/events?q=derby')).events[0].startsAt).toISOString(), '2024-07-01T19:00:00.000Z');
 }));

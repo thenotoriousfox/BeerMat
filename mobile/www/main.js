@@ -178,8 +178,11 @@ async function search(params) {
     const found = await client.findEvents(params);
     $('findStale').hidden = !found.stale;
     $('findStale').textContent = found.stale ? `Offline: these listings are from ${ago(found.fetchedAt)} and may have changed.` : '';
-    say(found.events.length ? '' : 'No quizzes found there yet.');
-    renderEvents(found.events);
+    const shown = found.events.filter(e => !dayFilter || weekday(e.startsAt) === dayFilter);
+    const where = params.lat !== undefined ? `within ${params.radiusKm} km of you` : 'there';
+    say(shown.length ? '' : found.events.length ? `No quizzes ${where} on a ${dayName(dayFilter)}.` : `No quizzes ${where} in the next week. The map shows every venue.`);
+    if (params.lat !== undefined && map) map.setView([params.lat, params.lon], 10);
+    renderEvents(shown);
   } catch (e) {say(e.message, true);}
 }
 function directions(venue) {
@@ -193,7 +196,7 @@ function renderEvents(events, list = $('events')) {
   const favourites = new Set(store.get('pq-favourites', []).map(v => v.id));
   list.replaceChildren(...events.map(e => {
     const li = el('li');
-    li.append(el('div', when(e.startsAt), 'when'), el('strong', e.title), el('div', `${e.venue.name}, ${e.venue.town}${e.distanceKm !== undefined ? ` · ${e.distanceKm} km` : ''}`, 'where'));
+    li.append(el('div', when(e.startsAt), 'when'), el('strong', e.regular ? `${e.title} · every ${dayName(weekday(e.startsAt))}` : e.title), el('div', `${e.venue.name}, ${e.venue.town}${e.distanceKm !== undefined ? ` · ${e.distanceKm} km` : ''}`, 'where'));
     if (e.format) li.append(el('div', e.format));
     if (e.entry) li.append(el('div', `Entry: ${e.entry}`));
     const go = el('a', 'Directions'); go.href = directions(e.venue); go.target = '_blank'; go.rel = 'noopener';
@@ -226,12 +229,52 @@ async function toggleFavourite(venue, on) {
   if (!$('venueCard').hidden && shownVenue?.id === venue.id) showVenue(shownVenue);
 }
 
+// ---- Quiz days: venues list their regular nights (a day and a time); players filter the map and listings by day ----
+const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const dayName = d => d[0].toUpperCase() + d.slice(1);
+const weekday = t => days[(new Date(t).getDay() + 6) % 7];
+const clock = time => {const [h, m] = time.split(':').map(Number); return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''}${h < 12 ? 'am' : 'pm'}`;};
+const nightsText = nights => nights.map(n => `${dayName(n.day)}s at ${clock(n.time)}`).join(', ');
+let dayFilter = store.get('pq-day', '');
+if (!days.includes(dayFilter)) dayFilter = '';
+function renderDays() {
+  const today = weekday(Date.now());
+  $('dayFilter').replaceChildren(...['', ...days].map(d => {
+    const b = el('button', d ? dayName(d).slice(0, 3) : 'Any day', d === today ? 'today' : undefined); b.type = 'button';
+    b.setAttribute('aria-pressed', String(d === dayFilter)); if (d) b.title = d === today ? `${dayName(d)} (today)` : dayName(d);
+    b.onclick = () => {dayFilter = d; store.set('pq-day', d); renderDays(); drawPins(); if (lastSearch) search(lastSearch);};
+    return b;
+  }));
+}
+const quizOn = (v, d) => v.quizNights?.some(n => n.day === d) || (v.next && weekday(v.next.startsAt) === d);
+
 // ---- The map: every venue (PubQuiz Online, or the venue list on GitHub when it can't be reached) ----
 // OpenStreetMap's tiles, loaded only while this tab is open; the map never sends the player's location anywhere.
-let map = null, markers = null, shownVenue = null;
+let map = null, markers = null, shownVenue = null, mapVenues = null;
+// A map pin: gold with a question mark for venues with a quiz night, slate for the rest; bigger when chosen.
+const pinIcon = (quiz, chosen) => L.divIcon({className: `pin${quiz ? ' quiz' : ''}${chosen ? ' chosen' : ''}`, iconSize: [34, 44], iconAnchor: [17, 43], tooltipAnchor: [0, -38],
+  html: '<svg viewBox="0 0 34 44" aria-hidden="true"><path class="pin-body" d="M17 1.5C8.4 1.5 1.5 8.3 1.5 16.8 1.5 28.6 17 42.5 17 42.5S32.5 28.6 32.5 16.8C32.5 8.3 25.6 1.5 17 1.5z"/>'
+    + '<circle class="pin-face" cx="17" cy="16.5" r="9.5"/><text class="pin-mark" x="17" y="21.6" text-anchor="middle">?</text></svg>'});
+function drawPins() {
+  if (!mapVenues || !markers) return;
+  const placed = mapVenues.venues.filter(v => v.lat !== null && v.lon !== null), shown = placed.filter(v => !dayFilter || quizOn(v, dayFilter));
+  markers.clearLayers();
+  for (const v of shown) {
+    const quiz = !!(v.quizNights?.length || v.next);
+    const marker = L.marker([v.lat, v.lon], {icon: pinIcon(quiz, shownVenue?.id === v.id), title: v.name, riseOnHover: true});
+    marker.bindTooltip(v.quizNights?.length ? `${v.name} · ${nightsText(v.quizNights)}` : v.name);
+    marker.on('click', () => {showVenue(v); drawPins();}); marker.addTo(markers);
+  }
+  const unplaced = mapVenues.venues.length - placed.length;
+  $('mapNote').textContent = !mapVenues.venues.length ? 'No venues yet.'
+    : dayFilter ? `${shown.length} venue${shown.length === 1 ? '' : 's'} with a quiz on ${dayName(dayFilter)}s. Tap a pin for details.`
+    : `${mapVenues.venues.length} venue${mapVenues.venues.length === 1 ? '' : 's'}${unplaced ? ` (${unplaced} not on the map yet)` : ''}. Tap a pin for details.`;
+  if (mapVenues.stale) $('mapNote').textContent += ` Offline: from ${ago(mapVenues.fetchedAt)}.`;
+  return shown;
+}
 async function renderMap() {
   if (!window.L || (!client.baseUrl && !venueListUrl)) return;
-  $('mapBox').hidden = false;
+  $('mapBox').hidden = false; $('dayFilter').hidden = false; renderDays();
   if (!map) {
     map = L.map('map').setView([54.4, -3], 5);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin',
@@ -239,27 +282,18 @@ async function renderMap() {
     markers = L.layerGroup().addTo(map);
   }
   map.invalidateSize();
-  let found;
-  try {found = await client.venues();} catch (e) {$('mapNote').textContent = 'The venue map needs an internet connection.'; return;}
-  const placed = found.venues.filter(v => v.lat !== null && v.lon !== null);
-  markers.clearLayers();
-  for (const v of placed) {
-    const marker = L.circleMarker([v.lat, v.lon], {radius: 9, weight: 2, color: '#fff', fillColor: v.next ? '#ffb000' : '#7c8db5', fillOpacity: 0.95});
-    marker.bindTooltip(v.name); marker.on('click', () => showVenue(v)); marker.addTo(markers);
-  }
-  if (placed.length) map.fitBounds(L.latLngBounds(placed.map(v => [v.lat, v.lon])).pad(0.3), {maxZoom: 13});
-  const unplaced = found.venues.length - placed.length;
-  $('mapNote').textContent = !found.venues.length ? 'No venues yet.'
-    : `${found.venues.length} venue${found.venues.length === 1 ? '' : 's'}${unplaced ? ` (${unplaced} not on the map yet)` : ''}. Gold: a quiz night is coming up. Tap one for details.`
-      + (found.stale ? ` Offline: from ${ago(found.fetchedAt)}.` : '');
+  try {mapVenues = await client.venues();} catch {$('mapNote').textContent = 'The venue map needs an internet connection.'; return;}
+  const placed = mapVenues.venues.filter(v => v.lat !== null && v.lon !== null);
+  drawPins();
+  if (placed.length) map.fitBounds(L.latLngBounds(placed.map(v => [v.lat, v.lon])).pad(0.3), {maxZoom: 14});
 }
 // A venue's page: its details and upcoming quiz nights.
 async function showVenue(v) {
   shownVenue = v;
   const card = $('venueCard'), saved = store.get('pq-favourites', []).some(f => f.id === v.id);
-  const close = el('button', '✕', 'subtle close'); close.type = 'button'; close.setAttribute('aria-label', 'Close'); close.onclick = () => {card.hidden = true; shownVenue = null;};
+  const close = el('button', '✕', 'subtle close'); close.type = 'button'; close.setAttribute('aria-label', 'Close'); close.onclick = () => {card.hidden = true; shownVenue = null; drawPins();};
   card.replaceChildren(close, el('h3', v.name), el('p', [v.address, v.town, v.postcode].filter(Boolean).join(', '), 'where'));
-  if (v.quizNight) card.append(el('p', `🗓 Quiz night: ${v.quizNight}`));
+  if (v.quizNights?.length) card.append(el('p', `🗓 Quiz night${v.quizNights.length > 1 ? 's' : ''}: ${nightsText(v.quizNights)}`, 'nights'));
   if (v.website) {const site = el('a', 'Website'); site.href = v.website; site.target = '_blank'; site.rel = 'noopener'; card.append(site, document.createTextNode(' · '));}
   const go = el('a', 'Directions'); go.href = directions({...v, directions: v.directions || `https://www.openstreetmap.org/search?query=${encodeURIComponent([v.name, v.address, v.town, v.postcode].filter(Boolean).join(', '))}`});
   go.target = '_blank'; go.rel = 'noopener'; card.append(go);

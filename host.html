@@ -38,7 +38,8 @@
 <p id="venueNone" class="warning" hidden>This account doesn’t run a venue yet. Ask PubQuiz to add your venue to the list and link it to this account’s email.</p>
 <div id="venueDetails" hidden><label id="venuePickLabel" hidden>Venue<select id="venuePick"></select></label>
 <form id="venueForm"><div class="row"><label>Venue name<input id="vName" maxlength="120" required></label><label>Town<input id="vTown" maxlength="80" required></label><label>Postcode<input id="vPostcode" maxlength="10"></label></div>
-<div class="row"><label>Address<input id="vAddress" maxlength="200"></label><label>Website<input id="vWebsite" maxlength="200" placeholder="https://"></label><label>Quiz night<input id="vQuizNight" maxlength="120" placeholder="Tuesdays, 8pm"></label></div>
+<div class="row"><label>Address<input id="vAddress" maxlength="200"></label><label>Website<input id="vWebsite" maxlength="200" placeholder="https://"></label></div>
+<fieldset class="quiz-nights"><legend>Regular quiz nights (players can filter the map by day)</legend><div id="vNights" class="nights-grid"></div></fieldset>
 <div class="row"><label>Latitude<input id="vLat" inputmode="decimal" maxlength="12"></label><label>Longitude<input id="vLon" inputmode="decimal" maxlength="12"></label><button id="vLocate" type="button" class="subtle">📍 Find from postcode</button><button>Save venue</button></div></form>
 <p class="row"><span id="venueLaptop"></span><button id="venueRegister" type="button" class="subtle">Register this laptop</button></p>
 <h3>Quiz nights</h3><ul id="venueEvents" class="checks"></ul>

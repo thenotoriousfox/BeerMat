@@ -21,7 +21,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {verifyClaim, keyId, validKey} from '../claims.js';
 import {summarize, achievements} from '../achievements.js';
-import {parseVenueList} from '../venues.js';
+import {parseVenueList, checkQuizNights} from '../venues.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(32).toString('base64url');
@@ -47,10 +47,18 @@ const distance = (a, b) => {
   return 6371 * 2 * Math.asin(Math.sqrt(Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2));
 };
 const postcodeArea = p => p.toUpperCase().replace(/\s+/g, ' ').trim().split(' ')[0];
+// Venues' regular quiz nights are UK local times. london(t) is the date and time in London at t; londonTime() the
+// moment a London date and time happens (summer time included).
+const londonFormat = new Intl.DateTimeFormat('en-GB', {timeZone: 'Europe/London', year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'long', hour: 'numeric', minute: 'numeric', hourCycle: 'h23'});
+const london = t => Object.fromEntries(londonFormat.formatToParts(t).map(p => [p.type, p.value]));
+const londonTime = (y, m, d, h, mi) => {
+  const guess = Date.UTC(y, m - 1, d, h, mi), at = london(guess);
+  return guess - (Date.UTC(+at.year, at.month - 1, +at.day, +at.hour, +at.minute) - guess);
+};
 
 const venuesTable = name => `CREATE TABLE IF NOT EXISTS ${name}(id TEXT PRIMARY KEY, owner TEXT REFERENCES accounts(id) ON DELETE SET NULL, name TEXT NOT NULL,
   town TEXT NOT NULL, postcode TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', website TEXT NOT NULL DEFAULT '', lat REAL, lon REAL,
-  verified INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, quiz_night TEXT NOT NULL DEFAULT '', listed INTEGER NOT NULL DEFAULT 0, edited TEXT NOT NULL DEFAULT '[]');`;
+  verified INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, quiz_nights TEXT NOT NULL DEFAULT '[]', listed INTEGER NOT NULL DEFAULT 0, edited TEXT NOT NULL DEFAULT '[]');`;
 
 export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), venuesFile = '', venuesUrl = '', fetchImpl = globalThis.fetch, trustProxy = false} = {}) {
   const db = new DatabaseSync(database);
@@ -75,6 +83,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     CREATE TABLE IF NOT EXISTS venue_results(venue_key TEXT NOT NULL, event TEXT NOT NULL, summary TEXT NOT NULL, received INTEGER NOT NULL, PRIMARY KEY(venue_key, event));
     CREATE INDEX IF NOT EXISTS events_starts ON events(starts);
   `);
+  // Quiz nights became a list of days and times (a short-lived quiz_night text column is left unused).
+  if (!db.prepare('PRAGMA table_info(venues)').all().some(c => c.name === 'quiz_nights')) db.exec("ALTER TABLE venues ADD COLUMN quiz_nights TEXT NOT NULL DEFAULT '[]'");
   const one = (sql, ...a) => db.prepare(sql).get(...a), rows = (sql, ...a) => db.prepare(sql).all(...a), run = (sql, ...a) => db.prepare(sql).run(...a);
   const attempts = new Map();
   // Ten tries a minute per address (and per email for sign-in), then a pause.
@@ -86,8 +96,22 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   const session = account => {const t = token(); run('INSERT INTO sessions VALUES(?,?,?)', sha(t), account, now() + SESSION_MS); return t;};
   const privacy = a => ({...defaultPrivacy, ...JSON.parse(a.privacy || '{}')});
   const profile = a => ({id: a.id, email: a.email, displayName: a.display_name, preferredTeam: a.preferred_team, avatar: a.avatar || null, privacy: privacy(a), created: a.created});
-  const venueOut = v => ({id: v.id, name: v.name, town: v.town, postcode: v.postcode, address: v.address, website: v.website, lat: v.lat, lon: v.lon, quizNight: v.quiz_night ?? '', verified: !!v.verified,
+  const venueOut = v => ({id: v.id, name: v.name, town: v.town, postcode: v.postcode, address: v.address, website: v.website, lat: v.lat, lon: v.lon, quizNights: JSON.parse(v.quiz_nights || '[]'), verified: !!v.verified,
     directions: v.lat !== null && v.lon !== null ? `https://www.openstreetmap.org/directions?to=${v.lat},${v.lon}` : `https://www.openstreetmap.org/search?query=${encodeURIComponent([v.name, v.address, v.town, v.postcode].filter(Boolean).join(', '))}`});
+  // A venue's regular nights over the next week, as listings, except days it has published a quiz night itself.
+  function regularNights(v, published) {
+    const out = [];
+    for (let i = 0; i < 8; i++) {
+      const day = london(now() + i * 86400000), date = `${day.year}-${day.month.padStart(2, '0')}-${day.day.padStart(2, '0')}`;
+      for (const night of JSON.parse(v.quiz_nights || '[]')) {
+        if (night.day !== day.weekday.toLowerCase() || published.has(`${v.id} ${date}`)) continue;
+        const [h, mi] = night.time.split(':').map(Number), starts = londonTime(+day.year, +day.month, +day.day, h, mi);
+        if (starts > now() - 3 * 3600000) out.push({id: `regular-${v.id}-${date}`, title: 'Quiz night', startsAt: starts, format: '', entry: '', details: '', cancelled: false, updated: 0, regular: true, venue: venueOut(v)});
+      }
+    }
+    return out;
+  }
+  const londonDate = t => {const d = london(t); return `${d.year}-${d.month.padStart(2, '0')}-${d.day.padStart(2, '0')}`;};
   const eventOut = (e, v) => ({id: e.id, title: e.title, startsAt: e.starts, format: e.format, entry: e.entry, details: e.details, cancelled: !!e.cancelled, updated: e.updated, venue: venueOut(v)});
   // A venue key counts once a venue has registered it.
   const venueOfKey = key => one('SELECT v.* FROM venue_keys k JOIN venues v ON v.id=k.venue WHERE k.public_key=?', key);
@@ -111,7 +135,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     if (!partial || body.postcode !== undefined) out.postcode = text(body.postcode, 10, {name: 'Postcode'}).toUpperCase();
     if (!partial || body.address !== undefined) out.address = text(body.address, 200, {name: 'Address'});
     if (!partial || body.website !== undefined) {out.website = text(body.website, 200, {name: 'Website'}); check(!out.website || /^https:\/\//.test(out.website), 'Website must start with https://');}
-    if (!partial || body.quizNight !== undefined) out.quiz_night = text(body.quizNight, 120, {name: 'Quiz night'});
+    if (!partial || body.quizNights !== undefined) {const {nights, error} = checkQuizNights(body.quizNights); check(!error, error); out.quiz_nights = JSON.stringify(nights);}
     for (const [k, lo, hi] of [['lat', -90, 90], ['lon', -180, 180]]) if (body[k] !== undefined) {check(body[k] === null || (typeof body[k] === 'number' && body[k] >= lo && body[k] <= hi), 'Invalid location'); out[k] = body[k];}
     check(('lat' in out) === ('lon' in out) && (out.lat === null) === (out.lon === null), 'Give both latitude and longitude');
     return out;
@@ -128,9 +152,9 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     db.exec('BEGIN');
     try {
       for (const v of venues) {
-        const fields = {name: v.name, town: v.town, postcode: v.postcode, address: v.address, website: v.website, lat: v.lat, lon: v.lon, quiz_night: v.quizNight};
+        const fields = {name: v.name, town: v.town, postcode: v.postcode, address: v.address, website: v.website, lat: v.lat, lon: v.lon, quiz_nights: JSON.stringify(v.quizNights)};
         const existing = one('SELECT edited FROM venues WHERE id=?', v.id);
-        if (!existing) run('INSERT INTO venues(id,name,town,postcode,address,website,lat,lon,quiz_night,listed,created) VALUES(?,?,?,?,?,?,?,?,?,1,?)', v.id, v.name, v.town, v.postcode, v.address, v.website, v.lat, v.lon, v.quizNight, now());
+        if (!existing) run('INSERT INTO venues(id,name,town,postcode,address,website,lat,lon,quiz_nights,listed,created) VALUES(?,?,?,?,?,?,?,?,?,1,?)', v.id, v.name, v.town, v.postcode, v.address, v.website, v.lat, v.lon, JSON.stringify(v.quizNights), now());
         else {
           const edited = new Set(JSON.parse(existing.edited));
           update('venues', v.id, Object.fromEntries(Object.entries(fields).filter(([k]) => !edited.has(k === 'lon' ? 'lat' : k))));
@@ -286,13 +310,15 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       if (method === 'POST' && p === '/v1/venues') {
         check(me().admin, 'Venues are added by PubQuiz: ask to be added to the venue list', 403);
         const fields = validVenue(input), venueId = id();
-        run('INSERT INTO venues(id,name,town,postcode,address,website,lat,lon,quiz_night,created) VALUES(?,?,?,?,?,?,?,?,?,?)', venueId, fields.name, fields.town, fields.postcode, fields.address, fields.website, fields.lat ?? null, fields.lon ?? null, fields.quiz_night, now());
+        run('INSERT INTO venues(id,name,town,postcode,address,website,lat,lon,quiz_nights,created) VALUES(?,?,?,?,?,?,?,?,?,?)', venueId, fields.name, fields.town, fields.postcode, fields.address, fields.website, fields.lat ?? null, fields.lon ?? null, fields.quiz_nights, now());
         return send(201, venueOut(one('SELECT * FROM venues WHERE id=?', venueId)));
       }
       if (parts[0] === 'venues' && parts.length >= 2) {
         if (method === 'GET' && parts.length === 2) {
           const v = one('SELECT * FROM venues WHERE id=?', parts[1]); check(v, 'Venue not found', 404);
-          return send(200, {...venueOut(v), events: rows('SELECT * FROM events WHERE venue=? AND starts>? AND cancelled=0 ORDER BY starts', v.id, now() - 6 * 3600000).map(e => eventOut(e, v))});
+          const published = rows('SELECT * FROM events WHERE venue=? AND starts>? AND cancelled=0 ORDER BY starts', v.id, now() - 6 * 3600000).map(e => eventOut(e, v));
+          const regular = regularNights(v, new Set(published.map(e => `${v.id} ${londonDate(e.startsAt)}`)));
+          return send(200, {...venueOut(v), events: [...published, ...regular].sort((a, b) => a.startsAt - b.startsAt)});
         }
         // The operator edits the venue's profile; what they change stays theirs when the list is imported again.
         if (method === 'PATCH' && parts.length === 2) {
@@ -343,15 +369,19 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         const near = url.searchParams.has('lat') && Number.isFinite(lat) && Number.isFinite(lon) ? {lat, lon} : null;
         const radius = Math.min(Number(url.searchParams.get('radiusKm')) || 25, 200);
         check(q || near || url.searchParams.get('venue'), 'Search by town, postcode or location');
-        let list = rows(`SELECT e.*, v.id vid, v.name vname, v.town, v.postcode, v.address, v.website, v.lat, v.lon, v.verified FROM events e JOIN venues v ON v.id=e.venue
-          WHERE e.cancelled=0 AND e.starts>? AND e.starts<? ORDER BY e.starts LIMIT 500`, now() - 3 * 3600000, now() + 120 * 86400000)
-          .map(r => ({event: r, venue: {id: r.vid, name: r.vname, town: r.town, postcode: r.postcode, address: r.address, website: r.website, lat: r.lat, lon: r.lon, verified: r.verified}}));
+        // Published quiz nights, and each venue's regular nights over the next week.
+        const venues = new Map(rows('SELECT * FROM venues').map(v => [v.id, v]));
+        let list = rows('SELECT * FROM events WHERE cancelled=0 AND starts>? AND starts<? ORDER BY starts LIMIT 500', now() - 3 * 3600000, now() + 120 * 86400000)
+          .map(e => ({out: eventOut(e, venues.get(e.venue)), venue: venues.get(e.venue)}));
+        const published = new Set(list.map(x => `${x.venue.id} ${londonDate(x.out.startsAt)}`));
+        for (const v of venues.values()) for (const e of regularNights(v, published)) list.push({out: e, venue: v});
+        list.sort((a, b) => a.out.startsAt - b.out.startsAt);
         if (url.searchParams.get('venue')) list = list.filter(x => x.venue.id === url.searchParams.get('venue'));
         if (q) {
           const term = q.toLowerCase(), area = postcodeArea(q);
           list = list.filter(x => x.venue.town.toLowerCase().includes(term) || x.venue.name.toLowerCase().includes(term) || (x.venue.postcode && postcodeArea(x.venue.postcode) === area));
         }
-        let out = list.map(x => ({...eventOut(x.event, x.venue), ...(near && x.venue.lat !== null ? {distanceKm: Math.round(distance(near, x.venue) * 10) / 10} : {})}));
+        let out = list.map(x => ({...x.out, ...(near && x.venue.lat !== null ? {distanceKm: Math.round(distance(near, x.venue) * 10) / 10} : {})}));
         if (near) out = out.filter(e => e.distanceKm !== undefined && e.distanceKm <= radius).sort((a, b) => a.distanceKm - b.distanceKm || a.startsAt - b.startsAt);
         return send(200, {events: out.slice(0, 50), fetchedAt: now()});
       }

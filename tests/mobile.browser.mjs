@@ -123,7 +123,7 @@ try {
   assert.match(await app.locator('#events').textContent(), /Tuesday Quiz.*The Lion, Bristol/s);
   // The map: the venue's pin, and its page with the quiz night.
   await app.waitForFunction(() => /1 venue\b/.test(document.querySelector('#mapNote').textContent));
-  await app.locator('#map path.leaflet-interactive').click({force: true});
+  await app.locator('#map .pin').click({force: true});
   await app.locator('#venueCard li').filter({hasText: 'Tuesday Quiz'}).waitFor();
   assert.match(await app.locator('#venueCard h3').textContent(), /The Lion/);
   await appCtx.setOffline(true);

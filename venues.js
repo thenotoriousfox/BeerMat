@@ -1,10 +1,27 @@
 // The venue list (venues.json in this repository): the venues PubQuiz Online shows, added only by editing that file.
 // PubQuiz Online imports it; the player app reads it straight from GitHub when the service can't be reached.
 //   {"venues": [{"id": "red-lion-bristol", "name": "The Red Lion", "town": "Bristol", "postcode": "BS1 4DJ",
-//     "address": "1 King Street", "website": "https://…", "lat": 51.4545, "lon": -2.5879, "quizNight": "Tuesdays, 8pm"}]}
-// Only id, name and town are required. A venue's operator can later change everything but its id from their desk.
+//     "address": "1 King Street", "website": "https://…", "lat": 51.4545, "lon": -2.5879,
+//     "quizNights": [{"day": "tuesday", "time": "20:00"}]}]}
+// Only id, name and town are required. quizNights are its regular weekly quizzes (a day and a 24-hour start time), so
+// players can filter by day. A venue's operator can later change everything but its id from their desk.
 export const venueId = /^[a-z0-9][a-z0-9-]{1,59}$/;
-const limits = {name: 120, town: 80, postcode: 10, address: 200, website: 200, quizNight: 120};
+export const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const limits = {name: 120, town: 80, postcode: 10, address: 200, website: 200};
+
+// Regular quiz nights: at most one a day, in weekday order. Returns {nights} or {error}.
+export function checkQuizNights(raw) {
+  if (raw === undefined || raw === null) return {nights: []};
+  if (!Array.isArray(raw) || raw.length > 7) return {error: 'quizNights must be a list of up to 7 nights'};
+  const nights = [];
+  for (const night of raw) {
+    if (!night || !days.includes(night.day)) return {error: `quiz night day must be one of ${days.join(', ')}`};
+    if (typeof night.time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(night.time)) return {error: 'quiz night time must be HH:MM (24-hour), e.g. 20:00'};
+    if (nights.some(n => n.day === night.day)) return {error: `quiz night on ${night.day} listed twice`};
+    nights.push({day: night.day, time: night.time});
+  }
+  return {nights: nights.sort((a, b) => days.indexOf(a.day) - days.indexOf(b.day))};
+}
 
 // Checks one venue; returns {venue} with tidied fields, or {error}.
 export function checkVenue(raw) {
@@ -23,6 +40,9 @@ export function checkVenue(raw) {
   if (located !== (raw.lon !== undefined && raw.lon !== null)) return {error: `${raw.id}: give both lat and lon, or neither`};
   if (located && !(typeof raw.lat === 'number' && raw.lat >= -90 && raw.lat <= 90 && typeof raw.lon === 'number' && raw.lon >= -180 && raw.lon <= 180)) return {error: `${raw.id}: lat/lon out of range`};
   venue.lat = located ? raw.lat : null; venue.lon = located ? raw.lon : null;
+  const {nights, error} = checkQuizNights(raw.quizNights);
+  if (error) return {error: `${raw.id}: ${error}`};
+  venue.quizNights = nights;
   return {venue};
 }
 

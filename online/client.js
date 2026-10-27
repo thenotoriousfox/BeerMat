@@ -101,7 +101,7 @@ export function createOnlineClient({baseUrl, venueListUrl = '', fetch = globalTh
         try {list = await (await fetch(venueListUrl, {signal: AbortSignal.timeout(timeout)})).json();} catch {throw e;}
         const venues = (Array.isArray(list?.venues) ? list.venues : []).filter(v => v && typeof v.id === 'string' && typeof v.name === 'string' && typeof v.town === 'string')
           .map(v => ({id: v.id, name: v.name, town: v.town, postcode: v.postcode || '', address: v.address || '', website: /^https:\/\//.test(v.website || '') ? v.website : '',
-            lat: typeof v.lat === 'number' ? v.lat : null, lon: typeof v.lon === 'number' ? v.lon : null, quizNight: v.quizNight || '', next: null}));
+            lat: typeof v.lat === 'number' ? v.lat : null, lon: typeof v.lon === 'number' ? v.lon : null, quizNights: Array.isArray(v.quizNights) ? v.quizNights.filter(n => n && typeof n.day === 'string' && typeof n.time === 'string') : [], next: null}));
         return {venues, fetchedAt: now(), stale: true, source: 'list'};
       }
     },

@@ -761,6 +761,7 @@ $('syncNow').onclick = () => action(async () => {await request('results/sync'); 
 // Your venue on PubQuiz Online. Venues are added by PubQuiz; their operators run them here. The laptop's server holds
 // the sign-in and passes on the calls, so this page never talks to the internet itself.
 let venueAccount = null, myVenues = [], venue = null;
+const venueDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const onlineCall = (method, path, body) => request('online/call', {method, path, body});
 async function loadVenue() {
   try {venueAccount = await request('online/account');} catch (e) {return message(e.message, true);}
@@ -783,17 +784,26 @@ function renderVenue() {
   if (!venue) return;
   $('venuePickLabel').hidden = myVenues.length < 2;
   $('venuePick').replaceChildren(...myVenues.map(v => {const o = element('option', `${v.name}, ${v.town}`); o.value = v.id; o.selected = v.id === venue.id; return o;}));
-  for (const [field, key] of [['vName', 'name'], ['vTown', 'town'], ['vPostcode', 'postcode'], ['vAddress', 'address'], ['vWebsite', 'website'], ['vQuizNight', 'quizNight'], ['vLat', 'lat'], ['vLon', 'lon']]) $(field).value = venue[key] ?? '';
+  for (const [field, key] of [['vName', 'name'], ['vTown', 'town'], ['vPostcode', 'postcode'], ['vAddress', 'address'], ['vWebsite', 'website'], ['vLat', 'lat'], ['vLon', 'lon']]) $(field).value = venue[key] ?? '';
+  $('vNights').replaceChildren(...venueDays.map(day => {
+    const night = venue.quizNights?.find(n => n.day === day), label = element('label', undefined, 'night'), on = element('input'), time = element('input');
+    on.type = 'checkbox'; on.checked = !!night; on.dataset.day = day; on.setAttribute('aria-label', `Quiz on ${day}`);
+    time.type = 'time'; time.value = night?.time || '20:00'; time.dataset.time = day; time.disabled = !night; time.setAttribute('aria-label', `${day} start time`);
+    on.onchange = () => {time.disabled = !on.checked;};
+    label.append(on, document.createTextNode(` ${day[0].toUpperCase()}${day.slice(1, 3)} `), time);
+    return label;
+  }));
   const registered = past && venue.keys?.includes(past.venueKeyId);
   $('venueLaptop').textContent = registered ? '✓ This laptop is registered: its shared results count for this venue.' : 'This laptop isn’t registered to this venue yet.';
   $('venueRegister').hidden = !!registered;
-  $('venueEvents').replaceChildren(...venue.events.map(e => {
+  // Regular nights (the day checkboxes above) come back as listings too; only published ones are listed here.
+  $('venueEvents').replaceChildren(...venue.events.filter(e => !e.regular).map(e => {
     const li = element('li', `${new Date(e.startsAt).toLocaleString([], {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'})} — ${e.title}${e.entry ? ` (${e.entry})` : ''} `);
     const cancel = element('button', 'Cancel', 'subtle'); cancel.type = 'button';
     cancel.onclick = () => {if (confirm(`Cancel “${e.title}”? It disappears from the app.`)) action(async () => {await onlineCall('DELETE', '/v1/events/' + e.id); await loadVenue();}, 'Quiz night cancelled');};
     li.append(cancel); return li;
   }));
-  if (!venue.events.length) $('venueEvents').append(element('li', 'No quiz nights published yet.', 'muted'));
+  if (!venue.events.some(e => !e.regular)) $('venueEvents').append(element('li', 'No quiz nights published yet.', 'muted'));
 }
 $('venueSignIn').onsubmit = e => {e.preventDefault(); action(async () => {venueAccount = await request('online/signin', {email: $('venueEmail').value, password: $('venuePassword').value}); $('venuePassword').value = ''; await loadVenue();}, 'Signed in to PubQuiz Online');};
 $('venueSignUp').onsubmit = e => {e.preventDefault(); if (!$('venueSignIn').reportValidity()) return; action(async () => {venueAccount = await request('online/signup', {email: $('venueEmail').value, password: $('venuePassword').value, displayName: $('venueName').value}); $('venuePassword').value = ''; await loadVenue();}, 'Account created');};
@@ -806,7 +816,8 @@ $('venueForm').onsubmit = e => {
   if (!lat !== !lon || (lat && (!Number.isFinite(+lat) || !Number.isFinite(+lon)))) return message('Give both latitude and longitude as numbers, or neither', true);
   action(async () => {
     await onlineCall('PATCH', '/v1/venues/' + encodeURIComponent(venue.id), {name: $('vName').value, town: $('vTown').value, postcode: $('vPostcode').value, address: $('vAddress').value,
-      website: $('vWebsite').value.trim(), quizNight: $('vQuizNight').value, lat: lat ? +lat : null, lon: lon ? +lon : null});
+      website: $('vWebsite').value.trim(), lat: lat ? +lat : null, lon: lon ? +lon : null,
+      quizNights: venueDays.filter(day => document.querySelector(`[data-day=${day}]`).checked).map(day => ({day, time: document.querySelector(`[data-time=${day}]`).value || '20:00'}))});
     await loadVenue();
   }, 'Venue saved');
 };
