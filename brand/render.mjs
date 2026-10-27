@@ -24,6 +24,8 @@ async function png(out, w, h, name, {shape = 'square', bg = null, scale = 1} = {
 const done = [];
 const make = async (out, ...args) => {await png(out, ...args); done.push(path.relative(root, out));};
 
+// The logo for emails (email apps don't show SVG), on the night colour of the emails' header.
+await make(brand('logo-email.png'), 480, 179, 'logo.svg', {bg: night});
 // Desktop app (electron-builder) and the Linux app-menu launcher.
 await make(path.join(root, 'build/icon.png'), 1024, 1024, 'icon.svg', {shape: 'rounded'});
 await make(path.join(root, 'scripts/beermat.png'), 512, 512, 'icon.svg', {shape: 'rounded'});

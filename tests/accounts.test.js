@@ -26,6 +26,8 @@ test('a new account confirms its email address from the link it is sent', async 
     const {token, account} = await api('POST', '/v1/accounts', {email: 'Sam@Example.com', password: 'correct horse battery', displayName: 'Sam'});
     assert.equal(account.emailVerified, false);
     assert.equal(sent.length, 1); assert.equal(sent[0].to, 'sam@example.com'); assert.match(sent[0].text, /https:\/\/beermat\.test\/verify\?token=/);
+    assert.ok(sent[0].html.includes(`href="https://beermat.test/verify?token=${tokenIn(sent[0])}"`), 'the HTML email has the same link as a button');
+    assert.match(sent[0].html, /src="https:\/\/beermat\.test\/brand\/logo-email\.png"/);
     assert.equal((await api('POST', '/v1/verify', {token: 'nonsense'})).status, 400);
     assert.equal((await api('POST', '/v1/verify', {token: tokenIn(sent[0])})).verified, true);
     assert.equal((await api('GET', '/v1/me', undefined, token)).emailVerified, true);
@@ -35,6 +37,14 @@ test('a new account confirms its email address from the link it is sent', async 
     assert.equal(page.status, 200); assert.match(page.headers.get('content-security-policy'), /default-src 'self'/); assert.equal(page.headers.get('referrer-policy'), 'no-referrer');
     for (const p of ['/reset', '/pages/pages.js', '/pages/pages.css']) assert.equal((await fetch(base + p)).status, 200, p);
     assert.equal((await fetch(base + '/pages/../service.js')).status, 404);
+  } finally {await done();}
+});
+
+test('a name is shown as text in the HTML email, never as HTML', async () => {
+  const {api, sent, done} = await start();
+  try {
+    await api('POST', '/v1/accounts', {email: 'x@example.com', password: 'correct horse battery', displayName: '<b>Bold</b>'});
+    assert.match(sent[0].html, /Hi &lt;b&gt;Bold&lt;\/b&gt;,/); assert.doesNotMatch(sent[0].html, /<b>Bold/);
   } finally {await done();}
 });
 

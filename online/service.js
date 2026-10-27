@@ -151,8 +151,13 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     run('DELETE FROM email_tokens WHERE hash=?', row.hash);
     return row.account;
   };
-  const sendVerify = a => mail && publicUrl ? mail({to: a.email, subject: 'Confirm your BeerMat email address',
-    text: `Hi ${a.display_name},\n\nConfirm this is your email address for BeerMat:\n${link(a.id, 'verify')}\n\nThe link works for a week. If you didn't make a BeerMat account, ignore this email.\n`}).catch(e => console.error('Email not sent:', e.message)) : null;
+  // An email in plain text and in BeerMat's look: the logo on a night band, a line or two, one big button.
+  const email = ({to, subject, name, intro, button, url, outro}) => mail({to, subject,
+    text: `Hi ${name},\n\n${intro}\n${url}\n\n${outro}\n\nBeerMat · ${publicUrl.replace(/^https:\/\/(online\.)?/, '')}\n`,
+    html: emailHtml({base: publicUrl.replace(/\/$/, ''), title: subject, name, intro, button, url, outro})});
+  const sendVerify = a => mail && publicUrl ? email({to: a.email, subject: 'Confirm your BeerMat email address', name: a.display_name,
+    intro: 'Tap the button to confirm this is your email address for BeerMat.', button: 'Confirm my email', url: link(a.id, 'verify'),
+    outro: 'The link works for a week. If you didn’t make a BeerMat account, you can ignore this email.'}).catch(e => console.error('Email not sent:', e.message)) : null;
   const planOf = v => v.plan === 'pro' && (v.plan_until === null || v.plan_until > now()) ? 'pro' : 'free';
   // A venue key counts once a venue has registered it.
   const venueOfKey = key => one('SELECT v.* FROM venue_keys k JOIN venues v ON v.id=k.venue WHERE k.public_key=?', key);
@@ -242,7 +247,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       // BeerMat's logos and font, for the web app and the admin console.
       if (method === 'GET' && p.startsWith('/brand/')) {
         const name = p.slice(7), file = path.join(here, '..', 'brand', name);
-        check(/^(mark|logo|logo-stacked|wordmark|mark-print|logo-print)\.svg$|^fredoka\.woff2$/.test(name) && existsSync(file), 'Not found', 404);
+        check(/^(mark|logo|logo-stacked|wordmark|mark-print|logo-print)\.svg$|^fredoka\.woff2$|^logo-email\.png$/.test(name) && existsSync(file), 'Not found', 404);
         res.writeHead(200, {'Content-Type': staticTypes[path.extname(name)], 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'max-age=86400'});
         return res.end(readFileSync(file));
       }
@@ -307,7 +312,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         limit('reset:' + ip); limit('reset:' + String(input.email).toLowerCase());
         check(mail && publicUrl, 'Password reset isn’t set up on this service yet. Ask BeerMat for help.', 503);
         const a = typeof input.email === 'string' ? one('SELECT * FROM accounts WHERE email=?', input.email.trim().toLowerCase()) : null;
-        if (a) await mail({to: a.email, subject: 'Reset your BeerMat password', text: `Hi ${a.display_name},\n\nChoose a new BeerMat password here:\n${link(a.id, 'reset')}\n\nThe link works for an hour. If you didn't ask for this, ignore this email: your password stays the same.\n`})
+        if (a) await email({to: a.email, subject: 'Reset your BeerMat password', name: a.display_name, intro: 'Someone, hopefully you, asked to reset your BeerMat password. Tap the button to choose a new one.',
+          button: 'Choose a new password', url: link(a.id, 'reset'), outro: 'The link works for an hour. If you didn’t ask for this, ignore this email: your password stays the same.'})
           .catch(e => {console.error('Email not sent:', e.message); throw new ApiError(502, 'The email couldn’t be sent. Try again later.');});
         return send(200, {sent: true});
       }
@@ -589,10 +595,31 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   return {server, db, importVenues, publishRegular, close: () => new Promise(resolve => {clearInterval(regularTimer); server.close(() => {db.close(); resolve();}); server.closeAllConnections();})};
 }
 
+// The HTML side of an email: tables and inline styles, which every email app understands, in BeerMat's colours.
+const escape = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
+export function emailHtml({base, title, name, intro, button, url, outro}) {
+  const font = "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+  return `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"><title>${escape(title)}</title></head>
+<body style="margin:0;padding:0;background:#f3eefb;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3eefb;"><tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:18px;overflow:hidden;">
+<tr><td align="center" style="background:#140b2e;padding:28px 24px;"><img src="${base}/brand/logo-email.png" width="200" height="75" alt="BeerMat" style="display:block;border:0;width:200px;height:auto;"></td></tr>
+<tr><td style="height:4px;background:#ff3d81;background-image:linear-gradient(90deg,#ff3d81,#ffb21a,#1fd6c6);font-size:0;line-height:0;">&nbsp;</td></tr>
+<tr><td style="padding:32px 32px 8px;font-family:${font};color:#1c1036;">
+<h1 style="margin:0 0 16px;font-size:24px;line-height:1.25;color:#140b2e;">Hi ${escape(name)},</h1>
+<p style="margin:0 0 24px;font-size:16px;line-height:1.55;color:#3b2d5c;">${escape(intro)}</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;"><tr><td style="border-radius:999px;background:#ffb21a;"><a href="${escape(url)}" style="display:inline-block;padding:14px 28px;font-family:${font};font-size:16px;font-weight:700;color:#140b2e;text-decoration:none;border-radius:999px;">${escape(button)}</a></td></tr></table>
+<p style="margin:0 0 8px;font-size:14px;line-height:1.5;color:#6b5d89;">${escape(outro)}</p>
+<p style="margin:0 0 24px;font-size:12px;line-height:1.5;color:#8d82a8;word-break:break-all;">Button not working? Copy this into your browser:<br><a href="${escape(url)}" style="color:#8d82a8;">${escape(url)}</a></p>
+</td></tr>
+<tr><td style="padding:18px 32px;border-top:1px solid #eee8f6;font-family:${font};font-size:12px;line-height:1.5;color:#8d82a8;">BeerMat · gettin’ quizzy with it<br><a href="https://beermatquiz.co.uk" style="color:#8d82a8;">beermatquiz.co.uk</a></td></tr>
+</table></td></tr></table></body></html>`;
+}
+
 // Email through Resend (resend.com: RESEND_API_KEY, and MAIL_FROM on a domain verified there).
-export const resendMail = (key, from) => async ({to, subject, text}) => {
+export const resendMail = (key, from) => async ({to, subject, text, html}) => {
   const response = await fetch('https://api.resend.com/emails', {method: 'POST', headers: {Authorization: 'Bearer ' + key, 'Content-Type': 'application/json'},
-    body: JSON.stringify({from, to: [to], subject, text}), signal: AbortSignal.timeout(10000)});
+    body: JSON.stringify({from, to: [to], subject, text, html}), signal: AbortSignal.timeout(10000)});
   if (!response.ok) throw Error(`Resend said ${response.status}`);
 };
 
