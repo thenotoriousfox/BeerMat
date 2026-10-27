@@ -30,33 +30,32 @@ Validated locally:
 
 Real Android/iOS captive windows, Wi-Fi hardware, AP setup, OS firewall interactions, physical audio output and actual paper printing still require the laptop/device acceptance check. These are distinct from the completed application-code tests. GitHub Actions runs the Node and Python suites on every push and pull request (`.github/workflows/test.yml`); the browser suite is run locally.
 
-# SpeedQuizzing parity iteration (2026-10-19)
+# Formats iteration (2026-10-19)
 
-Compared against SpeedQuizzing Pro 5.4.11's published game rules and quiz-file formats (interoperability only; no code or media was copied). Added:
+Added:
 
 - Formats: letters, numbers, sequence, nearest wins (sliding scale, earliest wins ties), vote, buzz-in classic (queue, pass-on, lockout of the next buzz-in question) and advanced (announced answer, agree countdown, wrong/pass penalties, agreement points). Optional media on any non-sheet format. Reveal shows a full-answer note, scorer count and answer tallies.
 - Live push over server-sent events for phones, projector and desk (polling every 1.5 s removed; 5 s fallback refresh remains).
 - Fair speed bonus: per-team clock starts at delivery, capped at a 2 s grace period.
-- Import of SpeedQuizzing `.sqb`/`.sqq`/`.sqn` rounds and Quick Question files/folders; verified against every sample file shipped with SpeedQuizzing 5.4.11 (all questions convert and validate).
 - Review fixes: host sessions persisted (hashed) across restarts; `ALLOWED_ADDRESSES` / `start.sh --hotspot` restrict the server to the quiz Wi-Fi; hotspot teardown continues past a failed step; login attempts and expired sessions are pruned; server close is idempotent.
 
-Validated at that point: 19 Node tests (integration plus importer), 5 Python hotspot tests, and the browser suite in Chrome with two phone contexts (no JavaScript errors, no external requests).
+Validated at that point: 19 Node tests, 5 Python hotspot tests, and the browser suite in Chrome with two phone contexts (no JavaScript errors, no external requests).
 
 Second batch: multi-tap, pinpoint with go wide, 90-ball bingo with seeded per-team tickets and server-checked claims, spin-the-wheel on the projector, per-team buzzer sounds (synthesised, no audio files), and single-key desk shortcuts usable from a Stream Deck. Validated with 22 Node tests and 14 browser sections in Chrome.
 
-Not covered compared with SpeedQuizzing: music bingo (needs a song library), Seven Squares and Word Snake puzzles, team photos, the native Stream Deck plugin (keys work instead), and internet play through a relay server (PubQuiz is offline by design).
+Not covered yet: music bingo (needs a song library), Seven Squares and Word Snake puzzles, team photos, the native Stream Deck plugin (keys work instead), and internet play through a relay server (PubQuiz is offline by design).
 
 TV display iteration: projector join screen with an offline QR encoder (`qr.js`, byte mode, level M, versions 1–10; every version decoded with zbar, including from a 1080p screenshot of the page), editable Wi-Fi name and join address, a join reminder under the leaderboard, a full-screen toggle (button or F) and an idle pointer hide. 25 Node tests and 15 browser sections pass.
 
 Quick-wins iteration: per-team scrambled keypads, a team-name filter (`names.js`, word-start matching with letter-swap and spacing normalisation, host-extendable), traditional bingo call phrases, and a winner celebration view shown on finish. 27 Node tests and 15 browser sections pass.
 
-Gap-closing iteration: team photos with host approval, Sound Clips, music bingo, word snake, Seven Squares-style tiles (Seven Squares' own rules are not in the SpeedQuizzing installer, so this follows the tile-assembly idea), 4-digit phone transfer codes, private team notes and per-team stats, animated reveals and leaderboard moves, `.sqt`/`.sqw` import, and French/Spanish for phones and the TV (`i18n.js`, with a test that every on-screen string has both translations). 36 Node tests and 21 browser sections pass (repeated runs stable).
+Gap-closing iteration: team photos with host approval, Sound Clips, music bingo, word snake, Seven Squares-style tiles, 4-digit phone transfer codes, private team notes and per-team stats, animated reveals and leaderboard moves, and French/Spanish for phones and the TV (`i18n.js`, with a test that every on-screen string has both translations). 36 Node tests and 21 browser sections pass (repeated runs stable).
 
-Still not covered: SpeedQuizzing's paid quiz-pack library and online reporting (services, not software), the native Stream Deck plugin (desk keys instead), dedicated router hardware, and internet play (offline by design).
+Still not covered: a paid quiz-pack library and online reporting (services, not software), the native Stream Deck plugin (desk keys instead), dedicated router hardware, and internet play (offline by design).
 
 Joining iteration: the first real hotspot run found `hotspot.py` querying the wrong nmcli field (fixed, with a test of the whole `--apply` path). Changes after that run: a single Wi-Fi QR code on the TV; “online” answers to phone connectivity checks after a team joins (Android, Apple, Windows, Firefox probe paths) with **Continue as <team>** for the same phone in a normal browser; leave-the-page reports during open questions; and `hotspot.py --keep-wifi`. 37 Node tests, 10 Python tests and 22 browser sections pass. Phone behaviour with the “online” answers has not yet been checked on real Android and iOS devices.
 
-Running SpeedQuizzing itself (its unmodified app on native Linux Electron 12.2.3) showed host options the file formats did not: Evil Mode, fixed or sliding speed bonus, a waiting room, a maximum player count, a TV countdown timer and a scores/positions toggle for the live screen. Hosting there needs a SpeedQuizzing account, so only the setup screens were seen. All six are now in PubQuiz (`tests/hosting.test.js` plus a browser section). The browser suite's wheel step raced the preceding close shortcut (every desk action briefly disables the buttons); the test now waits for it. A real desk bug also showed up as an intermittent browser failure: queued desk actions read their form value when they ran, not when clicked, so a refresh landing in between could send the old value (picking Spanish for the TV sent English). Handlers now read values at click time.
+Host options added: Evil Mode, fixed or sliding speed bonus, a waiting room, a maximum player count, a TV countdown timer and a scores/positions toggle for the live screen. All six are in PubQuiz (`tests/hosting.test.js` plus a browser section). The browser suite's wheel step raced the preceding close shortcut (every desk action briefly disables the buttons); the test now waits for it. A real desk bug also showed up as an intermittent browser failure: queued desk actions read their form value when they ran, not when clicked, so a refresh landing in between could send the old value (picking Spanish for the TV sent English). Handlers now read values at click time.
 
 TV iteration: the projector page is now a fixed full screen (no scroll at 800×600 up to 4K, checked for every view) with the visible view scaled to fit, and an automatic mode (default) that switches between join, question, round-end leaderboard and winner from the quiz state.
 
@@ -116,8 +115,7 @@ Third-party code and assets that ship:
 | cloudflared | not bundled | Apache-2.0 | installed by the user for online mode |
 | Playwright, electron-builder | development only | Apache-2.0 / MIT | not shipped |
 
-No SpeedQuizzing code, media or sounds are in the repository or the builds: the sound pack and bingo calls stay in
-the user's own gitignored `soundpack/` (or the desktop app's data folder) and are copied from their own installation.
+A laptop's own sound pack and bingo calls stay in its gitignored `soundpack/` (or the desktop app's data folder).
 
 Validation boundary: [TESTING.md](TESTING.md) lists what is automated and what still needs hardware, accounts or
 hosting.

@@ -76,7 +76,7 @@ server.js model.js …     quiz server and pages (unchanged locations, so the Li
 desktop/                 Electron app: main process, quiz server process, screens, data safety
 mobile/                  PubQuiz Player: www/ (the app's own screens), android/, ios/ (Capacitor)
 online/                  PubQuiz Online service, its client, admin jobs
-scripts/                 Linux launcher and hotspot, Windows hotspot, sound-pack and test-quiz tools
+scripts/                 Linux launcher and hotspot, Windows hotspot, bingo caller and test-quiz tools
 tests/                   node --test suites, Playwright browser/desktop/mobile runs, Python hotspot tests
 docs/                    guides (this file, QUIZMASTER, DESKTOP, MOBILE, ONLINE, TESTING, AUDIT)
 ```

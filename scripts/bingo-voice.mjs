@@ -2,7 +2,7 @@
 // Records a spoken bingo caller with Piper (offline text-to-speech): one MP3 per number, bingo_voice/<n>.mp3, saying
 // that number's call. The TV plays it each time the number is called.
 //
-//   node scripts/bingo-voice.mjs              calls from soundpack/Customisable Bingo Calls.txt → soundpack/bingo_voice/
+//   node scripts/bingo-voice.mjs              calls from soundpack/bingo-calls.json → soundpack/bingo_voice/
 //   node scripts/bingo-voice.mjs --builtin    PubQuiz's own calls → sounds/bingo_voice/ (shipped with PubQuiz)
 //
 // Numbers without a call in the file use PubQuiz's own call. Options: --pack <sound pack folder>, --out <dir>, --python <Piper's python>,

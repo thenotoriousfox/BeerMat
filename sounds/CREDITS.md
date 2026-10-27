@@ -1,6 +1,6 @@
 # Default sounds
 
-Laid out like SpeedQuizzing's `Sounds` folder (`general/` for each moment, `buzzers/<pack>/`), as is a laptop's own `soundpack/`.
+Laid out as a sound pack (`general/` for each moment, `buzzers/<pack>/`), as is a laptop's own `soundpack/`.
 
 Every file in this folder is in the public domain (CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/).
 No attribution is required; the sources are listed here anyway. Files were converted to mono MP3, and the applause

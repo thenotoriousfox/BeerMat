@@ -22,7 +22,7 @@ X11.
 | Quiz engine, all round formats, scoring, speed bonuses, penalties, tie-breakers | `quiz`, `rounds`, `gameplay`, `hosting` tests; browser suite | pass |
 | SQLite migrations from older databases; restart recovery | `quiz.test.js`, `gameplay.test.js`; browser suite (server restart) | pass |
 | Team reconnection, recovery codes, 4-digit transfer | `gameplay.test.js`; browser suite | pass |
-| Imports (SpeedQuizzing, quiz files with media), exports | `sqimport`, `gameplay` tests; browser suite | pass |
+| Imports (quiz files with media, Google Drive), exports | `gameplay`, `drive` tests; browser suite | pass |
 | Linux hotspot plans, `--port`, teardown | `test_hotspot.py` (mocked commands) | pass |
 | Windows hotspot backend (commands, validation, password, base64 settings) | `laptop.test.js` (mocked PowerShell) | pass |
 | Network-mode selection: venue LAN addresses, connection check (Linux/Windows firewall), join screen | `network.test.js`; browser suite (join screen) | pass |

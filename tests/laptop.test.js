@@ -14,7 +14,7 @@ const settle = () => new Promise(r => setImmediate(r));
 test('laptop jobs: the Wi-Fi goes through pkexec with fixed arguments, and messages read like a person wrote them', async () => {
   const calls = [], results = [];
   const run = async (file, args) => {calls.push([file, ...args]); return results.shift() || {ok: true, code: 0, out: '{"wifiOn":true,"cards":[],"pick":null,"running":null}'};};
-  const laptop = createLaptop({root: '/quiz', run, python: '/usr/bin/python3', speedQuizzing: '/nowhere', piper: ['/nowhere']});
+  const laptop = createLaptop({root: '/quiz', run, python: '/usr/bin/python3', piper: ['/nowhere']});
   assert.deepEqual((await laptop.status()).wifi, {available: true, platform: 'linux', needsPassword: false, wifiOn: true, cards: [], pick: null, running: null, address: '10.42.0.1'});
   assert.deepEqual(calls.pop(), ['/usr/bin/python3', '/quiz/scripts/hotspot.py', 'status']);
 
@@ -34,14 +34,13 @@ test('laptop jobs: the Wi-Fi goes through pkexec with fixed arguments, and messa
   assert.equal((await cancelled.status()).jobs.wifi.message, 'Cancelled at the password prompt.');
 
   for (const bad of [{card: 'wlan0; rm -rf', ssid: 'Quiz'}, {card: 'auto', ssid: ''}, {card: 'auto', ssid: 'x'.repeat(33)}, {card: 'auto', ssid: 'a\nb'}]) assert.throws(() => laptop.startWifi(bad), /Pick a Wi-Fi card|Wi-Fi name/);
-  assert.throws(() => laptop.soundPack(), /No SpeedQuizzing sounds/);
   assert.throws(() => laptop.bingoVoice(), /Piper is not installed/);
 });
 
 test('laptop jobs on Windows: Mobile Hotspot through PowerShell, always with a password, settings passed as base64 JSON', async () => {
   const calls = [], results = [];
   const run = async (file, args) => {calls.push([file, ...args]); return results.shift() || {ok: true, code: 0, out: '{"available":true,"platform":"windows","needsPassword":true,"wifiOn":true,"cards":[{"name":"Wi-Fi","ap":true,"connected":true}],"pick":{"interface":"Mobile Hotspot","keepWifi":true},"running":null}'};};
-  const laptop = createLaptop({root: 'C:\\PubQuiz', run, platform: 'win32', cloudflared: null, speedQuizzing: '/nowhere', piper: ['/nowhere']});
+  const laptop = createLaptop({root: 'C:\\PubQuiz', run, platform: 'win32', cloudflared: null, piper: ['/nowhere']});
   const status = await laptop.status();
   assert.equal(status.platform, 'windows');
   assert.equal(status.wifi.needsPassword, true);
@@ -85,11 +84,11 @@ async function fixture(options, fn) {
 function fakeLaptop() {
   const fake = {running: null, started: [], pending: [],
     wifi: async () => ({available: true, wifiOn: true, cards: [], pick: {interface: 'wlan0', keepWifi: false}, running: fake.running}),
-    status: async () => ({wifi: await fake.wifi(), jobs: {}, setup: {speedQuizzing: false, piper: false}}),
+    status: async () => ({wifi: await fake.wifi(), jobs: {}, setup: {piper: false}}),
     startWifi: (options, done) => {fake.started.push(options); fake.pending.push(() => {fake.running = {interface: 'wlan0', ssid: options.ssid, keepWifi: false}; done({ok: true});});},
     stopWifi: done => fake.pending.push(() => {fake.running = null; done({ok: true});}),
     tunnel: null, online: () => fake.tunnel, goOnline: () => {fake.tunnel = {url: 'https://quiz-test.trycloudflare.com', ready: true};}, goOffline: () => {fake.tunnel = null;},
-    wifiOn: async () => {}, soundPack: done => fake.pending.push(() => done({ok: true})), bingoVoice: () => {},
+    wifiOn: async () => {}, bingoVoice: () => {},
     finish: () => fake.pending.splice(0).forEach(f => f())};
   return fake;
 }
@@ -110,7 +109,7 @@ test('desk Wi-Fi: starting it names the network on the TV, and PubQuiz then answ
     laptop.finish(); await settle();
     // From another device the desk sees the panel, but the Wi-Fi (its password prompt is on the laptop) stays local.
     if (lan) {assert.equal((await call('host/laptop', {}, undefined, lan)).local, false); assert.equal((await call('host/laptop/wifi', {action: 'stop'}, undefined, lan)).status, 403);}
-    assert.equal((await call('host/laptop/setup', {job: 'rm'})).status, 400);
+    for (const job of ['rm', 'soundPack']) assert.equal((await call('host/laptop/setup', {job})).status, 400, job);
   });
 });
 

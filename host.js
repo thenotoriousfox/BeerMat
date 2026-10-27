@@ -1,5 +1,4 @@
 import {$, element, api, message, readStorage, writeStorage, download, renderMedia, renderSolution, timeText, selectOptions, letters, live, enableSound, useSounds, buzzSound, renderPinpoint, bingoCall, avatar} from './app.js';
-import {parseSqRound, parseQuickQuestion} from './sqimport.js';
 import {slotFiles} from './soundnames.js';
 let key = readStorage('pubquiz-host', true), state = null, library = null, editingId = null, tab = 'live', dirty = false, reviewId = '', reviewSignature = '', busy = false;
 const uid = () => 'id-' + crypto.getRandomValues(new Uint32Array(4)).join('-');
@@ -354,33 +353,6 @@ $('mediaUpload').onchange = () => action(async () => {
   const file = $('mediaUpload').files[0]; if (!file) return;
   $('qMedia').value = await uploadMedia(file); renderMedia($('mediaPreview'), {media: $('qMedia').value}); pinTarget = null; renderPinTarget(); editorChanged();
 }, 'Media uploaded — save the question to keep it in your quiz');
-// SpeedQuizzing rounds and Quick Questions are added as new rounds; nothing existing is replaced.
-async function importSpeedQuizzing(input) {
-  const files = [...input.files]; input.value = ''; if (!files.length || !guardEditor()) return;
-  const next = cloneLibrary(), rounds = new Map(), notes = []; let count = 0;
-  const roundFor = title => {
-    if (!rounds.has(title)) {const r = {id: uid(), title: title.slice(0, 100) || 'Imported round', questions: []}; rounds.set(title, r); next.rounds.push(r);}
-    return rounds.get(title);
-  };
-  for (const file of files) {
-    const folder = (file.webkitRelativePath || '').split('/').slice(-2, -1)[0] || '';
-    if (/\.sq[bqntwp]$/i.test(file.name)) {
-      if (file.size > 4 * 1024 * 1024) throw Error(`${file.name} is too large`);
-      const round = parseSqRound(await file.text(), file.name), target = roundFor(round.title);
-      target.questions.push(...round.questions.map(q => ({...q, id: uid()}))); count += round.questions.length;
-      notes.push(...round.skipped.map(note => `${file.name}: ${note}`)); continue;
-    }
-    const parsed = parseQuickQuestion(file.name, folder);
-    if (!parsed) {if (!/\.(txt|ini|db)$/i.test(file.name) || /^QQ/i.test(file.name)) notes.push(`${file.name}: not a Quick Question`); continue;}
-    if (parsed.media) parsed.question.media = await uploadMedia(file);
-    roundFor(folder ? folder.replace(/^QQF[ACKN]\s*/i, '') : 'Quick Questions').questions.push({...parsed.question, id: uid()}); count++;
-  }
-  if (!count) throw Error('No SpeedQuizzing questions found in those files');
-  await saveLibrary(next, [...rounds.values()][0].id);
-  return `Imported ${count} questions into ${rounds.size} ${rounds.size === 1 ? 'round' : 'rounds'}.` + (notes.length ? `\nCheck: ${notes.slice(0, 8).join('; ')}${notes.length > 8 ? ` (+${notes.length - 8} more)` : ''}` : '');
-}
-$('importSq').onchange = () => action(() => importSpeedQuizzing($('importSq')));
-$('importSqFolder').onchange = () => action(() => importSpeedQuizzing($('importSqFolder')));
 $('playSelected').onclick = () => action(async () => {
   if (dirty) throw Error('Save the question before playing it');
   const played = state.history.some(q => q.sourceId === editingId);
@@ -492,7 +464,7 @@ function timeSong(q, song) {
   }, seconds * 1000);
 }
 // --- Sounds & bingo calls ---------------------------------------------------------------------------------------
-// Sound files are matched to moments by SpeedQuizzing's file names (soundnames.js; first match wins).
+// Sound files are matched to moments by name (soundnames.js; first match wins).
 const soundSlotInfo = Object.entries({startRound: 'Round starts', questionStart: 'Question opens', timerMusic: 'Music while answering (loops)', countdown: 'Final countdown (hits zero at time up)', timeUp: "Time's up",
   endRound: 'Round ends (leaderboard)', correct: 'Correct buzzer answer', wrong: 'Wrong buzzer answer', reveal: 'Answer reveal', bingoCall: 'Bingo number called',
   bingo: 'Someone calls BINGO', applause: 'Winner'}).map(([slot, label]) => [slot, label, slotFiles[slot]]);
@@ -501,13 +473,13 @@ const fileKey = file => (file.webkitRelativePath || file.name).toLowerCase().rep
 let soundsSignature = '';
 function renderSounds(s) {
   const signature = JSON.stringify([s.sounds, s.bingoCalls?.length, s.soundThemes, s.settings.soundTheme, s.soundThemesByType, s.soundThemeNow]); if (signature === soundsSignature) return; soundsSignature = signature;
-  // Themes come from the sound pack (SpeedQuizzing's Themes folder); a theme only replaces the moments it has sounds for.
+  // Themes come from the sound pack's Themes folder; a theme only replaces the moments it has sounds for.
   // A fixed theme, a random one for each question, or one per question type.
   const themeName = name => name || 'Standard sounds';
   selectOptions($('soundTheme'), [['', 'Standard sounds'], ...s.soundThemes.map(name => [name, name]), ...(s.soundThemes.length ? [['@random', 'Random theme for each question'], ['@type', 'Theme by question type']] : [])], s.settings.soundTheme);
   $('soundTheme').disabled = !s.soundThemes.length;
   const mode = s.settings.soundTheme, perQuestion = mode === '@random' || mode === '@type';
-  $('themeHint').textContent = !s.soundThemes.length ? 'No themes found. Themes come from a sound pack (soundpack/Themes/<name>/, as in SpeedQuizzing).'
+  $('themeHint').textContent = !s.soundThemes.length ? 'No themes found. Themes come from a sound pack (soundpack/Themes/<name>/).'
     : `A theme replaces the moments it has a sound for; the rest use the standard sounds. Changing theme resets the moments below to it (added buzzer sounds stay).${perQuestion ? ` Current question: ${themeName(s.soundThemeNow)}.` : ''}`;
   $('themeByType').hidden = mode !== '@type';
   if (mode === '@type') $('themeByType').replaceChildren(...[...$('qType').options].map(option => {
@@ -574,7 +546,7 @@ async function addBuzzers(files) {
 $('buzzerFolder').onchange = () => {const files = [...$('buzzerFolder').files]; $('buzzerFolder').value = ''; action(() => addBuzzers(files));};
 $('buzzerFiles').onchange = () => {const files = [...$('buzzerFiles').files]; $('buzzerFiles').value = ''; action(() => addBuzzers(files));};
 $('clearBuzzers').onclick = () => action(async () => {if (confirm('Remove all added buzzer sounds? Teams using one go back to a built-in sound.')) await request('sounds', {buzzers: []});}, 'Buzzer sounds updated');
-// SpeedQuizzing's file is JSON ({"1": "…", …, "90": "…"}); a plain list of 90 lines (optionally "4: …") works too.
+// JSON ({"1": "…", …, "90": "…"}), or a plain list of 90 lines (optionally "4: …").
 function parseCalls(text) {
   let calls = Array(90).fill('');
   try {
@@ -894,10 +866,7 @@ function renderLaptop() {
   $('wifiPasswordLabel').hidden = !w.needsPassword;
   if (w.needsPassword && !$('wifiPassword').value && document.activeElement !== $('wifiPassword')) $('wifiPassword').value = on?.password || state?.settings.joinPassword || '';
   jobText('wifiJob', job, 'Answer the password prompt on this laptop…');
-  const setupJob = laptop.jobs.bingoVoice?.running ? laptop.jobs.bingoVoice : laptop.jobs.soundPack?.running ? laptop.jobs.soundPack : laptop.jobs.bingoVoice || laptop.jobs.soundPack;
-  jobText('setupJob', setupJob, setupJob === laptop.jobs.bingoVoice ? 'Recording the bingo caller (a minute or two)…' : 'Copying sounds…');
-  $('buildPack').disabled = !laptop.setup.speedQuizzing || !!laptop.jobs.soundPack?.running;
-  $('buildPack').title = laptop.setup.speedQuizzing ? '' : 'No “SpeedQuizzing Documents/Sounds” folder in your home folder';
+  jobText('setupJob', laptop.jobs.bingoVoice, 'Recording the bingo caller (a minute or two)…');
   $('recordVoice').disabled = !laptop.setup.piper || !!laptop.jobs.bingoVoice?.running;
   $('recordVoice').title = laptop.setup.piper ? '' : 'Piper is not installed (docs/QUIZMASTER.md, “A spoken bingo caller”)';
   $('quitApp').hidden = !laptop.canQuit;
@@ -926,7 +895,6 @@ $('deskOnline').onclick = () => {
 };
 $('goOffline').onclick = () => {if (confirm(location.protocol === 'https:' ? 'Go offline? This desk is using the online link, so it disconnects too; online players lose the quiz, and going online again makes a new link.' : 'Go offline? Online players lose the quiz, and going online again makes a new link.')) laptopAction('laptop/online', {action: 'stop'}, 'Offline');};
 $('copyOnline').onclick = () => navigator.clipboard.writeText($('onlineLink').value).then(() => message('Link copied'), () => {$('onlineLink').select(); message('Press Ctrl+C to copy the link');});
-$('buildPack').onclick = () => laptopAction('laptop/setup', {job: 'soundPack'}, 'Copying sounds from SpeedQuizzing');
 $('recordVoice').onclick = () => laptopAction('laptop/setup', {job: 'bingoVoice'}, 'Recording the bingo caller');
 $('quitApp').onclick = () => {
   if (!confirm('Close PubQuiz? The quiz Wi-Fi stops too (one more password prompt). Everything is saved: start it again from the app menu.')) return;

@@ -24,7 +24,6 @@ export const hotspotAddress = platform => platform === 'win32' ? '192.168.137.1'
 
 export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cloudflared, python = '/usr/bin/python3', platform = process.platform,
   powershell = 'powershell.exe', packDir = path.join(root, 'soundpack'),
-  speedQuizzing = process.env.SQ_DOCUMENTS || path.join(os.homedir(), 'SpeedQuizzing Documents'),
   piper = [path.join(os.homedir(), '.local/opt/piper/bin/python'), path.join(os.homedir(), '.local/share/piper/en_GB-cori-high.onnx')]} = {}) {
   const windows = platform === 'win32';
   const hotspot = path.join(root, 'scripts', windows ? 'hotspot-windows.ps1' : 'hotspot.py'), script = name => path.join(root, 'scripts', name);
@@ -58,7 +57,7 @@ export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cl
     wifi,
     async status() {
       return {wifi: await wifi(), jobs, online: online(), onlineError: tunnelError, cloudflared: !!tool(), platform: windows ? 'windows' : 'linux',
-        setup: {speedQuizzing: existsSync(path.join(speedQuizzing, 'Sounds')), piper: piper.every(f => existsSync(f))}};
+        setup: {piper: piper.every(f => existsSync(f))}};
     },
     // `port` is PubQuiz's own port: Linux sends phones that open http://10.42.0.1 there.
     startWifi({card = 'auto', ssid, password = ''}, done, port = 3000) {
@@ -100,10 +99,6 @@ export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cl
     async wifiOn() {
       requireValue(!windows, 'Switch Wi-Fi on from the Windows quick settings (the network icon on the taskbar)');
       const result = await run('nmcli', ['radio', 'wifi', 'on'], 10000); if (!result.ok) throw new QuizError(tidy(result.out) || 'Could not switch Wi-Fi on');
-    },
-    soundPack(done) {
-      requireValue(existsSync(path.join(speedQuizzing, 'Sounds')), `No SpeedQuizzing sounds found in ${speedQuizzing}`);
-      job('soundPack', () => run(process.execPath, [script('sound-pack.mjs'), speedQuizzing, '--out', packDir], 300000, nodeEnv()), done);
     },
     bingoVoice(done) {
       requireValue(piper.every(f => existsSync(f)), 'Piper is not installed (docs/QUIZMASTER.md, "A spoken bingo caller")');

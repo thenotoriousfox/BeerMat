@@ -10,24 +10,14 @@ import {createQuiz} from '../server.js';
 const root = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 
 const hostKey = 'a-secure-quiz-test-key';
-test('a sound pack built from a SpeedQuizzing folder becomes the default; desk choices override it', async () => {
-  const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-pack-')), sq = path.join(dir, 'SpeedQuizzing Documents'), pack = path.join(dir, 'soundpack');
-  const mp3 = Buffer.from([0xff, 0xfb, 0x90, 0x00, 1, 2, 3]), put = (file, data = mp3) => {mkdirSync(path.dirname(path.join(sq, file)), {recursive: true}); writeFileSync(path.join(sq, file), data);};
-  for (const name of ['correct', 'incorrect', 'airhorn', 'bingo_call', 'start_round', 'end_clunk', 'applause/1']) put(`Sounds/general/${name}.mp3`);
-  put('Sounds/buzzers/Sample Music/Barnyard Jig.mp3'); put('Sounds/buzzers/Impersonations/Ahaaa.mp3'); put('Sounds/buzzers/Impersonations (Offensive)/Rude.mp3');
-  put('Bingo/Customisable Bingo Calls.txt', JSON.stringify({1: 'Kelly’s eye, number 1', 4: 'Knock at the door, 4', 80: 'As high as we go, yellow 80'}));
-  const {stdout} = await promisify(execFile)(process.execPath, ['scripts/sound-pack.mjs', sq, '--out', pack]);
-  assert.match(stdout, /6 of 12 sound effects, 2 buzzer sounds from Impersonations, Sample Music, bingo calls/);
-  // Rebuilding keeps a recorded bingo caller, which isn't part of SpeedQuizzing's folder.
-  mkdirSync(path.join(pack, 'bingo_voice')); writeFileSync(path.join(pack, 'bingo_voice', '4.mp3'), mp3);
-  await promisify(execFile)(process.execPath, ['scripts/sound-pack.mjs', sq, '--out', pack]);
-  assert.ok(existsSync(path.join(pack, 'bingo_voice', '4.mp3')) && readdirSync(dir).every(f => !f.startsWith('.voice-')));
-  // SpeedQuizzing's calls become the traditional 90-ball calls, keeping its ball colours.
-  const packCalls = JSON.parse(readFileSync(path.join(pack, 'Customisable Bingo Calls.txt'), 'utf8'));
-  assert.deepEqual([packCalls[1], packCalls[80], packCalls[90]], ['Kelly\'s eye, yellow 1', 'Eight and blank, yellow 80', 'Top of the shop, yellow 90']);
-  // The pack is SpeedQuizzing's Sounds folder, copied as it is.
-  assert.deepEqual(readdirSync(path.join(pack, 'buzzers')).sort(), ['Impersonations', 'Impersonations (Offensive)', 'Sample Music']);
-  assert.ok(existsSync(path.join(pack, 'general', 'end_clunk.mp3')) && existsSync(path.join(pack, 'general', 'applause', '1.mp3')) && existsSync(path.join(pack, 'Customisable Bingo Calls.txt')));
+test('a laptop’s own sound pack becomes the default; desk choices override it', async () => {
+  // soundpack/: general/<name>.mp3 for each moment, buzzers/<pack>/*.mp3, bingo-calls.json and a recorded caller.
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-pack-')), pack = path.join(dir, 'soundpack');
+  const mp3 = Buffer.from([0xff, 0xfb, 0x90, 0x00, 1, 2, 3]), put = (file, data = mp3) => {mkdirSync(path.dirname(path.join(pack, file)), {recursive: true}); writeFileSync(path.join(pack, file), data);};
+  for (const name of ['correct', 'incorrect', 'airhorn', 'bingo_call', 'start_round', 'end_clunk', 'applause/1']) put(`general/${name}.mp3`);
+  put('buzzers/Sample Music/Barnyard Jig.mp3'); put('buzzers/Impersonations/Ahaaa.mp3'); put('buzzers/Impersonations (Offensive)/Rude.mp3');
+  put('bingo-calls.json', JSON.stringify(Object.fromEntries([[1, 'Kelly\'s eye, yellow 1'], [4, 'Knock at the door, yellow 4'], [90, 'Top of the shop, yellow 90']])));
+  put('bingo_voice/4.mp3');
 
   // The shipped CC0 sounds fill in the moments the pack lacks; the pack wins where both have one.
   const shipped = path.join(dir, 'shipped'); mkdirSync(path.join(shipped, 'general'), {recursive: true}); mkdirSync(path.join(shipped, 'buzzers', 'Jingles'), {recursive: true});
@@ -43,14 +33,14 @@ test('a sound pack built from a SpeedQuizzing folder becomes the default; desk c
     assert.deepEqual(Object.keys(sounds.slots).sort(), ['applause', 'bingo', 'correct', 'reveal', 'startRound', 'timeUp', 'wrong']);
     assert.equal(sounds.slots.correct, '/pack/general/correct.mp3'); assert.equal(sounds.slots.reveal, '/sounds/general/drum_roll.mp3');
     assert.equal(sounds.slots.applause, '/pack/general/applause/1.mp3');
-    assert.equal(sounds.slots.bingo, '/pack/general/bingo_call.mp3', 'SpeedQuizzing\'s bingo_call is for a claim, ahead of the airhorn'); assert.equal(sounds.slots.bingoCall, undefined);
+    assert.equal(sounds.slots.bingo, '/pack/general/bingo_call.mp3', 'bingo_call is for a claim, ahead of the airhorn'); assert.equal(sounds.slots.bingoCall, undefined);
     assert.deepEqual(sounds.buzzers.map(b => b.name), ['Ahaaa', 'Barnyard Jig', 'Sax'], 'pack buzzers first, offensive pack skipped, then the shipped ones');
     const served = await fetch(base + sounds.buzzers[1].media);
     assert.equal(served.status, 200); assert.equal(served.headers.get('content-type'), 'audio/mpeg');
     // Raw paths (fetch would tidy away the ..), so the server itself must keep requests inside the pack.
     const raw = target => new Promise((resolve, reject) => http.get({host: '127.0.0.1', port: quiz.server.address().port, path: target}, r => {
       let body = ''; r.on('data', c => {body += c.toString('latin1');}); r.on('end', () => resolve({status: r.statusCode, type: r.headers['content-type'] || '', body}));}).on('error', reject));
-    for (const bad of ['/pack/../quiz.sqlite', '/pack/%2e%2e/quiz.sqlite', '/pack/general/..%2f..%2fquiz.sqlite', '/sounds/..%2fquiz.sqlite', '/pack/Customisable%20Bingo%20Calls.txt']) {
+    for (const bad of ['/pack/../quiz.sqlite', '/pack/%2e%2e/quiz.sqlite', '/pack/general/..%2f..%2fquiz.sqlite', '/sounds/..%2fquiz.sqlite', '/pack/bingo-calls.json']) {
       const r = await raw(bad);
       assert.ok(!r.body.startsWith('SQLite format') && !r.type.startsWith('audio') && (r.status === 404 || r.type.startsWith('text/html')), bad);
     }

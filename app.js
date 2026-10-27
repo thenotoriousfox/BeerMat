@@ -183,7 +183,7 @@ export function wheelTicks(times) {
 }
 export function stopWheelTicks() {for (const source of ticks) try {source.stop();} catch {} ticks = [];}
 // Plays a countdown sound so that it reaches zero `ms` from now (starting part-way through if less time is left).
-// Countdown files count down from ten, as SpeedQuizzing's do: zero is 10 seconds in, and whatever follows is the
+// Countdown files count down from ten: zero is 10 seconds in, and whatever follows is the
 // ring-out after time's up. A file shorter than that reaches zero at its end. False if it cannot play: no file, sound
 // not enabled, length unknown yet, or more time left than the count lasts.
 export function playEnding(slot, ms) {

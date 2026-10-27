@@ -50,9 +50,7 @@ fi
 sudo pacman -S --needed "${packages[@]}"
 node_ok || { echo "PubQuiz needs Node 22.13 or later; this is $(node --version)" >&2; exit 1; }
 npm test
-# Sounds, buzzers and bingo calls from SpeedQuizzing on this laptop become PubQuiz's defaults (kept out of git).
-if [[ -d "${SQ_DOCUMENTS:-$HOME/SpeedQuizzing Documents}/Sounds" ]]; then node scripts/sound-pack.mjs; fi
 # A spoken bingo caller for the pack's own calls, when Piper is installed (docs/QUIZMASTER.md, "A spoken bingo caller").
-if [[ -f soundpack/"Customisable Bingo Calls.txt" && -x "$HOME/.local/opt/piper/bin/python" && ! -d soundpack/bingo_voice ]]; then node scripts/bingo-voice.mjs; fi
+if [[ -f soundpack/bingo-calls.json && -x "$HOME/.local/opt/piper/bin/python" && ! -d soundpack/bingo_voice ]]; then node scripts/bingo-voice.mjs; fi
 app
 printf '%s\n' 'Setup complete. No network settings changed. Start PubQuiz from the app menu; see README.md before starting a hotspot.'

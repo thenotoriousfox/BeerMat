@@ -162,11 +162,6 @@ try {
   await waitFor(host, () => /Owl team\s*3 pts/.test(document.getElementById('teamCards').textContent));
   log('advanced buzzer: locked-out team, announced answer and agree vote scoring');
   await host.locator('[data-tab=build]').click();
-  const sqq = '\ufeffd><?xml version="1.0" encoding="utf-8"?><round><game>Quizsentials</game><title>Pub keypad</title><points_per_question>2</points_per_question><questions><question><user_view>multi</user_view><q>Pick B</q><short_answer>B</short_answer><long_answer></long_answer><options><option>Ay</option><option>Bee</option></options></question><question><user_view>letters</user_view><q>First letter of Paris</q><short_answer>P</short_answer><long_answer>Paris</long_answer></question></questions></round>';
-  await host.locator('#importSq').setInputFiles([{name: 'Pub keypad.sqq', mimeType: 'application/octet-stream', buffer: Buffer.from(sqq)}, {name: 'QQ_Is this imported^^_Yes.txt', mimeType: 'text/plain', buffer: Buffer.alloc(0)}]);
-  await waitFor(host, () => document.getElementById('message').textContent.startsWith('Imported 3 questions into 2 rounds'));
-  assert.ok((await host.locator('#roundSelect').textContent()).includes('Pub keypad'));
-  log('SpeedQuizzing .sqq round and Quick Question file import');
   await host.locator('#roundSelect').selectOption({index: 0});
   await saveQuestion('multi', 'Tick the primes', {options: '2\n3\n4', correct: '2\n3'});
   await saveQuestion('pinpoint', 'Tap the middle', {file: {name: 'board.png', mimeType: 'image/png', buffer: makePng(200, 100)}, pinAt: {x: 100, y: 50}});

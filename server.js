@@ -33,8 +33,8 @@ const SESSION_MS = 12 * 60 * 60 * 1000;
 // Read-only routes never notify clients of a change.
 const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token', '/api/host/drive', '/api/host/spotify/preview', '/api/host/spotify/pause', '/api/host/online/account', '/api/host/online/signin', '/api/host/online/signup', '/api/host/online/signout', '/api/host/online/call', '/api/host/online/locate']);
 
-// Sound packs are laid out like SpeedQuizzing's Sounds folder: general/<name>.mp3 for each moment (soundnames.js),
-// buzzers/<pack>/*.mp3, and optionally its bingo calls file at the top. `prefix` is the URL they are served under.
+// A sound pack is a folder: general/<name>.mp3 for each moment (soundnames.js), buzzers/<pack>/*.mp3, Themes/<name>/,
+// and optionally bingo-calls.json at the top. `prefix` is the URL they are served under.
 function loadPack(dir, prefix) {
   const audio = f => /\.(mp3|ogg|wav)$/i.test(f), url = relative => prefix + relative.split('/').map(encodeURIComponent).join('/');
   const list = (folder, dirs = false) => {try {return readdirSync(path.join(dir, folder), {withFileTypes: true}).filter(e => dirs ? e.isDirectory() : e.isFile() && audio(e.name)).map(e => e.name).sort((a, b) => a.localeCompare(b));} catch {return [];}};
@@ -130,11 +130,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', joinMode: 'hotspot', joinPassword: '', shareResults: false, onlineService: onlineDefault, scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, bingoBoard: false, teamPhotos: true, language: 'en', onlineAfterJoin: true, deskOnline: false, waitingRoom: true, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {}};
   const SOUNDS = 8;
   // Sound effects for the TV and extra buzzer sounds, both from the quizmaster's own files; custom bingo calls (1–90).
-  // This laptop's sound pack (scripts/sound-pack.mjs) supplies the defaults until the desk changes them; a desk choice of
+  // This laptop's sound pack (soundpack/) supplies the defaults until the desk changes them; a desk choice of
   // the built-in bingo calls is stored as null.
   // PubQuiz ships CC0 sounds in sounds/; a laptop's own soundpack/ (same layout) takes priority over them.
-  // A sound theme (SpeedQuizzing's Themes/<name>) replaces the moments it has a sound for. Desk choices, stored
-  // separately for moments and buzzers, override the defaults. Reloaded after the desk rebuilds the pack.
+  // A sound theme (the pack's Themes/<name>) replaces the moments it has a sound for. Desk choices, stored
+  // separately for moments and buzzers, override the defaults. Reloaded after the bingo caller is recorded.
   // Themes in themes/<id>/ (themes.js) bring a look and, with a sounds/ folder, a sound theme under the theme's name.
   let shipped, local, themes;
   const folders = loadThemes(themesDir);
@@ -807,7 +807,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       settle(latest());
       if (req.method === 'GET' && p === '/api/events') return openStream(req, res, url);
       if ((req.method === 'GET' || req.method === 'HEAD') && !p.startsWith('/api/')) {
-        const routes = {'/host': 'host.html', '/display': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/sqimport.js': 'sqimport.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
+        const routes = {'/host': 'host.html', '/display': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
         if (p.startsWith('/media/')) {
           requireValue(mediaPattern.test(p), 'Media not found', 404);
           const file = path.join(mediaDir, path.basename(p));
@@ -912,7 +912,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             return send(200, {ok: true});
           }
           if (p === '/api/host/laptop/setup') {
-            requireValue(['soundPack', 'bingoVoice'].includes(body.job), 'Unknown setup step');
+            requireValue(body.job === 'bingoVoice', 'Unknown setup step');
             laptop[body.job](r => {if (r.ok) reloadPack(); notify();});
             return send(200, {ok: true});
           }
