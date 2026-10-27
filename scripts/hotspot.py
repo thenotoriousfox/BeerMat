@@ -49,7 +49,7 @@ def commands(interface, ssid, channel=None):
     ]
 
 def dns_config(interface):
-    commands(interface, 'PubQuiz')
+    commands(interface, 'BeerMat')
     return f'''interface={interface}
 except-interface=lo
 bind-interfaces
@@ -67,7 +67,7 @@ pid-file=/run/pubquiz/dnsmasq.pid
 '''
 
 def nft_config(interface, port=3000):
-    commands(interface, 'PubQuiz')
+    commands(interface, 'BeerMat')
     if not isinstance(port, int) or not 1 <= port <= 65535:
         raise ValueError('Invalid port')
     return f'''table inet {TABLE} {{
@@ -141,12 +141,12 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('action', choices=['up', 'down', 'check', 'status'])
     p.add_argument('--interface', default='auto', help='Wi-Fi card to host on; auto picks a free one that can host, else shares one')
-    p.add_argument('--ssid', default='PubQuiz')
+    p.add_argument('--ssid', default='BeerMat')
     p.add_argument('--apply', action='store_true', help='Actually change local networking (requires approval/root)')
     p.add_argument('--keep-wifi', action='store_true', help='Stay on your normal Wi-Fi as well: host on a virtual interface sharing its 2.4 GHz channel (automatic when the card is connected)')
     p.add_argument('--offline', action='store_true', help='Let the hotspot card leave the network it is on instead of sharing it')
     p.add_argument('--replace', action='store_true', help='Take down a hotspot left from before instead of stopping')
-    p.add_argument('--port', type=int, default=3000, help='PubQuiz\'s port: phones opening http://10.42.0.1 are sent to it')
+    p.add_argument('--port', type=int, default=3000, help='BeerMat\'s port: phones opening http://10.42.0.1 are sent to it')
     a = p.parse_args()
     if a.action == 'status':
         # Read-only, for the quiz desk: no root needed.

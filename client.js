@@ -532,7 +532,7 @@ async function publicState() {
   const response = await fetch('/api/leaderboard', {signal: AbortSignal.timeout(8000)}); if (!response.ok) throw Error(t('Cannot reach quiz server')); return response.json();
 }
 let initialised = false, deviceChecked = false, lastSettings = null;
-// Inside the PubQuiz Player app (its web view adds PubQuizPlayer/<version> to the user agent): a way back to the app's
+// Inside the BeerMat app (its web view adds PubQuizPlayer/<version> to the user agent): a way back to the app's
 // own screens, and results handed to it for the player's profile. Everyone else plays exactly the same in a browser.
 const appPlatform = /PubQuizPlayer\/[\d.]+ \((ios|android)\)/.exec(navigator.userAgent)?.[1] || null;
 const appHome = appPlatform === 'ios' ? 'capacitor://localhost/' : appPlatform ? 'http://localhost/' : null;

@@ -43,8 +43,8 @@ Numbers at the time of writing: 96 node tests, 15 Python tests, 27 browser secti
 
 ## Builds produced here
 
-* Linux: `PubQuiz-0.4.0.AppImage`, `pubquiz-0.4.0.tar.gz`. The unpacked build passed the desktop end-to-end run.
-* Windows: `PubQuiz Setup 0.4.0.exe` (NSIS) and `PubQuiz-0.4.0-portable.exe`, built on Linux with Wine. **Not run on
+* Linux: `BeerMat-0.4.0.AppImage`, `pubquiz-0.4.0.tar.gz`. The unpacked build passed the desktop end-to-end run.
+* Windows: `BeerMat Setup 0.4.0.exe` (NSIS) and `BeerMat-0.4.0-portable.exe`, built on Linux with Wine. **Not run on
   Windows.** Unsigned.
 * Android: debug APK (`assembleDebug`, SDK 36), manifest and permissions inspected. **Not installed on a phone.**
   Unsigned (debug key).
@@ -58,10 +58,10 @@ Numbers at the time of writing: 96 node tests, 15 Python tests, 27 browser secti
 * The desktop first-run window and dialogs, as a person sees them.
 * The Linux quiz hotspot from the desktop app (the same `hotspot.py` and pkexec path as before; previously verified on
   real hardware for `--keep-wifi`).
-* Phones: PubQuiz Player on Android and iPhone (scanner, notifications, vibration, local network prompts, opening
+* Phones: BeerMat app on Android and iPhone (scanner, notifications, vibration, local network prompts, opening
   quiz pages inside the app, the Quizzes button and result hand-over), and captive sign-in windows.
 * App-store submission and signed builds (Google Play, App Store, Windows code signing).
-* PubQuiz Online on the internet (it runs locally in tests only; no deployment, email or HTTPS).
+* BeerMat Online on the internet (it runs locally in tests only; no deployment, email or HTTPS).
 * Spotify playback inside the desktop app. Checked here: the app (castlabs Electron) downloads Widevine and the desk
   page gets `com.widevine.alpha`; not checked: a real Spotify sign-in playing a song, and Windows (needs VMP signing).
 * Build quiz previews heard from a real Spotify player (the server side is tested with a fake Spotify).

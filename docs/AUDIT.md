@@ -43,7 +43,7 @@ Validated at that point: 19 Node tests, 5 Python hotspot tests, and the browser 
 
 Second batch: multi-tap, pinpoint with go wide, 90-ball bingo with seeded per-team tickets and server-checked claims, spin-the-wheel on the projector, per-team buzzer sounds (synthesised, no audio files), and single-key desk shortcuts usable from a Stream Deck. Validated with 22 Node tests and 14 browser sections in Chrome.
 
-Not covered yet: music bingo (needs a song library), Seven Squares and Word Snake puzzles, team photos, the native Stream Deck plugin (keys work instead), and internet play through a relay server (PubQuiz is offline by design).
+Not covered yet: music bingo (needs a song library), Seven Squares and Word Snake puzzles, team photos, the native Stream Deck plugin (keys work instead), and internet play through a relay server (BeerMat is offline by design).
 
 TV display iteration: projector join screen with an offline QR encoder (`qr.js`, byte mode, level M, versions 1–10; every version decoded with zbar, including from a 1080p screenshot of the page), editable Wi-Fi name and join address, a join reminder under the leaderboard, a full-screen toggle (button or F) and an idle pointer hide. 25 Node tests and 15 browser sections pass.
 
@@ -55,7 +55,7 @@ Still not covered: a paid quiz-pack library and online reporting (services, not 
 
 Joining iteration: the first real hotspot run found `hotspot.py` querying the wrong nmcli field (fixed, with a test of the whole `--apply` path). Changes after that run: a single Wi-Fi QR code on the TV; “online” answers to phone connectivity checks after a team joins (Android, Apple, Windows, Firefox probe paths) with **Continue as <team>** for the same phone in a normal browser; leave-the-page reports during open questions; and `hotspot.py --keep-wifi`. 37 Node tests, 10 Python tests and 22 browser sections pass. Phone behaviour with the “online” answers has not yet been checked on real Android and iOS devices.
 
-Host options added: Evil Mode, fixed or sliding speed bonus, a waiting room, a maximum player count, a TV countdown timer and a scores/positions toggle for the live screen. All six are in PubQuiz (`tests/hosting.test.js` plus a browser section). The browser suite's wheel step raced the preceding close shortcut (every desk action briefly disables the buttons); the test now waits for it. A real desk bug also showed up as an intermittent browser failure: queued desk actions read their form value when they ran, not when clicked, so a refresh landing in between could send the old value (picking Spanish for the TV sent English). Handlers now read values at click time.
+Host options added: Evil Mode, fixed or sliding speed bonus, a waiting room, a maximum player count, a TV countdown timer and a scores/positions toggle for the live screen. All six are in BeerMat (`tests/hosting.test.js` plus a browser section). The browser suite's wheel step raced the preceding close shortcut (every desk action briefly disables the buttons); the test now waits for it. A real desk bug also showed up as an intermittent browser failure: queued desk actions read their form value when they ran, not when clicked, so a refresh landing in between could send the old value (picking Spanish for the TV sent English). Handlers now read values at click time.
 
 TV iteration: the projector page is now a fixed full screen (no scroll at 800×600 up to 4K, checked for every view) with the visible view scaled to fit, and an automatic mode (default) that switches between join, question, round-end leaderboard and winner from the quiz state.
 
@@ -84,8 +84,8 @@ Security review of the new parts:
   development. The quiz server runs in a separate utility process. The quizmaster key is random and kept with
   safeStorage where available.
 * **Uploads and imports**: unchanged checks (file signatures, sizes, schema validation of quiz files); restore only
-  accepts a SQLite file that passes `quick_check` and has PubQuiz's tables, after backing up the current one.
-* **Path traversal**: sound and media routes unchanged; PubQuiz Online's static files are contained to the app folder
+  accepts a SQLite file that passes `quick_check` and has BeerMat's tables, after backing up the current one.
+* **Path traversal**: sound and media routes unchanged; BeerMat Online's static files are contained to the app folder
   (tested with `..` and encoded `..`).
 * **Command injection**: every command is `execFile` with an argument list; Wi-Fi settings reach PowerShell as base64
   JSON, so a Wi-Fi name like `-Action down` is just a name; card names are pattern-checked.

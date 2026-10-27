@@ -8,13 +8,13 @@ import path from 'node:path';
 const stamp = time => new Date(time).toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const sidecars = file => [file, file + '-wal', file + '-shm'];
 
-// A PubQuiz database that SQLite reads without errors.
+// A BeerMat database that SQLite reads without errors.
 export function checkDatabase(file) {
   let db;
   try {
     db = new DatabaseSync(file, {readOnly: true});
     if (db.prepare('PRAGMA quick_check').get()?.quick_check !== 'ok') return 'The file is damaged';
-    if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='metadata'").get()) return 'This is not a PubQuiz database';
+    if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='metadata'").get()) return 'This is not a BeerMat database';
     return null;
   } catch (e) {return e.code === 'ERR_SQLITE_ERROR' ? 'The file is damaged or not a database' : e.message;} finally {try {db?.close();} catch {}}
 }

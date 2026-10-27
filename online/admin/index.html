@@ -1,13 +1,13 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
-<link rel="stylesheet" href="admin.css"><title>PubQuiz Online — Admin</title></head>
+<link rel="stylesheet" href="admin.css"><link rel="icon" href="/brand/mark.svg" type="image/svg+xml"><title>BeerMat Online — Admin</title></head>
 <body>
-<header class="top"><div><span class="eyebrow">PubQuiz Online</span><h1>Admin console</h1></div><div id="who" class="who" hidden><span id="whoName"></span><button id="signOut" type="button" class="ghost">Sign out</button></div></header>
+<header class="top"><div class="brand-head"><img class="logo" src="/brand/logo.svg" alt="BeerMat"><h1>Online · Admin console</h1></div><div id="who" class="who" hidden><span id="whoName"></span><button id="signOut" type="button" class="ghost">Sign out</button></div></header>
 <p id="toast" class="toast" role="status" aria-live="polite" hidden></p>
 
 <main id="signIn" class="card narrow">
   <h2>Sign in</h2>
-  <p class="muted">With a PubQuiz Online account that has admin rights (the first one is made on the server: <code>node online/admin.js make-admin &lt;email&gt;</code>).</p>
+  <p class="muted">With a BeerMat Online account that has admin rights (the first one is made on the server: <code>node online/admin.js make-admin &lt;email&gt;</code>).</p>
   <form id="signInForm"><label>Email<input id="email" type="email" autocomplete="username" required></label><label>Password<input id="password" type="password" autocomplete="current-password" required></label><button class="primary">Sign in</button></form>
 </main>
 

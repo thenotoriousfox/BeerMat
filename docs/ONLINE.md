@@ -1,9 +1,9 @@
-# PubQuiz Online
+# BeerMat Online
 
 The optional internet service for **player profiles, statistics and achievements across venues, venue pages and quiz
 listings**. Quizzes never depend on it. It is a complete, tested reference implementation (`online/service.js`,
 Node 22 + SQLite). It runs at **https://130-162-161-81.sslip.io** (an Oracle Cloud Always Free VM in London, set
-up by `online/deploy.sh`); the PubQuiz Player app is built to use it. This document is the design and how it is
+up by `online/deploy.sh`); the BeerMat app is built to use it. This document is the design and how it is
 deployed.
 
 ## API (JSON over HTTPS, `/v1`)
@@ -101,7 +101,7 @@ accounts may keep the same team result (teams are groups of people).
 
 Built in:
 
-* Guests: playing collects only the team name the players choose; nothing reaches PubQuiz Online.
+* Guests: playing collects only the team name the players choose; nothing reaches BeerMat Online.
 * Data minimisation: no phone numbers, birthdays or addresses; locations sent for a search are rounded on the phone
   and not stored.
 * Everything public is opt-in and off by default: appearing on leaderboards, showing a picture, showing history.
@@ -144,7 +144,7 @@ What a deployment needs in general:
   rate limiting at the proxy as well (the built-in limits are per process), monitoring, and an abuse/report route for
   venue pages and pictures.
 * Point the app at it: `node mobile/scripts/build-web.mjs --online https://your.domain`, and quizmasters at it on
-  the desk (**Past quizzes → PubQuiz Online**).
+  the desk (**Past quizzes → BeerMat Online**).
 * Future paid plans would hang off `edition.js` and the account record; nothing is charged or enforced today.
 
 ## Tests

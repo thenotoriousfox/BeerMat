@@ -2,7 +2,7 @@
 
 ## Before the room fills
 
-1. **Desktop app** (Windows or Linux, [DESKTOP.md](DESKTOP.md)): open **PubQuiz**; the desk opens unlocked and the TV display goes full screen on a second screen by itself. Choose how players join under **How players join** (venue Wi-Fi, below) or start the quiz Wi-Fi in **Quiz night**. From source on Linux, `./scripts/setup.sh --app` puts the desktop app in the app menu. **Browser launcher** (`./scripts/setup.sh --browser-app`): click **PubQuiz** in the app menu and type the host key: the desk opens unlocked in the browser. In **Quiz night** at the top, press **Start quiz Wi-Fi** and enter your laptop password. (From a terminal: `./scripts/quiz-night.sh` does the same, Ctrl+C ends it; or `./scripts/start.sh` for PubQuiz alone, then open `http://localhost:3000/host`.) After the quiz, **Close PubQuiz** takes the Wi-Fi down and stops the server.
+1. **Desktop app** (Windows or Linux, [DESKTOP.md](DESKTOP.md)): open **BeerMat**; the desk opens unlocked and the TV display goes full screen on a second screen by itself. Choose how players join under **How players join** (venue Wi-Fi, below) or start the quiz Wi-Fi in **Quiz night**. From source on Linux, `./scripts/setup.sh --app` puts the desktop app in the app menu. **Browser launcher** (`./scripts/setup.sh --browser-app`): click **BeerMat** in the app menu and type the host key: the desk opens unlocked in the browser. In **Quiz night** at the top, press **Start quiz Wi-Fi** and enter your laptop password. (From a terminal: `./scripts/quiz-night.sh` does the same, Ctrl+C ends it; or `./scripts/start.sh` for BeerMat alone, then open `http://localhost:3000/host`.) After the quiz, **Close BeerMat** takes the Wi-Fi down and stops the server.
 2. In **Build quiz**, set a quiz title and add rounds. Add and save questions with the form. Move questions up/down to set their order.
 3. Pick a format (see **Round formats** below). Upload images/audio directly in the form; any format can carry an optional picture or clip. Files stay on the laptop. Each upload has a unique filename, so replacing a picture cannot change a question already played.
 4. Add the correct answer and accepted alternatives, or leave it blank for manual marking. Choices must match one of the supplied options exactly. Each sheet item has its own marking key; the sheet's **Scoring** sets whether each item is worth a point, the parts share the question's points, or it's all-or-nothing. For a traditional paper round, print blank sheets and enter its score later.
@@ -48,23 +48,23 @@ Buzz-in and bingo stay live until you end them: for buzz-in the timer only limit
 
 ## Sounds and bingo calls
 
-**Sounds out of the box.** PubQuiz ships a CC0 (public-domain) sound set in `sounds/` — jingles, correct/wrong tones, a "time over" voice, drum roll, airhorn, applause, a music bed for answering, and 42 buzzer sounds. Sources are listed in `sounds/CREDITS.md`.
+**Sounds out of the box.** BeerMat ships a CC0 (public-domain) sound set in `sounds/` — jingles, correct/wrong tones, a "time over" voice, drum roll, airhorn, applause, a music bed for answering, and 42 buzzer sounds. Sources are listed in `sounds/CREDITS.md`.
 
-**Your own sound pack.** A `soundpack/` folder — `general/` with a file for each moment (names below), `buzzers/<pack>/`, `Themes/<name>/`, and optionally `bingo-calls.json` at the top — takes priority over the shipped sounds; its buzzer packs are listed first, and packs with "Offensive" in the name are skipped. `soundpack/` is never committed to git, so copy it onto each laptop, then restart PubQuiz.
+**Your own sound pack.** A `soundpack/` folder — `general/` with a file for each moment (names below), `buzzers/<pack>/`, `Themes/<name>/`, and optionally `bingo-calls.json` at the top — takes priority over the shipped sounds; its buzzer packs are listed first, and packs with "Offensive" in the name are skipped. `soundpack/` is never committed to git, so copy it onto each laptop, then restart BeerMat.
 
-**Sound theme** (Build quiz → Sounds & bingo calls) picks one of the pack's themes (`soundpack/Themes/<name>/`). A theme replaces the moments it has a sound for; the others keep the standard sounds. Choose **Random theme for each question** to give every question a theme (or the standard sounds) at random — each question keeps its pick — or **Theme by question type** to set one per format (keypad formats, typed answers and speed rounds start on different themes; change any of them in the table that appears). A sound you pick for a single moment on the desk applies whichever theme is playing. Changing theme mode resets those picks; added buzzer sounds stay. PubQuiz's own themes in `themes/` can bring sounds too: **Halloween** (pipe organ, church bells, a music box while teams answer, a theremin for wrong answers, a timpani roll before reveals); pair it with the Halloween look. Halloween is seasonal, so random and by-type choices never pick it, and neither the theme nor the look ever turns up by chance.
+**Sound theme** (Build quiz → Sounds & bingo calls) picks one of the pack's themes (`soundpack/Themes/<name>/`). A theme replaces the moments it has a sound for; the others keep the standard sounds. Choose **Random theme for each question** to give every question a theme (or the standard sounds) at random — each question keeps its pick — or **Theme by question type** to set one per format (keypad formats, typed answers and speed rounds start on different themes; change any of them in the table that appears). A sound you pick for a single moment on the desk applies whichever theme is playing. Changing theme mode resets those picks; added buzzer sounds stay. BeerMat's own themes in `themes/` can bring sounds too: **Halloween** (pipe organ, church bells, a music box while teams answer, a theremin for wrong answers, a timpani roll before reveals); pair it with the Halloween look. Halloween is seasonal, so random and by-type choices never pick it, and neither the theme nor the look ever turns up by chance.
 
-**Build quiz → Sounds & bingo calls** changes the defaults for this quiz laptop. Sound effects play on the TV page (click its 🔊 Enable sound button once each night); without a file, PubQuiz uses its built-in beeps or stays quiet.
+**Build quiz → Sounds & bingo calls** changes the defaults for this quiz laptop. Sound effects play on the TV page (click its 🔊 Enable sound button once each night); without a file, BeerMat uses its built-in beeps or stays quiet.
 
 - **Sound effects:** import a folder and files are matched to moments by name (`start_round`, `question_start`, `question_music`, a countdown such as `new_game_end_timer`, `time_up`, `end_round`, `correct`, `incorrect`, `drum_roll`, `bingo_number`, `bingo_call`, `your_applause`; the full list is in `soundnames.js`). Moments: round starts, question opens, music while answering (loops; not during audio, clips, buzzer or bingo rounds), final countdown (a count from ten, started so it hits zero exactly at time's up and rings out after; the music stops when it starts), time's up (when no countdown played, and for the TV countdown), round ends (Auto leaderboard), correct / wrong buzzer answer, answer reveal, bingo number called, bingo claimed, and winner. Bingo calls that name a colour ("red number 5") colour that number's ball, its square on the TV board and on phone tickets; a number whose call names none takes its neighbour's colour. The wheel needs no file: it clicks as each segment passes the pointer, slowing down with the wheel. You can also pick a file for any moment, play it on the desk, or remove it.
 - **Buzzer sounds:** add a folder or files (e.g. `soundpack/buzzers/<pack>`); each becomes a choice in the teams' phone menu after the 8 built-in sounds (up to 200). Removing them puts teams back on a built-in sound.
 - **Bingo calls:** import a JSON file (`{"1": "Kelly's eye, number 1", …}`) or one call per line for 1–90; numbers without a call use the built-in calls. **Use the built-in calls** switches back.
 
-Files are copied into PubQuiz's media folder on the laptop. Only use sound files you have the right to use.
+Files are copied into BeerMat's media folder on the laptop. Only use sound files you have the right to use.
 
 ### A spoken bingo caller
 
-When a number is called, the TV plays its chime and then a voice reading the call ("Two little ducks, number 22"). PubQuiz ships recordings of its own calls in `sounds/bingo_voice/`. A `soundpack/bingo-calls.json` gets its own recordings, made on the laptop with [Piper](https://pypi.org/project/piper-tts/), a free offline text-to-speech voice:
+When a number is called, the TV plays its chime and then a voice reading the call ("Two little ducks, number 22"). BeerMat ships recordings of its own calls in `sounds/bingo_voice/`. A `soundpack/bingo-calls.json` gets its own recordings, made on the laptop with [Piper](https://pypi.org/project/piper-tts/), a free offline text-to-speech voice:
 
 ```sh
 python3 -m venv ~/.local/opt/piper && ~/.local/opt/piper/bin/pip install piper-tts
@@ -73,7 +73,7 @@ for f in en_GB-cori-high.onnx en_GB-cori-high.onnx.json; do curl -LO "https://hu
 cd - && node scripts/bingo-voice.mjs   # about 30 seconds; writes soundpack/bingo_voice/1.mp3 … 90.mp3
 ```
 
-`./scripts/setup.sh` does the last step for you once Piper is installed. Run `node scripts/bingo-voice.mjs` again after changing the calls file, then restart PubQuiz; rebuilding the sound pack keeps the recordings. The caller only speaks the calls it was recorded for: calls typed on the desk have no voice. **Bingo caller voice** in Room controls switches it off and on (the chime still plays); nothing is spoken while **Bingo phrases** is off either.
+`./scripts/setup.sh` does the last step for you once Piper is installed. Run `node scripts/bingo-voice.mjs` again after changing the calls file, then restart BeerMat; rebuilding the sound pack keeps the recordings. The caller only speaks the calls it was recorded for: calls typed on the desk have no voice. **Bingo caller voice** in Room controls switches it off and on (the chime still plays); nothing is spoken while **Bingo phrases** is off either.
 
 ## Spotify (optional, private quizzes only)
 
@@ -83,7 +83,7 @@ It needs Spotify Premium and internet on the laptop (run the hotspot with `--kee
 
 1. Create an app at developer.spotify.com/dashboard (tick *Web API*) and add the Redirect URI shown under **Build quiz → Spotify** (`http://127.0.0.1:3000/spotify/callback`; Spotify requires the 127.0.0.1 form).
 2. Paste its Client ID and press **Connect Spotify**, then sign in in the tab that opens.
-3. On quiz night, press **🎵 Start Spotify player on this desk** (Build quiz → Spotify, or the same button that appears on Run quiz when a Spotify round is live). The desk becomes a Spotify player called “PubQuiz desk” and plays through the laptop's speakers or HDMI. Keep the desk open. In the desktop app it plays through the TV's sound output, like the TV's own sounds (desk → **Screens → TV sound**). It works in the PubQuiz desktop app (once it has been online once, to fetch Widevine) and in Chrome, Firefox or Edge; plain Chromium builds may refuse.
+3. On quiz night, press **🎵 Start Spotify player on this desk** (Build quiz → Spotify, or the same button that appears on Run quiz when a Spotify round is live). The desk becomes a Spotify player called “BeerMat desk” and plays through the laptop's speakers or HDMI. Keep the desk open. In the desktop app it plays through the TV's sound output, like the TV's own sounds (desk → **Screens → TV sound**). It works in the BeerMat desktop app (once it has been online once, to fetch Widevine) and in Chrome, Firefox or Edge; plain Chromium builds may refuse.
 4. Fallback: open the Spotify app on the laptop, play any song once, and pick it under **Play on**.
 
 If you connected Spotify before the desk player existed, press **Connect Spotify** again: the desk player needs an extra permission. Spotify's player script is only downloaded when you press Start, and only by the desk page; phones and the TV never load anything from the internet.
@@ -102,8 +102,8 @@ When the venue has Wi-Fi that phones already use, players can join on it instead
 2. On the desk, **How players join → On the venue's own Wi-Fi or network**. Pick this laptop's address, type the
    venue's Wi-Fi name and press **Use for joining**. The TV's join screen then shows a QR code that opens the quiz,
    with the address underneath.
-3. **Check the connection**: it tests that PubQuiz answers on that address and warns about this laptop's firewall
-   (Windows asks to allow PubQuiz the first time: tick *Private networks*; a network set to *Public* blocks phones).
+3. **Check the connection**: it tests that BeerMat answers on that address and warns about this laptop's firewall
+   (Windows asks to allow BeerMat the first time: tick *Private networks*; a network set to *Public* blocks phones).
 4. If phones still can't open it, the venue's Wi-Fi probably keeps devices apart (guest Wi-Fi often does). Ask for
    the staff network, or use the quiz Wi-Fi.
 
@@ -116,10 +116,10 @@ the laptop is connected to some network; see [DESKTOP.md](DESKTOP.md).
 In online mode players join over the internet instead of the quiz Wi-Fi: in the room on their own mobile data or the venue's Wi-Fi, or from home.
 
 1. Install cloudflared once: `sudo pacman -S cloudflared` (`./scripts/setup.sh --install` includes it).
-2. Start PubQuiz from the app icon. In **Quiz night**, press **Go online**. After a few seconds you get a link like `https://some-random-words.trycloudflare.com`; **Copy link** to share it. The TV's join screen shows it too, with a QR code.
+2. Start BeerMat from the app icon. In **Quiz night**, press **Go online**. After a few seconds you get a link like `https://some-random-words.trycloudflare.com`; **Copy link** to share it. The TV's join screen shows it too, with a QR code.
 3. In person, show the TV page (**Projector ↗**) on the room's screen as usual; its sound plays through that computer or the TV, as on the quiz Wi-Fi. Remote players either watch it shared with sound over a video call, or open the link + `/display` themselves and click **🔊 Enable sound**. Spotify music plays on the desk device or the Spotify app, so remote players only hear it through a shared call.
 4. Run the quiz as usual. Questions reach phones within about a tenth of a second, usually sooner than a shared screen, so remote players read them on their phones and use the shared screen for pictures, sound and the leaderboard.
-5. **Go offline** (or **Close PubQuiz**) ends it. Going online again makes a new link.
+5. **Go offline** (or **Close BeerMat**) ends it. Going online again makes a new link.
 
 The link reaches the players' page and the TV. The desk joins them only while **Desk on the online link** is on (off by default): then `<link>/host` runs the quiz from anywhere with the quizmaster key, so use a long, private one. Wrong keys are limited to 10 a minute per visitor and 30 a minute through the link altogether. From another device the quiz Wi-Fi can't be changed (its password prompt opens on the laptop); online quizzes don't need it. Spotify sign-in is only ever on the laptop. Anyone with the link can join, so turn on the waiting room (Room options) if it may travel beyond your friends. The link uses Cloudflare's free quick tunnels, made for testing and casual use; no Cloudflare account is needed. Spotify's terms cover personal listening, so streaming its music to other people is at your own risk.
 
@@ -210,11 +210,11 @@ Settings, join details, Spotify connection and question pictures and sounds are 
 Every finished quiz's results (team names, positions, points, answers right) stay on the laptop under **Past
 quizzes**, also after **End quiz & start next**; delete them there.
 
-After you **Finish quiz**, teams see **Keep this result in your PubQuiz profile** when PubQuiz Online is set up (in
-the PubQuiz Player app, always). It is the player's choice; the result is signed by this laptop so it can't be
+After you **Finish quiz**, teams see **Keep this result in your BeerMat profile** when BeerMat Online is set up (in
+the BeerMat app, always). It is the player's choice; the result is signed by this laptop so it can't be
 altered. For results to count towards players' statistics and badges, register this laptop with your venue on
-PubQuiz Online: the key is under **Past quizzes → PubQuiz Online**, or use the desk's **Venue** tab, which registers
-this laptop with one click once your venue is linked to your account (venues are added by PubQuiz, see
+BeerMat Online: the key is under **Past quizzes → BeerMat Online**, or use the desk's **Venue** tab, which registers
+this laptop with one click once your venue is linked to your account (venues are added by BeerMat, see
 docs/ONLINE.md). The Venue tab also edits your venue's page and pin on the app's map, and publishes your quiz nights. **Share results** (off by default) also sends
 each finished quiz's team names, positions and points to your venue's page; tell the room if you switch it on.
 Results wait on the laptop until the service can be reached. See [ONLINE.md](ONLINE.md).

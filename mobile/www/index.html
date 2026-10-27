@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0c1220">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#140b2e">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; connect-src *; style-src 'self'; script-src 'self'; base-uri 'none'">
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css"><link rel="stylesheet" href="app.css"><title>PubQuiz Player</title></head>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css"><link rel="stylesheet" href="app.css"><link rel="icon" href="/brand/mark.svg" type="image/svg+xml"><title>BeerMat</title></head>
 <body>
-<header class="bar"><h1>PubQuiz</h1><span id="offline" class="pill" hidden>Offline</span></header>
+<header class="bar"><h1><img class="logo" src="/brand/logo.svg" alt="BeerMat"></h1><span id="offline" class="pill" hidden>Offline</span></header>
 <p id="status" class="status" role="status" aria-live="polite"></p>
 <main>
 <section id="play" class="tab" aria-labelledby="tab-play">
@@ -17,11 +17,11 @@
 </section>
 <section id="profile" class="tab" aria-labelledby="tab-profile" hidden>
   <h2>Your profile</h2>
-  <p id="onlineMissing" class="card hint" hidden>PubQuiz Online isn’t set up in this copy of the app. You can still play every quiz as a guest.</p>
+  <p id="onlineMissing" class="card hint" hidden>BeerMat Online isn’t set up in this copy of the app. You can still play every quiz as a guest.</p>
   <div id="signedOut" hidden>
     <p class="hint">Optional. Keep your quiz results, see your statistics and earn badges. Your profile stays private unless you choose otherwise.</p>
     <form id="signInForm" class="card"><h3>Sign in</h3><label>Email<input id="signInEmail" type="email" autocomplete="email" required></label><label>Password<input id="signInPassword" type="password" autocomplete="current-password" required></label><button class="big">Sign in</button></form>
-    <form id="signUpForm" class="card"><h3>Create an account</h3><label>Name shown to others (if you allow it)<input id="signUpName" maxlength="40" autocomplete="nickname" required></label><label>Email<input id="signUpEmail" type="email" autocomplete="email" required></label><label>Password (10 characters or more)<input id="signUpPassword" type="password" minlength="10" autocomplete="new-password" required></label><label class="check"><input id="signUpConsent" type="checkbox" required> I agree that PubQuiz Online keeps my email, name and the quiz results I choose to save, until I delete my account.</label><button class="big">Create account</button></form>
+    <form id="signUpForm" class="card"><h3>Create an account</h3><label>Name shown to others (if you allow it)<input id="signUpName" maxlength="40" autocomplete="nickname" required></label><label>Email<input id="signUpEmail" type="email" autocomplete="email" required></label><label>Password (10 characters or more)<input id="signUpPassword" type="password" minlength="10" autocomplete="new-password" required></label><label class="check"><input id="signUpConsent" type="checkbox" required> I agree that BeerMat Online keeps my email, name and the quiz results I choose to save, until I delete my account.</label><button class="big">Create account</button></form>
   </div>
   <div id="signedIn" hidden>
     <div class="card me"><img id="avatar" class="avatar" alt="" hidden><div><strong id="meName"></strong><p id="meTeam" class="hint"></p></div></div>
@@ -31,10 +31,10 @@
     <h3>Badges</h3><ul id="badges" class="badges"></ul>
     <details class="card"><summary>Edit profile</summary><form id="editForm"><label>Name<input id="editName" maxlength="40" required></label><label>Usual team name<input id="editTeam" maxlength="40"></label><label class="file">Profile picture<input id="editPhoto" type="file" accept="image/*"></label><button id="removePhoto" type="button" class="subtle">Remove picture</button><button class="big">Save</button></form></details>
     <details class="card"><summary>Privacy</summary><p class="hint">All off until you switch them on.</p><label class="check"><input id="privLeaderboards" type="checkbox"> Show my name and results on public leaderboards</label><label class="check"><input id="privPhoto" type="checkbox"> Show my picture to others</label><label class="check"><input id="privHistory" type="checkbox"> Let others see my quiz history</label></details>
-    <details class="card"><summary>Your data</summary><button id="exportData" type="button">Download everything PubQuiz Online holds about you</button><button id="deleteAccount" type="button" class="danger">Delete my account and results</button></details>
+    <details class="card"><summary>Your data</summary><button id="exportData" type="button">Download everything BeerMat Online holds about you</button><button id="deleteAccount" type="button" class="danger">Delete my account and results</button></details>
     <button id="signOut" type="button" class="subtle">Sign out</button>
   </div>
-  <details class="card"><summary>Advanced</summary><label>PubQuiz Online address<input id="serviceUrl" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://…"></label><button id="saveService" type="button" class="subtle">Save</button></details>
+  <details class="card"><summary>Advanced</summary><label>BeerMat Online address<input id="serviceUrl" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://…"></label><button id="saveService" type="button" class="subtle">Save</button></details>
 </section>
 <section id="find" class="tab" aria-labelledby="tab-find" hidden>
   <h2>Find a quiz</h2>

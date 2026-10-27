@@ -1,4 +1,4 @@
-# PubQuiz for Windows and Linux
+# BeerMat for Windows and Linux
 
 The desktop app runs the whole quiz from one laptop: the quiz server, the quiz desk in its own window, and the TV
 display full screen on a second screen. Nothing else needs installing: no Node.js, terminal or browser.
@@ -10,9 +10,9 @@ each file's checksum).
 
 | System | File | How |
 |---|---|---|
-| Windows 10/11 | `PubQuiz Setup 0.4.0.exe` | Run it, choose where to install. Start menu and desktop shortcuts are added. |
-| Windows, no install | `PubQuiz-0.4.0-portable.exe` | Run it from anywhere (a USB stick). Data still goes in your user folder. |
-| Linux (CachyOS, Arch, Ubuntu, Fedora…) | `PubQuiz-0.4.0.AppImage` | `chmod +x PubQuiz-0.4.0.AppImage`, then run it. |
+| Windows 10/11 | `BeerMat Setup 0.4.0.exe` | Run it, choose where to install. Start menu and desktop shortcuts are added. |
+| Windows, no install | `BeerMat-0.4.0-portable.exe` | Run it from anywhere (a USB stick). Data still goes in your user folder. |
+| Linux (CachyOS, Arch, Ubuntu, Fedora…) | `BeerMat-0.4.0.AppImage` | `chmod +x BeerMat-0.4.0.AppImage`, then run it. |
 | Linux, unpacked | `pubquiz-0.4.0.tar.gz` | Unpack anywhere and run `pubquiz`. |
 
 The builds are **not code-signed yet**. Windows SmartScreen warns about an unknown publisher (More info → Run
@@ -25,13 +25,13 @@ the program folder, so they carry over. There is no automatic updater yet.
 
 The app makes a long random **quizmaster key** for you and keeps it in the system keychain (Windows: DPAPI; Linux:
 the Secret Service, e.g. KWallet or GNOME Keyring; if there is none, a file only your account can read). You only
-need it to open the desk somewhere else: **PubQuiz → Show quizmaster key**.
+need it to open the desk somewhere else: **BeerMat → Show quizmaster key**.
 
 It then asks how players will join:
 
 * **Venue Wi-Fi or network**: phones on the venue's own Wi-Fi open this laptop's address, shown on the TV with a
   QR code. Nothing on the router is changed.
-* **PubQuiz Wi-Fi from this laptop**: the laptop makes its own quiz Wi-Fi (see "Quiz Wi-Fi", below).
+* **BeerMat Wi-Fi from this laptop**: the laptop makes its own quiz Wi-Fi (see "Quiz Wi-Fi", below).
 
 You can change this any time on the desk under **How players join**.
 
@@ -66,10 +66,10 @@ yourself).
 
 * **Venue Wi-Fi / LAN**: under **How players join**, choose *On the venue's own Wi-Fi or network*, pick this
   laptop's address and type the venue's Wi-Fi name, then **Use for joining**. **Check the connection** tests that
-  PubQuiz answers on that address and looks for the usual blockers:
-  * *Windows Firewall*: the first time PubQuiz runs, Windows asks whether to allow it: tick **Private networks**. If
+  BeerMat answers on that address and looks for the usual blockers:
+  * *Windows Firewall*: the first time BeerMat runs, Windows asks whether to allow it: tick **Private networks**. If
     the venue's network is set to **Public**, Windows blocks phones: set it to Private (Settings → Network → the
-    network), or allow PubQuiz on Public networks.
+    network), or allow BeerMat on Public networks.
   * *Linux*: firewalld or ufw, if running, need the quiz port allowed (the check prints the command).
   * *Client isolation*: guest and public Wi-Fi often keeps devices apart, so phones cannot reach the laptop at all.
     Nothing on the laptop can fix that; ask for a network without it (often the staff Wi-Fi), or use the quiz Wi-Fi.
@@ -82,18 +82,20 @@ yourself).
     * Windows only starts it while the laptop is connected to some network (it shares that connection). A laptop
       with no network at all needs a network cable, a phone's hotspot or a second Wi-Fi adapter, or use the venue
       Wi-Fi instead. The desk says so when it happens.
-    * no administrator rights are needed; **Stop quiz Wi-Fi** or closing PubQuiz turns it off again.
+    * no administrator rights are needed; **Stop quiz Wi-Fi** or closing BeerMat turns it off again.
     * not every Wi-Fi card can share while connected; the desk shows Windows' reason when it refuses.
 * **Online**: **Go online**, as before. Install cloudflared first (Windows: `winget install Cloudflare.cloudflared`).
 
 ## Your data
+
+The folders keep the app's old name, PubQuiz, so quizzes, settings and the key carried over when it became BeerMat.
 
 | | Windows | Linux |
 |---|---|---|
 | Quiz database, media, sound pack, backups | `%APPDATA%\PubQuiz` | `~/.config/PubQuiz` |
 | Logs (`pubquiz.log`, `server.log`) | `%APPDATA%\PubQuiz\logs` | `~/.config/PubQuiz/logs` |
 
-**PubQuiz → Open data folder / Open logs** opens them.
+**BeerMat → Open data folder / Open logs** opens them.
 
 * The quiz saves as it goes. Each time the app starts it checks the database and keeps a copy in `backups/` (the
   newest ten).
@@ -108,10 +110,10 @@ yourself).
 
 * **The quiz server stops**: the app restarts it straight away and reloads the desk and TV; teams carry on where they
   were. After three failures in a minute it asks you, with a button to open the logs.
-* **Port in use**: if something else already uses port 3000 (another PubQuiz started from a terminal, say), the app
+* **Port in use**: if something else already uses port 3000 (another BeerMat started from a terminal, say), the app
   uses the next free port and tells you. The quiz Wi-Fi and the TV's join screen follow the new port.
-* **Opening PubQuiz twice** brings the open window to the front.
-* **The desk in a browser** (fallback, or a second device): **PubQuiz → Open the desk in a browser** and the
+* **Opening BeerMat twice** brings the open window to the front.
+* **The desk in a browser** (fallback, or a second device): **BeerMat → Open the desk in a browser** and the
   quizmaster key. The Linux scripts in `scripts/` also still work without the app.
 * **Spotify**: the app is built on castlabs' Electron for Content Security (Electron with Widevine), so the desk's own
   Spotify player (**🎵 Start Spotify player on this desk**) works inside the app. Widevine is Google's protected-media
@@ -122,15 +124,15 @@ yourself).
 
 Releases build themselves: push a tag matching `package.json`'s version (`git tag v0.4.0 && git push origin v0.4.0`)
 and `.github/workflows/release.yml` builds Windows (on Windows) and Linux, runs the tests, and publishes a GitHub
-release with the four files, the Android PubQuiz Player APK (docs/MOBILE.md) and their checksums. Running the
+release with the four files, the Android BeerMat app APK (docs/MOBILE.md) and their checksums. Running the
 workflow by hand (Actions → Release) builds without publishing; the files are on the run's page.
 
 To build by hand, you need Node 22.13+ and npm on the build machine only.
 
 ```bash
 npm ci
-npm run dist:linux        # dist/PubQuiz-<v>.AppImage and pubquiz-<v>.tar.gz
-npm run dist:win          # dist/PubQuiz Setup <v>.exe and PubQuiz-<v>-portable.exe (on Linux this uses Wine)
+npm run dist:linux        # dist/BeerMat-<v>.AppImage and pubquiz-<v>.tar.gz
+npm run dist:win          # dist/BeerMat Setup <v>.exe and BeerMat-<v>-portable.exe (on Linux this uses Wine)
 npm run desktop           # run from source
 ```
 

@@ -1,4 +1,4 @@
-// Signed quiz results. Each PubQuiz install has its own Ed25519 key (made on first use, kept in its database); a
+// Signed quiz results. Each BeerMat install has its own Ed25519 key (made on first use, kept in its database); a
 // team's result is signed with it, so the online service can check a result came from a quiz laptop and was not
 // typed in by a player. The service only trusts keys a venue has registered (docs/ONLINE.md).
 import {generateKeyPairSync, createPrivateKey, createPublicKey, sign, verify, createHash} from 'node:crypto';

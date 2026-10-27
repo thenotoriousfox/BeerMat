@@ -1,5 +1,5 @@
 // Makes this theme's sounds (sounds/) from scratch: pipe organ, church bells, theremin, a music box and timpani, all
-// synthesised here, so the files are PubQuiz's own (CC0, see CREDITS.md).
+// synthesised here, so the files are BeerMat's own (CC0, see CREDITS.md).
 // Needs ffmpeg. Run again after changing it: node themes/halloween/make-sounds.mjs
 import {writeFileSync, mkdirSync, rmSync, mkdtempSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';

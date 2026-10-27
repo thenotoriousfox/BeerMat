@@ -1,10 +1,13 @@
-/* PubQuiz Online admin console. */
+/* BeerMat Online admin console, in BeerMat's colours and type (brand/README.md). */
+@font-face { font-family: Fredoka; src: url(/brand/fredoka.woff2) format("woff2"); font-weight: 300 700; font-display: swap; }
+h1, h2, h3, .stat strong { font-family: Fredoka, system-ui, sans-serif; }
 :root {
-  --bg: #0b0920; --card: #191634; --card-2: #221e44; --line: rgba(255, 255, 255, .12); --text: #f3f0ff; --muted: #a9a3c9;
-  --gold: #ffc23d; --gold-2: #ff8a1f; --good: #34d399; --bad: #ff5470; --warn: #ffb547; --radius: 14px;
+  --bg: #140b2e; --card: #221447; --card-2: #2c1a58; --line: rgba(255, 243, 214, .13); --text: #fff8ec; --muted: #c8b9e4;
+  --gold: #ffb21a; --gold-2: #ff8a1f; --good: #34d399; --bad: #ff5470; --warn: #ffb547; --radius: 14px;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; min-height: 100vh; background: radial-gradient(80vmax 50vmax at 0% -10%, rgba(124, 58, 237, .35), transparent 60%), var(--bg); color: var(--text);
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 0 24px 48px; }
 code { background: var(--card-2); border-radius: 6px; padding: 1px 6px; font-size: .9em; }
@@ -14,7 +17,8 @@ h2 { font-size: 1.15rem; } h3 { font-size: .95rem; color: var(--muted); text-tra
 .muted { color: var(--muted); }
 .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 1180px; margin: 0 auto; padding: 22px 0 16px; }
 .eyebrow { color: var(--gold); font-weight: 800; font-size: .72rem; letter-spacing: .18em; text-transform: uppercase; }
-.top h1 { font-size: 1.7rem; }
+.top h1 { font-size: 1.1rem; color: var(--muted); margin: 0; }
+.brand-head { display: flex; align-items: center; gap: 16px; } .brand-head .logo { height: 54px; width: auto; }
 .who { display: flex; align-items: center; gap: 12px; color: var(--muted); }
 main, #console { max-width: 1180px; margin: 0 auto; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; margin: 16px 0; }

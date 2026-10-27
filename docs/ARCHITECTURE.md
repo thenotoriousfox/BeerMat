@@ -1,7 +1,7 @@
-# How PubQuiz fits together
+# How BeerMat fits together
 
-PubQuiz is one quiz engine with several ways in. A single laptop runs a whole quiz with no internet. The internet is
-only used for the things that cannot work without it: playing over a public link, and the optional PubQuiz Online
+BeerMat is one quiz engine with several ways in. A single laptop runs a whole quiz with no internet. The internet is
+only used for the things that cannot work without it: playing over a public link, and the optional BeerMat Online
 profiles and quiz listings.
 
 ```
@@ -13,10 +13,10 @@ profiles and quiz listings.
                    └─────────────────────────────────────────▲─────────────────────────────────────┘
                                                              │ http://10.42.0.1 · http://192.168.x.y:3000 · https://….trycloudflare.com
   Phones ── browser ─────────────────────────────────────────┤  the same player page (player.html)
-         └─ PubQuiz Player app (Capacitor) ── opens that page┘
+         └─ BeerMat app (Capacitor) ── opens that page┘
                                 │  optional, when online
                                 ▼
-                   PubQuiz Online (online/service.js): accounts, results signed by quiz laptops,
+                   BeerMat Online (online/service.js): accounts, results signed by quiz laptops,
                    statistics, achievements, venues, quiz listings
 ```
 
@@ -42,10 +42,10 @@ server from its own marking (`results.js`) and kept on the laptop across quizzes
 | Service | Where | Needs |
 |---|---|---|
 | Online quizzes over a public link | `laptop.js` (Cloudflare quick tunnel) | internet on the laptop, `cloudflared` |
-| Player accounts and profiles | `online/service.js` | a deployed PubQuiz Online |
+| Player accounts and profiles | `online/service.js` | a deployed BeerMat Online |
 | Results in profiles, statistics, achievements | `online/service.js`, `achievements.js` | the same |
 | Venue pages, quiz listings, favourites, reminders | `online/service.js`, `mobile/www` | the same |
-| Results shared by venues | desk **Past quizzes → PubQuiz Online**, sync outbox | the same, switched on by the quizmaster |
+| Results shared by venues | desk **Past quizzes → BeerMat Online**, sync outbox | the same, switched on by the quizmaster |
 | Future licensing | `edition.js` (a seam only; nothing enforced) | — |
 
 Nothing in the offline core waits for, or fails because of, an online service. Shared results wait in an outbox on
@@ -56,7 +56,7 @@ reached; sending twice never counts twice.
 
 * **A team** exists for one quiz on one laptop. It is identified by a private recovery code, held in the phone's
   browser storage. Teams are not people.
-* **A player account** lives in PubQuiz Online only. It is never needed to play, and the quiz laptop never sees it.
+* **A player account** lives in BeerMat Online only. It is never needed to play, and the quiz laptop never sees it.
 * **Linking the two** is the player's choice, after the quiz: the player page asks the laptop for the team's result,
   signed with the laptop's own key (`claims.js`); the player hands that to their profile. The claim holds a one-way
   team reference (not the recovery code), the team name, position, points and counts. Several players in one team can
@@ -65,7 +65,7 @@ reached; sending twice never counts twice.
 ## Trust
 
 * A result's numbers come only from a quiz laptop's signature; a player cannot type or alter them.
-* A laptop key counts once a venue operator has registered it to their venue in PubQuiz Online. Results from an
+* A laptop key counts once a venue operator has registered it to their venue in BeerMat Online. Results from an
   unregistered laptop are kept but do not count towards statistics or achievements.
 * Public leaderboards use only venues the service has verified, and only players who opted in.
 
@@ -74,8 +74,8 @@ reached; sending twice never counts twice.
 ```
 server.js model.js …     quiz server and pages (unchanged locations, so the Linux scripts keep working)
 desktop/                 Electron app: main process, quiz server process, screens, data safety
-mobile/                  PubQuiz Player: www/ (the app's own screens), android/, ios/ (Capacitor)
-online/                  PubQuiz Online service, its client, admin jobs
+mobile/                  BeerMat app: www/ (the app's own screens), android/, ios/ (Capacitor)
+online/                  BeerMat Online service, its client, admin jobs
 scripts/                 Linux launcher and hotspot, Windows hotspot, bingo caller and test-quiz tools
 tests/                   node --test suites, Playwright browser/desktop/mobile runs, Python hotspot tests
 docs/                    guides (this file, QUIZMASTER, DESKTOP, MOBILE, ONLINE, TESTING, AUDIT)

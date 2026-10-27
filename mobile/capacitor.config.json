@@ -1,6 +1,6 @@
 {
   "appId": "uk.pubquiz.player",
-  "appName": "PubQuiz Player",
+  "appName": "BeerMat",
   "webDir": "www",
   "server": {
     "androidScheme": "http",

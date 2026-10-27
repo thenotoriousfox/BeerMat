@@ -23,7 +23,7 @@ test('every translated string used by the phone and TV pages is in the dictionar
     const html = readFileSync(new URL(`../${page}`, import.meta.url), 'utf8').replace(/<(script|title)[\s\S]*?<\/\1>/g, '');
     for (const [, text] of html.matchAll(/>([^<]*[A-Za-z][^<]*)</g)) {
       const trimmed = text.trim();
-      if (trimmed && !/^(PubQuiz|http:\/\/\S+)$/.test(trimmed)) assert.ok(trimmed in dictionary, `${page}: ${trimmed}`);
+      if (trimmed && !/^(BeerMat|http:\/\/\S+)$/.test(trimmed)) assert.ok(trimmed in dictionary, `${page}: ${trimmed}`);
     }
   }
 });

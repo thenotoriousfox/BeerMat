@@ -1,4 +1,4 @@
-// PubQuiz Online's admin console: venues, accounts and an overview, through the admin API (online/service.js).
+// BeerMat Online's admin console: venues, accounts and an overview, through the admin API (online/service.js).
 // The session token is kept for this browser tab only.
 const $ = id => document.getElementById(id);
 const el = (tag, text, className) => {const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (className) e.className = className; return e;};
@@ -113,7 +113,7 @@ function openVenue(v) {
 function fillExtras(v) {
   editing = v;
   $('vVerified').checked = v.verified;
-  $('vOperator').textContent = v.operator ? `Run by ${v.operator.name} (${v.operator.email}): they edit this venue and its quiz nights from their quiz desk.` : 'No operator yet. Link the account of whoever runs the quiz here; they sign up in the PubQuiz Player app or on their quiz desk first.';
+  $('vOperator').textContent = v.operator ? `Run by ${v.operator.name} (${v.operator.email}): they edit this venue and its quiz nights from their quiz desk.` : 'No operator yet. Link the account of whoever runs the quiz here; they sign up in the BeerMat app or on their quiz desk first.';
   $('vUnlink').hidden = !v.operator; $('vOperatorEmail').value = '';
   const row = (text, button) => {const li = el('li', text); if (button) li.append(button); return li;};
   const remove = (label, fn, done, ask) => {const b = el('button', label, 'ghost small'); b.type = 'button'; b.onclick = guarded(async () => {if (ask && !confirm(ask)) return false; await fn(); await loadVenues();}, done); return b;};

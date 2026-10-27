@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Puts PubQuiz Online on a fresh Ubuntu 22.04/24.04 server (an Oracle Cloud Always Free VM, or any VPS), from this
+# Puts BeerMat Online on a fresh Ubuntu 22.04/24.04 server (an Oracle Cloud Always Free VM, or any VPS), from this
 # repository on your own machine:
 #   online/deploy.sh ubuntu@<server ip> [domain]
 # Without a domain it uses <ip>.sslip.io, a free name that points at the server's IP. Run it again to update the
@@ -22,6 +22,7 @@ stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/online" "$stage/mobile"
 cp "$repo/online/service.js" "$repo/online/client.js" "$repo/online/admin.js" "$stage/online/"
 cp "$repo/claims.js" "$repo/achievements.js" "$repo/venues.js" "$stage/"
+mkdir -p "$stage/brand" && cp "$repo"/brand/*.svg "$repo/brand/fredoka.woff2" "$stage/brand/"
 cp -r "$repo/mobile/www" "$stage/mobile/"
 cp -r "$repo/online/admin" "$stage/online/"
 printf '{"private": true, "type": "module"}\n' > "$stage/package.json"
@@ -56,7 +57,7 @@ rm -rf /opt/pubquiz-online && mv /tmp/pubquiz-online /opt/pubquiz-online && chow
 
 cat > /etc/systemd/system/pubquiz-online.service <<'UNIT'
 [Unit]
-Description=PubQuiz Online
+Description=BeerMat Online
 After=network-online.target
 Wants=network-online.target
 
@@ -80,7 +81,7 @@ UNIT
 
 cat > /etc/systemd/system/pubquiz-online-backup.service <<'UNIT'
 [Unit]
-Description=Back up the PubQuiz Online database
+Description=Back up the BeerMat Online database
 
 [Service]
 Type=oneshot
@@ -88,7 +89,7 @@ ExecStart=/bin/sh -c 'sqlite3 /var/lib/pubquiz-online/online.sqlite ".backup /va
 UNIT
 cat > /etc/systemd/system/pubquiz-online-backup.timer <<'UNIT'
 [Unit]
-Description=Nightly PubQuiz Online backup
+Description=Nightly BeerMat Online backup
 
 [Timer]
 OnCalendar=*-*-* 04:00
@@ -122,4 +123,4 @@ REMOTE
 
 echo "Waiting for HTTPS on https://$domain …"
 for _ in $(seq 30); do curl -fsS "https://$domain/health" >/dev/null 2>&1 && break; sleep 5; done
-curl -fsS "https://$domain/health" && echo && echo "PubQuiz Online is up: https://$domain"
+curl -fsS "https://$domain/health" && echo && echo "BeerMat Online is up: https://$domain"

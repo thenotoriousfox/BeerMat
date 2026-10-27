@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Loads a rehearsal quiz into a running PubQuiz server: six rounds that between them use every question format
+// Loads a rehearsal quiz into a running BeerMat server: six rounds that between them use every question format
 // and the main options (Evil Mode, fastest fingers first, go wide, buzzers, bingo, clips, music bingo, a sheet).
 // Every picture and sound is generated here, so nothing needs downloading.
 //

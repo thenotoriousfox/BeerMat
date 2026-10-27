@@ -1,4 +1,4 @@
-// The player side of PubQuiz Online, for the phone app and the web app: signing in, the profile, saving quiz results
+// The player side of BeerMat Online, for the phone app and the web app: signing in, the profile, saving quiz results
 // and finding quizzes. Works offline: results wait in an outbox until the service can be reached (sending one twice
 // never counts it twice), and quiz listings come from the last search, marked as possibly out of date.
 // No Node or browser-only APIs beyond fetch and a storage object with getItem/setItem/removeItem (localStorage).
@@ -10,15 +10,15 @@ export function createOnlineClient({baseUrl, venueListUrl = '', fetch = globalTh
   const base = () => (read('baseUrl', null) || baseUrl || '').replace(/\/$/, '');
 
   async function api(method, route, body, {headers = {}} = {}) {
-    if (!base()) throw Object.assign(Error('PubQuiz Online is not set up in this app'), {offline: true});
+    if (!base()) throw Object.assign(Error('BeerMat Online is not set up in this app'), {offline: true});
     let response;
     try {
       response = await fetch(base() + route, {method, headers: {'Content-Type': 'application/json', ...(read('token', null) ? {Authorization: 'Bearer ' + read('token', null)} : {}), ...headers},
         ...(body === undefined ? {} : {body: JSON.stringify(body)}), signal: AbortSignal.timeout(timeout)});
-    } catch {throw Object.assign(Error('No connection to PubQuiz Online'), {offline: true});}
+    } catch {throw Object.assign(Error('No connection to BeerMat Online'), {offline: true});}
     const data = await response.json().catch(() => ({}));
     if (response.status === 401 && route !== '/v1/sessions') write('token', null);
-    if (!response.ok) throw Object.assign(Error(data.error || `PubQuiz Online said ${response.status}`), {status: response.status});
+    if (!response.ok) throw Object.assign(Error(data.error || `BeerMat Online said ${response.status}`), {status: response.status});
     return data;
   }
   const signedIn = () => !!read('token', null);

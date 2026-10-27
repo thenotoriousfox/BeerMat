@@ -1,4 +1,4 @@
-Output the quiz as a quiz file for **PubQuiz**, an offline pub quiz system: the quizmaster loads it on the desk (**Build quiz → Load a quiz file**) and it runs on phones and a TV. The file is a single JSON document in the format below, which PubQuiz checks when it loads. Return only the JSON, with no commentary and no Markdown fences, unless you are asked otherwise.
+Output the quiz as a quiz file for **BeerMat**, an offline pub quiz system: the quizmaster loads it on the desk (**Build quiz → Load a quiz file**) and it runs on phones and a TV. The file is a single JSON document in the format below, which BeerMat checks when it loads. Return only the JSON, with no commentary and no Markdown fences, unless you are asked otherwise.
 
 ## File shape
 
@@ -37,7 +37,7 @@ Optional on most types:
   - On fastest-fingers questions the TV shows the fastest correct team large at the reveal.
 - `evil: true` (Evil Mode): a wrong answer *loses* the question's points.
 
-`evil` and `"bonusMode": "fixed"` only work on questions PubQuiz can mark by itself. Those are:
+`evil` and `"bonusMode": "fixed"` only work on questions BeerMat can mark by itself. Those are:
 - multi, sequence, pinpoint, wordsnake and tiles;
 - text, choice, letter, number, picture and audio, but only when they have an `answer`.
 
@@ -48,7 +48,7 @@ Optional on most types:
 - `multi`: tick every correct option. `options` as above, plus `correct`: 1 or more of the options, written exactly as in `options`. Score = right ticks minus wrong ticks, as a share of `points`.
 - `letter`: teams tap the first letter of the answer. `answer` is one letter A–Z. Put the full answer in `answerNote`.
 - `number`: `answer` is a plain number such as `"6"`, `"1066"` or `"3.14"`. Use no commas, units or words. Marked as an exact match.
-- `sequence`: put items in order. `items`: 2–8 distinct strings, **written in the correct order** (PubQuiz shuffles them). Don't give an `answer`.
+- `sequence`: put items in order. `items`: 2–8 distinct strings, **written in the correct order** (BeerMat shuffles them). Don't give an `answer`.
 - `vote`: an opinion poll with `options` (2–8) and no answer. Votes score nothing.
 
 **Typed answers:**
@@ -114,10 +114,10 @@ Optional on most types:
 
 `picture`, `audio` (unless it has a Spotify `clip`), `pinpoint` and `sheet` questions, `clips` and music-bingo songs can carry a file as a **data URL** in `media`, e.g. `"data:image/png;base64,…"`.
 - Allowed types are PNG, JPEG, WebP, MP3, Ogg and WAV, each up to 20 MB.
-- PubQuiz uploads them when the file is loaded.
+- BeerMat uploads them when the file is loaded.
 - Media must be real files; a `picture` or `pinpoint` question without one, or an `audio` question with neither a file nor a `clip`, won't load.
 
-Spotify links must be real tracks: PubQuiz plays whatever track the id points to.
+Spotify links must be real tracks: BeerMat plays whatever track the id points to.
 
 ## Example
 
@@ -160,7 +160,7 @@ Spotify links must be real tracks: PubQuiz plays whatever track the id points to
 - [ ] `number` and `nearest` answers are plain numbers; `letter` answers are one letter.
 - [ ] `sequence` items are listed in the correct order.
 - [ ] `speedBonus` only appears with `fastestFingers: true`, and only on the types listed.
-- [ ] `evil` and `"bonusMode": "fixed"` only appear on questions PubQuiz marks itself.
+- [ ] `evil` and `"bonusMode": "fixed"` only appear on questions BeerMat marks itself.
 - [ ] Music bingo has 15–300 songs with different titles, each with `title`, `spotify`, `start` and `seconds`.
 - [ ] Every clip has `spotify`, `start` and `seconds` (or real `media`); every `audio` question has a `clip` or real `media`.
 - [ ] Any `itemAliases` has one list per sheet item; `partScoring` is `each`, `split` or `all`.

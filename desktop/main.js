@@ -1,4 +1,4 @@
-// PubQuiz for Windows and Linux: runs the quiz server, shows the quiz desk in its own window and the TV display full
+// BeerMat for Windows and Linux: runs the quiz server, shows the quiz desk in its own window and the TV display full
 // screen on a second screen. No terminal, browser or Node.js install needed.
 //
 // Processes: this main process (windows, menus, files) holds no quiz data; the quiz server runs in a utility process
@@ -16,8 +16,10 @@ import {restoreDatabase} from './database.js';
 import {pickOutput, sinkScript, listScript} from './sound.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-// Tests (and a portable copy) can keep everything in one folder.
-if (process.env.PUBQUIZ_USER_DATA) app.setPath('userData', process.env.PUBQUIZ_USER_DATA);
+// Quizzes, settings, the quizmaster key and logs stay in the folder the app had before it was called BeerMat
+// (%APPDATA%\PubQuiz, ~/.config/PubQuiz), so they carry over. Tests (and a portable copy) can use one folder of their own.
+app.setPath('userData', process.env.PUBQUIZ_USER_DATA || path.join(app.getPath('appData'), 'PubQuiz'));
+app.setAppLogsPath(path.join(app.getPath('userData'), 'logs'));
 // Wayland does not let a window choose its screen, which the TV window must; XWayland does. The display system is
 // chosen before this file runs, so on a Wayland desktop the app starts itself again on X11 (PUBQUIZ_WAYLAND=1 opts out).
 const toX11 = process.platform === 'linux' && process.env.DISPLAY && (process.env.WAYLAND_DISPLAY || process.env.XDG_SESSION_TYPE === 'wayland') && process.env.PUBQUIZ_WAYLAND !== '1' && !process.argv.some(a => a.startsWith('--ozone-platform'));
@@ -46,7 +48,7 @@ function run() {
   function startServer() {
     return new Promise((resolve, reject) => {
       info = null;
-      const child = utilityProcess.fork(path.join(here, 'server-host.js'), [], {serviceName: 'PubQuiz quiz server', stdio: 'pipe',
+      const child = utilityProcess.fork(path.join(here, 'server-host.js'), [], {serviceName: 'BeerMat quiz server', stdio: 'pipe',
         env: {...process.env, HOST_KEY: key, PUBQUIZ_DATA: data, PORT: String(prefs.get().port), ...(test ? {PUBQUIZ_LAPTOP: process.env.PUBQUIZ_LAPTOP || '0'} : {})}});
       server = child;
       for (const stream of [child.stdout, child.stderr]) stream?.on('data', text => serverLog(String(text).trimEnd()));
@@ -84,7 +86,7 @@ function run() {
       log(`Restarting the quiz server (crash ${crashes.length} in the last minute)`);
       try {await startServer(); await reloadWindows(); return;} catch (e) {log('Restart failed', e);}
     }
-    const {response} = await dialog.showMessageBox(desk && !desk.isDestroyed() ? desk : null, {type: 'error', title: 'PubQuiz', message: 'The quiz server keeps stopping',
+    const {response} = await dialog.showMessageBox(desk && !desk.isDestroyed() ? desk : null, {type: 'error', title: 'BeerMat', message: 'The quiz server keeps stopping',
       detail: `Your quiz is saved and nothing has been lost. Open the logs to see why, or try again.\n(Last exit code: ${code})`, buttons: ['Try again', 'Open logs', 'Quit'], defaultId: 0, cancelId: 2});
     if (response === 0) {crashes = []; try {await startServer(); await reloadWindows();} catch (e) {crashed(e.message);}}
     else if (response === 1) {shell.openPath(app.getPath('logs')); crashed(code);}
@@ -108,13 +110,13 @@ function run() {
     const {ticket} = await ask('ticket');
     if (!desk || desk.isDestroyed()) {
       const area = screen.getPrimaryDisplay().workArea;
-      desk = new BrowserWindow({show: false, ...area, minWidth: 900, minHeight: 600, title: 'PubQuiz', icon, backgroundColor: '#0c1220',
+      desk = new BrowserWindow({show: false, ...area, minWidth: 900, minHeight: 600, title: 'BeerMat', icon, backgroundColor: '#0c1220',
         webPreferences: secure({preload: path.join(here, 'preload.cjs'), partition: 'persist:desk'})});
       desk.once('ready-to-show', () => {desk.maximize(); desk.show();});
       desk.on('close', event => {
         if (quitting) return;
         event.preventDefault();
-        const choice = dialog.showMessageBoxSync(desk, {type: 'question', title: 'PubQuiz', message: 'Close PubQuiz?', detail: 'The quiz is saved and carries on where it was next time. Phones lose the quiz until PubQuiz is open again.', buttons: ['Close PubQuiz', 'Cancel'], defaultId: 1, cancelId: 1});
+        const choice = dialog.showMessageBoxSync(desk, {type: 'question', title: 'BeerMat', message: 'Close BeerMat?', detail: 'The quiz is saved and carries on where it was next time. Phones lose the quiz until BeerMat is open again.', buttons: ['Close BeerMat', 'Cancel'], defaultId: 1, cancelId: 1});
         if (choice === 0) app.quit();
       });
       desk.webContents.on('render-process-gone', (_, details) => {log('Desk page stopped', details); if (!quitting) setTimeout(() => desk?.reload(), 1000);});
@@ -124,7 +126,7 @@ function run() {
     await desk.loadURL(`${origin()}/host#ticket=${ticket}`);
   }
   function openAudience({fullscreen, bounds}) {
-    const tv = new BrowserWindow({...(bounds || {width: 960, height: 540}), fullscreen, title: 'PubQuiz — TV', icon, backgroundColor: '#000000', autoHideMenuBar: true,
+    const tv = new BrowserWindow({...(bounds || {width: 960, height: 540}), fullscreen, title: 'BeerMat — TV', icon, backgroundColor: '#000000', autoHideMenuBar: true,
       webPreferences: secure({partition: 'audience', autoplayPolicy: 'no-user-gesture-required'})});
     tv.setMenuBarVisibility(false);
     // The TV page waits for a click before it makes sound (a browser rule); the app clicks it once.
@@ -216,9 +218,9 @@ function run() {
     return result.file;
   }
   async function restore() {
-    const {canceled, filePaths} = await dialog.showOpenDialog(desk, {title: 'Restore a quiz backup', filters: [{name: 'PubQuiz backup', extensions: ['sqlite']}], defaultPath: path.join(data, 'backups'), properties: ['openFile']});
+    const {canceled, filePaths} = await dialog.showOpenDialog(desk, {title: 'Restore a quiz backup', filters: [{name: 'BeerMat backup', extensions: ['sqlite']}], defaultPath: path.join(data, 'backups'), properties: ['openFile']});
     if (canceled || !filePaths[0]) return false;
-    const confirm = await dialog.showMessageBox(desk, {type: 'warning', title: 'PubQuiz', message: 'Replace the current quiz with this backup?', detail: `${path.basename(filePaths[0])}\n\nThe current quiz is backed up first. Phones reconnect by themselves.`, buttons: ['Restore', 'Cancel'], defaultId: 1, cancelId: 1});
+    const confirm = await dialog.showMessageBox(desk, {type: 'warning', title: 'BeerMat', message: 'Replace the current quiz with this backup?', detail: `${path.basename(filePaths[0])}\n\nThe current quiz is backed up first. Phones reconnect by themselves.`, buttons: ['Restore', 'Cancel'], defaultId: 1, cancelId: 1});
     if (confirm.response !== 0) return false;
     quitting = true;
     try {
@@ -227,7 +229,7 @@ function run() {
       log('Restored backup', filePaths[0]);
     } catch (e) {
       log('Restore failed', e);
-      dialog.showErrorBox('PubQuiz', `That backup could not be restored: ${e.message}. The current quiz is unchanged.`);
+      dialog.showErrorBox('BeerMat', `That backup could not be restored: ${e.message}. The current quiz is unchanged.`);
     } finally {
       quitting = false;
       await startServer(); await reloadWindows();
@@ -246,16 +248,16 @@ function run() {
   function menu() {
     const tv = screens.info();
     const template = [
-      {label: 'PubQuiz', submenu: [
+      {label: 'BeerMat', submenu: [
         {label: 'Open the desk in a browser (fallback)', click: openInBrowser},
         {label: 'Show quizmaster key…', click: showKey},
         {type: 'separator'},
-        {label: 'Back up the quiz…', click: () => backup().catch(e => dialog.showErrorBox('PubQuiz', e.message))},
+        {label: 'Back up the quiz…', click: () => backup().catch(e => dialog.showErrorBox('BeerMat', e.message))},
         {label: 'Restore a backup…', click: () => restore()},
         {label: 'Open data folder', click: () => shell.openPath(data)},
         {label: 'Open logs', click: () => shell.openPath(app.getPath('logs'))},
         {type: 'separator'},
-        {role: 'quit', label: 'Close PubQuiz'},
+        {role: 'quit', label: 'Close BeerMat'},
       ]},
       {label: 'TV', submenu: [
         {label: tv.open ? 'Close the TV window' : tv.windowed ? 'Preview the TV in a window' : 'Show the TV on the second screen', accelerator: 'F7', click: () => tv.open ? screens.close() : screens.open()},
@@ -274,9 +276,9 @@ function run() {
   // First run: how players join; the TV screen is automatic.
   async function welcome() {
     if (prefs.get().welcomed || test) return;
-    const {response} = await dialog.showMessageBox(desk, {type: 'question', title: 'Welcome to PubQuiz', message: 'How will players join your quizzes?',
-      detail: 'Venue Wi-Fi: phones on the venue’s own Wi-Fi open this laptop’s address.\nPubQuiz Wi-Fi: this laptop makes its own quiz Wi-Fi, no internet needed.\n\nYou can change this any time under “How players join”. A TV or projector plugged in as a second screen shows the quiz by itself.',
-      buttons: ['Venue Wi-Fi or network', 'PubQuiz Wi-Fi from this laptop', 'Decide later'], defaultId: 0, cancelId: 2});
+    const {response} = await dialog.showMessageBox(desk, {type: 'question', title: 'Welcome to BeerMat', message: 'How will players join your quizzes?',
+      detail: 'Venue Wi-Fi: phones on the venue’s own Wi-Fi open this laptop’s address.\nBeerMat Wi-Fi: this laptop makes its own quiz Wi-Fi, no internet needed.\n\nYou can change this any time under “How players join”. A TV or projector plugged in as a second screen shows the quiz by itself.',
+      buttons: ['Venue Wi-Fi or network', 'BeerMat Wi-Fi from this laptop', 'Decide later'], defaultId: 0, cancelId: 2});
     try {
       if (response === 0) {
         const network = await hostApi('network'), address = network.addresses.find(a => a.kind === 'lan');
@@ -291,13 +293,13 @@ function run() {
   app.on('before-quit', event => {
     if (quitting || !server) return;
     event.preventDefault(); quitting = true;
-    log('Closing PubQuiz');
+    log('Closing BeerMat');
     stopServer(true).finally(() => app.quit());
   });
   app.on('window-all-closed', () => app.quit());
 
   app.whenReady().then(async () => {
-    log(`PubQuiz ${app.getVersion()} starting (Electron ${process.versions.electron}, ${process.platform}); data in ${data}`);
+    log(`BeerMat ${app.getVersion()} starting (Electron ${process.versions.electron}, ${process.platform}); data in ${data}`);
     lockDown();
     // castlabs' Electron fetches Widevine (Google's protected-media module) by itself, the first time with internet; the
     // desk's Spotify player needs it. The quiz never waits for it. Plain Electron has no `components`.
@@ -310,13 +312,13 @@ function run() {
       menu();
       await openDesk();
       screens.start();
-      if (info.port !== prefs.get().port) dialog.showMessageBox(desk, {type: 'warning', title: 'PubQuiz', message: `Port ${prefs.get().port} is in use, so PubQuiz is on port ${info.port}`, detail: 'Another program (or another copy of PubQuiz started from a terminal) is using the usual port. Phones still join with the address on the TV; the PubQuiz Wi-Fi sends phones to the new port.'});
-      if (info.prepared.state === 'recovered' || info.prepared.state === 'reset') dialog.showMessageBox(desk, {type: 'warning', title: 'PubQuiz', message: info.prepared.state === 'recovered' ? 'The quiz database was damaged, so PubQuiz restored the newest backup' : 'The quiz database was damaged and there was no backup, so PubQuiz started a new one',
+      if (info.port !== prefs.get().port) dialog.showMessageBox(desk, {type: 'warning', title: 'BeerMat', message: `Port ${prefs.get().port} is in use, so BeerMat is on port ${info.port}`, detail: 'Another program (or another copy of BeerMat started from a terminal) is using the usual port. Phones still join with the address on the TV; the BeerMat Wi-Fi sends phones to the new port.'});
+      if (info.prepared.state === 'recovered' || info.prepared.state === 'reset') dialog.showMessageBox(desk, {type: 'warning', title: 'BeerMat', message: info.prepared.state === 'recovered' ? 'The quiz database was damaged, so BeerMat restored the newest backup' : 'The quiz database was damaged and there was no backup, so BeerMat started a new one',
         detail: `${info.prepared.problem}. The damaged file is kept at ${info.prepared.kept}.`});
       await welcome();
     } catch (e) {
       log('Start failed', e);
-      dialog.showErrorBox('PubQuiz could not start', `${e.message}\n\nThe logs are in ${app.getPath('logs')}.`);
+      dialog.showErrorBox('BeerMat could not start', `${e.message}\n\nThe logs are in ${app.getPath('logs')}.`);
       quitting = true; app.exit(1);
     }
   });

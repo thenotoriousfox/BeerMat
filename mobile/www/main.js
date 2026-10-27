@@ -1,6 +1,6 @@
-// PubQuiz Player: the app's own screens around the quiz. Play opens a quiz's player page (served by the quiz laptop,
-// the same page phone browsers get); Profile and Find a quiz use PubQuiz Online when it is set up and reachable.
-// The same files run as the web app PubQuiz Online serves at /app/, without the phone-only extras.
+// BeerMat: the app's own screens around the quiz. Play opens a quiz's player page (served by the quiz laptop,
+// the same page phone browsers get); Profile and Find a quiz use BeerMat Online when it is set up and reachable.
+// The same files run as the web app BeerMat Online serves at /app/, without the phone-only extras.
 import {createOnlineClient} from './shared/online-client.js';
 import {badges} from './shared/achievements.js';
 import {parseScan, normaliseAddress, readClaim, remember, calendarFile} from './join.js';
@@ -12,7 +12,7 @@ const platform = window.Capacitor?.getPlatform?.() || 'web';
 // Native plugins when the app has them; null in the web app.
 const plugin = name => native ? window.Capacitor.Plugins?.[name] || window.Capacitor.registerPlugin?.(name) || null : null;
 const store = {get: (k, d) => {try {return JSON.parse(localStorage.getItem(k)) ?? d;} catch {return d;}}, set: (k, v) => {try {localStorage.setItem(k, JSON.stringify(v));} catch {}}};
-// As the web app (served by PubQuiz Online at /app/), the service is wherever the page came from.
+// As the web app (served by BeerMat Online at /app/), the service is wherever the page came from.
 const client = createOnlineClient({baseUrl: location.protocol.startsWith('http') && location.pathname.startsWith('/app/') ? location.origin : onlineService, venueListUrl, storage: localStorage});
 const say = (text, error = false) => {$('status').textContent = text; $('status').classList.toggle('error', error);};
 const el = (tag, text, className) => {const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (className) e.className = className; return e;};
@@ -93,7 +93,7 @@ async function takeClaim() {
   const claim = readClaim(location.hash);
   if (!claim) return;
   history.replaceState(null, '', location.pathname);
-  if (!client.baseUrl) {show('profile'); return say('PubQuiz Online isn’t set up, so the result can’t be kept.', true);}
+  if (!client.baseUrl) {show('profile'); return say('BeerMat Online isn’t set up, so the result can’t be kept.', true);}
   const result = await client.saveResult(claim);
   show('profile');
   say(result.sent ? `Saved: ${claim.result.name}, ${claim.title}.` : client.signedIn() ? 'Kept on this phone. It will be saved when you’re back online.' : 'Kept on this phone. Sign in or create an account to save it.');
@@ -159,7 +159,7 @@ $('exportData').onclick = guarded(async () => {
   link.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'})); link.download = 'pubquiz-online-data.json'; link.click();
 });
 $('deleteAccount').onclick = guarded(async () => {
-  if (!confirm('Delete your PubQuiz Online account, profile and saved results? This cannot be undone.')) return;
+  if (!confirm('Delete your BeerMat Online account, profile and saved results? This cannot be undone.')) return;
   await client.deleteAccount(); say('Account deleted'); renderProfile();
 });
 $('saveService').onclick = guarded(async () => {
@@ -172,7 +172,7 @@ $('saveService').onclick = guarded(async () => {
 let lastSearch = null;
 async function search(params) {
   lastSearch = params;
-  if (!client.baseUrl) return say('PubQuiz Online isn’t set up, so quiz listings aren’t available. Ask your venue for its quiz nights.', true);
+  if (!client.baseUrl) return say('BeerMat Online isn’t set up, so quiz listings aren’t available. Ask your venue for its quiz nights.', true);
   say('Searching…');
   try {
     const found = await client.findEvents(params);
@@ -211,7 +211,7 @@ async function reminder(event) {
   const notifications = plugin('LocalNotifications');
   if (notifications) {
     const {display} = await notifications.requestPermissions();
-    if (display !== 'granted') return say('Notifications are switched off for PubQuiz in your phone’s settings.', true);
+    if (display !== 'granted') return say('Notifications are switched off for BeerMat in your phone’s settings.', true);
     const at = new Date(Math.max(event.startsAt - 2 * 3600000, Date.now() + 60000));
     await notifications.schedule({notifications: [{id: Math.abs([...event.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)), title: `${event.title} at ${event.venue.name}`, body: `Starts ${when(event.startsAt)}`, schedule: {at}}]});
     return say(`Reminder set for ${when(at)}`);
@@ -248,7 +248,7 @@ function renderDays() {
 }
 const quizOn = (v, d) => v.quizNights?.some(n => n.day === d) || (v.next && weekday(v.next.startsAt) === d);
 
-// ---- The map: every venue (PubQuiz Online, or the venue list on GitHub when it can't be reached) ----
+// ---- The map: every venue (BeerMat Online, or the venue list on GitHub when it can't be reached) ----
 // OpenStreetMap's tiles, loaded only while this tab is open; the map never sends the player's location anywhere.
 let map = null, markers = null, shownVenue = null, mapVenues = null;
 // A map pin: gold with a question mark for venues with a quiz night, slate for the rest; bigger when chosen.
@@ -307,7 +307,7 @@ async function showVenue(v) {
     const next = page.events.find(e => !dayFilter || weekday(e.startsAt) === dayFilter);
     renderEvents(next ? [next] : [], upcoming);
     if (!next) upcoming.append(el('li', dayFilter && page.events.length ? `None on a ${dayName(dayFilter)} yet.` : 'None published yet.', 'hint'));
-  } catch {upcoming.replaceChildren(el('li', 'The next quiz needs a connection to PubQuiz Online.', 'hint'));}
+  } catch {upcoming.replaceChildren(el('li', 'The next quiz needs a connection to BeerMat Online.', 'hint'));}
 }
 async function renderFavourites() {
   let list = store.get('pq-favourites', []);

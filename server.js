@@ -20,6 +20,7 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(24).toString('hex');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const equal = (a, b) => typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+const brandFiles = new Set(['mark.svg', 'logo.svg', 'logo-stacked.svg', 'wordmark.svg', 'mark-print.svg', 'logo-print.svg', 'fredoka.woff2']);
 const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.svg': 'image/svg+xml', '.woff2': 'font/woff2'};
 const security = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; media-src 'self'; img-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"};
 // Only the quiz desk may load Spotify's Web Playback SDK (its script, its hidden player frame and the audio it streams).
@@ -61,7 +62,7 @@ function loadPack(dir, prefix) {
   return {slots, themes, buzzers, calls, voice: voice.some(Boolean) ? voice : null};
 }
 
-// PubQuiz Online (online/service.js, deployed by online/deploy.sh). Only used when the quizmaster shares results or
+// BeerMat Online (online/service.js, deployed by online/deploy.sh). Only used when the quizmaster shares results or
 // runs their venue from the desk.
 export const onlineDefault = 'https://130-162-161-81.sslip.io';
 
@@ -127,12 +128,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', joinMode: 'hotspot', joinPassword: '', shareResults: false, onlineService: onlineDefault, scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, bingoBoard: false, teamPhotos: true, language: 'en', onlineAfterJoin: true, deskOnline: false, waitingRoom: true, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {}};
+  const defaultSettings = {title: 'BeerMat', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'BeerMat', joinUrl: 'http://10.42.0.1', joinMode: 'hotspot', joinPassword: '', shareResults: false, onlineService: onlineDefault, scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, bingoBoard: false, teamPhotos: true, language: 'en', onlineAfterJoin: true, deskOnline: false, waitingRoom: true, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {}};
   const SOUNDS = 8;
   // Sound effects for the TV and extra buzzer sounds, both from the quizmaster's own files; custom bingo calls (1–90).
   // This laptop's sound pack (soundpack/) supplies the defaults until the desk changes them; a desk choice of
   // the built-in bingo calls is stored as null.
-  // PubQuiz ships CC0 sounds in sounds/; a laptop's own soundpack/ (same layout) takes priority over them.
+  // BeerMat ships CC0 sounds in sounds/; a laptop's own soundpack/ (same layout) takes priority over them.
   // A sound theme (the pack's Themes/<name>) replaces the moments it has a sound for. Desk choices, stored
   // separately for moments and buzzers, override the defaults. Reloaded after the bingo caller is recorded.
   // Themes in themes/<id>/ (themes.js) bring a look and, with a sounds/ folder, a sound theme under the theme's name.
@@ -187,7 +188,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   };
   const bingoCalls = () => getMeta('bingoCalls', local.calls ?? shipped.calls);
   // The spoken caller has to say the calls on screen: the pack's recordings go with the pack's calls file, the shipped
-  // ones with PubQuiz's own calls, and calls typed on the desk have none. Silent while the caller or the bingo phrases
+  // ones with BeerMat's own calls, and calls typed on the desk have none. Silent while the caller or the bingo phrases
   // are switched off.
   function bingoVoice(n) {
     if (!settings().bingoVoice || !settings().bingoPhrases) return null;
@@ -550,7 +551,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return flushing;
   }
   const syncTimer = setInterval(flushOutbox, 5 * 60 * 1000); syncTimer.unref?.();
-  // The desk's Venue section: this laptop signs in to PubQuiz Online for the venue's operator and passes on the few
+  // The desk's Venue section: this laptop signs in to BeerMat Online for the venue's operator and passes on the few
   // calls that run a venue. The session stays on the laptop; the desk page never talks to the internet itself.
   const onlineCalls = [
     ['GET', /^\/v1\/me\/venues$/], ['GET', /^\/v1\/venues\/[\w-]{1,64}$/], ['PATCH', /^\/v1\/venues\/[\w-]{1,64}$/],
@@ -558,16 +559,16 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   ];
   async function onlineApi(method, route, body) {
     const base = settings().onlineService;
-    requireValue(base, 'Set the PubQuiz Online address first');
+    requireValue(base, 'Set the BeerMat Online address first');
     const session = getMeta('onlineSession', null);
     let response;
     try {
       response = await fetchImpl(base.replace(/\/$/, '') + route, {method, headers: {'Content-Type': 'application/json', ...(session ? {Authorization: 'Bearer ' + session.token} : {})},
         ...(body === undefined ? {} : {body: JSON.stringify(body)}), signal: AbortSignal.timeout(10000)});
-    } catch {throw new QuizError('PubQuiz Online can’t be reached. Is this laptop on the internet?', 502);}
+    } catch {throw new QuizError('BeerMat Online can’t be reached. Is this laptop on the internet?', 502);}
     const data = await response.json().catch(() => ({}));
     if (response.status === 401 && route !== '/v1/sessions') setMeta('onlineSession', null);
-    if (!response.ok) throw new QuizError(data.error || `PubQuiz Online said ${response.status}`, response.status === 401 ? 401 : response.status >= 500 ? 502 : 400);
+    if (!response.ok) throw new QuizError(data.error || `BeerMat Online said ${response.status}`, response.status === 401 ? 401 : response.status >= 500 ? 502 : 400);
     return data;
   }
   // Online mode: phones and the TV get the public link as the join address.
@@ -785,7 +786,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return rows('SELECT a.ms,a.count,a.since,t.name FROM away a JOIN teams t ON t.id=a.team WHERE a.question=? ORDER BY t.name', q.id)
       .map(a => ({name: a.name, count: a.count, ms: a.ms + (a.since ? now() - a.since : 0), awayNow: a.since !== null}));
   }
-  // While the desk's quiz Wi-Fi is up, PubQuiz answers only on it and on this laptop, like start.sh --hotspot.
+  // While the desk's quiz Wi-Fi is up, BeerMat answers only on it and on this laptop, like start.sh --hotspot.
   // (Windows' Mobile Hotspot is at 192.168.137.1.)
   let hotspotOnly = null;
   const onlyOn = running => running ? ['127.0.0.1', '::1', running.address || '10.42.0.1'] : null;
@@ -820,6 +821,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const [, id, ...rest] = p.slice(1).split('/'), file = folders.file(id, rest.join('/'));
           requireValue(file && existsSync(file) && statSync(file).isFile(), 'Not found', 404); return sendFile(req, res, file);
         }
+        // BeerMat's logos and font (brand/), for every page.
+        if (p.startsWith('/brand/')) {requireValue(brandFiles.has(p.slice(7)), 'Not found', 404); return sendFile(req, res, path.join(root, 'brand', p.slice(7)));}
         if (p.startsWith('/pack/') || p.startsWith('/sounds/')) {const file = packFile(p); requireValue(file, 'Sound not found', 404); return sendFile(req, res, file);}
         if (p === '/spotify/callback') {
           // Sign-in only ever finishes in a browser on the laptop itself.
@@ -917,9 +920,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             return send(200, {ok: true});
           }
           if (p === '/api/host/laptop/quit') {
-            requireValue(onQuit, 'PubQuiz was not started from the app icon; stop it in its terminal', 400);
+            requireValue(onQuit, 'BeerMat was not started from the app icon; stop it in its terminal', 400);
             send(200, {ok: true});
-            // The quiz Wi-Fi comes down first (one more password prompt), then PubQuiz stops.
+            // The quiz Wi-Fi comes down first (one more password prompt), then BeerMat stops.
             const status = await laptop.wifi();
             if (status.running) await new Promise(resolve => {try {laptop.stopWifi(resolve);} catch {resolve();}});
             return onQuit();
@@ -957,7 +960,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         }
         if (p === '/api/host/online/call') {
           requireValue(typeof body.method === 'string' && typeof body.path === 'string' && onlineCalls.some(([m, re]) => m === body.method && re.test(body.path)), 'Not a venue call');
-          requireValue(getMeta('onlineSession', null), 'Sign in to PubQuiz Online first', 401);
+          requireValue(getMeta('onlineSession', null), 'Sign in to BeerMat Online first', 401);
           // Registering this laptop always sends this laptop's own key.
           const sent = body.path.endsWith('/keys') ? {publicKey: venueKey().publicKey} : body.body;
           return send(200, await onlineApi(body.method, body.path, sent));
@@ -1401,7 +1404,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   // ALLOWED_ADDRESSES limits which local addresses answer, e.g. 127.0.0.1,10.42.0.1 for hotspot-only play.
   const allowedAddresses = process.env.ALLOWED_ADDRESSES ? process.env.ALLOWED_ADDRESSES.split(',').map(s => s.trim()).filter(Boolean) : null;
-  // Started from the app icon (scripts/pubquiz-app.sh): the desk can also close PubQuiz.
+  // Started from the app icon (scripts/pubquiz-app.sh): the desk can also close BeerMat.
   const app = process.env.PUBQUIZ_APP === '1';
   // QUIZ_DB, MEDIA_DIR and PACK_DIR move the quiz's own files out of the program folder (the desktop app keeps them
   // in the user's data folder).
@@ -1410,7 +1413,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     mediaDir: process.env.MEDIA_DIR || path.join(root, 'media'), packDir,
     laptop: ['linux', 'win32'].includes(process.platform) ? createLaptop({root, packDir}) : null, publicPort: Number(process.env.PUBLIC_PORT || 3001), deskTicket: process.env.DESK_TICKET || null, onQuit: app ? () => quiz.close().then(() => process.exit(0)) : null});
   quiz.server.listen(Number(process.env.PORT || 3000), process.env.BIND || '0.0.0.0', () => {
-    console.log('PubQuiz ready. Quizmaster: http://localhost:' + (process.env.PORT || 3000) + '/host');
+    console.log('BeerMat ready. Quizmaster: http://localhost:' + (process.env.PORT || 3000) + '/host');
     if (!allowedAddresses && (process.env.BIND || '0.0.0.0') === '0.0.0.0') console.log('Note: reachable from every network this laptop is on. Use ./scripts/start.sh --hotspot to answer only on the quiz Wi-Fi.');
   });
   // Online mode's tunnel connects here; only this laptop can reach it.

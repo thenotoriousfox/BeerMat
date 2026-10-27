@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>PubQuiz Player</string>
+        <string>BeerMat</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -48,7 +48,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Only when you tap “Use my location once”, to find quizzes near you.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Quizzes run on the venue’s Wi-Fi or the quiz Wi-Fi, so PubQuiz Player needs to reach devices on your local network.</string>
+	<string>Quizzes run on the venue’s Wi-Fi or the quiz Wi-Fi, so BeerMat needs to reach devices on your local network.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

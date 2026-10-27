@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# PubQuiz from the app menu (installed by ./scripts/setup.sh --app): asks for the quizmaster key in a window, starts
-# PubQuiz in the background and opens the quiz desk, already unlocked. The desk's "Quiz night" panel runs the Wi-Fi and
-# closes PubQuiz. If PubQuiz is already running, this just opens the desk. Log: ~/.local/state/pubquiz/server.log
+# BeerMat from the app menu (installed by ./scripts/setup.sh --app): asks for the quizmaster key in a window, starts
+# BeerMat in the background and opens the quiz desk, already unlocked. The desk's "Quiz night" panel runs the Wi-Fi and
+# closes BeerMat. If BeerMat is already running, this just opens the desk. Log: ~/.local/state/pubquiz/server.log
 set -uo pipefail
 cd -- "$(dirname -- "$(readlink -f -- "$0")")/.."
 port=${PORT:-3000} desk="http://localhost:${PORT:-3000}/host"
@@ -9,13 +9,13 @@ state=${XDG_STATE_HOME:-$HOME/.local/state}/pubquiz log=${XDG_STATE_HOME:-$HOME/
 
 # KDE's dialogs where there are any, GNOME's otherwise.
 if command -v kdialog >/dev/null; then
-  ask() { kdialog --title PubQuiz --password "$1"; }
-  oops() { kdialog --title PubQuiz --error "$1"; }
+  ask() { kdialog --title BeerMat --password "$1"; }
+  oops() { kdialog --title BeerMat --error "$1"; }
 elif command -v zenity >/dev/null; then
-  ask() { zenity --password --title="PubQuiz — $1"; }
-  oops() { zenity --error --title=PubQuiz --text="$1"; }
+  ask() { zenity --password --title="BeerMat — $1"; }
+  oops() { zenity --error --title=BeerMat --text="$1"; }
 else
-  ask() { echo 'Install kdialog or zenity to start PubQuiz from the app menu' >&2; return 1; }
+  ask() { echo 'Install kdialog or zenity to start BeerMat from the app menu' >&2; return 1; }
   oops() { echo "$1" >&2; }
 fi
 up() { curl -fs --max-time 2 "http://127.0.0.1:$port/health" >/dev/null; }
@@ -37,7 +37,7 @@ for _ in $(seq 50); do
   kill -0 $! 2>/dev/null || break
   sleep 0.2
 done
-oops "PubQuiz did not start. The end of its log ($log):
+oops "BeerMat did not start. The end of its log ($log):
 
 $(tail -n 8 "$log")"
 exit 1

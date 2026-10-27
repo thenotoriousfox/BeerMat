@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Everything for a quiz night in one go: starts the offline quiz Wi-Fi, runs PubQuiz on it, and takes the Wi-Fi down
-# again when PubQuiz stops (Ctrl+C), even if it crashed.
+# Everything for a quiz night in one go: starts the offline quiz Wi-Fi, runs BeerMat on it, and takes the Wi-Fi down
+# again when BeerMat stops (Ctrl+C), even if it crashed.
 #
-#   ./scripts/quiz-night.sh                     hotspot "PubQuiz", while the laptop stays on your normal Wi-Fi
+#   ./scripts/quiz-night.sh                     hotspot "BeerMat", while the laptop stays on your normal Wi-Fi
 #   ./scripts/quiz-night.sh --offline           hotspot only: the hotspot card leaves your normal Wi-Fi
 #
 # With two Wi-Fi cards (e.g. a USB adapter on your home Wi-Fi), the hotspot goes on the one that isn't connected and
@@ -13,7 +13,7 @@
 set -euo pipefail
 cd -- "$(dirname -- "$0")/.."
 
-ssid=PubQuiz iface=auto extra=()
+ssid=BeerMat iface=auto extra=()
 while (($#)); do
   case $1 in
     --ssid) ssid=$2; shift 2 ;;

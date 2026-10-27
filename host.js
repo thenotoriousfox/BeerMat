@@ -51,7 +51,7 @@ $('spotifyForm').onsubmit = e => {e.preventDefault(); const clientId = $('spotif
   if (!window.open(url, '_blank')) location.assign(url);
   return 'Finish signing in to Spotify in the new tab, then come back here';
 });};
-// Web Playback SDK: makes this desk tab a Spotify player called "PubQuiz desk". Spotify's script is only fetched when
+// Web Playback SDK: makes this desk tab a Spotify player called "BeerMat desk". Spotify's script is only fetched when
 // the quizmaster presses Start, and the click also unlocks audio in the browser.
 let deskPlayer = null, deskReady = false;
 function startDeskPlayer() {
@@ -59,7 +59,7 @@ function startDeskPlayer() {
   if (!spotify.deskPlayer) return message('Press Connect Spotify again to allow playing on this desk (a permission was added)', true);
   if (deskPlayer) {deskPlayer.activateElement?.(); deskPlayer.connect(); return;}
   window.onSpotifyWebPlaybackSDKReady = () => {
-    deskPlayer = new window.Spotify.Player({name: 'PubQuiz desk', volume: 1,
+    deskPlayer = new window.Spotify.Player({name: 'BeerMat desk', volume: 1,
       getOAuthToken: done => request('spotify/token').then(t => done(t.accessToken)).catch(e => message(e.message, true))});
     deskPlayer.addListener('ready', ({device_id: id}) => {deskReady = true; request('spotify/device', {id}).then(loadSpotify).then(() => message('🎵 Spotify is playing through this desk')).catch(e => message(e.message, true)); showDeskPlayer();});
     deskPlayer.addListener('not_ready', () => {deskReady = false; showDeskPlayer(); message('The Spotify desk player went offline — check this laptop’s internet', true);});
@@ -495,7 +495,7 @@ function renderSounds(s) {
     play.type = remove.type = 'button'; play.disabled = remove.disabled = !media; play.title = 'Play here';
     play.onclick = () => {new Audio(media).play().catch(() => {});};
     remove.onclick = () => action(() => request('sounds', {slots: {[slot]: null}}), `${label}: sound removed`);
-    row.append(element('strong', label), element('span', !media ? 'none (built-in beep or silent)' : media.startsWith('/sounds/') ? 'PubQuiz default' : media.startsWith('/pack/') ? 'from your sound pack' : 'your file', 'muted'), pick, play, remove); return row;
+    row.append(element('strong', label), element('span', !media ? 'none (built-in beep or silent)' : media.startsWith('/sounds/') ? 'BeerMat default' : media.startsWith('/pack/') ? 'from your sound pack' : 'your file', 'muted'), pick, play, remove); return row;
   }));
   $('buzzerStatus').textContent = s.sounds.buzzers.length ? `${s.sounds.buzzers.length} buzzer sounds added: ${s.sounds.buzzers.slice(0, 8).map(b => b.name).join(', ')}${s.sounds.buzzers.length > 8 ? '…' : ''}` : 'Only the 8 built-in buzzer sounds';
   $('clearBuzzers').disabled = !s.sounds.buzzers.length;
@@ -692,7 +692,7 @@ if (desktop) {
   $('appKey').onclick = () => desktop.showKey();
   $('appBrowser').onclick = () => desktop.openInBrowser();
 }
-// Past quizzes kept on this laptop, and optional sharing with PubQuiz Online.
+// Past quizzes kept on this laptop, and optional sharing with BeerMat Online.
 async function loadHistory() {
   try {past = await request('results');} catch {past = null;}
   renderHistory();
@@ -730,7 +730,7 @@ $('historyClear').onclick = () => {if (confirm('Delete every past quiz’s resul
 $('onlineServiceForm').onsubmit = e => {e.preventDefault(); action(async () => {await request('settings', {onlineService: $('onlineServiceUrl').value.trim()}); await loadHistory();}, 'Online service saved');};
 $('shareResults').onclick = () => action(async () => {await request('settings', {shareResults: !state.settings.shareResults}); await loadHistory();}, 'Sharing updated');
 $('syncNow').onclick = () => action(async () => {await request('results/sync'); await loadHistory();}, 'Sent what could be sent');
-// Your venue on PubQuiz Online. Venues are added by PubQuiz; their operators run them here. The laptop's server holds
+// Your venue on BeerMat Online. Venues are added by BeerMat; their operators run them here. The laptop's server holds
 // the sign-in and passes on the calls, so this page never talks to the internet itself.
 let venueAccount = null, myVenues = [], venue = null;
 const venueDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -748,7 +748,7 @@ async function loadVenue() {
 }
 function renderVenue() {
   const signedIn = !!venueAccount?.signedIn;
-  $('venueService').textContent = venueAccount?.service ? `PubQuiz Online: ${venueAccount.service}` : 'Set the PubQuiz Online address under Run quiz → Past quizzes';
+  $('venueService').textContent = venueAccount?.service ? `BeerMat Online: ${venueAccount.service}` : 'Set the BeerMat Online address under Run quiz → Past quizzes';
   $('venueSignedOut').hidden = signedIn; $('venueSignedIn').hidden = !signedIn;
   if (!signedIn) return;
   $('venueWho').textContent = `Signed in as ${venueAccount.name} (${venueAccount.email})`;
@@ -778,7 +778,7 @@ function renderVenue() {
   }));
   if (!venue.events.length) $('venueEvents').append(element('li', 'No quiz nights published yet.', 'muted'));
 }
-$('venueSignIn').onsubmit = e => {e.preventDefault(); action(async () => {venueAccount = await request('online/signin', {email: $('venueEmail').value, password: $('venuePassword').value}); $('venuePassword').value = ''; await loadVenue();}, 'Signed in to PubQuiz Online');};
+$('venueSignIn').onsubmit = e => {e.preventDefault(); action(async () => {venueAccount = await request('online/signin', {email: $('venueEmail').value, password: $('venuePassword').value}); $('venuePassword').value = ''; await loadVenue();}, 'Signed in to BeerMat Online');};
 $('venueSignUp').onsubmit = e => {e.preventDefault(); if (!$('venueSignIn').reportValidity()) return; action(async () => {venueAccount = await request('online/signup', {email: $('venueEmail').value, password: $('venuePassword').value, displayName: $('venueName').value}); $('venuePassword').value = ''; await loadVenue();}, 'Account created');};
 $('venueSignOut').onclick = () => action(async () => {await request('online/signout'); await loadVenue();}, 'Signed out');
 $('venuePick').onchange = () => loadVenue();
@@ -858,7 +858,7 @@ function renderLaptop() {
   $('wifiCard').replaceChildren(element('option', `Automatic — ${w.pick ? w.pick.interface + (w.pick.keepWifi ? ', beside your home Wi-Fi' : '') : 'no card can host'}`),
     ...(w.cards || []).map(c => {const o = element('option', `${c.name} — ${c.ap ? where(c) : 'can’t host'}`); o.value = c.name; o.disabled = !c.ap; return o;}));
   $('wifiCard').options[0].value = 'auto'; $('wifiCard').value = [...$('wifiCard').options].some(o => o.value === chosen && !o.disabled) ? chosen : 'auto';
-  if (!$('wifiSsid').value && document.activeElement !== $('wifiSsid')) $('wifiSsid').value = on?.ssid || state?.settings.joinSsid || 'PubQuiz';
+  if (!$('wifiSsid').value && document.activeElement !== $('wifiSsid')) $('wifiSsid').value = on?.ssid || state?.settings.joinSsid || 'BeerMat';
   $('wifiOn').hidden = !w.available || w.wifiOn;
   $('wifiStart').hidden = !!on; $('wifiStop').hidden = !on; $('wifiStart').disabled = working || !w.wifiOn || !w.pick; $('wifiStop').disabled = working;
   $('wifiSsid').disabled = $('wifiCard').disabled = $('wifiPassword').disabled = working || !!on;
@@ -897,8 +897,8 @@ $('goOffline').onclick = () => {if (confirm(location.protocol === 'https:' ? 'Go
 $('copyOnline').onclick = () => navigator.clipboard.writeText($('onlineLink').value).then(() => message('Link copied'), () => {$('onlineLink').select(); message('Press Ctrl+C to copy the link');});
 $('recordVoice').onclick = () => laptopAction('laptop/setup', {job: 'bingoVoice'}, 'Recording the bingo caller');
 $('quitApp').onclick = () => {
-  if (!confirm('Close PubQuiz? The quiz Wi-Fi stops too (one more password prompt). Everything is saved: start it again from the app menu.')) return;
-  action(async () => {await request('laptop/quit'); clearTimeout(laptopTimer); return 'PubQuiz is closing. You can close this tab.';});
+  if (!confirm('Close BeerMat? The quiz Wi-Fi stops too (one more password prompt). Everything is saved: start it again from the app menu.')) return;
+  action(async () => {await request('laptop/quit'); clearTimeout(laptopTimer); return 'BeerMat is closing. You can close this tab.';});
 };
 $('logout').onclick = () => action(async () => {await request('logout'); key = ''; writeStorage('pubquiz-host', '', true); $('panel').hidden = true; $('login').hidden = false;}, 'Quiz desk locked');
 let adjustRequest = null;

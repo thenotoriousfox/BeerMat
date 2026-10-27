@@ -25,7 +25,7 @@
     "github:castlabs/electron-releases#62e98b31d8bbfbc70bdc971c6e24b0339e6826d3": true,
     "electron-winstaller@5.4.0": true
   },
-  "productName": "PubQuiz",
+  "productName": "BeerMat",
   "description": "Pub quiz system: quiz desk, TV display and phone play, offline on one laptop",
   "author": {
     "name": "Daniel Weatherall",
@@ -35,7 +35,7 @@
   "main": "desktop/main.js",
   "build": {
     "appId": "uk.pubquiz.desktop",
-    "productName": "PubQuiz",
+    "productName": "BeerMat",
     "copyright": "Copyright \u00a9 2026 Daniel Weatherall",
     "asar": false,
     "electronDownload": {
@@ -58,6 +58,9 @@
       "scripts/pubquiz.svg",
       "sounds/**",
       "themes/**",
+      "brand/*.svg",
+      "brand/fredoka.woff2",
+      "brand/Fredoka-OFL.txt",
       "media/README.md",
       "!**/__pycache__",
       "!online/**",
@@ -76,9 +79,9 @@
       "executableName": "pubquiz",
       "desktop": {
         "entry": {
-          "Name": "PubQuiz",
+          "Name": "BeerMat",
           "Comment": "Run a pub quiz",
-          "StartupWMClass": "PubQuiz"
+          "StartupWMClass": "BeerMat"
         }
       },
       "syncDesktopName": true
@@ -95,10 +98,10 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "PubQuiz"
+      "shortcutName": "BeerMat"
     },
     "portable": {
-      "artifactName": "PubQuiz-${version}-portable.exe"
+      "artifactName": "BeerMat-${version}-portable.exe"
     }
   },
   "desktopName": "pubquiz.desktop"

@@ -4,7 +4,7 @@
 // Gameplay, guest play, offline play and a player's own data will always be in every edition (docs/ARCHITECTURE.md).
 
 export const features = ['quiz', 'allFormats', 'desktopApp', 'hotspot', 'venueNetwork', 'onlineMode', 'tvScreens', 'soundPacks', 'spotify', 'resultsHistory', 'onlineProfiles', 'eventListings'];
-export const editions = {free: {name: 'PubQuiz', features}, pro: {name: 'PubQuiz Pro', features}};
+export const editions = {free: {name: 'BeerMat', features}, pro: {name: 'BeerMat Pro', features}};
 
 export function edition(name = process.env.PUBQUIZ_EDITION || 'free') {
   const chosen = editions[name] || editions.free;

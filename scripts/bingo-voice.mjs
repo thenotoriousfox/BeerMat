@@ -3,11 +3,11 @@
 // that number's call. The TV plays it each time the number is called.
 //
 //   node scripts/bingo-voice.mjs              calls from soundpack/bingo-calls.json → soundpack/bingo_voice/
-//   node scripts/bingo-voice.mjs --builtin    PubQuiz's own calls → sounds/bingo_voice/ (shipped with PubQuiz)
+//   node scripts/bingo-voice.mjs --builtin    BeerMat's own calls → sounds/bingo_voice/ (shipped with BeerMat)
 //
-// Numbers without a call in the file use PubQuiz's own call. Options: --pack <sound pack folder>, --out <dir>, --python <Piper's python>,
+// Numbers without a call in the file use BeerMat's own call. Options: --pack <sound pack folder>, --out <dir>, --python <Piper's python>,
 // --model <voice .onnx>. Defaults: ~/.local/opt/piper/bin/python and the public-domain en_GB "cori" voice in
-// ~/.local/share/piper. Run it again after changing the calls file; restart PubQuiz to use the new recordings.
+// ~/.local/share/piper. Run it again after changing the calls file; restart BeerMat to use the new recordings.
 import {execFileSync} from 'node:child_process';
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync} from 'node:fs';
 import os from 'node:os';
@@ -24,7 +24,7 @@ const python = option('--python', path.join(os.homedir(), '.local/opt/piper/bin/
 const model = option('--model', path.join(os.homedir(), '.local/share/piper/en_GB-cori-high.onnx'));
 for (const [what, file] of [['Piper', python], ['voice', model]]) if (!existsSync(file)) {console.error(`${what} not found at ${file}. See docs/QUIZMASTER.md, "A spoken bingo caller".`); process.exit(1);}
 
-// The same calls the TV shows: the pack's file where it has one, PubQuiz's own otherwise. A call that doesn't say its
+// The same calls the TV shows: the pack's file where it has one, BeerMat's own otherwise. A call that doesn't say its
 // number gets it added, as a caller would ("Kelly's eye, number one").
 let fileCalls = {};
 if (!builtin) try {fileCalls = JSON.parse(readFileSync(path.join(pack, bingoCallsFile), 'utf8').replace(/^﻿/, ''));} catch {}
@@ -50,4 +50,4 @@ for n, text in json.load(sys.stdin):
   const trim = 'silenceremove=start_periods=1:start_threshold=-50dB,areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse';
   for (const [n] of lines) execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', path.join(work, `${n}.wav`), '-af', `${trim},loudnorm=I=-16:TP=-1.5`, '-ac', '1', '-ar', '44100', '-b:a', '64k', path.join(out, `${n}.mp3`)]);
 } finally {rmSync(work, {recursive: true, force: true});}
-console.log(`Bingo caller ready in ${path.relative(root, out) || out}: 90 calls, e.g. 22: "${text(22)}". Restart PubQuiz to use it.`);
+console.log(`Bingo caller ready in ${path.relative(root, out) || out}: 90 calls, e.g. 22: "${text(22)}". Restart BeerMat to use it.`);

@@ -2,7 +2,7 @@
 // child in tests), apart from the windows: it alone opens the database and touches the network, and if it fails the
 // app restarts it without losing the quiz. Settings come in through the environment; messages go both ways:
 //   to the app:   {type: 'ready', port, publicPort, database}  {type: 'failed', message}  {type: 'ticket', id, ticket}
-//                 {type: 'quit'} (Close PubQuiz on the desk)  {type: 'backup', id, file | error}
+//                 {type: 'quit'} (Close BeerMat on the desk)  {type: 'backup', id, file | error}
 //   from the app: {type: 'ticket', id}  {type: 'backup', id, folder}  {type: 'shutdown', stopWifi}
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -53,7 +53,7 @@ try {
     }
   });
   channel.send({type: 'ready', port, publicPort, database, prepared});
-  console.log(`PubQuiz server ready on port ${port} (online tunnel port ${publicPort}); data in ${data}`);
+  console.log(`BeerMat server ready on port ${port} (online tunnel port ${publicPort}); data in ${data}`);
 } catch (e) {
   console.error(e);
   channel.send({type: 'failed', message: e.message});

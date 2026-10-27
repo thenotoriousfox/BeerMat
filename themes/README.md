@@ -1,6 +1,6 @@
 # Themes
 
-Each folder here is one theme. PubQuiz finds them when it starts, so adding a theme means adding a folder; no code
+Each folder here is one theme. BeerMat finds them when it starts, so adding a theme means adding a folder; no code
 changes. A theme gives the TV and phones a **look**, and with a `sounds/` folder it is also a **sound theme**.
 
 ```

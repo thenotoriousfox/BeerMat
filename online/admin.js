@@ -1,4 +1,4 @@
-// Admin jobs for PubQuiz Online, run on the server itself (there is no admin sign-up over the API). Day to day, admins
+// Admin jobs for BeerMat Online, run on the server itself (there is no admin sign-up over the API). Day to day, admins
 // use the admin console (/admin) instead; this is for the first admin, and for bulk jobs.
 //   node online/admin.js make-admin <email>        that account may use the admin console
 //   node online/admin.js verify <venue id> [off]   a checked, real venue: its results count on public leaderboards
@@ -30,7 +30,7 @@ if (command === 'make-admin' && target) {
   console.log(changed ? `Venue ${target} ${flag === 'off' ? 'no longer verified' : 'verified'}` : `No venue ${target}`);
 } else if (command === 'operator' && target && flag) {
   const account = flag === 'off' ? null : db.prepare('SELECT id FROM accounts WHERE email=?').get(flag.toLowerCase());
-  if (flag !== 'off' && !account) console.log(`No account for ${flag}: they sign up in the PubQuiz Player app or on the desk first`);
+  if (flag !== 'off' && !account) console.log(`No account for ${flag}: they sign up in the BeerMat app or on the desk first`);
   else {
     const changed = db.prepare('UPDATE venues SET owner=? WHERE id=?').run(account?.id ?? null, target).changes;
     console.log(changed ? `Venue ${target} ${account ? `is run by ${flag}` : 'has no operator now'}` : `No venue ${target}`);

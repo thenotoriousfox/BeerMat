@@ -176,7 +176,7 @@ test('client: results wait offline and are sent once when back; listings come fr
 
   const operator = createOnlineClient({baseUrl: base, storage: memory()});
   await operator.signUp({email: 'op2@example.com', password: 'correct horse battery', displayName: 'Op'});
-  await assert.rejects(operator.createVenue({name: 'The Ship', town: 'Hull'}), /added by PubQuiz/);
+  await assert.rejects(operator.createVenue({name: 'The Ship', town: 'Hull'}), /added by BeerMat/);
   const venue = await addVenue({name: 'The Ship', town: 'Hull', lat: 53.74, lon: -0.33}, 'op2@example.com');
   await operator.publishEvent(venue.id, {title: 'Ship Quiz', startsAt: Date.now() + 86400000 * 400});
   await operator.publishEvent(venue.id, {title: 'Ship Quiz Soon', startsAt: 1700000000000 + 86400000});

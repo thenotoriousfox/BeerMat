@@ -2,7 +2,7 @@
 // The app opens the quiz's own player page, the same one phone browsers use, so app and browser teams play the
 // same quiz side by side.
 
-// The quiz hotspot's address: Linux (PubQuiz's own hotspot) answers on port 80; Windows' Mobile Hotspot on the
+// The quiz hotspot's address: Linux (BeerMat's own hotspot) answers on port 80; Windows' Mobile Hotspot on the
 // app's usual port.
 export const hotspotCandidates = ['http://10.42.0.1', 'http://192.168.137.1:3000'];
 
@@ -45,7 +45,7 @@ export function parseScan(text) {
     return {type: 'wifi', ssid: f.S, password: f.P || '', open: !f.T || /^nopass$/i.test(f.T), candidates: hotspotCandidates};
   }
   try {return {type: 'quiz', url: normaliseAddress(raw)};}
-  catch (e) {return {type: 'invalid', reason: 'That code isn’t a PubQuiz code'};}
+  catch (e) {return {type: 'invalid', reason: 'That code isn’t a BeerMat code'};}
 }
 
 // Results handed over by the quiz page (#claim=<base64url JSON>).
@@ -68,7 +68,7 @@ export function remember(list, url, title, now = Date.now()) {
 export function calendarFile(event) {
   const stamp = t => new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const esc = s => String(s || '').replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');
-  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PubQuiz//Player//EN', 'BEGIN:VEVENT', `UID:${event.id}@pubquiz`, `DTSTAMP:${stamp(Date.now())}`,
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//BeerMat//App//EN', 'BEGIN:VEVENT', `UID:${event.id}@pubquiz`, `DTSTAMP:${stamp(Date.now())}`,
     `DTSTART:${stamp(event.startsAt)}`, `DTEND:${stamp(event.startsAt + 2 * 3600000)}`, `SUMMARY:${esc(event.title)} — ${esc(event.venue.name)}`,
     `LOCATION:${esc([event.venue.address, event.venue.town, event.venue.postcode].filter(Boolean).join(', '))}`, `DESCRIPTION:${esc([event.format, event.entry].filter(Boolean).join('. '))}`,
     'BEGIN:VALARM', 'TRIGGER:-PT2H', 'ACTION:DISPLAY', `DESCRIPTION:${esc(event.title)}`, 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');

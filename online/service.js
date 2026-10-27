@@ -1,4 +1,4 @@
-// PubQuiz Online: the optional internet service for player profiles, statistics and achievements across venues,
+// BeerMat Online: the optional internet service for player profiles, statistics and achievements across venues,
 // venue pages and quiz event listings. A quiz never needs it: laptops run quizzes offline and players join as guests.
 // It runs anywhere Node 22 runs (online/deploy.sh puts it on a server); docs/ONLINE.md covers the API, the data kept
 // and the deployment.
@@ -197,7 +197,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   const appOrigins = ['capacitor://localhost', 'http://localhost', 'https://localhost', ...allowedOrigins];
   const headers = req => ({'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer',
     ...(appOrigins.includes(req.headers.origin) ? {'Access-Control-Allow-Origin': req.headers.origin, 'Vary': 'Origin', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, Idempotency-Key', 'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE'} : {})});
-  const staticTypes = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json'};
+  const staticTypes = {'.woff2': 'font/woff2', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json'};
 
   async function handle(req, res) {
     const send = (status, data) => {res.writeHead(status, headers(req)); res.end(JSON.stringify(data));};
@@ -214,6 +214,13 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         check(file.startsWith(base + path.sep) && existsSync(file) && statSync(file).isFile() && staticTypes[path.extname(file)], 'Not found', 404);
         res.writeHead(200, {'Content-Type': staticTypes[path.extname(file)], 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-cache',
           'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; connect-src *; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'"});
+        return res.end(readFileSync(file));
+      }
+      // BeerMat's logos and font, for the web app and the admin console.
+      if (method === 'GET' && p.startsWith('/brand/')) {
+        const name = p.slice(7), file = path.join(here, '..', 'brand', name);
+        check(/^(mark|logo|logo-stacked|wordmark|mark-print|logo-print)\.svg$|^fredoka\.woff2$/.test(name) && existsSync(file), 'Not found', 404);
+        res.writeHead(200, {'Content-Type': staticTypes[path.extname(name)], 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'max-age=86400'});
         return res.end(readFileSync(file));
       }
       // The admin console: its own pages; everything it shows comes from the admin API below.
@@ -290,11 +297,11 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       // ---- Results (signed by a quiz laptop) ----
       if (method === 'POST' && p === '/v1/me/results') {
         const a = me(), claim = input.claim;
-        check(claim && typeof claim === 'object' && claim.kind === 'pubquiz.result' && claim.v === 1, 'Not a PubQuiz result');
+        check(claim && typeof claim === 'object' && claim.kind === 'pubquiz.result' && claim.v === 1, 'Not a BeerMat result');
         check(verifyClaim(claim), 'This result was not signed by a quiz laptop, or has been changed', 422);
-        check(typeof claim.event === 'string' && claim.event.length <= 40 && typeof claim.team === 'string' && claim.team.length <= 40 && Number.isSafeInteger(claim.date), 'Not a PubQuiz result');
+        check(typeof claim.event === 'string' && claim.event.length <= 40 && typeof claim.team === 'string' && claim.team.length <= 40 && Number.isSafeInteger(claim.date), 'Not a BeerMat result');
         const r = claim.result;
-        check(r && [r.rank, r.teams, r.answered, r.correct].every(Number.isSafeInteger) && typeof r.points === 'number' && r.correct <= r.answered && r.rank >= 1 && r.rank <= r.teams, 'Not a PubQuiz result');
+        check(r && [r.rank, r.teams, r.answered, r.correct].every(Number.isSafeInteger) && typeof r.points === 'number' && r.correct <= r.answered && r.rank >= 1 && r.rank <= r.teams, 'Not a BeerMat result');
         // The same result sent again (a retry, or a second phone of the same player) is the same record.
         const existing = one('SELECT 1 FROM results WHERE account=? AND event=? AND team=?', a.id, claim.event, claim.team);
         if (!existing) run('INSERT INTO results VALUES(?,?,?,?,?,?,?)', a.id, claim.event, claim.team, claim.venueKey, JSON.stringify(claim), claim.date, now());
@@ -368,7 +375,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       }
       // Venues don't add themselves: they come from the venue list, or an admin adds one here.
       if (method === 'POST' && p === '/v1/venues') {
-        check(me().admin, 'Venues are added by PubQuiz: ask to be added', 403);
+        check(me().admin, 'Venues are added by BeerMat: ask to be added', 403);
         // A readable id from the name and town (it never changes, and names the venue in venues.json).
         const fields = validVenue(input), slug = `${fields.name}-${fields.town}`.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'venue';
         let venueId = slug;
@@ -390,7 +397,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
           run('UPDATE venues SET edited=? WHERE id=?', JSON.stringify([...new Set([...JSON.parse(v.edited), ...Object.keys(fields).filter(k => k !== 'lon')])]), v.id);
           return send(200, venueOut(one('SELECT * FROM venues WHERE id=?', v.id)));
         }
-        if (method === 'DELETE' && parts.length === 2) {const v = myVenue(parts[1]); check(me().admin, 'Ask PubQuiz to take a venue off', 403); run('DELETE FROM venues WHERE id=?', v.id); return send(200, {ok: true});}
+        if (method === 'DELETE' && parts.length === 2) {const v = myVenue(parts[1]); check(me().admin, 'Ask BeerMat to take a venue off', 403); run('DELETE FROM venues WHERE id=?', v.id); return send(200, {ok: true});}
         // An admin links the venue to its operator's account (or unlinks it with {email: null}).
         if (method === 'POST' && parts[2] === 'operator' && parts.length === 3) {
           check(me().admin, 'Admins only', 403);
@@ -400,11 +407,11 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
           run('UPDATE venues SET owner=? WHERE id=?', account?.id ?? null, v.id);
           return send(200, {ok: true});
         }
-        // The quiz laptop's key (desk: Past quizzes → PubQuiz Online), so its results count for this venue.
+        // The quiz laptop's key (desk: Past quizzes → BeerMat Online), so its results count for this venue.
         if (method === 'POST' && parts[2] === 'keys') {
           const v = myVenue(parts[1]);
           check(typeof input.publicKey === 'string' && /^[A-Za-z0-9+/=]{40,120}$/.test(input.publicKey), 'Paste the laptop’s venue key from the quiz desk');
-          check(validKey(input.publicKey), 'That is not a PubQuiz venue key');
+          check(validKey(input.publicKey), 'That is not a BeerMat venue key');
           const owner = one('SELECT venue FROM venue_keys WHERE public_key=?', input.publicKey);
           check(!owner || owner.venue === v.id, 'That laptop is registered to another venue', 409);
           run('INSERT OR IGNORE INTO venue_keys VALUES(?,?,?,?)', keyId(input.publicKey), v.id, input.publicKey, now());
@@ -450,7 +457,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
 
       // ---- Venue results from quiz laptops (desk: Share results) ----
       if (method === 'POST' && p === '/v1/venue-results') {
-        check(input.kind === 'pubquiz.event' && input.v === 1 && Array.isArray(input.teams) && input.teams.length <= 300, 'Not a PubQuiz event summary');
+        check(input.kind === 'pubquiz.event' && input.v === 1 && Array.isArray(input.teams) && input.teams.length <= 300, 'Not a BeerMat event summary');
         check(verifyClaim(input), 'This summary was not signed by a quiz laptop, or has been changed', 422);
         check(venueOfKey(input.venueKey), 'This laptop is not registered to a venue yet', 403);
         const before = one('SELECT summary FROM venue_results WHERE venue_key=? AND event=?', input.venueKey, input.event);
@@ -485,6 +492,6 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const service = createService({database: process.env.ONLINE_DB || 'online.sqlite', allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
     backupDir: process.env.BACKUP_DIR || '', trustProxy: process.env.TRUST_PROXY === '1'});
-  service.server.listen(Number(process.env.PORT || 8080), process.env.BIND || '127.0.0.1', () => console.log(`PubQuiz Online on http://${process.env.BIND || '127.0.0.1'}:${process.env.PORT || 8080} (put HTTPS in front before going public)`));
+  service.server.listen(Number(process.env.PORT || 8080), process.env.BIND || '127.0.0.1', () => console.log(`BeerMat Online on http://${process.env.BIND || '127.0.0.1'}:${process.env.PORT || 8080} (put HTTPS in front before going public)`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => service.close().then(() => process.exit(0)));
 }

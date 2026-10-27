@@ -29,7 +29,7 @@ export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cl
   const hotspot = path.join(root, 'scripts', windows ? 'hotspot-windows.ps1' : 'hotspot.py'), script = name => path.join(root, 'scripts', name);
   const ps = (...args) => [powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', hotspot, ...args]];
   const jobs = {};
-  // Looked for each time, so installing cloudflared while PubQuiz runs is enough (tests pass a path, or null for none).
+  // Looked for each time, so installing cloudflared while BeerMat runs is enough (tests pass a path, or null for none).
   const tool = () => cloudflared === undefined ? onPath('cloudflared') : cloudflared;
   // Online mode: one cloudflared process while it lasts. The link counts once Cloudflare has registered a connection.
   let tunnel = null, tunnelError = '';
@@ -59,7 +59,7 @@ export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cl
       return {wifi: await wifi(), jobs, online: online(), onlineError: tunnelError, cloudflared: !!tool(), platform: windows ? 'windows' : 'linux',
         setup: {piper: piper.every(f => existsSync(f))}};
     },
-    // `port` is PubQuiz's own port: Linux sends phones that open http://10.42.0.1 there.
+    // `port` is BeerMat's own port: Linux sends phones that open http://10.42.0.1 there.
     startWifi({card = 'auto', ssid, password = ''}, done, port = 3000) {
       requireValue(card === 'auto' || /^[a-zA-Z0-9_-]{1,15}$/.test(card), 'Pick a Wi-Fi card');
       requireValue(typeof ssid === 'string' && ssid.trim() && Buffer.byteLength(ssid.trim()) <= 32 && !/[\u0000-\u001f]/.test(ssid), 'Wi-Fi name must be 1–32 bytes');

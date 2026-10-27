@@ -1,5 +1,5 @@
-// The venue list (venues.json in this repository): the venues PubQuiz Online shows, added only by editing that file.
-// PubQuiz Online imports it; the player app reads it straight from GitHub when the service can't be reached.
+// The venue list (venues.json in this repository): the venues BeerMat Online shows, added only by editing that file.
+// BeerMat Online imports it; the player app reads it straight from GitHub when the service can't be reached.
 //   {"venues": [{"id": "red-lion-bristol", "name": "The Red Lion", "town": "Bristol", "postcode": "BS1 4DJ",
 //     "address": "1 King Street", "website": "https://…", "lat": 51.4545, "lon": -2.5879,
 //     "quizNights": [{"day": "tuesday", "time": "20:00"}]}]}

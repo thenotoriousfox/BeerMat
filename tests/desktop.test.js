@@ -181,7 +181,7 @@ test('database: a checked copy on each start, the newest ten kept; a damaged fil
 
     // Restoring: only a PubQuiz database is accepted; the current one is backed up first.
     const other = path.join(dir, 'other.sqlite'); new DatabaseSync(other).exec('CREATE TABLE x(y)');
-    assert.throws(() => restoreDatabase(other, file, backups), /not a PubQuiz database/);
+    assert.throws(() => restoreDatabase(other, file, backups), /not a BeerMat database/);
     writeFileSync(path.join(dir, 'junk.sqlite'), 'not a database at all, honestly');
     assert.throws(() => restoreDatabase(path.join(dir, 'junk.sqlite'), file, backups), /damaged|not a database/);
     restoreDatabase(newest, file, backups, {now: () => time += 1000});

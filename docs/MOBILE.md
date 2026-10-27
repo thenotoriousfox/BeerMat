@@ -1,4 +1,4 @@
-# PubQuiz Player (Android and iOS)
+# BeerMat app (Android and iOS)
 
 An optional phone app for quiz teams. **Installing it is never needed**: every quiz works in a normal phone
 browser, and app and browser teams play the same quiz side by side.
@@ -11,17 +11,17 @@ browser, and app and browser teams play the same quiz side by side.
   shows its name (and password, for a Windows hotspot), then opens the quiz once the phone is on it.
 * Inside a quiz the app adds a **Quizzes** button back to its own screens, and vibrates for a new question and for
   your buzz turn (Android; switch off in the team menu).
-* **Profile** (optional, needs PubQuiz Online): sign in, keep your team's result after a quiz (**Keep this result**),
+* **Profile** (optional, needs BeerMat Online): sign in, keep your team's result after a quiz (**Keep this result**),
   see statistics and badges, set privacy (everything off until you switch it on), download or delete your data.
   Results wait on the phone until it is online.
-* **Find a quiz** (needs PubQuiz Online): search by town or postcode, or use your location once (only when you tap
+* **Find a quiz** (needs BeerMat Online): search by town or postcode, or use your location once (only when you tap
   it, rounded to about 100 m, never in the background). Save venues, set a reminder (a phone notification two hours
   before, or a calendar file). Offline, the last listing shows with a note that it may be out of date.
 * **Map** (Find a quiz): every venue on an OpenStreetMap map; gold pins have a quiz night, and day buttons (Mon–Sun) show
   only venues with a quiz that day. Tap one for the venue's page: address, regular quiz nights, website, directions (Google Maps) and its next quiz. Offline it shows the last
-  venues it saw, or the venue list from GitHub. Venues are added by PubQuiz (docs/ONLINE.md → Venues).
+  venues it saw, or the venue list from GitHub. Venues are added by BeerMat (docs/ONLINE.md → Venues).
 
-The same screens are also PubQuiz Online's web app (`/app/`), for browser players who want a profile.
+The same screens are also BeerMat Online's web app (`/app/`), for browser players who want a profile.
 
 ## How it is built
 
@@ -46,7 +46,7 @@ Settings that matter:
 ```bash
 cd mobile
 npm ci
-node scripts/build-web.mjs --online https://online.example     # optional: bake in a PubQuiz Online address
+node scripts/build-web.mjs --online https://online.example     # optional: bake in a BeerMat Online address
 npx cap sync
 ```
 
@@ -98,9 +98,9 @@ in `~/.local/share/pubquiz/`). Raise `versionCode` in `android/app/build.gradle`
    apps that mostly show web content; the profile, listings, scanning and reminders are the native-side value.
 4. The local network permission prompt (`NSLocalNetworkUsageDescription`) appears the first time a quiz is opened.
 
-**Data declared to the stores** (if PubQuiz Online is enabled): email address, name, optional photo, quiz results
+**Data declared to the stores** (if BeerMat Online is enabled): email address, name, optional photo, quiz results
 the player chooses to keep, approximate location only for a search and not stored. Nothing is used for tracking or
-advertising. Without PubQuiz Online the app collects nothing; quiz laptops see only the team name the players type.
+advertising. Without BeerMat Online the app collects nothing; quiz laptops see only the team name the players type.
 
 ## What has been checked
 

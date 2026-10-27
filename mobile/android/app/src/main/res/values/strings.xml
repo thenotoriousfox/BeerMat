@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">PubQuiz Player</string>
-    <string name="title_activity_main">PubQuiz Player</string>
+    <string name="app_name">BeerMat</string>
+    <string name="title_activity_main">BeerMat</string>
     <string name="package_name">uk.pubquiz.player</string>
     <string name="custom_url_scheme">uk.pubquiz.player</string>
 </resources>
