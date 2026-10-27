@@ -1,15 +1,14 @@
 ---
 import Page from '../layouts/Page.astro';
 import {CONTACT, FREE_LIMITS} from '../consts';
-// DRAFT: the business's legal name and address, and the payment details, are placeholders; have it reviewed before
-// relying on it.
+// Written for BeerMat as it is (a sole trader, payments by Stripe); worth having reviewed.
 const updated = '27 October 2026';
 ---
 <Page title="Terms · BeerMat" description="The terms for using BeerMat, BeerMat Pro and BeerMat Online.">
 	<article class="wrap prose max-w-3xl py-10">
 		<p class="eyebrow">Last updated {updated}</p>
 		<h1 class="text-4xl">Terms of use</h1>
-		<p>These terms cover the BeerMat desktop app, the BeerMat phone app, BeerMat Online and this website. BeerMat is provided by <strong>[business name and address]</strong> (“we”). Questions: <a href={`mailto:${CONTACT}`}>{CONTACT}</a>.</p>
+		<p>These terms cover the BeerMat desktop app, the BeerMat phone app, BeerMat Online and this website. BeerMat is provided by <strong>Daniel Weatherall, trading as BeerMat, Flat Above, 5 Albert Street, Derby DE1 2DU</strong> (“we”). Questions: <a href={`mailto:${CONTACT}`}>{CONTACT}</a>.</p>
 
 		<h2>Using BeerMat</h2>
 		<ul>

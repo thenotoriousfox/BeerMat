@@ -10,4 +10,4 @@ online.beermatquiz.co.uk; `/app`, `/admin`, `/reset` and `/verify` redirect ther
 
 The logos and font come from `../brand` at build time. Screenshots in `public/shots` are of a demo quiz. Prices, the
 contact address and whether downloads are open are in `src/consts.ts`. The terms and privacy pages are drafts with
-placeholders for the business name, payment provider and refund policy.
+written for BeerMat as a sole trader with payments by Stripe; worth having reviewed.
