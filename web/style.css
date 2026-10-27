@@ -619,3 +619,10 @@ body.idle .screen-controls button { opacity: 0; pointer-events: none; }
 .quiz-nights .night input[type=checkbox] { width: auto; margin: 0; }
 .quiz-nights .night input[type=time] { width: auto; }
 .quiz-nights .night input[type=time]:disabled { opacity: .4; }
+/* The plan: a note on Tonight while on BeerMat Free, and a badge in Settings. */
+.plan-note { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 16px; padding: 10px 16px; border-radius: 14px; border: 1px solid rgba(255, 178, 26, .45); background: rgba(255, 178, 26, .1); }
+.plan-note[hidden] { display: none; }
+.plan-note button { margin: 0; }
+.plan-badge { padding: 4px 12px; border-radius: 99px; font-weight: 700; background: var(--surface-2); }
+.plan-badge.pro { background: var(--gold); color: #140b2e; }
+#spotifyPanel.locked > :not(h2, #spotifyStatus) { display: none; }

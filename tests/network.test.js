@@ -45,7 +45,7 @@ test('connection check: reachability per address, firewall hints for Linux and W
 
 test('desk: venue network mode shows the address on the TV; a Wi-Fi password is checked and never shown online; desktop desk tickets', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-network-'));
-  const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: dir, soundsDir: dir, interfaces,
+  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: dir, soundsDir: dir, interfaces,
     networkCheck: async ({port, addresses}) => [{id: 'fake', status: 'ok', text: `${addresses.length} addresses on ${port}`}]});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const port = quiz.server.address().port;
@@ -84,7 +84,7 @@ test('desk: venue network mode shows the address on the TV; a Wi-Fi password is 
 test('online link hides the quiz Wi-Fi password', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-network-'));
   const laptop = {wifi: async () => ({available: false}), status: async () => ({wifi: {available: false}, jobs: {}, setup: {}}), online: () => ({url: 'https://q.trycloudflare.com', ready: true}), goOffline() {}};
-  const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: dir, soundsDir: dir, laptop});
+  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: dir, soundsDir: dir, laptop});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   try {
     const port = quiz.server.address().port;

@@ -60,7 +60,7 @@ test('finishing a quiz keeps its results on the laptop, gives each team a signed
     sent.push({url, key: options.headers['Idempotency-Key'], body: JSON.parse(options.body)});
     return {ok: sent.length === 1, status: sent.length === 1 ? 201 : 409};
   };
-  const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: dir, soundsDir: dir, now: () => time, fetchImpl});
+  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: dir, soundsDir: dir, now: () => time, fetchImpl});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const call = async (route, body = {}, key = route.startsWith('host/') ? host : '') => {
     const response = await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/${route}`, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body)});

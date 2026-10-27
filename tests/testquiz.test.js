@@ -10,7 +10,7 @@ import {createQuiz} from '../server/server.js';
 const hostKey = 'a-secure-quiz-test-key';
 test('the rehearsal quiz script loads six valid rounds, keeps other rounds and replaces its own on a re-run', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-testquiz-'));
-  const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir});
+  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${quiz.server.address().port}`;
   const call = async (route, body = {}, key = '') => (await fetch(`${base}/api/${route}`, {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: JSON.stringify(body)})).json();

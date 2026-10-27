@@ -10,6 +10,8 @@ import {createLaptop} from './laptop.js';
 import {lanAddresses, joinUrlFor, diagnose, hotspotAddresses} from './network.js';
 import {teamResults} from './results.js';
 import {newVenueKey, signClaim, keyId} from '../shared/claims.js';
+import {readLicence, licencePublicKey} from '../shared/licence.js';
+import {edition} from './edition.js';
 import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from '../web/soundnames.js';
 import {typeGroups} from './looks.js';
 import {loadThemes} from './themes.js';
@@ -32,7 +34,7 @@ const deskSecurity = {...security, 'Content-Security-Policy': security['Content-
 const DELIVERY_GRACE_MS = 2000;
 const SESSION_MS = 12 * 60 * 60 * 1000;
 // Read-only routes never notify clients of a change.
-const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token', '/api/host/drive', '/api/host/spotify/preview', '/api/host/spotify/pause', '/api/host/online/account', '/api/host/online/signin', '/api/host/online/signup', '/api/host/online/signout', '/api/host/online/call', '/api/host/online/locate']);
+const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token', '/api/host/drive', '/api/host/spotify/preview', '/api/host/spotify/pause', '/api/host/online/account', '/api/host/online/signin', '/api/host/online/signup', '/api/host/online/signout', '/api/host/online/call', '/api/host/online/locate', '/api/host/plan']);
 
 // A sound pack is a folder: general/<name>.mp3 for each moment (soundnames.js), buzzers/<pack>/*.mp3, Themes/<name>/,
 // and optionally bingo-calls.json at the top. `prefix` is the URL they are served under.
@@ -66,7 +68,7 @@ function loadPack(dir, prefix) {
 // runs their venue from the desk.
 export const onlineDefault = 'https://130-162-161-81.sslip.io';
 
-export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), themesDir = path.join(root, 'themes'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose, fetchImpl = globalThis.fetch} = {}) {
+export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), themesDir = path.join(root, 'themes'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose, fetchImpl = globalThis.fetch, plan: fixedPlan = null, licenceKey = licencePublicKey} = {}) {
   if (typeof hostKey !== 'string' || hostKey.length < 12) throw Error('HOST_KEY must contain at least 12 characters');
   const db = new DatabaseSync(database);
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
@@ -526,6 +528,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     requireValue(one('SELECT COUNT(*) n FROM teams').n < 250, 'Team limit reached. Ask the quizmaster.', 409);
     const {maxTeams} = settings();
     requireValue(!maxTeams || one('SELECT COUNT(*) n FROM teams WHERE enabled=1').n < maxTeams, 'The quiz is full. Ask the quizmaster.', 409);
+    requireValue(!fullFor(plan().limits), 'The quiz is full. Ask the quizmaster.', 409);
     const sound = regular.sound !== null && regular.sound < SOUNDS + soundPack().buzzers.length ? regular.sound : null;
     const photo = regular.photo && existsSync(path.join(mediaDir, path.basename(regular.photo))) ? regular.photo : null;
     // The PIN came from the quizmaster, so a returning team skips the waiting room.
@@ -551,6 +554,35 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return flushing;
   }
   const syncTimer = setInterval(flushOutbox, 5 * 60 * 1000); syncTimer.unref?.();
+  // The plan comes from the licence BeerMat Online signed for this laptop's venue key (free without one, or once it
+  // runs out). `plan` fixes it instead, for tests.
+  const licence = () => readLicence(getMeta('licence', null), {venueKey: venueKey().publicKey, now: now(), publicKey: licenceKey});
+  const plan = () => {
+    if (fixedPlan) return {...edition(fixedPlan), venue: '', expires: null, paidUntil: null};
+    const l = licence();
+    return {...edition(l?.plan), venue: l?.venueName || '', expires: l?.expires || null, paidUntil: l?.paidUntil || null};
+  };
+  const planOut = () => {const {has, ...out} = plan(); return out;};
+  // Asks BeerMat Online for a fresh licence: a request signed with this laptop's venue key, so no sign-in is needed.
+  async function refreshLicence() {
+    const base = settings().onlineService;
+    requireValue(base && fetchImpl, 'Set the BeerMat Online address first');
+    let response;
+    try {
+      response = await fetchImpl(base.replace(/\/$/, '') + '/v1/licence', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(signClaim({v: 1, kind: 'beermat.licence-request', at: now()}, venueKey())), signal: AbortSignal.timeout(10000)});
+    } catch {throw new QuizError('BeerMat Online can’t be reached. Is this laptop on the internet?', 502);}
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new QuizError(data.error || `BeerMat Online said ${response.status}`, response.status >= 500 ? 502 : 400);
+    requireValue(readLicence(data.licence, {venueKey: venueKey().publicKey, now: now(), publicKey: licenceKey}), 'BeerMat Online sent a licence this laptop can’t check', 502);
+    setMeta('licence', data.licence);
+    return planOut();
+  }
+  // Once a laptop has a licence, it renews it by itself whenever it can reach the service.
+  const renew = () => {if (getMeta('licence', null) && !fixedPlan) refreshLicence().catch(() => {});};
+  const licenceTimer = setInterval(renew, 6 * 3600 * 1000); licenceTimer.unref?.();
+  const firstRenew = setTimeout(renew, 5000); firstRenew.unref?.();
+  const fullFor = limits => limits && one('SELECT COUNT(*) n FROM teams').n >= limits.teams;
   // The desk's Venue section: this laptop signs in to BeerMat Online for the venue's operator and passes on the few
   // calls that run a venue. The session stays on the laptop; the desk page never talks to the internet itself.
   const onlineCalls = [
@@ -610,6 +642,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     requireValue(!settings().ended, 'Quiz has finished. Resume it first.', 409);
     const current = latest();
     requireValue(!pending(current), 'Close current question first', 409);
+    const {limits} = plan();
+    requireValue(!limits || one('SELECT COUNT(*) n FROM questions').n < limits.questions, `BeerMat Free plays ${limits?.questions} questions in a quiz. BeerMat Pro plays the rest: see Settings → Plan.`, 403);
     settle(current);
     const q = validateQuestion(data, mediaDir), random = () => randomInt(2 ** 32) / 2 ** 32;
     if (sourceId) q.sourceId = sourceId;
@@ -883,9 +917,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       if (p.startsWith('/api/host/')) {
         requireValue(isHost(auth), 'Host login required', 403);
         if (p === '/api/host/logout') {run('DELETE FROM host_sessions WHERE hash=?', hash(auth)); return send(200, {ok: true});}
+        if (p === '/api/host/plan') return send(200, planOut());
+        if (p === '/api/host/plan/refresh') return send(200, await refreshLicence());
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats();
-          return send(200, {serverTime: now(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board: boardStep(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {serverTime: now(), plan: planOut(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board: boardStep(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -1101,7 +1137,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const wheel = {id: (getMeta('wheel', null)?.id || 0) + 1, items: items.map(i => i.trim()), result: randomInt(items.length), spun: now()};
           setMeta('wheel', wheel); return send(200, wheel);
         }
-        if (p === '/api/host/spotify/status') return send(200, {...await spotify.status(), redirectUri: spotifyRedirect()});
+        if (p === '/api/host/spotify/status') return send(200, {...await spotify.status(), redirectUri: spotifyRedirect(), locked: !plan().has('spotify')});
+        if (p.startsWith('/api/host/spotify/')) requireValue(plan().has('spotify'), 'Spotify music rounds are part of BeerMat Pro: see Settings → Plan.', 403);
         if (p === '/api/host/spotify/connect') return send(200, {url: spotify.authorizeUrl(body.clientId, spotifyRedirect())});
         // The desk's Spotify player needs a current access token; the long-lived sign-in token never leaves the server.
         if (p === '/api/host/spotify/token') return send(200, await spotify.accessToken());
@@ -1272,6 +1309,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         requireValue(one('SELECT COUNT(*) n FROM teams').n < 250, 'Team limit reached. Ask the quizmaster.', 409);
         const {maxTeams, waitingRoom} = settings();
         requireValue(!maxTeams || one('SELECT COUNT(*) n FROM teams WHERE enabled=1').n < maxTeams, 'The quiz is full. Ask the quizmaster.', 409);
+        requireValue(!fullFor(plan().limits), 'The quiz is full. Ask the quizmaster.', 409);
         // With the waiting room on, a new team waits until the quizmaster lets it in.
         const id = token(), secret = token(); run('INSERT INTO teams(id,name,secret,seen,waiting) VALUES(?,?,?,?,?)', id, body.name.trim(), secret, now(), Number(waitingRoom));
         rememberDevice(req, id); return send(200, {id, secret, waiting: waitingRoom});
@@ -1390,7 +1428,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   for (const s of [server, publicServer]) {s.requestTimeout = 15000; s.headersTimeout = 10000;}
   let closing = null;
   function close() {
-    clearInterval(ticker); clearInterval(keepAlive); clearInterval(syncTimer); clearTimeout(notifyTimer);
+    clearInterval(ticker); clearInterval(keepAlive); clearInterval(syncTimer); clearInterval(licenceTimer); clearTimeout(firstRenew); clearTimeout(notifyTimer);
     for (const stream of streams) stream.end();
     laptop?.goOffline?.();
     const shut = s => new Promise(resolve => {s.close(() => resolve()); s.closeAllConnections();});

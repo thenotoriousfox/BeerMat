@@ -14,7 +14,7 @@ import {createService} from '../online/service.js';
 
 const root = path.join(import.meta.dirname, '..');
 const dir = mkdtempSync(path.join(os.tmpdir(), 'beermat-mobile-'));
-const quiz = createQuiz({hostKey: 'mobile-test-private-key', database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: dir, soundsDir: dir});
+const quiz = createQuiz({plan: 'pro', hostKey: 'mobile-test-private-key', database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: dir, soundsDir: dir});
 const service = createService({database: path.join(dir, 'online.sqlite')});
 await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
 await new Promise(r => service.server.listen(0, '127.0.0.1', r));

@@ -7,7 +7,7 @@ import {createQuiz} from '../server/server.js';
 const key='a-private-test-password';
 test('persistent identities, authoritative deadlines, validation, scoring and access control',async()=>{
  const dir=mkdtempSync(path.join(os.tmpdir(),'beermat-'));let clock=100000;let quiz;
- async function start(){quiz=createQuiz({database:path.join(dir,'test.sqlite'),hostKey:key,now:()=>clock});await new Promise(r=>quiz.server.listen(0,'127.0.0.1',r));}
+ async function start(){quiz=createQuiz({plan: 'pro', database:path.join(dir,'test.sqlite'),hostKey:key,now:()=>clock});await new Promise(r=>quiz.server.listen(0,'127.0.0.1',r));}
  await start();
  async function api(p,b={},auth=''){const r=await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/${p}`,{method:'POST',headers:{Authorization:'Bearer '+auth,'Content-Type':'application/json'},body:JSON.stringify(b)});return {status:r.status,...await r.json()};}
  try{
@@ -49,7 +49,7 @@ test('persistent identities, authoritative deadlines, validation, scoring and ac
 });
 test('host key must be configured securely',()=>assert.throws(()=>createQuiz({hostKey:'short'})));
 test('concurrent teams, choices, manual close, portal fallback and request guards',async()=>{
- const quiz=createQuiz({database:':memory:',hostKey:key});await new Promise(r=>quiz.server.listen(0,'127.0.0.1',r));
+ const quiz=createQuiz({plan: 'pro', database:':memory:',hostKey:key});await new Promise(r=>quiz.server.listen(0,'127.0.0.1',r));
  const base=`http://127.0.0.1:${quiz.server.address().port}`;
  async function api(p,b={},auth=''){const r=await fetch(base+'/api/'+p,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+auth},body:JSON.stringify(b)});return {status:r.status,...await r.json()};}
  try{

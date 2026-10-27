@@ -25,6 +25,8 @@ only for the app (`capacitor://localhost`, `http(s)://localhost`) and origins li
 | `PATCH /v1/venues/:id` · `GET /v1/me/venues` | operator | edit the venue's profile (name, town, postcode, address, website, regular quiz nights, location) · the venues you run |
 | `POST /v1/venues` · `DELETE /v1/venues/:id` · `POST /v1/venues/:id/operator` `{email}` | admin | add or remove a venue outside the venue list · link it to its operator's account (`{email: null}` unlinks) |
 | `POST /v1/venues/:id/keys` `{publicKey}` | operator | register a quiz laptop (its key is on the desk under Past quizzes) |
+| `PATCH /v1/admin/venues/:id` `{plan, planUntil}` | admin | set a venue's plan (see Plans) |
+| `POST /v1/licence` (a request signed by the laptop) | a registered quiz laptop | a signed licence for its venue's plan |
 | `POST /v1/venues/:id/events` · `PATCH/DELETE /v1/events/:id` | operator | publish, change, cancel a quiz night |
 | `GET /v1/venues/:id` · `GET /v1/events?q=…|lat=…&lon=…&radiusKm=…` | anyone | venue page · upcoming quizzes by town, postcode area or location |
 | `POST /v1/venue-results` (signed summary) | a registered laptop | results shared by the quizmaster (off by default) |
@@ -75,6 +77,32 @@ published one coming up; slate ones don't. Day buttons (Any day, Mon–Sun) show
 filter the search listings too. Tapping a pin opens the venue's page. Offline, the app shows the last list it saw, or failing that the venue list straight from GitHub (once
 the repository is public). OpenStreetMap's tile servers are for light use: with many players, switch to a tile
 provider's plan.
+
+## Plans: BeerMat Free and Pro
+
+Players never pay. A venue has a plan, **free** or **pro** (with an end date, or none); laptops follow their venue's.
+
+| | BeerMat Free | BeerMat Pro |
+|---|---|---|
+| Questions played per quiz | 3 | no limit |
+| Teams per quiz | 3 (a 4th is told the quiz is full) | no limit |
+| Spotify music rounds | — | ✓ |
+| Every round format, the TV, phones, hotspot, online quizzes, results | ✓ | ✓ |
+
+* **Setting a plan**: admin console → Venues → open a venue → **Plan** (Free, or Pro until a date, or with no end).
+  `PATCH /v1/admin/venues/:id {plan, planUntil}`. Payments will set the same fields; nothing is charged yet.
+* **Licences**: the laptop sends `POST /v1/licence` a request signed with its venue key (`kind: beermat.licence-request`,
+  the time within 10 minutes), so it needs no sign-in, only to be registered with its venue. The service answers with a
+  licence signed by its own key: plan, venue, this laptop's venue key, `paidUntil` and `expires`. A licence lasts until
+  the plan ends (at most 31 days ahead, so it gets renewed) plus 14 days' grace for laptops that are rarely online.
+* **On the laptop** (`shared/licence.js`): the licence is checked offline against the public key in the app, and only
+  counts for the laptop it names. The desk's **Settings → Plan → Check my plan** fetches one; after that the laptop
+  renews it by itself every 6 hours when online. Without a valid licence it is on Free.
+* **The signing key** is kept off the repository: `~/.local/share/beermat/licence-key.txt` on the developer's machine
+  and `/etc/beermat-online/licence-key.txt` on the server (`online/deploy.sh` copies it). Losing it means a new key
+  pair and an app update with the new public key; anyone holding it can make Pro licences.
+* The desktop app is plain JavaScript, so a determined user can edit it to skip the limits. The licence keeps honest
+  venues honest; what only the service provides (listings, verified leaderboards, shared results) can't be faked.
 
 ## Data model
 
@@ -145,7 +173,8 @@ What a deployment needs in general:
   venue pages and pictures.
 * Point the app at it: `node mobile/scripts/build-web.mjs --online https://your.domain`, and quizmasters at it on
   the desk (**Past quizzes → BeerMat Online**).
-* Future paid plans would hang off `server/edition.js` and the account record; nothing is charged or enforced today.
+* `LICENCE_KEY_FILE`: the Ed25519 key that signs BeerMat Pro licences (see Plans). Without it the service runs but
+  `POST /v1/licence` answers 503.
 
 ## Tests
 

@@ -23,7 +23,7 @@ test('a laptop’s own sound pack becomes the default; desk choices override it'
   const shipped = path.join(dir, 'shipped'); mkdirSync(path.join(shipped, 'general'), {recursive: true}); mkdirSync(path.join(shipped, 'buzzers', 'Jingles'), {recursive: true});
   mkdirSync(path.join(shipped, 'bingo_voice'));
   for (const f of ['general/correct.mp3', 'general/drum_roll.mp3', 'buzzers/Jingles/Sax.mp3', 'bingo_voice/4.mp3']) writeFileSync(path.join(shipped, f), mp3);
-  const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: pack, soundsDir: shipped});
+  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: pack, soundsDir: shipped});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${quiz.server.address().port}`;
   const call = async (route, body = {}, key = '') => {const r = await fetch(`${base}/api/${route}`, {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: JSON.stringify(body)}); return {status: r.status, ...await r.json()};};
@@ -72,7 +72,7 @@ test('sound themes from the pack replace the moments they have; picking one rese
   for (const f of ['general/correct.mp3', 'general/drum_roll.mp3', 'Themes/Arcade Theme/correct.mp3', 'Themes/Arcade Theme/stopwatch_timer_end.mp3', 'buzzers/Pack/Honk.mp3']) {
     mkdirSync(path.dirname(path.join(pack, f)), {recursive: true}); writeFileSync(path.join(pack, f), mp3);
   }
-  const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: pack, soundsDir: path.join(dir, 'none'), themesDir: path.join(dir, 'none')});
+  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: pack, soundsDir: path.join(dir, 'none'), themesDir: path.join(dir, 'none')});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${quiz.server.address().port}`;
   const call = async (route, body = {}, key = '') => {const r = await fetch(`${base}/api/${route}`, {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: JSON.stringify(body)}); return {status: r.status, ...await r.json()};};
@@ -93,7 +93,7 @@ test('sound themes from the pack replace the moments they have; picking one rese
 test('sound themes can be random for each question or chosen by question type', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-themes-')), pack = path.join(dir, 'pack'), mp3 = Buffer.from([0xff, 0xfb, 0x90, 0x00, 1]);
   for (const f of ['general/correct.mp3', 'Themes/Arcade Theme/correct.mp3', 'Themes/Classic Theme/correct.mp3']) {mkdirSync(path.dirname(path.join(pack, f)), {recursive: true}); writeFileSync(path.join(pack, f), mp3);}
-  const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: pack, soundsDir: path.join(dir, 'none')});
+  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: pack, soundsDir: path.join(dir, 'none')});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${quiz.server.address().port}`;
   const call = async (route, body = {}, key = '') => {const r = await fetch(`${base}/api/${route}`, {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: JSON.stringify(body)}); return {status: r.status, ...await r.json()};};
@@ -121,7 +121,7 @@ test('sound themes can be random for each question or chosen by question type', 
 test('Halloween: the shipped theme and look are there to choose, and never turn up by chance', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-halloween-')), pack = path.join(dir, 'pack'), mp3 = Buffer.from([0xff, 0xfb, 0x90, 0x00, 1]);
   for (const f of ['general/correct.mp3', 'Themes/Arcade Theme/correct.mp3']) {mkdirSync(path.dirname(path.join(pack, f)), {recursive: true}); writeFileSync(path.join(pack, f), mp3);}
-  const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: pack, soundsDir: path.join(dir, 'none')});
+  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: pack, soundsDir: path.join(dir, 'none')});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${quiz.server.address().port}`;
   const call = async (route, body = {}, key = '') => {const r = await fetch(`${base}/api/${route}`, {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: JSON.stringify(body)}); return {status: r.status, ...await r.json()};};

@@ -38,6 +38,10 @@ function chooseTab(name) {
 let spotify = null;
 async function loadSpotify() {
   try {spotify = await request('spotify/status');} catch (e) {$('spotifyStatus').textContent = e.message; return;}
+  // On BeerMat Free the panel shows only that Spotify comes with Pro.
+  $('spotifyPanel').classList.toggle('locked', spotify.locked);
+  for (const id of ['spotifySongs', 'spotifyClips']) $(id).closest('.row').hidden = spotify.locked;
+  if (spotify.locked) {$('spotifyStatus').textContent = 'Spotify music rounds come with BeerMat Pro (Settings → Plan).'; return;}
   $('spotifyRedirect').textContent = spotify.redirectUri;
   if (document.activeElement !== $('spotifyClientId')) $('spotifyClientId').value = spotify.clientId;
   $('spotifyStatus').textContent = spotify.connected ? `✓ Connected${spotify.user ? ' as ' + spotify.user : ''}${spotify.devices.length ? '' : ' · no player found: open the Spotify app on this laptop and play any song once, then Refresh players'}` : 'Not connected';
@@ -1091,7 +1095,20 @@ function renderState(s) {
   if (teamSignature !== teamsSignature && !$('teamCards').contains(document.activeElement)) {teamsSignature = teamSignature; $('teamCards').replaceChildren(...s.teams.map(teamControls));}
   selectOptions($('adjustTeam'), s.teams.filter(t => t.enabled).map(t => [t.id, t.name]), $('adjustTeam').value);
   renderTonight(s);
+  renderPlan(s.plan);
 }
+// ---- Plan: Free (3 questions, 3 teams, no Spotify) or Pro, from the venue's licence ----
+const longDate = t => new Date(t).toLocaleDateString(undefined, {day: 'numeric', month: 'long', year: 'numeric'});
+function renderPlan(plan) {
+  const free = !!plan.limits;
+  $('planNote').hidden = !free;
+  if (free) $('planNote').firstChild.textContent = `BeerMat Free: quizzes stop after ${plan.limits.questions} questions and ${plan.limits.teams} teams.`;
+  $('planBadge').textContent = plan.name; $('planBadge').classList.toggle('pro', !free);
+  $('planInfo').textContent = !free ? `${plan.venue ? plan.venue + ' has BeerMat Pro' : 'BeerMat Pro'}${plan.paidUntil ? `, paid until ${longDate(plan.paidUntil)}` : ''}.${plan.expires ? ` This laptop holds it offline until ${longDate(plan.expires)}.` : ''}`
+    : plan.venue ? `${plan.venue} is on BeerMat Free.` : 'This laptop is on BeerMat Free.';
+}
+$('planSee').onclick = () => chooseTab('settings');
+$('planRefresh').onclick = () => action(async () => {const plan = await request('plan/refresh'); renderPlan(plan); return `Plan checked: ${plan.name}`;});
 // ---- Tonight: one big button for whatever comes next, where the quiz is, and who's in the room ----
 // Whichever of Next, Close and Reveal is the natural next thing becomes the big button, first in the row: close an open
 // question, reveal a closed one, otherwise Next.

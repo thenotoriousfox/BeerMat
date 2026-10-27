@@ -163,7 +163,7 @@ test('database: a checked copy on each start, the newest ten kept; a damaged fil
   const dir = temp(), file = path.join(dir, 'quiz.sqlite'), backups = path.join(dir, 'backups');
   try {
     assert.deepEqual(prepareDatabase(file, backups), {state: 'new'});
-    const quiz = createQuiz({hostKey: 'a-secure-quiz-test-key', database: file, mediaDir: dir, packDir: dir, soundsDir: dir});
+    const quiz = createQuiz({plan: 'pro', hostKey: 'a-secure-quiz-test-key', database: file, mediaDir: dir, packDir: dir, soundsDir: dir});
     quiz.db.prepare("INSERT INTO teams(id,name,secret,seen) VALUES('t1','Foxes','s1',0)").run();
     await quiz.close();
     let time = Date.UTC(2026, 0, 1);
@@ -228,8 +228,3 @@ test('quiz server process: starts on the preferred port or the next free one, mi
   } finally {child.kill(); blocker.close(); rmSync(dir, {recursive: true, force: true});}
 });
 
-test('editions: a single place for a future Free/Pro split, with every feature in every edition today', async () => {
-  const {edition, features} = await import('../server/edition.js');
-  for (const name of ['free', 'pro', 'unknown']) for (const f of features) assert.equal(edition(name).has(f), true);
-  assert.equal(edition('free').has('somethingElse'), false);
-});

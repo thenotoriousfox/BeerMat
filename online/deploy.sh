@@ -9,6 +9,8 @@
 #   * Caddy in front, with HTTPS from Let's Encrypt (renewed by itself)
 #   * ports 80 and 443 opened in the server's firewall (Oracle's images block them)
 #   * a nightly database backup in /var/backups/beermat-online (14 kept); copy them off the server too
+#   * the key that signs BeerMat Pro licences, from ~/.local/share/beermat/licence-key.txt (or LICENCE_KEY_FILE),
+#     in /etc/beermat-online, readable by the service only. Without it the service runs but issues no licences.
 set -euo pipefail
 target=${1:?usage: online/deploy.sh user@server-ip [domain]}
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -27,6 +29,10 @@ cp -r "$repo/mobile/www" "$stage/mobile/"
 cp -r "$repo/online/admin" "$stage/online/"
 printf '{"private": true, "type": "module"}\n' > "$stage/package.json"
 tar -C "$stage" -czf - . | ssh "$target" "rm -rf /tmp/beermat-online && mkdir /tmp/beermat-online && tar -C /tmp/beermat-online -xzf -"
+
+licence_key=${LICENCE_KEY_FILE:-$HOME/.local/share/beermat/licence-key.txt}
+if [ -f "$licence_key" ]; then ssh "$target" "umask 077 && cat > /tmp/beermat-licence-key" < "$licence_key"
+else echo "No licence key at $licence_key: the service won't issue BeerMat Pro licences"; fi
 
 ssh "$target" "sudo DOMAIN='$domain' bash -s" <<'REMOTE'
 set -euo pipefail
@@ -53,6 +59,9 @@ id beermat >/dev/null 2>&1 || useradd --system --home /var/lib/beermat-online --
 install -d -o beermat -g beermat -m 700 /var/lib/beermat-online
 install -d -m 750 -g beermat /var/backups/beermat-online
 chgrp beermat /var/backups/beermat-online && chmod 750 /var/backups/beermat-online
+if [ -f /tmp/beermat-licence-key ]; then
+  install -D -o root -g beermat -m 640 /tmp/beermat-licence-key /etc/beermat-online/licence-key.txt && rm /tmp/beermat-licence-key
+fi
 rm -rf /opt/beermat-online && mv /tmp/beermat-online /opt/beermat-online && chown -R root:root /opt/beermat-online && chmod -R u=rwX,go=rX /opt/beermat-online
 
 cat > /etc/systemd/system/beermat-online.service <<'UNIT'
@@ -67,6 +76,8 @@ WorkingDirectory=/var/lib/beermat-online
 Environment=PORT=8080 BIND=127.0.0.1 ONLINE_DB=/var/lib/beermat-online/online.sqlite NODE_ENV=production TRUST_PROXY=1
 # Venues are kept here and edited in the admin console; this is only read to show admins when the last backup ran.
 Environment=BACKUP_DIR=/var/backups/beermat-online
+# Signs BeerMat Pro licences for quiz laptops (shared/licence.js).
+Environment=LICENCE_KEY_FILE=/etc/beermat-online/licence-key.txt
 ExecStart=/opt/node/bin/node --disable-warning=ExperimentalWarning /opt/beermat-online/online/service.js
 Restart=on-failure
 NoNewPrivileges=true

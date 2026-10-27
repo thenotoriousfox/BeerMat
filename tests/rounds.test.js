@@ -9,7 +9,7 @@ import {createQuiz} from '../server/server.js';
 const hostKey = 'a-secure-rounds-test-key';
 async function fixture(fn, options = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-rounds-')); let time = 5000000; let quiz, host;
-  const start = async () => {quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'no-pack'), soundsDir: path.join(dir, 'no-pack'), now: () => time, ...options}); await new Promise(r => quiz.server.listen(0, '127.0.0.1', r)); host = (await call('login', {key: hostKey})).key;};
+  const start = async () => {quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'no-pack'), soundsDir: path.join(dir, 'no-pack'), now: () => time, ...options}); await new Promise(r => quiz.server.listen(0, '127.0.0.1', r)); host = (await call('login', {key: hostKey})).key;};
   const url = () => `http://127.0.0.1:${quiz.server.address().port}`;
   const call = async (route, body = {}, key = route.startsWith('host/') ? host : '') => {
     const response = await fetch(url() + '/api/' + route, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body)});
@@ -276,7 +276,7 @@ test('returning teams: a PIN from the quizmaster brings a team back with its pho
 }));
 
 test('a new team waits to be let in unless the quizmaster switches the waiting room off', async () => {
-  const quiz = createQuiz({database: ':memory:', hostKey, packDir: '/nonexistent', soundsDir: '/nonexistent'}); await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
+  const quiz = createQuiz({plan: 'pro', database: ':memory:', hostKey, packDir: '/nonexistent', soundsDir: '/nonexistent'}); await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   try {
     const team = await (await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/join`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name: 'Newcomers'})})).json();
     assert.equal(team.waiting, true);

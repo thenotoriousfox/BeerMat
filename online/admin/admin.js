@@ -58,6 +58,7 @@ async function loadOverview() {
   const tile = (n, label, note) => {const d = el('div', undefined, 'stat'); d.append(el('strong', String(n)), el('span', label)); if (note) d.append(el('small', note)); return d;};
   $('stats').replaceChildren(
     tile(o.venues, 'venues', `${o.verifiedVenues} verified · ${o.operatedVenues} with an operator · ${o.mappedVenues} on the map`),
+    tile(o.proVenues, 'venues on Pro'),
     tile(o.upcoming, 'quizzes in the next 7 days'),
     tile(o.accounts, 'accounts', `${o.newAccounts} new this week · ${o.admins} admin${o.admins === 1 ? '' : 's'}`),
     tile(o.results, 'results kept by players'),
@@ -86,7 +87,7 @@ function renderVenues() {
     const edit = el('button', 'Open', 'ghost'); edit.type = 'button'; edit.onclick = () => openVenue(v);
     const action = el('td'); action.append(edit);
     tr.append(name, el('td', v.quizNights.length ? nights(v.quizNights) : '—'), el('td', v.operator ? v.operator.email : '—', v.operator ? undefined : 'muted'),
-      el('td', v.upcoming[0] ? when(v.upcoming[0].startsAt) : '—'), el('td', String(v.laptops.length)), action);
+      el('td', v.upcoming[0] ? when(v.upcoming[0].startsAt) : '—'), el('td', String(v.laptops.length)), el('td', v.plan === 'pro' ? 'Pro' : 'Free', v.plan === 'pro' ? 'pro' : 'muted'), action);
     tr.ondblclick = () => openVenue(v);
     return tr;
   }));
@@ -113,6 +114,8 @@ function openVenue(v) {
 function fillExtras(v) {
   editing = v;
   $('vVerified').checked = v.verified;
+  $('vPlan').value = v.planSet; $('vPlanUntil').value = v.planUntil ? new Date(v.planUntil).toISOString().slice(0, 10) : '';
+  $('vPlanNow').textContent = v.plan === 'pro' ? `On Pro${v.planUntil ? ' until ' + date(v.planUntil) : ', with no end date'}.` : v.planSet === 'pro' ? `Pro ended ${date(v.planUntil)}: on Free.` : 'On Free: 3 questions and 3 teams per quiz.';
   $('vOperator').textContent = v.operator ? `Run by ${v.operator.name} (${v.operator.email}): they edit this venue and its quiz nights from their quiz desk.` : 'No operator yet. Link the account of whoever runs the quiz here; they sign up in the BeerMat app or on their quiz desk first.';
   $('vUnlink').hidden = !v.operator; $('vOperatorEmail').value = '';
   const row = (text, button) => {const li = el('li', text); if (button) li.append(button); return li;};
@@ -145,6 +148,11 @@ $('venueForm').onsubmit = guarded(async e => {
   openVenue(venues.find(v => v.id === saved.id));
 }, 'Venue saved');
 $('vVerified').onchange = guarded(async () => {await api('POST', `/v1/venues/${editing.id}/verify`, {verified: $('vVerified').checked}); await loadVenues();}, 'Saved');
+$('planForm').onsubmit = guarded(async () => {
+  const until = $('vPlanUntil').value, plan = $('vPlan').value;
+  // The end of the chosen day, UK time near enough.
+  await api('PATCH', `/v1/admin/venues/${editing.id}`, {plan, planUntil: plan === 'pro' && until ? new Date(until + 'T23:59:59').getTime() : null}); await loadVenues();
+}, 'Plan saved');
 $('operatorForm').onsubmit = guarded(async () => {await api('POST', `/v1/venues/${editing.id}/operator`, {email: $('vOperatorEmail').value.trim()}); await loadVenues();}, 'Operator linked');
 $('vUnlink').onclick = guarded(async () => {if (!confirm('Unlink the operator? They can no longer edit this venue.')) return false; await api('POST', `/v1/venues/${editing.id}/operator`, {email: null}); await loadVenues();}, 'Operator unlinked');
 $('vDelete').onclick = guarded(async () => {

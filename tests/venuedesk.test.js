@@ -19,7 +19,7 @@ test('desk venue tab: sign in through the laptop, edit only your venue, register
     if (url.startsWith('https://api.postcodes.io/')) {looked.push(url); return Promise.resolve(new Response(JSON.stringify(url.endsWith('BS1%204DJ') ? {status: 200, result: {latitude: 51.454512345, longitude: -2.587912345, admin_district: 'Bristol'}} : {status: 404})));}
     return fetch(url, options);
   };
-  const quiz = createQuiz({hostKey: 'a-secure-quiz-test-key', database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: dir, soundsDir: dir, fetchImpl});
+  const quiz = createQuiz({plan: 'pro', hostKey: 'a-secure-quiz-test-key', database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: dir, soundsDir: dir, fetchImpl});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const call = async (route, body = {}) => {
     const response = await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/host/${route}`, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + host}, body: JSON.stringify(body)});

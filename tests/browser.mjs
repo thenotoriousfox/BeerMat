@@ -9,7 +9,7 @@ const {chromium} = await import(process.env.BEERMAT_PLAYWRIGHT || 'playwright');
 const browser = await chromium.launch({headless: true, ...(process.env.BEERMAT_BROWSER ? {executablePath: process.env.BEERMAT_BROWSER, args: ['--no-sandbox', '--disable-dev-shm-usage', '--no-zygote']} : {})});
 const dir = mkdtempSync(path.join(os.tmpdir(), 'beermat-browser-'));
 let quiz;
-async function start(port = 0) {quiz = createQuiz({database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, hostKey: 'browser-test-private-key'}); await new Promise(r => quiz.server.listen(port, '127.0.0.1', r));}
+async function start(port = 0) {quiz = createQuiz({plan: 'pro', database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, hostKey: 'browser-test-private-key'}); await new Promise(r => quiz.server.listen(port, '127.0.0.1', r));}
 await start(); const port = quiz.server.address().port, base = `http://127.0.0.1:${port}`;
 {const {key} = await (await fetch(base + '/api/login', {method: 'POST', body: JSON.stringify({key: 'browser-test-private-key'})})).json(); await fetch(base + '/api/host/settings', {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: JSON.stringify({waitingRoom: false})});}
 const errors = [], external = [];

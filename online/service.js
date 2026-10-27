@@ -22,6 +22,7 @@ import {fileURLToPath} from 'node:url';
 import {verifyClaim, keyId, validKey} from '../shared/claims.js';
 import {summarize, achievements} from '../shared/achievements.js';
 import {parseVenueList, checkQuizNights} from '../shared/venues.js';
+import {signLicence, plans} from '../shared/licence.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(32).toString('base64url');
@@ -58,9 +59,10 @@ const londonTime = (y, m, d, h, mi) => {
 
 const venuesTable = name => `CREATE TABLE IF NOT EXISTS ${name}(id TEXT PRIMARY KEY, owner TEXT REFERENCES accounts(id) ON DELETE SET NULL, name TEXT NOT NULL,
   town TEXT NOT NULL, postcode TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', website TEXT NOT NULL DEFAULT '', lat REAL, lon REAL,
-  verified INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, quiz_nights TEXT NOT NULL DEFAULT '[]', listed INTEGER NOT NULL DEFAULT 0, edited TEXT NOT NULL DEFAULT '[]');`;
+  verified INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, quiz_nights TEXT NOT NULL DEFAULT '[]', listed INTEGER NOT NULL DEFAULT 0, edited TEXT NOT NULL DEFAULT '[]',
+  plan TEXT NOT NULL DEFAULT 'free', plan_until INTEGER);`;
 
-export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), adminDir = path.join(here, 'admin'), backupDir = '', trustProxy = false} = {}) {
+export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), adminDir = path.join(here, 'admin'), backupDir = '', trustProxy = false, licenceKey = ''} = {}) {
   const startedAt = now();
   const db = new DatabaseSync(database);
   // Before the venue list, every venue had to have an owner: rebuild that table once (foreign keys off, so nothing
@@ -89,6 +91,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   // Quiz nights published from a venue's regular nights: regular=1, occurs = their London date.
   if (!db.prepare('PRAGMA table_info(events)').all().some(c => c.name === 'regular')) db.exec("ALTER TABLE events ADD COLUMN regular INTEGER NOT NULL DEFAULT 0; ALTER TABLE events ADD COLUMN occurs TEXT NOT NULL DEFAULT ''");
   if (!db.prepare('PRAGMA table_info(venues)').all().some(c => c.name === 'quiz_nights')) db.exec("ALTER TABLE venues ADD COLUMN quiz_nights TEXT NOT NULL DEFAULT '[]'");
+  // A venue's plan: free, or pro until plan_until (no date: until an admin changes it).
+  if (!db.prepare('PRAGMA table_info(venues)').all().some(c => c.name === 'plan')) db.exec("ALTER TABLE venues ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'; ALTER TABLE venues ADD COLUMN plan_until INTEGER");
   const one = (sql, ...a) => db.prepare(sql).get(...a), rows = (sql, ...a) => db.prepare(sql).all(...a), run = (sql, ...a) => db.prepare(sql).run(...a);
   const attempts = new Map();
   // Ten tries a minute per address (and per email for sign-in), then a pause.
@@ -131,6 +135,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   const regularTimer = setInterval(() => publishRegular(), 3600000);
   regularTimer.unref();
   publishRegular();
+  const planOf = v => v.plan === 'pro' && (v.plan_until === null || v.plan_until > now()) ? 'pro' : 'free';
   // A venue key counts once a venue has registered it.
   const venueOfKey = key => one('SELECT v.* FROM venue_keys k JOIN venues v ON v.id=k.venue WHERE k.public_key=?', key);
   function history(accountId) {
@@ -335,7 +340,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         let lastBackup = null;
         try {const times = readdirSync(backupDir).filter(f => f.endsWith('.sqlite')).map(f => statSync(path.join(backupDir, f)).mtimeMs); if (times.length) lastBackup = Math.max(...times);} catch {}
         return send(200, {venues: n('SELECT COUNT(*) n FROM venues'), verifiedVenues: n('SELECT COUNT(*) n FROM venues WHERE verified=1'), operatedVenues: n('SELECT COUNT(*) n FROM venues WHERE owner IS NOT NULL'),
-          mappedVenues: n('SELECT COUNT(*) n FROM venues WHERE lat IS NOT NULL'), accounts: n('SELECT COUNT(*) n FROM accounts'), admins: n('SELECT COUNT(*) n FROM accounts WHERE admin=1'),
+          mappedVenues: n('SELECT COUNT(*) n FROM venues WHERE lat IS NOT NULL'), proVenues: n("SELECT COUNT(*) n FROM venues WHERE plan='pro' AND (plan_until IS NULL OR plan_until>?)", now()), accounts: n('SELECT COUNT(*) n FROM accounts'), admins: n('SELECT COUNT(*) n FROM accounts WHERE admin=1'),
           newAccounts: n('SELECT COUNT(*) n FROM accounts WHERE created>?', now() - 7 * 86400000), results: n('SELECT COUNT(*) n FROM results'), laptops: n('SELECT COUNT(*) n FROM venue_keys'),
           venueResults: n('SELECT COUNT(*) n FROM venue_results'), upcoming: n('SELECT COUNT(*) n FROM events WHERE cancelled=0 AND starts>? AND starts<?', now(), now() + 7 * 86400000),
           databaseBytes: (() => {try {return statSync(database).size;} catch {return null;}})(), lastBackup, startedAt, now: now()});
@@ -343,7 +348,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       if (method === 'GET' && p === '/v1/admin/venues') {
         admin();
         return send(200, {venues: rows('SELECT v.*, a.email operator_email, a.display_name operator_name FROM venues v LEFT JOIN accounts a ON a.id=v.owner ORDER BY v.name COLLATE NOCASE').map(v => ({
-          ...venueOut(v), operator: v.owner ? {email: v.operator_email, name: v.operator_name} : null,
+          ...venueOut(v), operator: v.owner ? {email: v.operator_email, name: v.operator_name} : null, plan: planOf(v), planSet: v.plan, planUntil: v.plan_until,
           laptops: rows('SELECT key_id id, added FROM venue_keys WHERE venue=? ORDER BY added', v.id),
           upcoming: rows('SELECT * FROM events WHERE venue=? AND cancelled=0 AND starts>? ORDER BY starts LIMIT 20', v.id, now()).map(e => ({id: e.id, title: e.title, startsAt: e.starts, regular: !!e.regular})),
           sharedResults: rows('SELECT r.summary, r.received FROM venue_results r JOIN venue_keys k ON k.public_key=r.venue_key WHERE k.venue=? ORDER BY r.received DESC LIMIT 10', v.id)
@@ -363,6 +368,31 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         if (input.admin !== undefined) {check(typeof input.admin === 'boolean', 'Invalid setting'); check(input.admin || target.id !== a.id, 'You can’t remove your own admin rights'); run('UPDATE accounts SET admin=? WHERE id=?', Number(input.admin), target.id);}
         if (input.removePhoto === true) run('UPDATE accounts SET avatar=NULL WHERE id=?', target.id);
         return send(200, {ok: true});
+      }
+
+      // An admin sets a venue's plan by hand (free, or pro with or without an end date).
+      if (method === 'PATCH' && parts[0] === 'admin' && parts[1] === 'venues' && parts.length === 3) {
+        admin();
+        const v = one('SELECT * FROM venues WHERE id=?', parts[2]); check(v, 'Venue not found', 404);
+        check(plans.includes(input.plan), 'Plan must be free or pro');
+        check(input.planUntil === undefined || input.planUntil === null || (Number.isSafeInteger(input.planUntil) && input.planUntil > 0), 'The end date must be a timestamp');
+        run('UPDATE venues SET plan=?,plan_until=? WHERE id=?', input.plan, input.plan === 'pro' ? input.planUntil ?? null : null, v.id);
+        return send(200, {ok: true});
+      }
+
+      // ---- Licences for quiz laptops ----
+      // A laptop asks with a request signed by its venue key; the licence names its venue's plan. It lasts until the
+      // plan ends (at most a month ahead, so it is renewed) plus two weeks, for laptops that are seldom online.
+      if (method === 'POST' && p === '/v1/licence') {
+        limit('licence:' + ip);
+        check(licenceKey, 'Licences aren’t set up on this service yet', 503);
+        check(input.kind === 'beermat.licence-request' && input.v === 1 && Number.isSafeInteger(input.at) && verifyClaim(input), 'Not a licence request from a quiz laptop');
+        check(Math.abs(now() - input.at) < 10 * 60000, 'This laptop’s clock is wrong: set its date and time, then try again');
+        const v = venueOfKey(input.venueKey);
+        check(v, 'Register this laptop with your venue first (desk: Venue)', 403);
+        const plan = planOf(v), month = 31 * 86400000, grace = 14 * 86400000;
+        const expires = (plan === 'pro' ? Math.min(v.plan_until ?? Infinity, now() + month) : now() + month) + grace;
+        return send(200, {licence: signLicence({plan, venue: v.id, venueName: v.name, venueKey: input.venueKey, issued: now(), expires, paidUntil: plan === 'pro' ? v.plan_until : null}, licenceKey)});
       }
 
       // ---- Venues and events (venue operators) ----
@@ -491,7 +521,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const service = createService({database: process.env.ONLINE_DB || 'online.sqlite', allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
-    backupDir: process.env.BACKUP_DIR || '', trustProxy: process.env.TRUST_PROXY === '1'});
+    backupDir: process.env.BACKUP_DIR || '', trustProxy: process.env.TRUST_PROXY === '1', licenceKey: process.env.LICENCE_KEY_FILE && existsSync(process.env.LICENCE_KEY_FILE) ? readFileSync(process.env.LICENCE_KEY_FILE, 'utf8').trim() : ''});
   service.server.listen(Number(process.env.PORT || 8080), process.env.BIND || '127.0.0.1', () => console.log(`BeerMat Online on http://${process.env.BIND || '127.0.0.1'}:${process.env.PORT || 8080} (put HTTPS in front before going public)`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => service.close().then(() => process.exit(0)));
 }

@@ -44,7 +44,7 @@ async function fixture(fn) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-spotify-')), fake = fakeSpotify(); let time = 1000000;
   await new Promise(r => fake.server.listen(0, '127.0.0.1', r));
   const spotifyBase = `http://127.0.0.1:${fake.server.address().port}`;
-  const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, now: () => time, spotifyAccountsUrl: spotifyBase, spotifyApiUrl: spotifyBase + '/v1'});
+  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, now: () => time, spotifyAccountsUrl: spotifyBase, spotifyApiUrl: spotifyBase + '/v1'});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${quiz.server.address().port}`;
   const call = async (route, body = {}, key = route.startsWith('host/') ? host : '') => {

@@ -37,7 +37,7 @@ test('a Drive quiz file downloads from Google only; private files, missing files
 
 test('the desk route fetches a Drive quiz for the quizmaster only', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-drive-')), hostKey = 'a-secure-quiz-test-key';
-  const quizServer = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'none'), soundsDir: path.join(dir, 'none'), fetchImpl: async () => reply(quiz)});
+  const quizServer = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'none'), soundsDir: path.join(dir, 'none'), fetchImpl: async () => reply(quiz)});
   await new Promise(r => quizServer.server.listen(0, '127.0.0.1', r));
   const call = async (route, body, key = '') => {
     const response = await fetch(`http://127.0.0.1:${quizServer.server.address().port}/api/${route}`, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body)});

@@ -9,7 +9,7 @@ const hostKey = 'a-secure-quiz-test-key';
 const question = (fields = {}) => ({text: 'What is the capital of Wales?', type: 'text', seconds: 30, points: 2, answer: 'Cardiff', ...fields});
 async function fixture(fn) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-hosting-')); let time = 1000000;
-  const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'no-pack'), soundsDir: path.join(dir, 'no-pack'), now: () => time});
+  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'no-pack'), soundsDir: path.join(dir, 'no-pack'), now: () => time});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const call = async (route, body = {}, key = route.startsWith('host/') ? host : '') => {
     const response = await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/${route}`, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body)});

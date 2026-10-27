@@ -46,7 +46,7 @@ server from its own marking (`server/results.js`) and kept on the laptop across 
 | Results in profiles, statistics, achievements | `online/service.js`, `shared/achievements.js` | the same |
 | Venue pages, quiz listings, favourites, reminders | `online/service.js`, `mobile/www` | the same |
 | Results shared by venues | desk **Past quizzes → BeerMat Online**, sync outbox | the same, switched on by the quizmaster |
-| Future licensing | `server/edition.js` (a seam only; nothing enforced) | — |
+| Plans: BeerMat Free and Pro | `server/edition.js` (limits), `shared/licence.js` (signed licences), `online/service.js` (venue plans) | internet once on the laptop to fetch a licence |
 
 Nothing in the offline core waits for, or fails because of, an online service. Shared results wait in an outbox on
 the laptop (`sync_outbox`), and a player's results wait on the phone (`online/client.js`), until the service can be

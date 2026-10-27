@@ -48,7 +48,7 @@ test('every shipped theme is complete: valid theme.json, its look styles only it
 
 test('the server serves /themes.css and theme files, nothing else from the folder', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-themes-server-'));
-  const quiz = createQuiz({hostKey: 'a-secure-quiz-test-key', database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'none'), soundsDir: path.join(dir, 'none')});
+  const quiz = createQuiz({plan: 'pro', hostKey: 'a-secure-quiz-test-key', database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'none'), soundsDir: path.join(dir, 'none')});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${quiz.server.address().port}`;
   try {

@@ -1,12 +1,14 @@
-// Where a future Free/Pro split would plug in. Nothing is enforced and nothing is for sale: every edition has every
-// feature, and there is no licence check, payment or account involved. Code that might one day differ by edition
-// asks has(feature) instead of deciding for itself, so a later change stays in this one file.
-// Gameplay, guest play, offline play and a player's own data will always be in every edition (docs/ARCHITECTURE.md).
+// What each plan can do. Free BeerMat runs every round format, the TV and the phones, but a quiz stops at three
+// questions and three teams, and Spotify is Pro only: enough to try it out. BeerMat Pro (a venue's subscription,
+// proved by a signed licence: shared/licence.js) lifts the limits. Players never pay and never see a plan.
+// Code that differs by plan asks has(feature) or reads limits instead of deciding for itself.
 
-export const features = ['quiz', 'allFormats', 'desktopApp', 'hotspot', 'venueNetwork', 'onlineMode', 'tvScreens', 'soundPacks', 'spotify', 'resultsHistory', 'onlineProfiles', 'eventListings'];
-export const editions = {free: {name: 'BeerMat', features}, pro: {name: 'BeerMat Pro', features}};
+export const editions = {
+  free: {name: 'BeerMat Free', limits: {questions: 3, teams: 3}, features: []},
+  pro: {name: 'BeerMat Pro', limits: null, features: ['spotify']},
+};
 
-export function edition(name = process.env.BEERMAT_EDITION || 'free') {
-  const chosen = editions[name] || editions.free;
-  return {name: chosen.name, has: feature => chosen.features.includes(feature)};
+export function edition(plan = 'free') {
+  const chosen = editions[plan] ? plan : 'free', {name, limits, features} = editions[chosen];
+  return {plan: chosen, name, limits, has: feature => features.includes(feature)};
 }

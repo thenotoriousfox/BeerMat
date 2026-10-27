@@ -70,7 +70,7 @@ test('laptop jobs on Windows: Mobile Hotspot through PowerShell, always with a p
 
 async function fixture(options, fn) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-laptop-'));
-  const quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'no-pack'), soundsDir: path.join(dir, 'no-pack'), ...options});
+  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'no-pack'), soundsDir: path.join(dir, 'no-pack'), ...options});
   await new Promise(r => quiz.server.listen(0, r));
   const port = quiz.server.address().port;
   const call = async (route, body = {}, key = route.startsWith('host/') ? host : '', address = '127.0.0.1') => {

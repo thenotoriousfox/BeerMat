@@ -21,6 +21,11 @@ Five tabs, in the order a night uses them:
   options, waiting room, TV language), the quiz Wi-Fi and online mode, screens, how players join, past quizzes and
   BeerMat Online, sounds and bingo calls, Spotify, and the keyboard shortcuts.
 
+**Plans.** BeerMat Free plays 3 questions and lets 3 teams in per quiz, enough to try everything; Spotify is Pro only.
+BeerMat Pro (for venues) has no limits. When your venue has Pro: register this laptop with the venue (**Venue** tab),
+then **Settings → Plan → Check my plan**. That needs the internet once; the plan then holds offline and renews itself
+whenever the laptop is online. Players never need a plan.
+
 ## Before the room fills
 
 1. **Desktop app** (Windows or Linux, [DESKTOP.md](DESKTOP.md)): open **BeerMat**; the desk opens unlocked and the TV display goes full screen on a second screen by itself. Choose how players join under **How players join** (venue Wi-Fi, below) or start the quiz Wi-Fi in **Quiz night**. From source on Linux, `./scripts/setup.sh --app` puts the desktop app in the app menu. **Browser launcher** (`./scripts/setup.sh --browser-app`): click **BeerMat** in the app menu and type the host key: the desk opens unlocked in the browser. In **Quiz night** at the top, press **Start quiz Wi-Fi** and enter your laptop password. (From a terminal: `./scripts/quiz-night.sh` does the same, Ctrl+C ends it; or `./scripts/start.sh` for BeerMat alone, then open `http://localhost:3000/host`.) After the quiz, **Close BeerMat** takes the Wi-Fi down and stops the server.

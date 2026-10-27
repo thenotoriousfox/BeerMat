@@ -10,7 +10,7 @@ const hostKey = 'a-secure-quiz-test-key';
 const question = (id, fields = {}) => ({id, text: 'What is the capital of Wales?', type: 'text', seconds: 30, points: 2, answer: 'Cardiff', ...fields});
 async function fixture(fn) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-game-')); let time = 1000000; let quiz, host;
-  const start = async () => {quiz = createQuiz({hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, now: () => time}); await new Promise(r => quiz.server.listen(0, '127.0.0.1', r)); host = (await call('login', {key: hostKey})).key;};
+  const start = async () => {quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, now: () => time}); await new Promise(r => quiz.server.listen(0, '127.0.0.1', r)); host = (await call('login', {key: hostKey})).key;};
   const url = () => `http://127.0.0.1:${quiz.server.address().port}`;
   const call = async (route, body = {}, key = route.startsWith('host/') ? host : '') => {
     const response = await fetch(url() + '/api/' + route, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body)});
@@ -117,7 +117,7 @@ test('legacy prototype database migrates without losing teams or scores', async 
     INSERT INTO teams VALUES('old-team','Old team','old-secret',0);
     INSERT INTO questions(data,opened,deadline,closed) VALUES('{"text":"Old question","type":"text","seconds":30,"points":1,"answer":"Old answer"}',0,30,1);
     INSERT INTO answers VALUES('old-team',1,'Old answer',1);`); db.close();
-  const quiz = createQuiz({database: filename, hostKey}); await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
+  const quiz = createQuiz({plan: 'pro', database: filename, hostKey}); await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   try {const response = await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/state`, {method: 'POST', headers: {Authorization: 'Bearer old-secret'}, body: '{}'}); const data = await response.json(); assert.equal(data.teams[0].score, 1); assert.equal(data.team.name, 'Old team');}
   finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
 });
