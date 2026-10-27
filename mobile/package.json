@@ -1,6 +1,6 @@
 {
   "name": "pubquiz-player",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "type": "module",
   "description": "PubQuiz Player: the optional phone app for PubQuiz teams (Android and iOS, Capacitor)",

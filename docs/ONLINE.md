@@ -2,7 +2,9 @@
 
 The optional internet service for **player profiles, statistics and achievements across venues, venue pages and quiz
 listings**. Quizzes never depend on it. It is a complete, tested reference implementation (`online/service.js`,
-Node 22 + SQLite); **it is not deployed anywhere**. This document is the design and what a deployment needs.
+Node 22 + SQLite). It runs at **https://130-162-161-81.sslip.io** (an Oracle Cloud Always Free VM in London, set
+up by `online/deploy.sh`); the PubQuiz Player app is built to use it. This document is the design and how it is
+deployed.
 
 ## API (JSON over HTTPS, `/v1`)
 
@@ -73,7 +75,19 @@ Still needed before going live (organisational, not code):
 * Team names on venue-shared results can be personal data; quizmasters should tell the room when sharing is on.
 * Retention for inactive accounts (for example, delete after 3 years without sign-in) and for `venue_results`.
 
-## Deploying (requirements; nothing is running yet)
+## Deploying
+
+`online/deploy.sh ubuntu@<server ip> [domain]` sets up a fresh Ubuntu server from this repository, and running it
+again updates the service (the database is kept): Node.js 24, the service under systemd on 127.0.0.1:8080, Caddy
+with Let's Encrypt HTTPS in front (on `<ip>.sslip.io` when there is no domain), ports 80/443 opened, 2 GB swap on
+small servers, and a nightly database backup in `/var/backups/pubquiz-online` (14 kept). Admin jobs run on the server:
+`sudo -u pubquiz env ONLINE_DB=/var/lib/pubquiz-online/online.sqlite /opt/node/bin/node /opt/pubquiz-online/online/admin.js venues`.
+
+The live server: Oracle Cloud, UK South (London), VM.Standard.E2.1.Micro (1 OCPU, 1 GB), Ubuntu 24.04, public IP
+130.162.161.81, SSH as `ubuntu`. Ports 80 and 443 are open in its subnet's Default Security List. Its address is
+tied to the IP: a new IP means a new sslip.io address, so the app would need rebuilding (or a domain).
+
+What a deployment needs in general:
 
 * Any host with Node 22.13+ (a small VPS or a container platform); no paid services are required.
   `PORT`, `BIND`, `ONLINE_DB`, `ALLOWED_ORIGINS` configure it: `node online/service.js`.
