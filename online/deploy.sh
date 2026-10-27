@@ -5,10 +5,10 @@
 # Without a domain it uses <ip>.sslip.io, a free name that points at the server's IP. Run it again to update the
 # service; the database is kept. What it sets up:
 #   * Node.js 24 (official build, checksum checked) in /opt/node
-#   * the service in /opt/pubquiz-online, run by systemd as its own user, listening on 127.0.0.1:8080 only
+#   * the service in /opt/beermat-online, run by systemd as its own user, listening on 127.0.0.1:8080 only
 #   * Caddy in front, with HTTPS from Let's Encrypt (renewed by itself)
 #   * ports 80 and 443 opened in the server's firewall (Oracle's images block them)
-#   * a nightly database backup in /var/backups/pubquiz-online (14 kept); copy them off the server too
+#   * a nightly database backup in /var/backups/beermat-online (14 kept); copy them off the server too
 set -euo pipefail
 target=${1:?usage: online/deploy.sh user@server-ip [domain]}
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -26,7 +26,7 @@ mkdir -p "$stage/brand" && cp "$repo"/brand/*.svg "$repo/brand/fredoka.woff2" "$
 cp -r "$repo/mobile/www" "$stage/mobile/"
 cp -r "$repo/online/admin" "$stage/online/"
 printf '{"private": true, "type": "module"}\n' > "$stage/package.json"
-tar -C "$stage" -czf - . | ssh "$target" "rm -rf /tmp/pubquiz-online && mkdir /tmp/pubquiz-online && tar -C /tmp/pubquiz-online -xzf -"
+tar -C "$stage" -czf - . | ssh "$target" "rm -rf /tmp/beermat-online && mkdir /tmp/beermat-online && tar -C /tmp/beermat-online -xzf -"
 
 ssh "$target" "sudo DOMAIN='$domain' bash -s" <<'REMOTE'
 set -euo pipefail
@@ -49,45 +49,55 @@ if ! /opt/node/bin/node -e 'process.exit(Number(process.versions.node.split(".")
 fi
 /opt/node/bin/node --version
 
-id pubquiz >/dev/null 2>&1 || useradd --system --home /var/lib/pubquiz-online --shell /usr/sbin/nologin pubquiz
-install -d -o pubquiz -g pubquiz -m 700 /var/lib/pubquiz-online
-install -d -m 750 -g pubquiz /var/backups/pubquiz-online
-chgrp pubquiz /var/backups/pubquiz-online && chmod 750 /var/backups/pubquiz-online
-rm -rf /opt/pubquiz-online && mv /tmp/pubquiz-online /opt/pubquiz-online && chown -R root:root /opt/pubquiz-online && chmod -R u=rwX,go=rX /opt/pubquiz-online
+# A server set up before the rename to BeerMat: its database and backups move to the new names, the old service goes.
+if [ -d /var/lib/pubquiz-online ] && [ ! -d /var/lib/beermat-online ]; then
+  systemctl disable --now pubquiz-online pubquiz-online-backup.timer >/dev/null 2>&1 || true
+  mv /var/lib/pubquiz-online /var/lib/beermat-online
+  if [ -d /var/backups/pubquiz-online ]; then mv /var/backups/pubquiz-online /var/backups/beermat-online; fi
+  rm -f /etc/systemd/system/pubquiz-online.service /etc/systemd/system/pubquiz-online-backup.service /etc/systemd/system/pubquiz-online-backup.timer
+  rm -rf /opt/pubquiz-online
+  moved=1
+fi
+id beermat >/dev/null 2>&1 || useradd --system --home /var/lib/beermat-online --shell /usr/sbin/nologin beermat
+install -d -o beermat -g beermat -m 700 /var/lib/beermat-online
+if [ -n "${moved:-}" ]; then chown -R beermat:beermat /var/lib/beermat-online; id pubquiz >/dev/null 2>&1 && userdel pubquiz; fi
+install -d -m 750 -g beermat /var/backups/beermat-online
+chgrp beermat /var/backups/beermat-online && chmod 750 /var/backups/beermat-online
+rm -rf /opt/beermat-online && mv /tmp/beermat-online /opt/beermat-online && chown -R root:root /opt/beermat-online && chmod -R u=rwX,go=rX /opt/beermat-online
 
-cat > /etc/systemd/system/pubquiz-online.service <<'UNIT'
+cat > /etc/systemd/system/beermat-online.service <<'UNIT'
 [Unit]
 Description=BeerMat Online
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=pubquiz
-WorkingDirectory=/var/lib/pubquiz-online
-Environment=PORT=8080 BIND=127.0.0.1 ONLINE_DB=/var/lib/pubquiz-online/online.sqlite NODE_ENV=production TRUST_PROXY=1
+User=beermat
+WorkingDirectory=/var/lib/beermat-online
+Environment=PORT=8080 BIND=127.0.0.1 ONLINE_DB=/var/lib/beermat-online/online.sqlite NODE_ENV=production TRUST_PROXY=1
 # Venues are kept here and edited in the admin console; this is only read to show admins when the last backup ran.
-Environment=BACKUP_DIR=/var/backups/pubquiz-online
-ExecStart=/opt/node/bin/node --disable-warning=ExperimentalWarning /opt/pubquiz-online/online/service.js
+Environment=BACKUP_DIR=/var/backups/beermat-online
+ExecStart=/opt/node/bin/node --disable-warning=ExperimentalWarning /opt/beermat-online/online/service.js
 Restart=on-failure
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/var/lib/pubquiz-online
+ReadWritePaths=/var/lib/beermat-online
 
 [Install]
 WantedBy=multi-user.target
 UNIT
 
-cat > /etc/systemd/system/pubquiz-online-backup.service <<'UNIT'
+cat > /etc/systemd/system/beermat-online-backup.service <<'UNIT'
 [Unit]
 Description=Back up the BeerMat Online database
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'sqlite3 /var/lib/pubquiz-online/online.sqlite ".backup /var/backups/pubquiz-online/online-$(date +%%F).sqlite" && ls -1t /var/backups/pubquiz-online/online-*.sqlite | tail -n +15 | xargs -r rm --'
+ExecStart=/bin/sh -c 'sqlite3 /var/lib/beermat-online/online.sqlite ".backup /var/backups/beermat-online/online-$(date +%%F).sqlite" && ls -1t /var/backups/beermat-online/online-*.sqlite | tail -n +15 | xargs -r rm --'
 UNIT
-cat > /etc/systemd/system/pubquiz-online-backup.timer <<'UNIT'
+cat > /etc/systemd/system/beermat-online-backup.timer <<'UNIT'
 [Unit]
 Description=Nightly BeerMat Online backup
 
@@ -113,12 +123,12 @@ done
 netfilter-persistent save >/dev/null
 
 systemctl daemon-reload
-systemctl enable --now pubquiz-online pubquiz-online-backup.timer >/dev/null
-systemctl restart pubquiz-online
+systemctl enable --now beermat-online beermat-online-backup.timer >/dev/null
+systemctl restart beermat-online
 # A backup now, so there is always one (and the console shows when).
-systemctl start pubquiz-online-backup
+systemctl start beermat-online-backup
 systemctl reload-or-restart caddy
-sleep 2; systemctl is-active pubquiz-online caddy
+sleep 2; systemctl is-active beermat-online caddy
 REMOTE
 
 echo "Waiting for HTTPS on https://$domain …"

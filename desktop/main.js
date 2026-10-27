@@ -6,6 +6,7 @@
 // reach the app only through the few calls in preload.cjs, accepted only from the desk page itself.
 import electron, {app, BrowserWindow, screen, ipcMain, dialog, Menu, shell, utilityProcess, safeStorage, session, clipboard} from 'electron';
 import path from 'node:path';
+import {existsSync, renameSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
 import {spawn} from 'node:child_process';
@@ -16,9 +17,14 @@ import {restoreDatabase} from './database.js';
 import {pickOutput, sinkScript, listScript} from './sound.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-// Quizzes, settings, the quizmaster key and logs stay in the folder the app had before it was called BeerMat
-// (%APPDATA%\PubQuiz, ~/.config/PubQuiz), so they carry over. Tests (and a portable copy) can use one folder of their own.
-app.setPath('userData', process.env.PUBQUIZ_USER_DATA || path.join(app.getPath('appData'), 'PubQuiz'));
+// Quizzes, settings, the quizmaster key and logs: %APPDATA%\BeerMat or ~/.config/BeerMat. The folder from before the
+// rename (…\PubQuiz) moves there on the first start, so nothing is lost. Tests (and a portable copy) can use their own.
+const dataDir = process.env.PUBQUIZ_USER_DATA || path.join(app.getPath('appData'), 'BeerMat'), oldDataDir = path.join(app.getPath('appData'), 'PubQuiz');
+if (!process.env.PUBQUIZ_USER_DATA && !existsSync(dataDir) && existsSync(oldDataDir)) {
+  try {renameSync(oldDataDir, dataDir); if (existsSync(path.join(dataDir, 'logs', 'pubquiz.log'))) renameSync(path.join(dataDir, 'logs', 'pubquiz.log'), path.join(dataDir, 'logs', 'beermat.log'));}
+  catch (e) {console.error(`Could not move ${oldDataDir} to ${dataDir}: ${e.message}`);}
+}
+app.setPath('userData', existsSync(dataDir) || !existsSync(oldDataDir) ? dataDir : oldDataDir);
 app.setAppLogsPath(path.join(app.getPath('userData'), 'logs'));
 // Wayland does not let a window choose its screen, which the TV window must; XWayland does. The display system is
 // chosen before this file runs, so on a Wayland desktop the app starts itself again on X11 (PUBQUIZ_WAYLAND=1 opts out).
@@ -34,9 +40,9 @@ else run();
 
 function run() {
   const data = app.getPath('userData'), test = process.env.PUBQUIZ_TEST === '1';
-  const log = createLog(path.join(app.getPath('logs'), 'pubquiz.log'), {echo: test}), serverLog = createLog(path.join(app.getPath('logs'), 'server.log'));
+  const log = createLog(path.join(app.getPath('logs'), 'beermat.log'), {echo: test}), serverLog = createLog(path.join(app.getPath('logs'), 'server.log'));
   const prefs = createPrefs(path.join(data, 'desktop.json'), {port: 3000, autoOpen: true, audience: null, desk: null, welcomed: false, tvSound: 'auto'});
-  const icon = path.join(here, '..', 'scripts', 'pubquiz.png');
+  const icon = path.join(here, '..', 'scripts', 'beermat.png');
   let key, server = null, info = null, desk = null, screens = null, quitting = false, crashes = [];
   const pending = new Map();
   const origin = () => `http://127.0.0.1:${info.port}`;

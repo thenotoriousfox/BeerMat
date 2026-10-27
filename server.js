@@ -793,7 +793,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const localAllowed = req => {const only = allowedAddresses || hotspotOnly; return !only || only.includes((req.socket.localAddress || '').replace(/^::ffff:/, ''));};
   const laptopStatus = async () => {const status = await laptop.status(); hotspotOnly = onlyOn(status.wifi.running); return {...status, canQuit: !!onQuit};};
   if (laptop) laptop.wifi().then(w => {hotspotOnly = onlyOn(w.running);});
-  // The app launcher (scripts/pubquiz-app.sh) opens the desk with a one-time ticket instead of asking for the key twice;
+  // The app launcher (scripts/beermat-app.sh) opens the desk with a one-time ticket instead of asking for the key twice;
   // the desktop app asks for a new one (newDeskTicket) each time it opens the desk.
   let deskLink = deskTicket;
   const handle = async (req, res) => {
@@ -1404,7 +1404,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   // ALLOWED_ADDRESSES limits which local addresses answer, e.g. 127.0.0.1,10.42.0.1 for hotspot-only play.
   const allowedAddresses = process.env.ALLOWED_ADDRESSES ? process.env.ALLOWED_ADDRESSES.split(',').map(s => s.trim()).filter(Boolean) : null;
-  // Started from the app icon (scripts/pubquiz-app.sh): the desk can also close BeerMat.
+  // Started from the app icon (scripts/beermat-app.sh): the desk can also close BeerMat.
   const app = process.env.PUBQUIZ_APP === '1';
   // QUIZ_DB, MEDIA_DIR and PACK_DIR move the quiz's own files out of the program folder (the desktop app keeps them
   // in the user's data folder).

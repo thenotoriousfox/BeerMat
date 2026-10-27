@@ -1,5 +1,5 @@
 {
-  "name": "pubquiz",
+  "name": "beermat",
   "version": "0.4.1",
   "private": true,
   "type": "module",
@@ -54,8 +54,8 @@
       "scripts/*.py",
       "scripts/*.ps1",
       "scripts/*.mjs",
-      "scripts/pubquiz.png",
-      "scripts/pubquiz.svg",
+      "scripts/beermat.png",
+      "scripts/beermat.svg",
       "sounds/**",
       "themes/**",
       "brand/*.svg",
@@ -76,7 +76,7 @@
       ],
       "category": "Game",
       "icon": "build/icon.png",
-      "executableName": "pubquiz",
+      "executableName": "beermat",
       "desktop": {
         "entry": {
           "Name": "BeerMat",
@@ -104,5 +104,5 @@
       "artifactName": "BeerMat-${version}-portable.exe"
     }
   },
-  "desktopName": "pubquiz.desktop"
+  "desktopName": "beermat.desktop"
 }

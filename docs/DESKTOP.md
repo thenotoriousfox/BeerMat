@@ -88,12 +88,12 @@ yourself).
 
 ## Your data
 
-The folders keep the app's old name, PubQuiz, so quizzes, settings and the key carried over when it became BeerMat.
+A folder from before the rename (`PubQuiz`) moves to `BeerMat` the first time the app starts, with everything in it.
 
 | | Windows | Linux |
 |---|---|---|
-| Quiz database, media, sound pack, backups | `%APPDATA%\PubQuiz` | `~/.config/PubQuiz` |
-| Logs (`pubquiz.log`, `server.log`) | `%APPDATA%\PubQuiz\logs` | `~/.config/PubQuiz/logs` |
+| Quiz database, media, sound pack, backups | `%APPDATA%\BeerMat` | `~/.config/BeerMat` |
+| Logs (`beermat.log`, `server.log`) | `%APPDATA%\BeerMat\logs` | `~/.config/BeerMat/logs` |
 
 **BeerMat → Open data folder / Open logs** opens them.
 

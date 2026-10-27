@@ -49,7 +49,7 @@ admin account). It has three pages:
   account (a venue it ran stays, without an operator).
 
 The first admin is made on the server: they sign up (in the app, the web app or a desk's Venue tab), then
-`sudo -u pubquiz env ONLINE_DB=/var/lib/pubquiz-online/online.sqlite /opt/node/bin/node /opt/pubquiz-online/online/admin.js make-admin <email>`.
+`sudo -u beermat env ONLINE_DB=/var/lib/beermat-online/online.sqlite /opt/node/bin/node /opt/beermat-online/online/admin.js make-admin <email>`.
 After that, admins make other admins in the console.
 
 A venue's id is made from its name and town (`the-red-lion-bristol`) and never changes. Its regular quiz nights (a day,
@@ -127,8 +127,8 @@ Still needed before going live (organisational, not code):
 `online/deploy.sh ubuntu@<server ip> [domain]` sets up a fresh Ubuntu server from this repository, and running it
 again updates the service (the database is kept): Node.js 24, the service under systemd on 127.0.0.1:8080, Caddy
 with Let's Encrypt HTTPS in front (on `<ip>.sslip.io` when there is no domain), ports 80/443 opened, 2 GB swap on
-small servers, and a nightly database backup in `/var/backups/pubquiz-online` (14 kept). Admin jobs run on the server:
-`sudo -u pubquiz env ONLINE_DB=/var/lib/pubquiz-online/online.sqlite /opt/node/bin/node /opt/pubquiz-online/online/admin.js venues`.
+small servers, and a nightly database backup in `/var/backups/beermat-online` (14 kept). Admin jobs run on the server:
+`sudo -u beermat env ONLINE_DB=/var/lib/beermat-online/online.sqlite /opt/node/bin/node /opt/beermat-online/online/admin.js venues`.
 
 The live server: Oracle Cloud, UK South (London), VM.Standard.E2.1.Micro (1 OCPU, 1 GB), Ubuntu 24.04, public IP
 130.162.161.81, SSH as `ubuntu`. Ports 80 and 443 are open in its subnet's Default Security List. Its address is

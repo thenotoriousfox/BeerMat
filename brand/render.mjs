@@ -26,7 +26,7 @@ const make = async (out, ...args) => {await png(out, ...args); done.push(path.re
 
 // Desktop app (electron-builder) and the Linux app-menu launcher.
 await make(path.join(root, 'build/icon.png'), 1024, 1024, 'icon.svg', {shape: 'rounded'});
-await make(path.join(root, 'scripts/pubquiz.png'), 512, 512, 'icon.svg', {shape: 'rounded'});
+await make(path.join(root, 'scripts/beermat.png'), 512, 512, 'icon.svg', {shape: 'rounded'});
 // Android: square-ish and round launcher icons, and the adaptive icon's foreground (its background is a colour).
 for (const [d, k] of Object.entries(densities)) {
   await make(path.join(android, `mipmap-${d}/ic_launcher.png`), 48 * k, 48 * k, 'icon.svg', {shape: 'rounded'});

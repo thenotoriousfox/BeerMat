@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # BeerMat from the app menu (installed by ./scripts/setup.sh --app): asks for the quizmaster key in a window, starts
 # BeerMat in the background and opens the quiz desk, already unlocked. The desk's "Quiz night" panel runs the Wi-Fi and
-# closes BeerMat. If BeerMat is already running, this just opens the desk. Log: ~/.local/state/pubquiz/server.log
+# closes BeerMat. If BeerMat is already running, this just opens the desk. Log: ~/.local/state/beermat/server.log
 set -uo pipefail
 cd -- "$(dirname -- "$(readlink -f -- "$0")")/.."
 port=${PORT:-3000} desk="http://localhost:${PORT:-3000}/host"
-state=${XDG_STATE_HOME:-$HOME/.local/state}/pubquiz log=${XDG_STATE_HOME:-$HOME/.local/state}/pubquiz/server.log
+state=${XDG_STATE_HOME:-$HOME/.local/state}/beermat log=${XDG_STATE_HOME:-$HOME/.local/state}/beermat/server.log
 
 # KDE's dialogs where there are any, GNOME's otherwise.
 if command -v kdialog >/dev/null; then

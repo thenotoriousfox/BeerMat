@@ -2,23 +2,25 @@
 set -euo pipefail
 cd -- "$(dirname -- "$0")/.."
 # A BeerMat icon in the app menu. It runs the desktop app (desktop/main.js, docs/DESKTOP.md) from this folder with
-# the repository's Electron (npm install); without Electron, or with --browser-app, scripts/pubquiz-app.sh, which
+# the repository's Electron (npm install); without Electron, or with --browser-app, scripts/beermat-app.sh, which
 # opens the desk in the default browser.
 app() {
   local apps=${XDG_DATA_HOME:-$HOME/.local/share}/applications icons=${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps
   local electron=$PWD/node_modules/.bin/electron exec
   mkdir -p "$apps" "$icons"
-  cp scripts/pubquiz.svg "$icons/pubquiz.svg"
+  # Entries from before the rename to BeerMat go.
+  rm -f "$apps/pubquiz.desktop" "$icons/pubquiz.svg"
+  cp scripts/beermat.svg "$icons/beermat.svg"
   if [[ ${1:-} != browser && -x $electron ]] && "$electron" --version >/dev/null 2>&1; then
     exec="Exec=\"$electron\" \"$PWD\""
   else
     [[ ${1:-} == browser ]] || echo 'Electron is not installed here (npm install), so the icon opens the desk in the browser instead.'
-    exec="Exec=\"$PWD/scripts/pubquiz-app.sh\""
+    exec="Exec=\"$PWD/scripts/beermat-app.sh\""
   fi
   printf '%s\n' '[Desktop Entry]' 'Type=Application' 'Name=BeerMat' 'Comment=Run a pub quiz: desk, TV screen and quiz Wi-Fi' \
-    "$exec" 'Icon=pubquiz' 'Terminal=false' 'Categories=Game;' >"$apps/pubquiz.desktop"
+    "$exec" 'Icon=beermat' 'Terminal=false' 'Categories=Game;' 'StartupWMClass=BeerMat' >"$apps/beermat.desktop"
   refresh_menu "$apps"
-  echo "BeerMat is in the app menu (Games). Remove it with: rm $apps/pubquiz.desktop"
+  echo "BeerMat is in the app menu (Games). Remove it with: rm $apps/beermat.desktop"
 }
 # Menus that cache their entries pick up the new icon straight away. KDE keeps one cache per environment and reads
 # the one matching Plasma's, so while Plasma runs the cache is rebuilt with Plasma's environment (a terminal or SSH

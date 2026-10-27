@@ -1,5 +1,5 @@
 // The desktop app's own settings (screens, port, first run) and its quizmaster key, in the user's data folder:
-// %APPDATA%\PubQuiz on Windows, ~/.config/PubQuiz on Linux (the folder keeps the app's old name; main.js). Writes go to a temporary file first, so a crash or power
+// %APPDATA%\BeerMat on Windows, ~/.config/BeerMat on Linux. Writes go to a temporary file first, so a crash or power
 // cut never leaves half a settings file.
 import {readFileSync, writeFileSync, renameSync, existsSync, mkdirSync} from 'node:fs';
 import {randomBytes} from 'node:crypto';

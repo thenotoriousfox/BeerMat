@@ -30,12 +30,25 @@ class HotspotTests(unittest.TestCase):
         with patch('sys.argv', ['hotspot.py', 'up']), patch.object(hotspot, 'run') as run, patch('builtins.print'):
             hotspot.main()
             run.assert_not_called()
-    def test_down_continues_after_a_failed_step(self):
-        results = iter([0, 1, 0, 0, 0, 0])
+    def down_run(self, names, tables='', active=()):
+        steps, results = [], iter([1] + [0] * 20)
+        def fake(cmd, **kw):
+            if cmd[:2] == ['systemctl', 'is-active']: return type('R', (), {'returncode': 0 if cmd[-1] in active else 3, 'stdout': ''})
+            if cmd[:3] in (['nmcli', '-g', 'NAME'], ['nft', 'list', 'tables']): return type('R', (), {'returncode': 0, 'stdout': names if cmd[0] == 'nmcli' else tables})
+            steps.append(cmd); return type('R', (), {'returncode': next(results), 'stdout': ''})
         with patch('sys.argv', ['hotspot.py', 'down', '--apply']), patch('os.geteuid', return_value=0), patch.object(hotspot.Path, 'exists', return_value=False), \
-                patch('subprocess.run', side_effect=lambda cmd, **kw: type('R', (), {'returncode': next(results), 'stdout': 'PubQuiz-offline\n'})) as run, patch('builtins.print'):
+                patch('subprocess.run', side_effect=fake), patch('builtins.print'):
             hotspot.main()
-            self.assertEqual(run.call_count, 6)  # profile lookup + five teardown steps
+        return steps
+    def test_down_continues_after_a_failed_step(self):
+        steps = self.down_run('BeerMat-offline\n')
+        self.assertEqual(len(steps), 5)  # every teardown step, though the first failed
+        self.assertNotIn('pubquiz', ' '.join(' '.join(c) for c in steps), 'nothing from the old version on a clean laptop')
+    def test_down_also_removes_a_hotspot_left_by_the_pubquiz_version(self):
+        steps = self.down_run('Home\nPubQuiz-offline\n', 'table inet pubquiz\n', ('pubquiz-dnsmasq.service',))
+        for step in (['systemctl', 'stop', 'pubquiz-dnsmasq.service'], ['nft', 'delete', 'table', 'inet', 'pubquiz'], ['nmcli', 'connection', 'delete', 'PubQuiz-offline']):
+            self.assertIn(step, steps)
+        self.assertNotIn(['systemctl', 'stop', 'pubquiz-ap.service'], steps)
     def test_apply_runs_every_step_in_order(self):
         calls = []
         def fake(cmd, **kw):
@@ -72,7 +85,7 @@ class HotspotTests(unittest.TestCase):
         self.assertIn(['ip', 'addr', 'add', '10.42.0.1/24', 'dev', 'pq0'], calls)
         # NetworkManager cannot run a second interface on this kind of card, so wpa_supplicant hosts it.
         self.assertFalse(any(c[:3] == ['nmcli', 'connection', 'add'] for c in calls))
-        ap = next(c for c in calls if c[0] == 'systemd-run' and '--unit=pubquiz-ap.service' in c)
+        ap = next(c for c in calls if c[0] == 'systemd-run' and '--unit=beermat-ap.service' in c)
         self.assertEqual(ap[-6:-1], ['-D', 'nl80211', '-i', 'pq0', '-c'])
     def test_ap_config_is_open_on_the_home_channel(self):
         conf = hotspot.ap_config('Pub "Quiz"', 6)
@@ -93,7 +106,7 @@ class HotspotTests(unittest.TestCase):
                 self.assertRaises(SystemExit), patch('sys.stderr') as err:
             hotspot.main()
         message = ''.join(c.args[0] for c in err.write.call_args_list)
-        self.assertIn('Wi-Fi profile PubQuiz-offline, firewall table inet pubquiz, pubquiz-dnsmasq service', message)
+        self.assertIn('Wi-Fi profile PubQuiz-offline, firewall table inet pubquiz, beermat-dnsmasq service, beermat-ap service, pubquiz-dnsmasq service, pubquiz-ap service', message)
         self.assertIn('hotspot.py down --interface wlan0 --apply', message)
     def test_pick_prefers_a_free_card_and_shares_only_when_it_must(self):
         self.assertEqual(hotspot.pick([card('wlan0', True), card('wlan1')]), {'interface': 'wlan1', 'keepWifi': False})

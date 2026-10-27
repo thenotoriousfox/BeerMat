@@ -9,13 +9,18 @@ import shutil
 import subprocess
 import time
 
-PROFILE = 'PubQuiz-offline'
-TABLE = 'pubquiz'
+PROFILE = 'BeerMat-offline'
+TABLE = 'beermat'
+DNSMASQ_UNIT = 'beermat-dnsmasq.service'
+RUNTIME = '/run/beermat'
+# Names from before the rename to BeerMat: a hotspot left up by the old version is still found and taken down.
+OLD_PROFILE, OLD_TABLE, OLD_UNITS = 'PubQuiz-offline', 'pubquiz', ('pubquiz-dnsmasq.service', 'pubquiz-ap.service')
+OURS = (PROFILE, OLD_PROFILE)
 # With --keep-wifi the hotspot runs on this second, virtual interface while the card stays on your normal Wi-Fi.
 # NetworkManager cannot drive it: it always starts a Wi-Fi interface as a second client, which cards such as the
 # Intel AX200 refuse alongside the existing connection ("Device or resource busy"). wpa_supplicant runs it instead.
 AP_IFACE = 'pq0'
-AP_UNIT = 'pubquiz-ap.service'
+AP_UNIT = 'beermat-ap.service'
 
 def channel_of(freq):
     """2.4 GHz channel for a frequency in MHz, or None for 5/6 GHz."""
@@ -62,8 +67,8 @@ dhcp-range=10.42.0.20,10.42.0.220,255.255.255.0,12h
 dhcp-option=3,10.42.0.1
 dhcp-option=6,10.42.0.1
 dhcp-authoritative
-dhcp-leasefile=/run/pubquiz/dnsmasq.leases
-pid-file=/run/pubquiz/dnsmasq.pid
+dhcp-leasefile=/run/beermat/dnsmasq.leases
+pid-file=/run/beermat/dnsmasq.pid
 '''
 
 def nft_config(interface, port=3000):
@@ -83,7 +88,7 @@ def nft_config(interface, port=3000):
 
 def teardown():
     return [
-        ['systemctl', 'stop', 'pubquiz-dnsmasq.service'],
+        ['systemctl', 'stop', DNSMASQ_UNIT],
         ['systemctl', 'stop', AP_UNIT],
         ['nft', 'delete', 'table', 'inet', TABLE],
         ['nmcli', 'connection', 'down', PROFILE],
@@ -105,9 +110,9 @@ def cards():
         if kind != 'wifi' or name == AP_IFACE:
             continue
         state, network = (ask(['nmcli', '-g', 'GENERAL.STATE,GENERAL.CONNECTION', 'device', 'show', name]).splitlines() + ['', ''])[:2]
-        on = state.startswith('100') and network != PROFILE
+        on = state.startswith('100') and network not in OURS
         found.append({'name': name, 'ap': ask(['nmcli', '-g', 'WIFI-PROPERTIES.AP', 'device', 'show', name]) == 'yes',
-                      'connected': on, 'network': network if on else '', 'hosting': network == PROFILE})
+                      'connected': on, 'network': network if on else '', 'hosting': network in OURS})
     return found
 
 def pick(found, interface='auto', offline=False):
@@ -126,15 +131,21 @@ def running():
         return {'interface': AP_IFACE, 'ssid': ssid(AP_IFACE), 'keepWifi': True}
     for line in ask(['nmcli', '-t', '-f', 'NAME,DEVICE', 'connection', 'show', '--active']).splitlines():
         name, _, device = line.rpartition(':')
-        if name == PROFILE:
+        if name in OURS:
             return {'interface': device, 'ssid': ssid(device), 'keepWifi': False}
     return None
 
 def take_down():
     # Never kill an arbitrary PID from a stale pidfile. Each step runs even if an earlier one
     # fails (for example dnsmasq already stopped), so a partial setup is still fully removed.
-    profile = PROFILE in ask(['nmcli', '-g', 'NAME', 'connection', 'show']).splitlines()
-    steps = [c for c in teardown() if profile or c[0] != 'nmcli'] + ([['iw', 'dev', AP_IFACE, 'del']] if Path(f'/sys/class/net/{AP_IFACE}').exists() else [])
+    names = ask(['nmcli', '-g', 'NAME', 'connection', 'show']).splitlines()
+    steps = [c for c in teardown() if PROFILE in names or c[0] != 'nmcli'] + ([['iw', 'dev', AP_IFACE, 'del']] if Path(f'/sys/class/net/{AP_IFACE}').exists() else [])
+    # Whatever the old version left behind, and only that (so a clean laptop doesn't report its absence).
+    steps += [['systemctl', 'stop', u] for u in OLD_UNITS if subprocess.run(['systemctl', 'is-active', '--quiet', u], check=False).returncode == 0]
+    if f'table inet {OLD_TABLE}' in ask(['nft', 'list', 'tables']):
+        steps.append(['nft', 'delete', 'table', 'inet', OLD_TABLE])
+    if OLD_PROFILE in names:
+        steps += [['nmcli', 'connection', 'down', OLD_PROFILE], ['nmcli', 'connection', 'delete', OLD_PROFILE]]
     return [' '.join(cmd) for cmd in steps if subprocess.run(cmd, check=False, capture_output=True).returncode != 0]
 
 def main():
@@ -174,7 +185,7 @@ def main():
         return
     if os.geteuid() != 0:
         p.error('--apply requires root')
-    runtime = Path('/run/pubquiz')
+    runtime = Path(RUNTIME)
     if a.action == 'down':
         failed = take_down()
         if failed:
@@ -186,11 +197,11 @@ def main():
     # In list mode nmcli calls the connection name field NAME (connection.id only works for a single connection).
     # Leftovers happen when the laptop rejoins another network without running down first.
     leftovers = []
-    if PROFILE in run(['nmcli', '-g', 'NAME', 'connection', 'show'], capture_output=True).stdout.splitlines():
-        leftovers.append(f'Wi-Fi profile {PROFILE}')
-    if run(['nft', 'list', 'tables'], capture_output=True).stdout.find('table inet pubquiz') >= 0:
-        leftovers.append('firewall table inet pubquiz')
-    for unit in ('pubquiz-dnsmasq.service', AP_UNIT):
+    names = run(['nmcli', '-g', 'NAME', 'connection', 'show'], capture_output=True).stdout.splitlines()
+    leftovers += [f'Wi-Fi profile {name}' for name in OURS if name in names]
+    tables = run(['nft', 'list', 'tables'], capture_output=True).stdout
+    leftovers += [f'firewall table inet {table}' for table in (TABLE, OLD_TABLE) if f'table inet {table}' in tables]
+    for unit in (DNSMASQ_UNIT, AP_UNIT, *OLD_UNITS):
         if subprocess.run(['systemctl', 'is-active', '--quiet', unit], check=False).returncode == 0:
             leftovers.append(unit.replace('.service', ' service'))
     if leftovers and a.replace:
@@ -245,10 +256,10 @@ def main():
             run(plan[0]); created = True
             run(plan[1]); run(plan[2])
         run(['nft', '-f', '-'], input=nft_config(ap, a.port)); firewall = True
-        run(['systemd-run', '--unit=pubquiz-dnsmasq', '--collect', '--service-type=exec', '/usr/bin/dnsmasq', '--keep-in-foreground', '--conf-file=' + str(config)])
-        run(['systemctl', 'is-active', '--quiet', 'pubquiz-dnsmasq.service'])
+        run(['systemd-run', '--unit=' + DNSMASQ_UNIT.removesuffix('.service'), '--collect', '--service-type=exec', '/usr/bin/dnsmasq', '--keep-in-foreground', '--conf-file=' + str(config)])
+        run(['systemctl', 'is-active', '--quiet', DNSMASQ_UNIT])
     except Exception:
-        subprocess.run(['systemctl', 'stop', 'pubquiz-dnsmasq.service'], check=False)
+        subprocess.run(['systemctl', 'stop', DNSMASQ_UNIT], check=False)
         subprocess.run(['systemctl', 'stop', AP_UNIT], check=False, capture_output=True)
         if firewall:
             subprocess.run(['nft', 'delete', 'table', 'inet', TABLE], check=False)

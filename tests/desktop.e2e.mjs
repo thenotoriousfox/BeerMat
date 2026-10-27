@@ -104,7 +104,7 @@ try {
 
   assert.ok(existsSync(path.join(data, 'quiz.sqlite')));
   assert.ok(readdirSync(path.join(data, 'backups')).length >= 1, 'a backup was taken when the server restarted');
-  assert.match(readFileSync(path.join(data, 'logs', 'pubquiz.log'), 'utf8'), /Restarting the quiz server/);
+  assert.match(readFileSync(path.join(data, 'logs', 'beermat.log'), 'utf8'), /Restarting the quiz server/);
   await app.close(); app = null;
   await assert.rejects(fetch(base + '/health'), 'the quiz server stops with the app');
   pass('data, backups and logs in the user data folder; closing stops the quiz server');
