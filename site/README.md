@@ -9,5 +9,5 @@ online.beermatquiz.co.uk; `/app`, `/admin`, `/reset` and `/verify` redirect ther
     npm run deploy    # build and publish (needs CLOUDFLARE_API_TOKEN with Workers access)
 
 The logos and font come from `../brand` at build time. Screenshots in `public/shots` are of a demo quiz. Prices, the
-contact address and whether downloads are open are in `src/consts.ts`. The terms and privacy pages are drafts with
+contact address and whether downloads are open are in `src/consts.ts`. The terms and privacy pages are
 written for BeerMat as a sole trader with payments by Stripe; worth having reviewed.
