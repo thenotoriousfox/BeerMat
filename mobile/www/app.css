@@ -8,7 +8,7 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 1rem/1.5 syst
   padding: env(safe-area-inset-top) env(safe-area-inset-right) calc(4.5rem + env(safe-area-inset-bottom)) env(safe-area-inset-left); }
 .bar { display: flex; align-items: center; justify-content: space-between; padding: .75rem 1rem; border-bottom: 1px solid var(--line); }
 .bar h1 { margin: 0; font-size: 1.3rem; color: var(--gold); line-height: 0; }
-.bar .logo { height: 40px; width: auto; }
+.bar .logo { width: min(64vw, 300px); height: auto; }
 main { padding: 0 1rem; max-width: 40rem; margin: 0 auto; }
 h2 { font-size: 1.4rem; margin: 1rem 0 .25rem; } h3 { font-size: 1.1rem; margin: 1.25rem 0 .5rem; }
 .hint { color: var(--muted); margin: .25rem 0 .75rem; }
