@@ -216,7 +216,7 @@ async function reminder(event) {
     await notifications.schedule({notifications: [{id: Math.abs([...event.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)), title: `${event.title} at ${event.venue.name}`, body: `Starts ${when(event.startsAt)}`, schedule: {at}}]});
     return say(`Reminder set for ${when(at)}`);
   }
-  const link = el('a'); link.href = URL.createObjectURL(new Blob([calendarFile(event)], {type: 'text/calendar'})); link.download = 'pubquiz.ics'; link.click();
+  const link = el('a'); link.href = URL.createObjectURL(new Blob([calendarFile(event)], {type: 'text/calendar'})); link.download = 'beermat.ics'; link.click();
   say('Calendar entry downloaded');
 }
 // Favourite venues are kept on the phone, and in the profile when signed in.

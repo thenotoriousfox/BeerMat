@@ -13,7 +13,7 @@ each file's checksum).
 | Windows 10/11 | `BeerMat Setup 0.4.0.exe` | Run it, choose where to install. Start menu and desktop shortcuts are added. |
 | Windows, no install | `BeerMat-0.4.0-portable.exe` | Run it from anywhere (a USB stick). Data still goes in your user folder. |
 | Linux (CachyOS, Arch, Ubuntu, Fedora…) | `BeerMat-0.4.0.AppImage` | `chmod +x BeerMat-0.4.0.AppImage`, then run it. |
-| Linux, unpacked | `pubquiz-0.4.0.tar.gz` | Unpack anywhere and run `pubquiz`. |
+| Linux, unpacked | `beermat-0.4.0.tar.gz` | Unpack anywhere and run `beermat`. |
 
 The builds are **not code-signed yet**. Windows SmartScreen warns about an unknown publisher (More info → Run
 anyway) until the installer is signed with a code-signing certificate (see "Building", below).
@@ -131,7 +131,7 @@ To build by hand, you need Node 22.13+ and npm on the build machine only.
 
 ```bash
 npm ci
-npm run dist:linux        # dist/BeerMat-<v>.AppImage and pubquiz-<v>.tar.gz
+npm run dist:linux        # dist/BeerMat-<v>.AppImage and beermat-<v>.tar.gz
 npm run dist:win          # dist/BeerMat Setup <v>.exe and BeerMat-<v>-portable.exe (on Linux this uses Wine)
 npm run desktop           # run from source
 ```

@@ -43,7 +43,7 @@ Numbers at the time of writing: 96 node tests, 15 Python tests, 27 browser secti
 
 ## Builds produced here
 
-* Linux: `BeerMat-0.4.0.AppImage`, `pubquiz-0.4.0.tar.gz`. The unpacked build passed the desktop end-to-end run.
+* Linux: `BeerMat-0.4.0.AppImage`, `beermat-0.4.0.tar.gz`. The unpacked build passed the desktop end-to-end run.
 * Windows: `BeerMat Setup 0.4.0.exe` (NSIS) and `BeerMat-0.4.0-portable.exe`, built on Linux with Wine. **Not run on
   Windows.** Unsigned.
 * Android: debug APK (`assembleDebug`, SDK 36), manifest and permissions inspected. **Not installed on a phone.**

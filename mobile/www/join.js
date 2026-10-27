@@ -68,7 +68,7 @@ export function remember(list, url, title, now = Date.now()) {
 export function calendarFile(event) {
   const stamp = t => new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const esc = s => String(s || '').replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');
-  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//BeerMat//App//EN', 'BEGIN:VEVENT', `UID:${event.id}@pubquiz`, `DTSTAMP:${stamp(Date.now())}`,
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//BeerMat//App//EN', 'BEGIN:VEVENT', `UID:${event.id}@beermat`, `DTSTAMP:${stamp(Date.now())}`,
     `DTSTART:${stamp(event.startsAt)}`, `DTEND:${stamp(event.startsAt + 2 * 3600000)}`, `SUMMARY:${esc(event.title)} — ${esc(event.venue.name)}`,
     `LOCATION:${esc([event.venue.address, event.venue.town, event.venue.postcode].filter(Boolean).join(', '))}`, `DESCRIPTION:${esc([event.format, event.entry].filter(Boolean).join('. '))}`,
     'BEGIN:VALARM', 'TRIGGER:-PT2H', 'ACTION:DISPLAY', `DESCRIPTION:${esc(event.title)}`, 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');

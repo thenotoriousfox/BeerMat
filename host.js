@@ -329,7 +329,7 @@ async function loadQuiz(read) {
   const played = state.history.length || state.teams.length;
   if (played && !confirm('Start a fresh quiz with this file? The current quiz ends: its results are saved and downloaded, and all teams and scores are cleared.')) return;
   const result = await request('new-event', {questions: 'load', quiz: await read()});
-  if (played) download(`pubquiz-results-${result.saved.replace(/^results\//, '')}`, result.results);
+  if (played) download(`beermat-results-${result.saved.replace(/^results\//, '')}`, result.results);
   await loadLibrary(); reviewId = '';
   return `New quiz loaded: ${library.title}${played ? ` — last quiz's results saved in ${result.saved}` : ''}`;
 }
@@ -341,7 +341,7 @@ $('loadDrive').onclick = () => action(async () => {
   if (loaded) $('driveLink').value = '';
   return loaded;
 });
-$('exportQuiz').onclick = () => download('pubquiz-questions.json', library);
+$('exportQuiz').onclick = () => download('beermat-questions.json', library);
 $('exportQuizMedia').onclick = () => action(async () => download(`${library.title.replace(/[^a-zA-Z0-9]+/g, '-') || 'quiz'}-with-media.json`, await packMedia(library)), 'Quiz downloaded with its pictures and sounds');
 async function uploadMedia(file) {
   if (file.size > 20 * 1024 * 1024) throw Error(`${file.name}: maximum media file size is 20 MB`);
@@ -920,11 +920,11 @@ $('newEventDialog').onclose = () => {
       body.quiz = await readQuizFile(file);
     }
     const result = await request('new-event', body);
-    download(`pubquiz-results-${result.saved.replace(/^results\//, '')}`, result.results);
+    download(`beermat-results-${result.saved.replace(/^results\//, '')}`, result.results);
     await loadLibrary(); await loadHistory(); reviewId = ''; return `New quiz ready. Last quiz's results downloaded and saved in ${result.saved}`;
   });
 };
-$('exportResults').onclick = () => action(async () => download('pubquiz-results.json', await request('export')), 'Results downloaded');
+$('exportResults').onclick = () => action(async () => download('beermat-results.json', await request('export')), 'Results downloaded');
 $('printSheets').onclick = () => {
   const paper = $('paper'), line = () => element('p', 'Answer: __________________________________________________');
   paper.replaceChildren(element('h1', library.title), element('p', 'Team name: __________________________________'));

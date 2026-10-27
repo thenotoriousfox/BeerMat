@@ -367,7 +367,7 @@ try {
   // Loading a quiz file starts a fresh quiz: the night so far is saved and downloaded, and phones are asked to rejoin.
   await host.locator('[data-tab=build]').click();
   const [nightOne] = await Promise.all([host.waitForEvent('download', {timeout: 60000}), host.locator('#importQuiz').setInputFiles('examples/test-quiz.json')]);
-  assert.match(nightOne.suggestedFilename(), /^pubquiz-results-/);
+  assert.match(nightOne.suggestedFilename(), /^beermat-results-/);
   await waitFor(host, () => document.getElementById('message').textContent.startsWith('New quiz loaded: Test quiz'), 60000);
   await waitFor(player, () => !document.getElementById('join').hidden && document.getElementById('message').textContent === 'A new quiz has started — pick your team name again.');
   assert.deepEqual((await hostApi('state')).teams, []);
@@ -380,7 +380,7 @@ try {
   await host.locator('[data-tab=live]').click(); await host.locator('#newEvent').click(); await visible(host, '#newEventDialog');
   await host.locator('#newEventTitle').fill('Second night');
   const [results] = await Promise.all([host.waitForEvent('download'), host.locator('#newEventConfirm').click()]);
-  assert.match(results.suggestedFilename(), /^pubquiz-results-.*\.json$/);
+  assert.match(results.suggestedFilename(), /^beermat-results-.*\.json$/);
   await waitFor(host, () => document.getElementById('message').textContent.startsWith('New quiz ready'));
   await waitFor(player, () => !document.getElementById('join').hidden && document.getElementById('message').textContent === 'A new quiz has started — pick your team name again.');
   await visible(projector, '#joinSection'); await waitFor(projector, () => document.getElementById('title').textContent === 'Second night');
