@@ -100,7 +100,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   const privacy = a => ({...defaultPrivacy, ...JSON.parse(a.privacy || '{}')});
   const profile = a => ({id: a.id, email: a.email, displayName: a.display_name, preferredTeam: a.preferred_team, avatar: a.avatar || null, privacy: privacy(a), created: a.created});
   const venueOut = v => ({id: v.id, name: v.name, town: v.town, postcode: v.postcode, address: v.address, website: v.website, lat: v.lat, lon: v.lon, quizNights: JSON.parse(v.quiz_nights || '[]'), verified: !!v.verified,
-    directions: v.lat !== null && v.lon !== null ? `https://www.openstreetmap.org/directions?to=${v.lat},${v.lon}` : `https://www.openstreetmap.org/search?query=${encodeURIComponent([v.name, v.address, v.town, v.postcode].filter(Boolean).join(', '))}`});
+    directions: 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(v.postcode || v.lat === null ? [v.name, v.address, v.town, v.postcode].filter(Boolean).join(', ') : `${v.lat},${v.lon}`)});
   const londonDate = t => {const d = london(t); return `${d.year}-${d.month.padStart(2, '0')}-${d.day.padStart(2, '0')}`;};
   const eventOut = (e, v) => ({id: e.id, title: e.title, startsAt: e.starts, format: e.format, entry: e.entry, details: e.details, cancelled: !!e.cancelled, updated: e.updated, regular: !!e.regular, venue: venueOut(v)});
   // A venue's regular nights are published by themselves, four weeks ahead (topped up hourly and whenever its nights

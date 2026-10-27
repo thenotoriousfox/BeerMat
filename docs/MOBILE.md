@@ -18,7 +18,7 @@ browser, and app and browser teams play the same quiz side by side.
   it, rounded to about 100 m, never in the background). Save venues, set a reminder (a phone notification two hours
   before, or a calendar file). Offline, the last listing shows with a note that it may be out of date.
 * **Map** (Find a quiz): every venue on an OpenStreetMap map; gold pins have a quiz night, and day buttons (Mon–Sun) show
-  only venues with a quiz that day. Tap one for the venue's page: address, regular quiz nights, website, directions and its upcoming quizzes. Offline it shows the last
+  only venues with a quiz that day. Tap one for the venue's page: address, regular quiz nights, website, directions (Google Maps) and its upcoming quizzes. Offline it shows the last
   venues it saw, or the venue list from GitHub. Venues are added by PubQuiz (docs/ONLINE.md → Venues).
 
 The same screens are also PubQuiz Online's web app (`/app/`), for browser players who want a profile.

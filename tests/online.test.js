@@ -127,7 +127,8 @@ test('events: operators publish and update; players search by town, postcode are
   assert.equal((await call('POST', `/v1/venues/${lion.id}/events`, {title: '', startsAt: now()}, operator)).status, 400);
   const tuesday = await call('POST', `/v1/venues/${lion.id}/events`, {title: 'Tuesday Quiz', startsAt: now() + 86400000, format: 'General knowledge, 6 rounds', entry: '£2 a head'}, operator);
   const music = await call('POST', `/v1/venues/${crown.id}/events`, {title: 'Music Bingo', startsAt: now() + 2 * 86400000}, operator);
-  assert.match(tuesday.venue.directions, /openstreetmap.org\/directions\?to=51.4545,-2.5879/);
+  assert.equal(tuesday.venue.directions, 'https://www.google.com/maps/dir/?api=1&destination=The%20Red%20Lion%2C%20Bristol%2C%20BS1%204DJ');
+  assert.equal(music.venue.directions, 'https://www.google.com/maps/dir/?api=1&destination=The%20Crown%2C%20Bath%2C%20BA1%201SU');
   assert.deepEqual((await call('GET', '/v1/events?q=bristol')).events.map(e => e.title), ['Tuesday Quiz']);
   assert.deepEqual((await call('GET', '/v1/events?q=BS1 9ZZ')).events.map(e => e.title), ['Tuesday Quiz'], 'same postcode area');
   const near = await call('GET', '/v1/events?lat=51.45&lon=-2.59&radiusKm=30');

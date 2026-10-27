@@ -185,12 +185,11 @@ async function search(params) {
     renderEvents(shown);
   } catch (e) {say(e.message, true);}
 }
-function directions(venue) {
-  if (venue.lat === null || venue.lat === undefined) return venue.directions;
-  // The phone's own maps app on Android and iOS; OpenStreetMap on the web.
-  if (platform === 'android') return `geo:${venue.lat},${venue.lon}?q=${venue.lat},${venue.lon}(${encodeURIComponent(venue.name)})`;
-  if (platform === 'ios') return `maps://?daddr=${venue.lat},${venue.lon}&q=${encodeURIComponent(venue.name)}`;
-  return venue.directions;
+// Google Maps directions (its app when the phone has it): the pub by name and address when it has a postcode, so Google
+// shows the place itself, otherwise its pin.
+function directions(v) {
+  const place = [v.name, v.address, v.town, v.postcode].filter(Boolean).join(', ');
+  return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(v.postcode || v.lat === null || v.lat === undefined ? place : `${v.lat},${v.lon}`);
 }
 function renderEvents(events, list = $('events')) {
   const favourites = new Set(store.get('pq-favourites', []).map(v => v.id));
@@ -295,7 +294,7 @@ async function showVenue(v) {
   card.replaceChildren(close, el('h3', v.name), el('p', [v.address, v.town, v.postcode].filter(Boolean).join(', '), 'where'));
   if (v.quizNights?.length) card.append(el('p', `🗓 Quiz night${v.quizNights.length > 1 ? 's' : ''}: ${nightsText(v.quizNights)}`, 'nights'));
   if (v.website) {const site = el('a', 'Website'); site.href = v.website; site.target = '_blank'; site.rel = 'noopener'; card.append(site, document.createTextNode(' · '));}
-  const go = el('a', 'Directions'); go.href = directions({...v, directions: v.directions || `https://www.openstreetmap.org/search?query=${encodeURIComponent([v.name, v.address, v.town, v.postcode].filter(Boolean).join(', '))}`});
+  const go = el('a', 'Directions'); go.href = directions(v);
   go.target = '_blank'; go.rel = 'noopener'; card.append(go);
   const star = el('button', saved ? '★ Your venue' : '☆ Save venue', 'subtle'); star.type = 'button'; star.onclick = guarded(() => toggleFavourite(v, !saved));
   const upcoming = el('ul', undefined, 'list events');
