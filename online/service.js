@@ -76,7 +76,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     ${venuesTable('venues')}
     CREATE TABLE IF NOT EXISTS venue_keys(key_id TEXT PRIMARY KEY, venue TEXT NOT NULL REFERENCES venues(id) ON DELETE CASCADE, public_key TEXT UNIQUE NOT NULL, added INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY, venue TEXT NOT NULL REFERENCES venues(id) ON DELETE CASCADE, title TEXT NOT NULL, starts INTEGER NOT NULL,
-      format TEXT NOT NULL DEFAULT '', entry TEXT NOT NULL DEFAULT '', details TEXT NOT NULL DEFAULT '', cancelled INTEGER NOT NULL DEFAULT 0, updated INTEGER NOT NULL);
+      format TEXT NOT NULL DEFAULT '', entry TEXT NOT NULL DEFAULT '', details TEXT NOT NULL DEFAULT '', cancelled INTEGER NOT NULL DEFAULT 0, updated INTEGER NOT NULL,
+      regular INTEGER NOT NULL DEFAULT 0, occurs TEXT NOT NULL DEFAULT '');
     CREATE TABLE IF NOT EXISTS favourites(account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, venue TEXT NOT NULL REFERENCES venues(id) ON DELETE CASCADE, PRIMARY KEY(account, venue));
     CREATE TABLE IF NOT EXISTS results(account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, event TEXT NOT NULL, team TEXT NOT NULL, venue_key TEXT NOT NULL,
       claim TEXT NOT NULL, date INTEGER NOT NULL, added INTEGER NOT NULL, PRIMARY KEY(account, event, team));
@@ -84,6 +85,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     CREATE INDEX IF NOT EXISTS events_starts ON events(starts);
   `);
   // Quiz nights became a list of days and times (a short-lived quiz_night text column is left unused).
+  // Quiz nights published from a venue's regular nights: regular=1, occurs = their London date.
+  if (!db.prepare('PRAGMA table_info(events)').all().some(c => c.name === 'regular')) db.exec("ALTER TABLE events ADD COLUMN regular INTEGER NOT NULL DEFAULT 0; ALTER TABLE events ADD COLUMN occurs TEXT NOT NULL DEFAULT ''");
   if (!db.prepare('PRAGMA table_info(venues)').all().some(c => c.name === 'quiz_nights')) db.exec("ALTER TABLE venues ADD COLUMN quiz_nights TEXT NOT NULL DEFAULT '[]'");
   const one = (sql, ...a) => db.prepare(sql).get(...a), rows = (sql, ...a) => db.prepare(sql).all(...a), run = (sql, ...a) => db.prepare(sql).run(...a);
   const attempts = new Map();
@@ -98,21 +101,35 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   const profile = a => ({id: a.id, email: a.email, displayName: a.display_name, preferredTeam: a.preferred_team, avatar: a.avatar || null, privacy: privacy(a), created: a.created});
   const venueOut = v => ({id: v.id, name: v.name, town: v.town, postcode: v.postcode, address: v.address, website: v.website, lat: v.lat, lon: v.lon, quizNights: JSON.parse(v.quiz_nights || '[]'), verified: !!v.verified,
     directions: v.lat !== null && v.lon !== null ? `https://www.openstreetmap.org/directions?to=${v.lat},${v.lon}` : `https://www.openstreetmap.org/search?query=${encodeURIComponent([v.name, v.address, v.town, v.postcode].filter(Boolean).join(', '))}`});
-  // A venue's regular nights over the next week, as listings, except days it has published a quiz night itself.
-  function regularNights(v, published) {
-    const out = [];
-    for (let i = 0; i < 8; i++) {
-      const day = london(now() + i * 86400000), date = `${day.year}-${day.month.padStart(2, '0')}-${day.day.padStart(2, '0')}`;
-      for (const night of JSON.parse(v.quiz_nights || '[]')) {
-        if (night.day !== day.weekday.toLowerCase() || published.has(`${v.id} ${date}`)) continue;
-        const [h, mi] = night.time.split(':').map(Number), starts = londonTime(+day.year, +day.month, +day.day, h, mi);
-        if (starts > now() - 3 * 3600000) out.push({id: `regular-${v.id}-${date}`, title: 'Quiz night', startsAt: starts, format: '', entry: '', details: '', cancelled: false, updated: 0, regular: true, venue: venueOut(v)});
-      }
-    }
-    return out;
-  }
   const londonDate = t => {const d = london(t); return `${d.year}-${d.month.padStart(2, '0')}-${d.day.padStart(2, '0')}`;};
-  const eventOut = (e, v) => ({id: e.id, title: e.title, startsAt: e.starts, format: e.format, entry: e.entry, details: e.details, cancelled: !!e.cancelled, updated: e.updated, venue: venueOut(v)});
+  const eventOut = (e, v) => ({id: e.id, title: e.title, startsAt: e.starts, format: e.format, entry: e.entry, details: e.details, cancelled: !!e.cancelled, updated: e.updated, regular: !!e.regular, venue: venueOut(v)});
+  // A venue's regular nights are published by themselves, four weeks ahead (topped up hourly and whenever its nights
+  // or its own quiz nights change). A week its operator cancelled stays cancelled; a quiz it published itself on the
+  // same day takes that day's place; nights it no longer holds are taken down.
+  const AHEAD_DAYS = 28;
+  function publishRegular(only) {
+    for (const v of only ? rows('SELECT * FROM venues WHERE id=?', only) : rows('SELECT * FROM venues')) {
+      const nights = JSON.parse(v.quiz_nights || '[]'), wanted = new Map();
+      for (let i = 0; i <= AHEAD_DAYS; i++) {
+        const day = london(now() + i * 86400000), night = nights.find(n => n.day === day.weekday.toLowerCase());
+        if (!night) continue;
+        const [h, mi] = night.time.split(':').map(Number), starts = londonTime(+day.year, +day.month, +day.day, h, mi);
+        if (starts > now()) wanted.set(londonDate(starts), starts);
+      }
+      const own = new Set(rows('SELECT starts FROM events WHERE venue=? AND regular=0 AND cancelled=0 AND starts>?', v.id, now()).map(e => londonDate(e.starts)));
+      const existing = new Map(rows('SELECT * FROM events WHERE venue=? AND regular=1 AND starts>?', v.id, now()).map(e => [e.occurs, e]));
+      for (const [date, starts] of wanted) {
+        const e = existing.get(date);
+        if (own.has(date)) {if (e && !e.cancelled) run('DELETE FROM events WHERE id=?', e.id);}
+        else if (!e) run('INSERT INTO events(id,venue,title,starts,updated,regular,occurs) VALUES(?,?,?,?,?,1,?)', id(), v.id, 'Quiz night', starts, now(), date);
+        else if (!e.cancelled && e.starts !== starts) run('UPDATE events SET starts=?,updated=? WHERE id=?', starts, now(), e.id);
+      }
+      for (const [date, e] of existing) if (!wanted.has(date)) run('DELETE FROM events WHERE id=?', e.id);
+    }
+  }
+  const regularTimer = setInterval(() => publishRegular(), 3600000);
+  regularTimer.unref();
+  publishRegular();
   // A venue key counts once a venue has registered it.
   const venueOfKey = key => one('SELECT v.* FROM venue_keys k JOIN venues v ON v.id=k.venue WHERE k.public_key=?', key);
   function history(accountId) {
@@ -164,6 +181,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       for (const r of rows('SELECT id FROM venues WHERE listed=1')) if (!ids.has(r.id)) {run('DELETE FROM venues WHERE id=?', r.id); removed++;}
       db.exec('COMMIT');
     } catch (e) {db.exec('ROLLBACK'); throw e;}
+    publishRegular();
     return {imported: venues.length, removed, errors};
   }
   async function loadVenueList() {
@@ -316,14 +334,13 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       if (parts[0] === 'venues' && parts.length >= 2) {
         if (method === 'GET' && parts.length === 2) {
           const v = one('SELECT * FROM venues WHERE id=?', parts[1]); check(v, 'Venue not found', 404);
-          const published = rows('SELECT * FROM events WHERE venue=? AND starts>? AND cancelled=0 ORDER BY starts', v.id, now() - 6 * 3600000).map(e => eventOut(e, v));
-          const regular = regularNights(v, new Set(published.map(e => `${v.id} ${londonDate(e.startsAt)}`)));
-          return send(200, {...venueOut(v), events: [...published, ...regular].sort((a, b) => a.startsAt - b.startsAt)});
+          return send(200, {...venueOut(v), events: rows('SELECT * FROM events WHERE venue=? AND starts>? AND cancelled=0 ORDER BY starts', v.id, now() - 6 * 3600000).map(e => eventOut(e, v))});
         }
         // The operator edits the venue's profile; what they change stays theirs when the list is imported again.
         if (method === 'PATCH' && parts.length === 2) {
           const v = myVenue(parts[1]), fields = validVenue(input, true);
           update('venues', v.id, fields);
+          if (fields.quiz_nights !== undefined) publishRegular(v.id);
           run('UPDATE venues SET edited=? WHERE id=?', JSON.stringify([...new Set([...JSON.parse(v.edited), ...Object.keys(fields).filter(k => k !== 'lon')])]), v.id);
           return send(200, venueOut(one('SELECT * FROM venues WHERE id=?', v.id)));
         }
@@ -351,6 +368,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         if (method === 'POST' && parts[2] === 'events' && parts.length === 3) {
           const v = myVenue(parts[1]), e = validEvent(input), eventId = id();
           run('INSERT INTO events(id,venue,title,starts,format,entry,details,updated) VALUES(?,?,?,?,?,?,?,?)', eventId, v.id, e.title, e.starts, e.format, e.entry, e.details, now());
+          publishRegular(v.id);
           return send(201, eventOut(one('SELECT * FROM events WHERE id=?', eventId), v));
         }
         // Admins mark a venue verified (checked to be real); its results then count on public leaderboards.
@@ -360,7 +378,9 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         const e = one('SELECT * FROM events WHERE id=?', parts[1]); check(e, 'Event not found', 404);
         const v = myVenue(e.venue);
         if (method === 'DELETE') run('UPDATE events SET cancelled=1,updated=? WHERE id=?', now(), e.id);
-        else {update('events', e.id, validEvent(input, true)); run('UPDATE events SET updated=? WHERE id=?', now(), e.id);}
+        // Changing one of the regular nights makes it the venue's own, so it isn't reset to the usual time.
+        else {update('events', e.id, validEvent(input, true)); run('UPDATE events SET updated=?,regular=0 WHERE id=?', now(), e.id);}
+        publishRegular(v.id);
         return send(200, eventOut(one('SELECT * FROM events WHERE id=?', e.id), v));
       }
       // Upcoming quizzes: by town, postcode area or a point the player chose to share (never stored).
@@ -369,13 +389,9 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         const near = url.searchParams.has('lat') && Number.isFinite(lat) && Number.isFinite(lon) ? {lat, lon} : null;
         const radius = Math.min(Number(url.searchParams.get('radiusKm')) || 25, 200);
         check(q || near || url.searchParams.get('venue'), 'Search by town, postcode or location');
-        // Published quiz nights, and each venue's regular nights over the next week.
         const venues = new Map(rows('SELECT * FROM venues').map(v => [v.id, v]));
         let list = rows('SELECT * FROM events WHERE cancelled=0 AND starts>? AND starts<? ORDER BY starts LIMIT 500', now() - 3 * 3600000, now() + 120 * 86400000)
           .map(e => ({out: eventOut(e, venues.get(e.venue)), venue: venues.get(e.venue)}));
-        const published = new Set(list.map(x => `${x.venue.id} ${londonDate(x.out.startsAt)}`));
-        for (const v of venues.values()) for (const e of regularNights(v, published)) list.push({out: e, venue: v});
-        list.sort((a, b) => a.out.startsAt - b.out.startsAt);
         if (url.searchParams.get('venue')) list = list.filter(x => x.venue.id === url.searchParams.get('venue'));
         if (q) {
           const term = q.toLowerCase(), area = postcodeArea(q);
@@ -417,7 +433,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   }
   const server = http.createServer(handle);
   server.requestTimeout = 15000;
-  return {server, db, importVenues, venuesLoaded, close: () => new Promise(resolve => {clearInterval(venueTimer); server.close(() => {db.close(); resolve();}); server.closeAllConnections();})};
+  return {server, db, importVenues, publishRegular, venuesLoaded, close: () => new Promise(resolve => {clearInterval(venueTimer); clearInterval(regularTimer); server.close(() => {db.close(); resolve();}); server.closeAllConnections();})};
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

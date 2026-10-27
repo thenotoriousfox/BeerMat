@@ -208,7 +208,7 @@ test('venue list: imported, kept up to date, operators edit their own profile on
   const first = service.importVenues(list);
   assert.deepEqual([first.imported, first.errors.length], [2, 7]);
   let venues = (await call('GET', '/v1/venues')).venues;
-  assert.deepEqual(venues.map(v => [v.id, v.postcode, v.quizNights, v.next]), [['crown-bath', '', [], null], ['red-lion-bristol', 'BS1 4DJ', [{day: 'tuesday', time: '20:00'}], null]]);
+  assert.deepEqual(venues.map(v => [v.id, v.postcode, v.quizNights, v.next]), [['crown-bath', '', [], null], ['red-lion-bristol', 'BS1 4DJ', [{day: 'tuesday', time: '20:00'}], {id: venues[1].next.id, title: 'Quiz night', startsAt: Date.UTC(2023, 10, 21, 20)}]], 'its regular night is published');
   assert.equal(venues[0].owner, undefined, 'operators are not public');
 
   // Nobody adds or removes a venue but an admin; operators are linked by an admin.
@@ -283,20 +283,32 @@ test('client: the map\'s venues come from the service, then its last list offlin
   await assert.rejects(createOnlineClient({baseUrl: base, fetch: fetchSometimes, storage: memory()}).venues(), /No connection/);
 }));
 
-test('listings include each venue\'s regular quiz nights over the next week, in UK time, unless it published one that day', () => fixture(async ({call, signUp, addVenue, service, tick}) => {
-  // 1700000000000 is Tuesday 14 November 2023, 22:13 in London.
+test('regular quiz nights publish themselves four weeks ahead in UK time; a cancelled week stays cancelled, specials take the day', () => fixture(async ({call, signUp, service, tick}) => {
+  // 1700000000000 is Tuesday 14 November 2023, 22:13 in London: tonight's 8pm quiz has been and gone.
   service.importVenues({venues: [{id: 'vic-derby', name: 'The Victoria Inn', town: 'Derby', postcode: 'DE1 2RR', lat: 52.9168, lon: -1.4646, quizNights: [{day: 'monday', time: '20:00'}, {day: 'tuesday', time: '20:00'}]}]});
-  let found = (await call('GET', '/v1/events?q=derby')).events;
-  assert.deepEqual(found.map(e => [e.title, e.regular, new Date(e.startsAt).toISOString()]), [['Quiz night', true, '2023-11-14T20:00:00.000Z'], ['Quiz night', true, '2023-11-20T20:00:00.000Z'], ['Quiz night', true, '2023-11-21T20:00:00.000Z']], 'tonight’s (started 2 hours ago) and next week’s');
-  assert.equal((await call('GET', '/v1/events?lat=52.92&lon=-1.47&radiusKm=25')).events.length, 3, 'found by location too');
-  assert.deepEqual((await call('GET', '/v1/events?lat=51.45&lon=-2.59&radiusKm=25')).events, []);
-  // The venue publishes its own quiz for Monday: that replaces the regular one that day.
+  const listed = async () => (await call('GET', '/v1/events?q=derby')).events.map(e => `${new Date(e.startsAt).toISOString().slice(0, 16)} ${e.title}${e.regular ? ' (regular)' : ''}`);
+  const weeks = ['2023-11-20', '2023-11-21', '2023-11-27', '2023-11-28', '2023-12-04', '2023-12-05', '2023-12-11', '2023-12-12'].map(d => `${d}T20:00 Quiz night (regular)`);
+  assert.deepEqual(await listed(), weeks);
+  service.importVenues({venues: [{id: 'vic-derby', name: 'The Victoria Inn', town: 'Derby', postcode: 'DE1 2RR', lat: 52.9168, lon: -1.4646, quizNights: [{day: 'monday', time: '20:00'}, {day: 'tuesday', time: '20:00'}]}]}); service.publishRegular();
+  assert.deepEqual(await listed(), weeks, 'publishing again adds nothing');
+  assert.equal((await call('GET', '/v1/events?lat=52.92&lon=-1.47&radiusKm=25')).events.length, 8, 'found by location too');
+
   const landlord = await signUp('vic@example.com');
   service.db.prepare("UPDATE venues SET owner=(SELECT id FROM accounts WHERE email='vic@example.com') WHERE id='vic-derby'").run();
-  await call('POST', '/v1/venues/vic-derby/events', {title: 'Charity Quiz', startsAt: Date.UTC(2023, 10, 20, 19, 30)}, landlord);
-  found = (await call('GET', '/v1/venues/vic-derby')).events;
-  assert.deepEqual(found.map(e => [e.title, new Date(e.startsAt).toISOString().slice(0, 16)]), [['Quiz night', '2023-11-14T20:00'], ['Charity Quiz', '2023-11-20T19:30'], ['Quiz night', '2023-11-21T20:00']]);
-  // In British Summer Time, 8pm in London is 19:00 UTC.
-  tick(Date.UTC(2024, 6, 1, 12) - 1700000000000);
-  assert.equal(new Date((await call('GET', '/v1/events?q=derby')).events[0].startsAt).toISOString(), '2024-07-01T19:00:00.000Z');
+  const own = (await call('GET', '/v1/venues/vic-derby')).events;
+  // A bank holiday: that week is cancelled, and stays cancelled.
+  await call('DELETE', `/v1/events/${own[0].id}`, null, landlord);
+  service.publishRegular();
+  // A charity quiz on the Tuesday takes the regular night's place; tidying one week's details makes it the venue's own.
+  await call('POST', '/v1/venues/vic-derby/events', {title: 'Charity Quiz', startsAt: Date.UTC(2023, 10, 21, 19, 30)}, landlord);
+  await call('PATCH', `/v1/events/${own[2].id}`, {entry: '£1'}, landlord);
+  assert.deepEqual(await listed(), ['2023-11-21T19:30 Charity Quiz', '2023-11-27T20:00 Quiz night', ...weeks.slice(3)]);
+
+  // New nights: Fridays at 9pm instead. Future regular nights follow; the venue's own quizzes stay.
+  await call('PATCH', '/v1/venues/vic-derby', {quizNights: [{day: 'friday', time: '21:00'}]}, landlord);
+  assert.deepEqual(await listed(), ['2023-11-17T21:00 Quiz night (regular)', '2023-11-21T19:30 Charity Quiz', '2023-11-24T21:00 Quiz night (regular)', '2023-11-27T20:00 Quiz night',
+    '2023-12-01T21:00 Quiz night (regular)', '2023-12-08T21:00 Quiz night (regular)']);
+  // Weeks later, in British Summer Time: 9pm in London is 20:00 UTC, still four weeks ahead.
+  tick(Date.UTC(2024, 6, 1, 12) - 1700000000000); service.publishRegular();
+  assert.deepEqual(await listed(), ['2024-07-05', '2024-07-12', '2024-07-19', '2024-07-26'].map(d => `${d}T20:00 Quiz night (regular)`));
 }));

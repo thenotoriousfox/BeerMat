@@ -59,7 +59,7 @@ test('desk venue tab: sign in through the laptop, edit only your venue, register
     assert.equal(keyId(service.db.prepare('SELECT public_key FROM venue_keys').get().public_key), venueKeyId);
 
     const night = await call('online/call', {method: 'POST', path: '/v1/venues/red-lion-bristol/events', body: {title: 'Tuesday Quiz', startsAt: Date.now() + 86400000, entry: '£2'}});
-    assert.deepEqual((await fetch(online + '/v1/venues').then(r => r.json())).venues.find(v => v.id === 'red-lion-bristol').next.title, 'Tuesday Quiz', 'on the map straight away');
+    assert.ok((await fetch(online + '/v1/venues/red-lion-bristol').then(r => r.json())).events.some(e => e.title === 'Tuesday Quiz'), 'in the app straight away');
     await call('online/call', {method: 'DELETE', path: '/v1/events/' + night.id});
     const left = (await call('online/call', {method: 'GET', path: '/v1/venues/red-lion-bristol'})).events;
     assert.deepEqual([left.filter(e => !e.regular), left.every(e => e.title === 'Quiz night' && new Date(e.startsAt).getUTCDay() === 2)], [[], true], 'only the regular Tuesday nights are left');

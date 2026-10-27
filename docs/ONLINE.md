@@ -44,7 +44,10 @@ edit (or, rarely, an admin adds one through the API):
 
 Only `id` (2–60 lower-case letters, digits or dashes, never changed later), `name` and `town` are required; `lat`
 and `lon` put it on the map; `quizNights` are its regular weekly quizzes (a day, `monday`–`sunday`, and a 24-hour start
-time, at most one a day), which players filter the map and listings by. `venues.js` checks the file (`npm test` does too), and a bad entry is skipped without
+time, at most one a day), which players filter the map and listings by. Regular nights publish themselves as quiz
+nights four weeks ahead (UK time; topped up hourly and whenever the nights change). On the desk the operator can
+cancel any single week, which stays cancelled; a quiz they publish themselves on the same day takes that day's place;
+editing one week's details makes it their own; changing the regular nights moves the future ones with them. `venues.js` checks the file (`npm test` does too), and a bad entry is skipped without
 hiding the rest. The service imports the list when it starts (`VENUES_FILE`, the copy `online/deploy.sh` ships), or
 hourly from `VENUES_URL` once the repository is public. Listed venues are added and updated; one taken off the list is
 removed with its quiz nights.

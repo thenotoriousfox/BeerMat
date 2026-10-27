@@ -796,14 +796,15 @@ function renderVenue() {
   const registered = past && venue.keys?.includes(past.venueKeyId);
   $('venueLaptop').textContent = registered ? '✓ This laptop is registered: its shared results count for this venue.' : 'This laptop isn’t registered to this venue yet.';
   $('venueRegister').hidden = !!registered;
-  // Regular nights (the day checkboxes above) come back as listings too; only published ones are listed here.
-  $('venueEvents').replaceChildren(...venue.events.filter(e => !e.regular).map(e => {
-    const li = element('li', `${new Date(e.startsAt).toLocaleString([], {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'})} — ${e.title}${e.entry ? ` (${e.entry})` : ''} `);
-    const cancel = element('button', 'Cancel', 'subtle'); cancel.type = 'button';
-    cancel.onclick = () => {if (confirm(`Cancel “${e.title}”? It disappears from the app.`)) action(async () => {await onlineCall('DELETE', '/v1/events/' + e.id); await loadVenue();}, 'Quiz night cancelled');};
+  // Regular nights (the day checkboxes above) are published by themselves, four weeks ahead; any week can be cancelled.
+  $('venueEvents').replaceChildren(...venue.events.map(e => {
+    const at = new Date(e.startsAt), every = e.regular ? ` · every ${at.toLocaleDateString([], {weekday: 'long'})}` : '';
+    const li = element('li', `${at.toLocaleString([], {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'})} — ${e.title}${every}${e.entry ? ` (${e.entry})` : ''} `);
+    const cancel = element('button', e.regular ? 'Cancel this week' : 'Cancel', 'subtle'); cancel.type = 'button';
+    cancel.onclick = () => {if (confirm(e.regular ? `Cancel the quiz on ${at.toLocaleDateString([], {weekday: 'long', day: 'numeric', month: 'long'})}? The other weeks still go ahead.` : `Cancel “${e.title}”? It disappears from the app.`)) action(async () => {await onlineCall('DELETE', '/v1/events/' + e.id); await loadVenue();}, 'Quiz night cancelled');};
     li.append(cancel); return li;
   }));
-  if (!venue.events.some(e => !e.regular)) $('venueEvents').append(element('li', 'No quiz nights published yet.', 'muted'));
+  if (!venue.events.length) $('venueEvents').append(element('li', 'No quiz nights published yet.', 'muted'));
 }
 $('venueSignIn').onsubmit = e => {e.preventDefault(); action(async () => {venueAccount = await request('online/signin', {email: $('venueEmail').value, password: $('venuePassword').value}); $('venuePassword').value = ''; await loadVenue();}, 'Signed in to PubQuiz Online');};
 $('venueSignUp').onsubmit = e => {e.preventDefault(); if (!$('venueSignIn').reportValidity()) return; action(async () => {venueAccount = await request('online/signup', {email: $('venueEmail').value, password: $('venuePassword').value, displayName: $('venueName').value}); $('venuePassword').value = ''; await loadVenue();}, 'Account created');};
