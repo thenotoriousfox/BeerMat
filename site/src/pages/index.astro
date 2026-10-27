@@ -1,6 +1,6 @@
 ---
 import Page from '../layouts/Page.astro';
-import {ONLINE, PRICE, FREE_LIMITS} from '../consts';
+import {PRICE, FREE_LIMITS} from '../consts';
 
 const steps = [
 	['1', 'Open BeerMat on the laptop', 'Write your quiz on the desk, or load one you made earlier. Windows or Linux.'],
@@ -30,7 +30,7 @@ const features = [
 			<p class="mt-5 max-w-xl text-lg text-muted">The desk for the quizmaster, the quiz on the TV, and every team playing on their phones. No paper, no marking by hand, and it works with or without internet.</p>
 			<div class="mt-8 flex flex-wrap gap-3">
 				<a href="/download" class="btn btn-primary">Try it free</a>
-				<a href={`${ONLINE}/app/`} class="btn btn-ghost">Find a quiz near you</a>
+				<a href="/find" class="btn btn-ghost">Find a quiz near you</a>
 			</div>
 			<p class="mt-4 text-sm text-muted">Free to try: {FREE_LIMITS.questions} questions and {FREE_LIMITS.teams} teams. Players never pay.</p>
 		</div>

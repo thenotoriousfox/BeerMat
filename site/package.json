@@ -16,6 +16,7 @@
 		"@astrojs/sitemap": "3.6.1",
 		"@tailwindcss/vite": "4.3.0",
 		"astro": "5.16.9",
+		"leaflet": "1.9.4",
 		"tailwindcss": "4.3.0"
 	},
 	"devDependencies": {

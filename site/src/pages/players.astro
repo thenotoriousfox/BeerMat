@@ -1,6 +1,6 @@
 ---
 import Page from '../layouts/Page.astro';
-import {ONLINE} from '../consts';
+
 ---
 <Page title="BeerMat for players" description="Find a pub quiz near you, play on your phone, and keep your results if you want to.">
 	<section class="wrap grid items-center gap-10 py-10 lg:grid-cols-[1.2fr_1fr]">
@@ -9,7 +9,7 @@ import {ONLINE} from '../consts';
 			<h1 class="text-4xl sm:text-5xl">Your phone is your answer sheet</h1>
 			<p class="text-lg text-muted">At a BeerMat quiz, scan the code on the TV and play in your browser. No app, no account, no sign-up, and it’s always free.</p>
 			<div class="mt-8 flex flex-wrap gap-3">
-				<a href={`${ONLINE}/app/`} class="btn btn-primary">Find a quiz near you</a>
+				<a href="/find" class="btn btn-primary">Find a quiz near you</a>
 				<a href="/download#app" class="btn btn-ghost">Get the app</a>
 			</div>
 		</div>

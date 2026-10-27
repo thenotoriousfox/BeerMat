@@ -173,7 +173,9 @@ the domain (v0.5.0 and earlier); a new IP only needs the A record changed.
 What a deployment needs in general:
 
 * Any host with Node 22.13+ (a small VPS or a container platform); no paid services are required.
-  `PORT`, `BIND`, `ONLINE_DB`, `ALLOWED_ORIGINS` configure it: `node online/service.js`.
+  `PORT`, `BIND`, `ONLINE_DB`, `ALLOWED_ORIGINS` configure it: `node online/service.js`. On the live server
+  `ALLOWED_ORIGINS=https://beermatquiz.co.uk,https://www.beermatquiz.co.uk` (in `/etc/beermat-online/env`) lets the
+  website's Find a quiz page read `/v1/venues`.
 * HTTPS in front (Caddy or nginx with Let's Encrypt). Bind the service to `127.0.0.1` behind the proxy.
 * Back up `online.sqlite` (for example `sqlite3 online.sqlite ".backup …"` nightly, kept off the server).
 * **Email** (confirming addresses, password reset) goes through [Resend](https://resend.com): put `RESEND_API_KEY=…`

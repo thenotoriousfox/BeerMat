@@ -1,5 +1,5 @@
 ---
-import {CONTACT, ONLINE} from '../consts';
+import {CONTACT} from '../consts';
 ---
 <footer class="mt-24 border-t border-white/10">
 	<div class="wrap flex flex-col gap-6 py-10 text-sm text-muted sm:flex-row sm:items-start sm:justify-between">
@@ -11,7 +11,7 @@ import {CONTACT, ONLINE} from '../consts';
 			<a href="/download" class="text-muted">Download</a>
 			<a href="/#pricing" class="text-muted">Pricing</a>
 			<a href="/players" class="text-muted">For players</a>
-			<a href={`${ONLINE}/app/`} class="text-muted">Find a quiz</a>
+			<a href="/find" class="text-muted">Find a quiz</a>
 			<a href="/terms" class="text-muted">Terms</a>
 			<a href="/privacy" class="text-muted">Privacy</a>
 			<a href={`mailto:${CONTACT}`} class="text-muted">{CONTACT}</a>
