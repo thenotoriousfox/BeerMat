@@ -178,7 +178,8 @@ async function search(params) {
     const found = await client.findEvents(params);
     $('findStale').hidden = !found.stale;
     $('findStale').textContent = found.stale ? `Offline: these listings are from ${ago(found.fetchedAt)} and may have changed.` : '';
-    const shown = found.events.filter(e => !dayFilter || weekday(e.startsAt) === dayFilter);
+    // One entry a venue: its next quiz (on the chosen day, if one is chosen). Listings come soonest (or nearest) first.
+    const seen = new Set(), shown = found.events.filter(e => (!dayFilter || weekday(e.startsAt) === dayFilter) && !seen.has(e.venue.id) && seen.add(e.venue.id));
     const where = params.lat !== undefined ? `within ${params.radiusKm} km of you` : 'there';
     say(shown.length ? '' : found.events.length ? `No quizzes ${where} on a ${dayName(dayFilter)}.` : `No quizzes ${where} in the next week. The map shows every venue.`);
     if (params.lat !== undefined && map) map.setView([params.lat, params.lon], 10);
@@ -298,14 +299,15 @@ async function showVenue(v) {
   go.target = '_blank'; go.rel = 'noopener'; card.append(go);
   const star = el('button', saved ? '★ Your venue' : '☆ Save venue', 'subtle'); star.type = 'button'; star.onclick = guarded(() => toggleFavourite(v, !saved));
   const upcoming = el('ul', undefined, 'list events');
-  card.append(el('br'), star, el('h4', 'Upcoming quizzes'), upcoming);
+  card.append(el('br'), star, el('h4', 'Next quiz'), upcoming);
   card.hidden = false; card.scrollIntoView({behavior: 'smooth', block: 'nearest'});
   try {
     const page = await client.venue(v.id);
     if (shownVenue !== v) return;
-    renderEvents(page.events, upcoming);
-    if (!page.events.length) upcoming.append(el('li', 'None published yet.', 'hint'));
-  } catch {upcoming.replaceChildren(el('li', 'Upcoming quizzes need a connection to PubQuiz Online.', 'hint'));}
+    const next = page.events.find(e => !dayFilter || weekday(e.startsAt) === dayFilter);
+    renderEvents(next ? [next] : [], upcoming);
+    if (!next) upcoming.append(el('li', dayFilter && page.events.length ? `None on a ${dayName(dayFilter)} yet.` : 'None published yet.', 'hint'));
+  } catch {upcoming.replaceChildren(el('li', 'The next quiz needs a connection to PubQuiz Online.', 'hint'));}
 }
 async function renderFavourites() {
   let list = store.get('pq-favourites', []);
