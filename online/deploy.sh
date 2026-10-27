@@ -26,7 +26,7 @@ echo "Server $ip, address https://$domain"
 stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/online" "$stage/mobile" "$stage/shared"
 cp "$repo/online/service.js" "$repo/online/client.js" "$repo/online/admin.js" "$stage/online/"
-cp "$repo/shared/claims.js" "$repo/shared/achievements.js" "$repo/shared/venues.js" "$stage/shared/"
+cp "$repo"/shared/*.js "$stage/shared/"
 mkdir -p "$stage/brand" && cp "$repo"/brand/*.svg "$repo/brand/fredoka.woff2" "$stage/brand/"
 cp -r "$repo/mobile/www" "$stage/mobile/"
 cp -r "$repo/online/admin" "$repo/online/pages" "$stage/online/"
