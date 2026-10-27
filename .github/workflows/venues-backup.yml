@@ -1,5 +1,5 @@
 name: Venue list backup
-# Every night, copies PubQuiz Online's venues (kept and edited in its admin console) into venues.json here: a public
+# Every night, copies BeerMat Online's venues (kept and edited in its admin console) into venues.json here: a public
 # backup, and the player app's fallback when the service can't be reached. Commits only when something changed.
 on:
   schedule:
@@ -35,5 +35,5 @@ jobs:
           if git diff --quiet venues.json; then echo "No changes"; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Venue list: nightly copy from PubQuiz Online" venues.json
+          git commit -m "Venue list: nightly copy from BeerMat Online" venues.json
           git push

@@ -63,7 +63,7 @@ Archive for the App Store.
 
 ## Android download (no store)
 
-Each release on <https://github.com/DTJW92/PubQuiz/releases/latest> has `PubQuiz-Player-<version>.apk`. On the
+Each release on <https://github.com/DTJW92/PubQuiz/releases/latest> has `BeerMat-<version>.apk`. On the
 phone: open that page, download the APK, allow your browser to "install unknown apps" when asked, and install. A
 newer APK installs over the old one.
 

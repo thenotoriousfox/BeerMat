@@ -1,6 +1,6 @@
 name: Release
 # Push a tag like v0.4.0 (matching package.json's version) to build the Windows and Linux apps and the Android
-# PubQuiz Player APK, and publish them as a GitHub release: https://github.com/DTJW92/PubQuiz/releases/latest.
+# BeerMat app (APK), and publish them as a GitHub release: https://github.com/DTJW92/PubQuiz/releases/latest.
 # Run it by hand to build without publishing.
 on:
   push:
@@ -78,7 +78,7 @@ jobs:
           node scripts/build-web.mjs
           npx cap sync android
           cd android && ./gradlew assembleRelease
-          mkdir -p ../../dist && cp app/build/outputs/apk/release/app-release.apk "../../dist/PubQuiz-Player-$(node -p 'require("../package.json").version').apk"
+          mkdir -p ../../dist && cp app/build/outputs/apk/release/app-release.apk "../../dist/BeerMat-$(node -p 'require("../package.json").version').apk"
       - uses: actions/upload-artifact@v4
         with:
           name: Android
@@ -102,4 +102,4 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" files/* --repo "$GITHUB_REPOSITORY" --title "PubQuiz $GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" files/* --repo "$GITHUB_REPOSITORY" --title "BeerMat $GITHUB_REF_NAME" --generate-notes
