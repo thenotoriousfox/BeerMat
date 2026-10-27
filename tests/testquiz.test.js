@@ -5,7 +5,7 @@ import {promisify} from 'node:util';
 import {mkdtempSync, rmSync, readdirSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {createQuiz} from '../server.js';
+import {createQuiz} from '../server/server.js';
 
 const hostKey = 'a-secure-quiz-test-key';
 test('the rehearsal quiz script loads six valid rounds, keeps other rounds and replaces its own on a re-run', async () => {

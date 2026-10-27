@@ -14,7 +14,7 @@ import {createPrefs, hostKey} from '../desktop/store.js';
 import {prepareDatabase, restoreDatabase, listBackups, checkDatabase, backupDatabase} from '../desktop/database.js';
 import {createLog} from '../desktop/log.js';
 import {pickOutput, sinkScript} from '../desktop/sound.js';
-import {createQuiz} from '../server.js';
+import {createQuiz} from '../server/server.js';
 
 const temp = () => mkdtempSync(path.join(os.tmpdir(), 'quiz-desktop-'));
 const laptopScreen = {id: 1, label: 'Built-in Retina', internal: true, bounds: {x: 0, y: 0, width: 1440, height: 900}};
@@ -229,7 +229,7 @@ test('quiz server process: starts on the preferred port or the next free one, mi
 });
 
 test('editions: a single place for a future Free/Pro split, with every feature in every edition today', async () => {
-  const {edition, features} = await import('../edition.js');
+  const {edition, features} = await import('../server/edition.js');
   for (const name of ['free', 'pro', 'unknown']) for (const f of features) assert.equal(edition(name).has(f), true);
   assert.equal(edition('free').has('somethingElse'), false);
 });

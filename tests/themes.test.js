@@ -4,8 +4,8 @@ import {mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, readdirSync
 import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
-import {loadThemes} from '../themes.js';
-import {createQuiz} from '../server.js';
+import {loadThemes} from '../server/themes.js';
+import {createQuiz} from '../server/server.js';
 
 const root = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 const write = (dir, file, text) => {mkdirSync(path.dirname(path.join(dir, file)), {recursive: true}); writeFileSync(path.join(dir, file), text);};
@@ -59,7 +59,7 @@ test('the server serves /themes.css and theme files, nothing else from the folde
     for (const p of ['/themes/halloween/theme.json', '/themes/halloween/make-sounds.mjs', '/themes/nope/look.css', '/themes/halloween/art/missing.svg']) assert.equal((await fetch(base + p)).status, 404, p);
     // Sent exactly as written (fetch would tidy the dots away first).
     const raw = p => new Promise((resolve, reject) => http.get({host: '127.0.0.1', port: quiz.server.address().port, path: p}, r => {let body = ''; r.on('data', c => body += c); r.on('end', () => resolve(body));}).on('error', reject));
-    for (const p of ['/themes/halloween/../../server.js', '/themes/halloween/%2e%2e/%2e%2e/server.js', '/themes/halloween/art/..%2f..%2ftheme.json', '/themes/halloween/art/%2e%2e/theme.json']) {
+    for (const p of ['/themes/halloween/../../server/server.js', '/themes/halloween/%2e%2e/%2e%2e/server%2fserver.js', '/themes/halloween/art/..%2f..%2ftheme.json', '/themes/halloween/art/%2e%2e/theme.json']) {
       const body = await raw(p); assert.doesNotMatch(body, /export function createQuiz|"seasonal"/, p);
     }
     for (const page of ['/display', '/']) assert.match(await (await fetch(base + page)).text(), /href="\/themes.css"/);

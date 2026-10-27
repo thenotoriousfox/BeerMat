@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {mkdtempSync, rmSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {driveFileId, fetchDriveQuiz} from '../drive.js';
-import {createQuiz} from '../server.js';
+import {driveFileId, fetchDriveQuiz} from '../server/drive.js';
+import {createQuiz} from '../server/server.js';
 
 const id = '1AbCdEfGhIjKlMnOpQrStUvWxYz012345';
 const quiz = {title: 'From Drive', rounds: [{id: 'r1', title: 'Final', secret: true, questions: [{id: 'q1', type: 'text', text: 'Capital of Wales?', seconds: 30, points: 1, answer: 'Cardiff'}]}]};

@@ -4,7 +4,7 @@ import {mkdtempSync, rmSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
-import {createQuiz} from '../server.js';
+import {createQuiz} from '../server/server.js';
 
 const hostKey = 'a-secure-rounds-test-key';
 async function fixture(fn, options = {}) {
@@ -390,7 +390,7 @@ test('joined phones get "online" answers to OS checks, can continue in another b
 }, {clientAddress: req => req.headers['x-test-ip'] || '127.0.0.1'}));
 
 test('music bingo song timing: start time, play time and auto-next are validated and kept', async () => {
-  const {validateQuestion} = await import('../model.js');
+  const {validateQuestion} = await import('../server/model.js');
   const songs = Array.from({length: 15}, (_, i) => ({title: `Song ${i + 1}`}));
   const base = {text: 'Music bingo', type: 'musicbingo', seconds: 600, points: 1, songs, mode: 'line'};
   const q = validateQuestion({...base, startAt: 30, songSeconds: 20, autoNext: true}, '.');
@@ -457,7 +457,7 @@ test('sheet answers take alternatives; a tie-breaker scores nothing but orders t
 }));
 
 test('audio questions can play a Spotify clip instead of a file', async () => {
-  const {validateQuestion} = await import('../model.js');
+  const {validateQuestion} = await import('../server/model.js');
   const id = '4uLU6hMCjMI75M1A2tKUQC', base = {text: 'Name the artist', type: 'audio', seconds: 30, points: 1, answer: 'Queen'};
   assert.deepEqual(validateQuestion({...base, clip: {spotify: `https://open.spotify.com/track/${id}?si=x`, start: 60, seconds: 15}}, '.').clip, {spotify: `spotify:track:${id}`, start: 60, seconds: 15});
   assert.deepEqual(validateQuestion({...base, clip: {spotify: `spotify:track:${id}`}}, '.').clip, {spotify: `spotify:track:${id}`, start: 0, seconds: 30});

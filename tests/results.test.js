@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import {mkdtempSync, rmSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {createQuiz} from '../server.js';
-import {teamResults} from '../results.js';
-import {summarize, achievements, badges} from '../achievements.js';
-import {newVenueKey, signClaim, verifyClaim, canonical} from '../claims.js';
+import {createQuiz} from '../server/server.js';
+import {teamResults} from '../server/results.js';
+import {summarize, achievements, badges} from '../shared/achievements.js';
+import {newVenueKey, signClaim, verifyClaim, canonical} from '../shared/claims.js';
 
 const hostKey = 'a-secure-quiz-test-key';
 const question = (id, fields = {}) => ({id, text: `Question ${id}?`, type: 'text', seconds: 30, points: 2, answer: 'Cardiff', ...fields});

@@ -5,9 +5,9 @@ import assert from 'node:assert/strict';
 import {mkdtempSync, rmSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {createQuiz} from '../server.js';
+import {createQuiz} from '../server/server.js';
 import {createService} from '../online/service.js';
-import {keyId} from '../claims.js';
+import {keyId} from '../shared/claims.js';
 
 test('desk venue tab: sign in through the laptop, edit only your venue, register this laptop, publish quiz nights', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-venuedesk-'));

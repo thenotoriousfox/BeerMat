@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {parseScan, normaliseAddress, readClaim, remember, calendarFile, hotspotCandidates} from '../mobile/www/join.js';
-import {wifiCode} from '../qr.js';
+import {wifiCode} from '../web/qr.js';
 
 test('typed addresses: an IP with a port, a full link or an app link; nothing but http(s) and no passwords', () => {
   assert.equal(normaliseAddress('192.168.1.20:3000'), 'http://192.168.1.20:3000');
@@ -48,7 +48,7 @@ test('recent quizzes and calendar reminders', () => {
 
 test('app configuration: the player page knows the app by its user agent, and quiz pages may be opened inside the app', () => {
   const config = JSON.parse(readFileSync(path.join(import.meta.dirname, '..', 'mobile', 'capacitor.config.json'), 'utf8'));
-  const client = readFileSync(path.join(import.meta.dirname, '..', 'client.js'), 'utf8');
+  const client = readFileSync(path.join(import.meta.dirname, '..', 'web', 'client.js'), 'utf8');
   for (const platform of ['android', 'ios']) {
     const agent = config[platform].appendUserAgent;
     assert.match(agent, new RegExp(`^BeerMatApp/[\\d.]+ \\(${platform}\\)$`));

@@ -6,8 +6,8 @@
 //   from the app: {type: 'ticket', id}  {type: 'backup', id, folder}  {type: 'shutdown', stopWifi}
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {createQuiz} from '../server.js';
-import {createLaptop} from '../laptop.js';
+import {createQuiz} from '../server/server.js';
+import {createLaptop} from '../server/laptop.js';
 import {prepareDatabase, backupDatabase} from './database.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');

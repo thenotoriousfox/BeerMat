@@ -9,14 +9,14 @@ import {createSpotify} from './spotify.js';
 import {createLaptop} from './laptop.js';
 import {lanAddresses, joinUrlFor, diagnose, hotspotAddresses} from './network.js';
 import {teamResults} from './results.js';
-import {newVenueKey, signClaim, keyId} from './claims.js';
-import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from './soundnames.js';
+import {newVenueKey, signClaim, keyId} from '../shared/claims.js';
+import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from '../web/soundnames.js';
 import {typeGroups} from './looks.js';
 import {loadThemes} from './themes.js';
 import {fetchDriveQuiz} from './drive.js';
 import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern, sheetPoints, spotifyTrack} from './model.js';
 
-const root = path.dirname(fileURLToPath(import.meta.url));
+const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..'), web = path.join(root, 'web');
 const token = () => randomBytes(24).toString('hex');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const equal = (a, b) => typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -835,7 +835,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         }
         if (answerProbe(req, res, p)) return;
         // OS HTTP probes and arbitrary HTTP landing URLs get registration.
-        return sendFile(req, res, path.join(root, routes[p] || 'player.html'), p === '/host' ? deskSecurity : security);
+        return sendFile(req, res, path.join(web, routes[p] || 'player.html'), p === '/host' ? deskSecurity : security);
       }
       if (req.method === 'GET' && p === '/api/leaderboard') return send(200, publicState());
       requireValue(req.method === 'POST', 'POST required', 405);

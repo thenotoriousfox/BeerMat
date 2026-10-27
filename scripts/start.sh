@@ -11,4 +11,4 @@ if [[ ${1:-} == --hotspot ]]; then
   export ALLOWED_ADDRESSES=127.0.0.1,::1,10.42.0.1
 fi
 umask 077
-exec node --disable-warning=ExperimentalWarning server.js
+exec node --disable-warning=ExperimentalWarning server/server.js

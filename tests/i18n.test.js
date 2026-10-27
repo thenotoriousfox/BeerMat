@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
 globalThis.document = {documentElement: {}};
-const {t, setLanguage} = await import('../i18n.js');
-const source = readFileSync(new URL('../i18n.js', import.meta.url), 'utf8');
+const {t, setLanguage} = await import('../web/i18n.js');
+const source = readFileSync(new URL('../web/i18n.js', import.meta.url), 'utf8');
 const dictionary = Function(`return ${/const T = (\{[\s\S]*?\n\});/.exec(source)[1]}`)();
 const vars = text => [...text.matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort().join();
 
@@ -16,11 +16,11 @@ test('every phrase has French and Spanish with the same placeholders', () => {
 
 test('every translated string used by the phone and TV pages is in the dictionary', () => {
   for (const file of ['client.js', 'app.js']) {
-    const code = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+    const code = readFileSync(new URL(`../web/${file}`, import.meta.url), 'utf8');
     for (const [, text] of code.matchAll(/\bt\('((?:[^'\\]|\\.)*)'/g)) assert.ok(text.replace(/\\'/g, "'") in dictionary, `${file}: ${text}`);
   }
   for (const page of ['player.html', 'display.html']) {
-    const html = readFileSync(new URL(`../${page}`, import.meta.url), 'utf8').replace(/<(script|title)[\s\S]*?<\/\1>/g, '');
+    const html = readFileSync(new URL(`../web/${page}`, import.meta.url), 'utf8').replace(/<(script|title)[\s\S]*?<\/\1>/g, '');
     for (const [, text] of html.matchAll(/>([^<]*[A-Za-z][^<]*)</g)) {
       const trimmed = text.trim();
       if (trimmed && !/^(BeerMat|http:\/\/\S+)$/.test(trimmed)) assert.ok(trimmed in dictionary, `${page}: ${trimmed}`);

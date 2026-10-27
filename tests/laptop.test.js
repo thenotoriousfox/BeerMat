@@ -5,8 +5,8 @@ import path from 'node:path';
 import os from 'node:os';
 import {EventEmitter} from 'node:events';
 import {PassThrough} from 'node:stream';
-import {createQuiz} from '../server.js';
-import {createLaptop} from '../laptop.js';
+import {createQuiz} from '../server/server.js';
+import {createLaptop} from '../server/laptop.js';
 
 const hostKey = 'a-secure-quiz-test-key';
 const settle = () => new Promise(r => setImmediate(r));

@@ -5,8 +5,8 @@ import {createHash} from 'node:crypto';
 import {mkdtempSync, rmSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {createQuiz} from '../server.js';
-import {trackId, playlistId} from '../spotify.js';
+import {createQuiz} from '../server/server.js';
+import {trackId, playlistId} from '../server/spotify.js';
 
 const hostKey = 'a-secure-quiz-test-key', clientId = '0123456789abcdef0123456789abcdef';
 const id = n => `track${String(n).padStart(17, '0')}`;

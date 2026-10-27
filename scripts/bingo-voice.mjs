@@ -13,8 +13,8 @@ import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync} from 'node:fs'
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {bingoCallsFile} from '../soundnames.js';
-import {bingoCall} from '../app.js';
+import {bingoCallsFile} from '../web/soundnames.js';
+import {bingoCall} from '../web/app.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2), option = (name, fallback) => {const i = args.indexOf(name); return i >= 0 ? args[i + 1] : fallback;};

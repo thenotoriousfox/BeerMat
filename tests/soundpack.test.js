@@ -6,7 +6,7 @@ import {promisify} from 'node:util';
 import {mkdtempSync, mkdirSync, rmSync, writeFileSync, readdirSync, existsSync, readFileSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {createQuiz} from '../server.js';
+import {createQuiz} from '../server/server.js';
 const root = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 
 const hostKey = 'a-secure-quiz-test-key';

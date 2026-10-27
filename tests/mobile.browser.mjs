@@ -9,7 +9,7 @@ import {mkdtempSync, rmSync, readFileSync, existsSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import {chromium} from 'playwright';
-import {createQuiz} from '../server.js';
+import {createQuiz} from '../server/server.js';
 import {createService} from '../online/service.js';
 
 const root = path.join(import.meta.dirname, '..');
@@ -30,7 +30,7 @@ const phone = {viewport: {width: 390, height: 844}, deviceScaleFactor: 2, isMobi
 const watch = page => {page.on('pageerror', e => errors.push(`${page.url()}: ${e.message}`)); return page;};
 
 // The app's own screens at http://localhost, as the Android app serves mobile/www (shared code from the source).
-const www = path.join(root, 'mobile', 'www'), shared = {'/shared/online-client.js': path.join(root, 'online', 'client.js'), '/shared/achievements.js': path.join(root, 'achievements.js')};
+const www = path.join(root, 'mobile', 'www'), shared = {'/shared/online-client.js': path.join(root, 'online', 'client.js'), '/shared/achievements.js': path.join(root, 'shared', 'achievements.js')};
 async function appContext() {
   const context = await browser.newContext({...phone, userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36 BeerMatApp/0.4.0 (android)'});
   await context.route('http://localhost/**', route => {

@@ -4,7 +4,7 @@ import {mkdtempSync, rmSync, readFileSync} from 'node:fs';
 import zlib from 'node:zlib';
 import os from 'node:os';
 import path from 'node:path';
-import {createQuiz} from '../server.js';
+import {createQuiz} from '../server/server.js';
 const {chromium} = await import(process.env.BEERMAT_PLAYWRIGHT || 'playwright');
 const browser = await chromium.launch({headless: true, ...(process.env.BEERMAT_BROWSER ? {executablePath: process.env.BEERMAT_BROWSER, args: ['--no-sandbox', '--disable-dev-shm-usage', '--no-zygote']} : {})});
 const dir = mkdtempSync(path.join(os.tmpdir(), 'beermat-browser-'));

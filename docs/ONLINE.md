@@ -64,7 +64,7 @@ with them.
 profile, register the quiz laptop, publish and cancel quiz nights. They can't add, remove or take over other venues.
 
 **`venues.json`.** Every night `.github/workflows/venues-backup.yml` copies the venues (`GET /v1/venues.json`) into
-`venues.json` in this repository, checked by `venues.js` and committed only when something changed; a copy that has
+`venues.json` in this repository, checked by `shared/venues.js` and committed only when something changed; a copy that has
 lost more than half the venues is refused for a person to look at. It is a public backup and the app's fallback when
 the service can't be reached. To load venues from such a file (a new server, or a restore):
 `node online/admin.js import venues.json` (venues added since are kept).
@@ -89,8 +89,8 @@ provider's plan.
 | `favourites` | account, venue |
 
 **Results are never trusted from players.** A claim is produced by the quiz laptop (`/api/team/result`) and signed
-with its Ed25519 key (`claims.js`); the service checks the signature, the shape and the numbers. Statistics and
-achievements (`achievements.js`) count only claims from laptops a venue has registered; public leaderboards only from
+with its Ed25519 key (`shared/claims.js`); the service checks the signature, the shape and the numbers. Statistics and
+achievements (`shared/achievements.js`) count only claims from laptops a venue has registered; public leaderboards only from
 venues an admin has verified. Sending the same claim again, from a retry or a second phone, changes nothing.
 
 **Identities stay apart.** A team is a quiz-night identity on the laptop; an account is an online identity. The
@@ -145,7 +145,7 @@ What a deployment needs in general:
   venue pages and pictures.
 * Point the app at it: `node mobile/scripts/build-web.mjs --online https://your.domain`, and quizmasters at it on
   the desk (**Past quizzes → BeerMat Online**).
-* Future paid plans would hang off `edition.js` and the account record; nothing is charged or enforced today.
+* Future paid plans would hang off `server/edition.js` and the account record; nothing is charged or enforced today.
 
 ## Tests
 

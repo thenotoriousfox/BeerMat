@@ -9,7 +9,7 @@ mkdirSync(path.join(www, 'shared'), {recursive: true}); mkdirSync(path.join(www,
 // BeerMat's logos and font (the web app gets them from the service's /brand/ instead).
 for (const f of ['mark.svg', 'logo.svg', 'logo-stacked.svg', 'wordmark.svg', 'fredoka.woff2']) copyFileSync(path.join(repo, 'brand', f), path.join(www, 'brand', f));
 copyFileSync(path.join(repo, 'online', 'client.js'), path.join(www, 'shared', 'online-client.js'));
-copyFileSync(path.join(repo, 'achievements.js'), path.join(www, 'shared', 'achievements.js'));
+copyFileSync(path.join(repo, 'shared', 'achievements.js'), path.join(www, 'shared', 'achievements.js'));
 const at = process.argv.indexOf('--online');
 if (at > 0) {
   const url = process.argv[at + 1] || '';

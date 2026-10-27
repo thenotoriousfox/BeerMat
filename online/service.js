@@ -19,9 +19,9 @@ import {randomBytes, scryptSync, timingSafeEqual, createHash} from 'node:crypto'
 import {readFileSync, existsSync, statSync, readdirSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {verifyClaim, keyId, validKey} from '../claims.js';
-import {summarize, achievements} from '../achievements.js';
-import {parseVenueList, checkQuizNights} from '../venues.js';
+import {verifyClaim, keyId, validKey} from '../shared/claims.js';
+import {summarize, achievements} from '../shared/achievements.js';
+import {parseVenueList, checkQuizNights} from '../shared/venues.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(32).toString('base64url');
@@ -209,7 +209,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       if (method === 'GET' && (p === '/' || p.startsWith('/app/'))) {
         if (p === '/') {res.writeHead(302, {Location: '/app/'}); return res.end();}
         // The app's shared code comes straight from the source (the phone app gets copies at build time).
-        const shared = {'/app/shared/online-client.js': path.join(here, 'client.js'), '/app/shared/achievements.js': path.join(here, '..', 'achievements.js')};
+        const shared = {'/app/shared/online-client.js': path.join(here, 'client.js'), '/app/shared/achievements.js': path.join(here, '..', 'shared', 'achievements.js')};
         const base = path.resolve(shared[p] ? path.dirname(shared[p]) : appDir), file = shared[p] || path.resolve(base, decodeURIComponent(p.slice(5)) || 'index.html');
         check(file.startsWith(base + path.sep) && existsSync(file) && statSync(file).isFile() && staticTypes[path.extname(file)], 'Not found', 404);
         res.writeHead(200, {'Content-Type': staticTypes[path.extname(file)], 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-cache',

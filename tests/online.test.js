@@ -7,7 +7,7 @@ import path from 'node:path';
 import os from 'node:os';
 import {createService} from '../online/service.js';
 import {createOnlineClient} from '../online/client.js';
-import {newVenueKey, signClaim} from '../claims.js';
+import {newVenueKey, signClaim} from '../shared/claims.js';
 
 const memory = () => {const m = new Map(); return {getItem: k => m.has(k) ? m.get(k) : null, setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), m};};
 const result = (key, event, team, result, date = 1700000000000) => signClaim({v: 1, kind: 'beermat.result', event, title: 'Quiz ' + event, date, team,
@@ -262,7 +262,7 @@ test('venue list: a database from before the list keeps its venues, quiz nights 
 });
 
 test('venues.json in this repository is a valid venue list', async () => {
-  const {parseVenueList} = await import('../venues.js');
+  const {parseVenueList} = await import('../shared/venues.js');
   const {readFileSync} = await import('node:fs');
   const {errors} = parseVenueList(JSON.parse(readFileSync(path.join(import.meta.dirname, '..', 'venues.json'), 'utf8')));
   assert.deepEqual(errors, []);
@@ -353,7 +353,7 @@ test('admin console: only admins; overview, venues with operators and laptops, a
   const copy = await call('GET', '/v1/venues.json');
   assert.deepEqual(copy.venues.map(v => v.id), ['the-red-lion-bristol', 'the-red-lion-bristol-2']);
   assert.deepEqual(copy.venues[0], {id: 'the-red-lion-bristol', name: 'The Red Lion', town: 'Bristol', postcode: 'BS1 4DJ', lat: 51.45, lon: -2.59, quizNights: [{day: 'tuesday', time: '20:00'}]});
-  const {parseVenueList} = await import('../venues.js');
+  const {parseVenueList} = await import('../shared/venues.js');
   assert.deepEqual(parseVenueList(copy).errors, []);
 
   // The console's pages, and nothing else from beside them.

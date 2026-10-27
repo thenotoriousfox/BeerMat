@@ -6,7 +6,7 @@
 // Seasonal themes are only used when chosen, never for random or by-type picks.
 import {readdirSync, readFileSync, existsSync} from 'node:fs';
 import path from 'node:path';
-import {slotFiles} from './soundnames.js';
+import {slotFiles} from '../web/soundnames.js';
 
 export const themeId = /^[a-z0-9][a-z0-9-]{0,39}$/;
 // Files a theme may serve: its pictures, fonts, sounds and stylesheet; nothing else is ever sent.

@@ -4,7 +4,7 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import {DatabaseSync} from 'node:sqlite';
-import {createQuiz} from '../server.js';
+import {createQuiz} from '../server/server.js';
 
 const hostKey = 'a-secure-quiz-test-key';
 const question = (id, fields = {}) => ({id, text: 'What is the capital of Wales?', type: 'text', seconds: 30, points: 2, answer: 'Cardiff', ...fields});

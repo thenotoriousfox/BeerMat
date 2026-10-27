@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {mkdtempSync, rmSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {createQuiz} from '../server.js';
-import {lanAddresses, diagnose, joinUrlFor} from '../network.js';
+import {createQuiz} from '../server/server.js';
+import {lanAddresses, diagnose, joinUrlFor} from '../server/network.js';
 
 const hostKey = 'a-secure-quiz-test-key';
 const v4 = (address, internal = false) => ({address, family: 'IPv4', internal});

@@ -4,7 +4,7 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import {qrMatrix, wifiCode} from '../qr.js';
+import {qrMatrix, wifiCode} from '../web/qr.js';
 
 const finder = (m, r0, c0) => [0, 1, 2, 3, 4, 5, 6].every(r => [0, 1, 2, 3, 4, 5, 6].every(c => m[r0 + r][c0 + c] === (Math.max(Math.abs(r - 3), Math.abs(c - 3)) !== 2)));
 test('QR matrices have the right size, finder patterns and limits', () => {

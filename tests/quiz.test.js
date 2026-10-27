@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,rmSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {createQuiz} from '../server.js';
+import {createQuiz} from '../server/server.js';
 const key='a-private-test-password';
 test('persistent identities, authoritative deadlines, validation, scoring and access control',async()=>{
  const dir=mkdtempSync(path.join(os.tmpdir(),'beermat-'));let clock=100000;let quiz;

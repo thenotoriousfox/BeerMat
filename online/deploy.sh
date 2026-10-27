@@ -19,9 +19,9 @@ echo "Server $ip, address https://$domain"
 # Only what the service needs: itself, the shared modules it imports, the web app it serves at /app/ and the admin
 # console at /admin/.
 stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
-mkdir -p "$stage/online" "$stage/mobile"
+mkdir -p "$stage/online" "$stage/mobile" "$stage/shared"
 cp "$repo/online/service.js" "$repo/online/client.js" "$repo/online/admin.js" "$stage/online/"
-cp "$repo/claims.js" "$repo/achievements.js" "$repo/venues.js" "$stage/"
+cp "$repo/shared/claims.js" "$repo/shared/achievements.js" "$repo/shared/venues.js" "$stage/shared/"
 mkdir -p "$stage/brand" && cp "$repo"/brand/*.svg "$repo/brand/fredoka.woff2" "$stage/brand/"
 cp -r "$repo/mobile/www" "$stage/mobile/"
 cp -r "$repo/online/admin" "$stage/online/"

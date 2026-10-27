@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync, rmSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {createQuiz} from '../server.js';
+import {createQuiz} from '../server/server.js';
 
 const hostKey = 'a-secure-quiz-test-key';
 const question = (fields = {}) => ({text: 'What is the capital of Wales?', type: 'text', seconds: 30, points: 2, answer: 'Cardiff', ...fields});
