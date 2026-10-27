@@ -313,3 +313,52 @@ test('regular quiz nights publish themselves four weeks ahead in UK time; a canc
   tick(Date.UTC(2024, 6, 1, 12) - 1700000000000); service.publishRegular();
   assert.deepEqual(await listed(), ['2024-07-05', '2024-07-12', '2024-07-19', '2024-07-26'].map(d => `${d}T20:00 Quiz night (regular)`));
 }));
+
+test('admin console: only admins; overview, venues with operators and laptops, accounts, and the nightly venues.json copy', () => fixture(async ({base, call, signUp, addVenue, service}) => {
+  const player = await signUp('pat@example.com');
+  for (const [method, route] of [['GET', '/v1/admin/overview'], ['GET', '/v1/admin/venues'], ['GET', '/v1/admin/accounts'], ['PATCH', '/v1/admin/accounts/x'], ['DELETE', '/v1/admin/accounts/x']]) {
+    assert.equal((await call(method, route, method === 'PATCH' ? {} : undefined, player)).status, 403, `${method} ${route}`);
+    assert.equal((await call(method, route, method === 'PATCH' ? {} : undefined)).status, 401);
+  }
+  const lion = await addVenue({name: 'The Red Lion', town: 'Bristol', postcode: 'BS1 4DJ', lat: 51.45, lon: -2.59, quizNights: [{day: 'tuesday', time: '20:00'}]}, 'pat@example.com');
+  const twin = await addVenue({name: 'The Red Lion', town: 'Bristol'});
+  assert.deepEqual([lion.id, twin.id], ['the-red-lion-bristol', 'the-red-lion-bristol-2'], 'readable ids from name and town');
+  const root = (await call('POST', '/v1/sessions', {email: 'root@example.com', password: 'correct horse battery'})).token;
+  assert.equal((await call('GET', '/v1/me', null, root)).admin, true);
+  assert.equal((await call('GET', '/v1/me', null, player)).admin, false);
+  const key = newVenueKey();
+  await call('POST', `/v1/venues/${lion.id}/keys`, {publicKey: key.publicKey}, player);
+  await call('POST', '/v1/venue-results', signClaim({v: 1, kind: 'pubquiz.event', event: 'e1', title: 'Tuesday Quiz', date: 1, teams: [{ref: 'r', name: 'Foxes', rank: 1, points: 9}]}, key));
+
+  const overview = await call('GET', '/v1/admin/overview', null, root);
+  assert.deepEqual([overview.venues, overview.operatedVenues, overview.mappedVenues, overview.accounts, overview.admins, overview.laptops, overview.venueResults, overview.lastBackup],
+    [2, 1, 1, 2, 1, 1, 1, null]);
+  const listed = (await call('GET', '/v1/admin/venues', null, root)).venues.find(v => v.id === lion.id);
+  assert.deepEqual([listed.operator.email, listed.laptops.length, listed.upcoming[0].regular, listed.sharedResults[0].winner], ['pat@example.com', 1, true, 'Foxes']);
+
+  // Accounts: search, admin rights (never your own), photos, deletion (the venue they ran stays).
+  assert.deepEqual((await call('GET', '/v1/admin/accounts?q=PAT', null, root)).accounts.map(a => [a.email, a.venues]), [['pat@example.com', 'The Red Lion']]);
+  const [pat, me] = ['pat@example.com', 'root@example.com'].map(email => service.db.prepare('SELECT id FROM accounts WHERE email=?').get(email).id);
+  assert.equal((await call('PATCH', `/v1/admin/accounts/${me}`, {admin: false}, root)).status, 400);
+  assert.equal((await call('DELETE', `/v1/admin/accounts/${me}`, null, root)).status, 400);
+  await call('PATCH', '/v1/me', {avatar: 'data:image/png;base64,iVBORw0KGgo='}, player);
+  assert.equal((await call('GET', '/v1/admin/accounts', null, root)).accounts.find(a => a.id === pat).photo, true);
+  await call('PATCH', `/v1/admin/accounts/${pat}`, {removePhoto: true, admin: true}, root);
+  assert.deepEqual([(await call('GET', '/v1/me', null, player)).avatar, (await call('GET', '/v1/me', null, player)).admin], [null, true]);
+  assert.equal((await call('DELETE', `/v1/admin/accounts/${pat}`, null, root)).deleted, true);
+  assert.equal((await call('GET', '/v1/me', null, player)).status, 401);
+  assert.equal((await call('GET', `/v1/venues/${lion.id}`)).name, 'The Red Lion', 'the venue stays, without an operator');
+
+  // The copy for the repository: venues.json's own format, which venues.js accepts.
+  const copy = await call('GET', '/v1/venues.json');
+  assert.deepEqual(copy.venues.map(v => v.id), ['the-red-lion-bristol', 'the-red-lion-bristol-2']);
+  assert.deepEqual(copy.venues[0], {id: 'the-red-lion-bristol', name: 'The Red Lion', town: 'Bristol', postcode: 'BS1 4DJ', lat: 51.45, lon: -2.59, quizNights: [{day: 'tuesday', time: '20:00'}]});
+  const {parseVenueList} = await import('../venues.js');
+  assert.deepEqual(parseVenueList(copy).errors, []);
+
+  // The console's pages, and nothing else from beside them.
+  const page = await fetch(base + '/admin/');
+  assert.equal(page.status, 200); assert.match(page.headers.get('content-security-policy'), /script-src 'self'/);
+  assert.match(await page.text(), /Admin console/);
+  for (const bad of ['/admin/../service.js', '/admin/%2e%2e/service.js', '/admin/%2e%2e%2f%2e%2e%2fpackage.json', '/admin/nope.js']) assert.equal((await fetch(base + bad)).status, 404, bad);
+}));

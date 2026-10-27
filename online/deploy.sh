@@ -16,12 +16,14 @@ ip=$(ssh -o BatchMode=yes "$target" "curl -fsS4 https://ifconfig.me || hostname 
 domain=${2:-$(echo "$ip" | tr . -).sslip.io}
 echo "Server $ip, address https://$domain"
 
-# Only what the service needs: itself, the shared modules it imports, the venue list, and the web app it serves at /app/.
+# Only what the service needs: itself, the shared modules it imports, the web app it serves at /app/ and the admin
+# console at /admin/.
 stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/online" "$stage/mobile"
 cp "$repo/online/service.js" "$repo/online/client.js" "$repo/online/admin.js" "$stage/online/"
-cp "$repo/claims.js" "$repo/achievements.js" "$repo/venues.js" "$repo/venues.json" "$stage/"
+cp "$repo/claims.js" "$repo/achievements.js" "$repo/venues.js" "$stage/"
 cp -r "$repo/mobile/www" "$stage/mobile/"
+cp -r "$repo/online/admin" "$stage/online/"
 printf '{"private": true, "type": "module"}\n' > "$stage/package.json"
 tar -C "$stage" -czf - . | ssh "$target" "rm -rf /tmp/pubquiz-online && mkdir /tmp/pubquiz-online && tar -C /tmp/pubquiz-online -xzf -"
 
@@ -48,7 +50,8 @@ fi
 
 id pubquiz >/dev/null 2>&1 || useradd --system --home /var/lib/pubquiz-online --shell /usr/sbin/nologin pubquiz
 install -d -o pubquiz -g pubquiz -m 700 /var/lib/pubquiz-online
-install -d -m 700 /var/backups/pubquiz-online
+install -d -m 750 -g pubquiz /var/backups/pubquiz-online
+chgrp pubquiz /var/backups/pubquiz-online && chmod 750 /var/backups/pubquiz-online
 rm -rf /opt/pubquiz-online && mv /tmp/pubquiz-online /opt/pubquiz-online && chown -R root:root /opt/pubquiz-online && chmod -R u=rwX,go=rX /opt/pubquiz-online
 
 cat > /etc/systemd/system/pubquiz-online.service <<'UNIT'
@@ -61,10 +64,8 @@ Wants=network-online.target
 User=pubquiz
 WorkingDirectory=/var/lib/pubquiz-online
 Environment=PORT=8080 BIND=127.0.0.1 ONLINE_DB=/var/lib/pubquiz-online/online.sqlite NODE_ENV=production TRUST_PROXY=1
-# The venue list: the copy deployed with the service. Once the repository is public, VENUES_URL (checked hourly) makes
-# edits to venues.json on GitHub live without a redeploy:
-#   Environment=VENUES_URL=https://raw.githubusercontent.com/DTJW92/PubQuiz/main/venues.json
-Environment=VENUES_FILE=/opt/pubquiz-online/venues.json
+# Venues are kept here and edited in the admin console; this is only read to show admins when the last backup ran.
+Environment=BACKUP_DIR=/var/backups/pubquiz-online
 ExecStart=/opt/node/bin/node --disable-warning=ExperimentalWarning /opt/pubquiz-online/online/service.js
 Restart=on-failure
 NoNewPrivileges=true
@@ -113,6 +114,8 @@ netfilter-persistent save >/dev/null
 systemctl daemon-reload
 systemctl enable --now pubquiz-online pubquiz-online-backup.timer >/dev/null
 systemctl restart pubquiz-online
+# A backup now, so there is always one (and the console shows when).
+systemctl start pubquiz-online-backup
 systemctl reload-or-restart caddy
 sleep 2; systemctl is-active pubquiz-online caddy
 REMOTE

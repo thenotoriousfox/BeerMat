@@ -29,34 +29,45 @@ only for the app (`capacitor://localhost`, `http(s)://localhost`) and origins li
 | `GET /v1/venues/:id` · `GET /v1/events?q=…|lat=…&lon=…&radiusKm=…` | anyone | venue page · upcoming quizzes by town, postcode area or location |
 | `POST /v1/venue-results` (signed summary) | a registered laptop | results shared by the quizmaster (off by default) |
 | `GET /v1/leaderboards[?venue=]` | anyone | players who opted in, from verified venues |
-| `POST /v1/venues/:id/verify` | admin | mark a venue as checked (`node online/admin.js` for admins) |
+| `POST /v1/venues/:id/verify` | admin | mark a venue as checked |
+| `GET /v1/admin/overview` · `GET /v1/admin/venues` · `GET /v1/admin/accounts?q=` | admin | the admin console's pages |
+| `PATCH /v1/admin/accounts/:id` `{admin, removePhoto}` · `DELETE /v1/admin/accounts/:id` | admin | admin rights, remove a picture, delete an account |
+| `GET /v1/venues.json` | anyone | every venue in `venues.json`'s format (the nightly copy) |
 
-## Venues
+## Venues and the admin console
 
-Venues don't add themselves. They come from **`venues.json`** in this repository, which only PubQuiz's maintainers
-edit (or, rarely, an admin adds one through the API):
+Venues don't add themselves: admins add them in the **admin console**, `https://<service>/admin` (sign in with an
+admin account). It has three pages:
 
-```json
-{"venues": [{"id": "red-lion-bristol", "name": "The Red Lion", "town": "Bristol", "postcode": "BS1 4DJ",
-  "address": "1 King Street", "website": "https://…", "lat": 51.4545, "lon": -2.5879,
-  "quizNights": [{"day": "tuesday", "time": "20:00"}, {"day": "sunday", "time": "18:30"}]}]}
-```
+* **Overview**: venues (verified, with an operator, on the map), quizzes in the next week, accounts (new this week,
+  admins), results kept, laptops registered and quizzes shared; when the server started, the database size and the
+  last nightly backup (shown in amber when it is over 36 hours old).
+* **Venues**: find and filter (not verified, no operator, not on the map, no quiz nights); add a venue; open one to
+  edit its details, map position (📍 from its postcode) and regular quiz nights, mark it verified, link or unlink its
+  operator's account, remove a quiz laptop, cancel a coming quiz night, see the results it has shared, or delete it.
+* **Accounts**: find by email or name; make or remove admins (never yourself), remove a profile picture, delete an
+  account (a venue it ran stays, without an operator).
 
-Only `id` (2–60 lower-case letters, digits or dashes, never changed later), `name` and `town` are required; `lat`
-and `lon` put it on the map; `quizNights` are its regular weekly quizzes (a day, `monday`–`sunday`, and a 24-hour start
-time, at most one a day), which players filter the map and listings by. Regular nights publish themselves as quiz
-nights four weeks ahead (UK time; topped up hourly and whenever the nights change). On the desk the operator can
-cancel any single week, which stays cancelled; a quiz they publish themselves on the same day takes that day's place;
-editing one week's details makes it their own; changing the regular nights moves the future ones with them. `venues.js` checks the file (`npm test` does too), and a bad entry is skipped without
-hiding the rest. The service imports the list when it starts (`VENUES_FILE`, the copy `online/deploy.sh` ships), or
-hourly from `VENUES_URL` once the repository is public. Listed venues are added and updated; one taken off the list is
-removed with its quiz nights.
+The first admin is made on the server: they sign up (in the app, the web app or a desk's Venue tab), then
+`sudo -u pubquiz env ONLINE_DB=/var/lib/pubquiz-online/online.sqlite /opt/node/bin/node /opt/pubquiz-online/online/admin.js make-admin <email>`.
+After that, admins make other admins in the console.
 
-**Operators.** An admin links a venue to the account of whoever runs it:
-`node online/admin.js operator <venue id> <email>` on the server (they create the account first, in the app or on the
-desk). The operator then uses the desk's **Venue** tab: edit the venue's profile, register the quiz laptop, publish
-and cancel quiz nights. Fields they change are theirs: later imports of the list leave them alone. They can't add,
-remove or take over other venues.
+A venue's id is made from its name and town (`the-red-lion-bristol`) and never changes. Its regular quiz nights (a day,
+`monday`–`sunday`, and a 24-hour start time, at most one a day) publish themselves as quiz nights four weeks ahead (UK
+time; topped up hourly and whenever the nights change), and players filter the map and listings by day. On the desk
+the operator can cancel any single week, which stays cancelled; a quiz they publish themselves on the same day takes
+that day's place; editing one week's details makes it their own; changing the regular nights moves the future ones
+with them.
+
+**Operators.** An admin links a venue to the account of whoever runs it (console, or
+`node online/admin.js operator <venue id> <email>`). The operator then uses the desk's **Venue** tab: edit the venue's
+profile, register the quiz laptop, publish and cancel quiz nights. They can't add, remove or take over other venues.
+
+**`venues.json`.** Every night `.github/workflows/venues-backup.yml` copies the venues (`GET /v1/venues.json`) into
+`venues.json` in this repository, checked by `venues.js` and committed only when something changed; a copy that has
+lost more than half the venues is refused for a person to look at. It is a public backup and the app's fallback when
+the service can't be reached. To load venues from such a file (a new server, or a restore):
+`node online/admin.js import venues.json` (venues added since are kept).
 
 **The map.** The player app's Find a quiz tab shows every venue on an OpenStreetMap map (Leaflet, shipped in the
 app; tiles from tile.openstreetmap.org, with attribution). Gold pins (with a question mark) have a regular quiz night or a

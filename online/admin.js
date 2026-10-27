@@ -1,15 +1,27 @@
-// Admin jobs for PubQuiz Online, run on the server itself (there is no admin sign-up over the API):
-//   node online/admin.js make-admin <email>        that account may verify venues through the API
+// Admin jobs for PubQuiz Online, run on the server itself (there is no admin sign-up over the API). Day to day, admins
+// use the admin console (/admin) instead; this is for the first admin, and for bulk jobs.
+//   node online/admin.js make-admin <email>        that account may use the admin console
 //   node online/admin.js verify <venue id> [off]   a checked, real venue: its results count on public leaderboards
 //   node online/admin.js operator <venue id> <email|off>   that account runs the venue: edits its profile, publishes
-//                                                  its quiz nights, registers its quiz laptops (venues are only added
-//                                                  through the venue list, venues.json)
+//                                                  its quiz nights, registers its quiz laptops
+//   node online/admin.js import <venues.json>      add or update the venues in a venues.json file (venues added in
+//                                                  the console are kept)
 //   node online/admin.js venues                    every venue: ✓ verified, and its operator
 // ONLINE_DB chooses the database (online.sqlite).
 import {DatabaseSync} from 'node:sqlite';
+import {readFileSync} from 'node:fs';
+import {createService} from './service.js';
 
-const db = new DatabaseSync(process.env.ONLINE_DB || 'online.sqlite');
 const [command, target, flag] = process.argv.slice(2);
+if (command === 'import' && target) {
+  // Through the service, so the file is checked and regular quiz nights are published as usual.
+  const service = createService({database: process.env.ONLINE_DB || 'online.sqlite'});
+  const {imported, removed, errors} = service.importVenues(JSON.parse(readFileSync(target, 'utf8')));
+  console.log(`${imported} venues imported${removed ? `, ${removed} removed` : ''}${errors.length ? `\nSkipped: ${errors.join('\n  ')}` : ''}`);
+  await service.close();
+  process.exit(0);
+}
+const db = new DatabaseSync(process.env.ONLINE_DB || 'online.sqlite');
 if (command === 'make-admin' && target) {
   const changed = db.prepare('UPDATE accounts SET admin=1 WHERE email=?').run(target.toLowerCase()).changes;
   console.log(changed ? `${target} is now an admin` : `No account for ${target}`);
@@ -27,7 +39,7 @@ if (command === 'make-admin' && target) {
   for (const v of db.prepare('SELECT v.id,v.name,v.town,v.postcode,a.email,v.verified FROM venues v LEFT JOIN accounts a ON a.id=v.owner ORDER BY v.verified,v.name').all())
     console.log(`${v.verified ? '✓' : ' '} ${v.id}  ${v.name}, ${v.town} ${v.postcode}  (${v.email || 'no operator'})`);
 } else {
-  console.log('Usage: node online/admin.js make-admin <email> | verify <venue id> [off] | operator <venue id> <email|off> | venues');
+  console.log('Usage: node online/admin.js make-admin <email> | verify <venue id> [off] | operator <venue id> <email|off> | import <venues.json> | venues');
   process.exitCode = 2;
 }
 db.close();

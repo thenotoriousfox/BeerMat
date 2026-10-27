@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<link rel="stylesheet" href="admin.css"><title>PubQuiz Online — Admin</title></head>
+<body>
+<header class="top"><div><span class="eyebrow">PubQuiz Online</span><h1>Admin console</h1></div><div id="who" class="who" hidden><span id="whoName"></span><button id="signOut" type="button" class="ghost">Sign out</button></div></header>
+<p id="toast" class="toast" role="status" aria-live="polite" hidden></p>
+
+<main id="signIn" class="card narrow">
+  <h2>Sign in</h2>
+  <p class="muted">With a PubQuiz Online account that has admin rights (the first one is made on the server: <code>node online/admin.js make-admin &lt;email&gt;</code>).</p>
+  <form id="signInForm"><label>Email<input id="email" type="email" autocomplete="username" required></label><label>Password<input id="password" type="password" autocomplete="current-password" required></label><button class="primary">Sign in</button></form>
+</main>
+
+<div id="console" hidden>
+  <nav class="tabs" role="tablist"><button data-tab="overview" aria-selected="true">Overview</button><button data-tab="venues">Venues</button><button data-tab="accounts">Accounts</button></nav>
+
+  <section id="overview" class="tab">
+    <div id="stats" class="stats"></div>
+    <div class="card"><h2>Server</h2><dl id="health" class="facts"></dl><p class="muted">The venue list is copied every night to <code>venues.json</code> in the repository (<a href="/v1/venues.json" target="_blank" rel="noopener">today’s copy</a>): the app’s fallback when this server can’t be reached.</p></div>
+  </section>
+
+  <section id="venues" class="tab" hidden>
+    <div class="toolbar"><input id="venueSearch" type="search" placeholder="Find a venue or town" aria-label="Find a venue"><select id="venueFilter" aria-label="Show"><option value="">All venues</option><option value="unverified">Not verified</option><option value="nooperator">No operator</option><option value="unmapped">Not on the map</option><option value="nonights">No quiz nights</option></select><button id="addVenue" type="button" class="primary">＋ Add venue</button></div>
+    <table class="list"><thead><tr><th>Venue</th><th>Quiz nights</th><th>Operator</th><th>Next quiz</th><th>Laptops</th><th></th></tr></thead><tbody id="venueRows"></tbody></table>
+    <p id="venuesEmpty" class="muted" hidden>No venues match.</p>
+  </section>
+
+  <section id="accounts" class="tab" hidden>
+    <div class="toolbar"><input id="accountSearch" type="search" placeholder="Find by email or name" aria-label="Find an account"><span id="accountTotal" class="muted"></span></div>
+    <table class="list"><thead><tr><th>Account</th><th>Joined</th><th>Runs</th><th>Results</th><th></th></tr></thead><tbody id="accountRows"></tbody></table>
+  </section>
+</div>
+
+<dialog id="venueDialog" aria-labelledby="venueTitle">
+  <form id="venueForm" method="dialog">
+    <div class="dialog-head"><h2 id="venueTitle">Venue</h2><button type="button" class="ghost close" data-close aria-label="Close">✕</button></div>
+    <div class="grid"><label>Name<input id="vName" maxlength="120" required></label><label>Town<input id="vTown" maxlength="80" required></label><label>Postcode<input id="vPostcode" maxlength="10"></label>
+    <label class="wide">Address<input id="vAddress" maxlength="200"></label><label class="wide">Website<input id="vWebsite" maxlength="200" placeholder="https://"></label>
+    <label>Latitude<input id="vLat" inputmode="decimal"></label><label>Longitude<input id="vLon" inputmode="decimal"></label><button id="vLocate" type="button" class="ghost">📍 From postcode</button></div>
+    <fieldset class="nights"><legend>Regular quiz nights (published four weeks ahead)</legend><div id="vNights"></div></fieldset>
+    <div class="actions"><button class="primary" value="save">Save venue</button><button type="button" class="ghost" data-close>Close</button></div>
+  </form>
+  <div id="venueExtras" hidden>
+    <div class="extra"><h3>Verified</h3><label class="check"><input id="vVerified" type="checkbox"> Checked to be a real venue: its results count on public leaderboards</label></div>
+    <div class="extra"><h3>Operator</h3><p id="vOperator" class="muted"></p><form id="operatorForm" class="inline"><input id="vOperatorEmail" type="email" placeholder="their account’s email" aria-label="Operator email" required><button class="primary">Link</button><button id="vUnlink" type="button" class="ghost">Unlink</button></form></div>
+    <div class="extra"><h3>Quiz laptops</h3><ul id="vLaptops" class="rows"></ul></div>
+    <div class="extra"><h3>Coming up</h3><ul id="vUpcoming" class="rows"></ul></div>
+    <div class="extra"><h3>Results shared</h3><ul id="vResults" class="rows"></ul></div>
+    <div class="extra danger-zone"><button id="vDelete" type="button" class="danger">Delete venue…</button></div>
+  </div>
+</dialog>
+<script type="module" src="admin.js"></script>
+</body></html>

@@ -4,11 +4,11 @@
 // and the deployment.
 //
 //   node online/service.js         PORT (8080), ONLINE_DB (online.sqlite), ALLOWED_ORIGINS (comma-separated web origins),
-//                                  VENUES_FILE / VENUES_URL (the venue list, venues.js), TRUST_PROXY=1 (behind Caddy)
+//                                  BACKUP_DIR (where nightly backups land, shown to admins), TRUST_PROXY=1 (behind Caddy)
 //
-// Venues: only the venue list (venues.json, edited by PubQuiz's maintainers) and admins add venues. An admin links a
-// venue to its operator's account; the operator then edits its profile, publishes its quiz nights and registers its
-// quiz laptops, and those profile edits outlast later imports of the list.
+// Venues: only admins add venues, in the admin console (/admin). An admin links a venue to its operator's account; the
+// operator then edits its profile, publishes its quiz nights and registers its quiz laptops. The venues are copied
+// nightly to venues.json in the repository (GET /v1/venues.json), the app's fallback when the service is down.
 //
 // Trust: quiz results only come from claims signed by a quiz laptop (claims.js). A claim from a laptop key that a
 // venue has registered counts towards statistics and achievements; one from a venue the service has verified also
@@ -16,7 +16,7 @@
 import http from 'node:http';
 import {DatabaseSync} from 'node:sqlite';
 import {randomBytes, scryptSync, timingSafeEqual, createHash} from 'node:crypto';
-import {readFileSync, existsSync, statSync} from 'node:fs';
+import {readFileSync, existsSync, statSync, readdirSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {verifyClaim, keyId, validKey} from '../claims.js';
@@ -60,7 +60,8 @@ const venuesTable = name => `CREATE TABLE IF NOT EXISTS ${name}(id TEXT PRIMARY 
   town TEXT NOT NULL, postcode TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', website TEXT NOT NULL DEFAULT '', lat REAL, lon REAL,
   verified INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, quiz_nights TEXT NOT NULL DEFAULT '[]', listed INTEGER NOT NULL DEFAULT 0, edited TEXT NOT NULL DEFAULT '[]');`;
 
-export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), venuesFile = '', venuesUrl = '', fetchImpl = globalThis.fetch, trustProxy = false} = {}) {
+export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), adminDir = path.join(here, 'admin'), backupDir = '', trustProxy = false} = {}) {
+  const startedAt = now();
   const db = new DatabaseSync(database);
   // Before the venue list, every venue had to have an owner: rebuild that table once (foreign keys off, so nothing
   // that points at a venue is lost).
@@ -98,7 +99,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   }
   const session = account => {const t = token(); run('INSERT INTO sessions VALUES(?,?,?)', sha(t), account, now() + SESSION_MS); return t;};
   const privacy = a => ({...defaultPrivacy, ...JSON.parse(a.privacy || '{}')});
-  const profile = a => ({id: a.id, email: a.email, displayName: a.display_name, preferredTeam: a.preferred_team, avatar: a.avatar || null, privacy: privacy(a), created: a.created});
+  const profile = a => ({id: a.id, admin: !!a.admin, email: a.email, displayName: a.display_name, preferredTeam: a.preferred_team, avatar: a.avatar || null, privacy: privacy(a), created: a.created});
   const venueOut = v => ({id: v.id, name: v.name, town: v.town, postcode: v.postcode, address: v.address, website: v.website, lat: v.lat, lon: v.lon, quizNights: JSON.parse(v.quiz_nights || '[]'), verified: !!v.verified,
     directions: 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(v.postcode || v.lat === null ? [v.name, v.address, v.town, v.postcode].filter(Boolean).join(', ') : `${v.lat},${v.lon}`)});
   const londonDate = t => {const d = london(t); return `${d.year}-${d.month.padStart(2, '0')}-${d.day.padStart(2, '0')}`;};
@@ -184,16 +185,6 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     publishRegular();
     return {imported: venues.length, removed, errors};
   }
-  async function loadVenueList() {
-    try {
-      const json = venuesUrl ? await (await fetchImpl(venuesUrl, {signal: AbortSignal.timeout(15000)})).json() : JSON.parse(readFileSync(venuesFile, 'utf8'));
-      const {imported, removed, errors} = importVenues(json);
-      console.log(`Venue list: ${imported} venues${removed ? `, ${removed} removed` : ''}${errors.length ? `; skipped: ${errors.join('; ')}` : ''}`);
-    } catch (e) {console.error('Venue list not loaded:', e.message);}
-  }
-  const venueTimer = venuesUrl ? setInterval(loadVenueList, 3600000) : null;
-  venueTimer?.unref();
-  const venuesLoaded = venuesUrl || venuesFile ? loadVenueList() : Promise.resolve();
 
   async function body(req) {
     const chunks = []; let size = 0;
@@ -224,6 +215,20 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         res.writeHead(200, {'Content-Type': staticTypes[path.extname(file)], 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-cache',
           'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; connect-src *; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'"});
         return res.end(readFileSync(file));
+      }
+      // The admin console: its own pages; everything it shows comes from the admin API below.
+      if (method === 'GET' && (p === '/admin' || p.startsWith('/admin/'))) {
+        if (p === '/admin') {res.writeHead(302, {Location: '/admin/'}); return res.end();}
+        const base = path.resolve(adminDir), file = path.resolve(base, decodeURIComponent(p.slice(7)) || 'index.html');
+        check(file.startsWith(base + path.sep) && existsSync(file) && statSync(file).isFile() && staticTypes[path.extname(file)], 'Not found', 404);
+        res.writeHead(200, {'Content-Type': staticTypes[path.extname(file)], 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-cache',
+          'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; connect-src 'self' https://api.postcodes.io; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"});
+        return res.end(readFileSync(file));
+      }
+      // The venue list, in venues.json's format: copied nightly into the repository (.github/workflows/venues-backup.yml).
+      if (method === 'GET' && p === '/v1/venues.json') {
+        return send(200, {venues: rows('SELECT * FROM venues ORDER BY id').map(v => ({id: v.id, name: v.name, town: v.town, ...(v.postcode && {postcode: v.postcode}),
+          ...(v.address && {address: v.address}), ...(v.website && {website: v.website}), ...(v.lat !== null && {lat: v.lat, lon: v.lon}), quizNights: JSON.parse(v.quiz_nights || '[]')}))});
       }
       check(p.startsWith('/v1/'), 'Not found', 404);
       // Behind Caddy every request comes from 127.0.0.1; the client's address is the last one Caddy adds.
@@ -277,8 +282,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       }
       if (method === 'DELETE' && p === '/v1/me') {
         const a = me();
-        // Venue results uploaded by this account's laptops go with its venues.
-        for (const k of rows('SELECT k.public_key FROM venue_keys k JOIN venues v ON v.id=k.venue WHERE v.owner=?', a.id)) run('DELETE FROM venue_results WHERE venue_key=?', k.public_key);
+        // A venue it ran stays (it belongs to the venue list), without an operator.
         run('DELETE FROM accounts WHERE id=?', a.id);
         return send(200, {deleted: true});
       }
@@ -316,6 +320,44 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return send(200, {ok: true});
       }
 
+      // ---- Admin console ----
+      const admin = () => {const a = me(); check(a.admin, 'Admins only', 403); return a;};
+      if (method === 'GET' && p === '/v1/admin/overview') {
+        admin();
+        const n = (sql, ...a) => one(sql, ...a).n;
+        let lastBackup = null;
+        try {const times = readdirSync(backupDir).filter(f => f.endsWith('.sqlite')).map(f => statSync(path.join(backupDir, f)).mtimeMs); if (times.length) lastBackup = Math.max(...times);} catch {}
+        return send(200, {venues: n('SELECT COUNT(*) n FROM venues'), verifiedVenues: n('SELECT COUNT(*) n FROM venues WHERE verified=1'), operatedVenues: n('SELECT COUNT(*) n FROM venues WHERE owner IS NOT NULL'),
+          mappedVenues: n('SELECT COUNT(*) n FROM venues WHERE lat IS NOT NULL'), accounts: n('SELECT COUNT(*) n FROM accounts'), admins: n('SELECT COUNT(*) n FROM accounts WHERE admin=1'),
+          newAccounts: n('SELECT COUNT(*) n FROM accounts WHERE created>?', now() - 7 * 86400000), results: n('SELECT COUNT(*) n FROM results'), laptops: n('SELECT COUNT(*) n FROM venue_keys'),
+          venueResults: n('SELECT COUNT(*) n FROM venue_results'), upcoming: n('SELECT COUNT(*) n FROM events WHERE cancelled=0 AND starts>? AND starts<?', now(), now() + 7 * 86400000),
+          databaseBytes: (() => {try {return statSync(database).size;} catch {return null;}})(), lastBackup, startedAt, now: now()});
+      }
+      if (method === 'GET' && p === '/v1/admin/venues') {
+        admin();
+        return send(200, {venues: rows('SELECT v.*, a.email operator_email, a.display_name operator_name FROM venues v LEFT JOIN accounts a ON a.id=v.owner ORDER BY v.name COLLATE NOCASE').map(v => ({
+          ...venueOut(v), operator: v.owner ? {email: v.operator_email, name: v.operator_name} : null,
+          laptops: rows('SELECT key_id id, added FROM venue_keys WHERE venue=? ORDER BY added', v.id),
+          upcoming: rows('SELECT * FROM events WHERE venue=? AND cancelled=0 AND starts>? ORDER BY starts LIMIT 20', v.id, now()).map(e => ({id: e.id, title: e.title, startsAt: e.starts, regular: !!e.regular})),
+          sharedResults: rows('SELECT r.summary, r.received FROM venue_results r JOIN venue_keys k ON k.public_key=r.venue_key WHERE k.venue=? ORDER BY r.received DESC LIMIT 10', v.id)
+            .map(r => {const sum = JSON.parse(r.summary); return {title: sum.title, date: sum.date, teams: sum.teams.length, winner: sum.teams.find(t => t.rank === 1)?.name || '', received: r.received};}),
+        }))});
+      }
+      if (method === 'GET' && p === '/v1/admin/accounts') {
+        admin();
+        const q = (url.searchParams.get('q') || '').trim().toLowerCase().slice(0, 100), like = `%${q.replace(/[%_]/g, '')}%`;
+        const list = rows(`SELECT a.id, a.email, a.display_name, a.created, a.admin, a.avatar IS NOT NULL photo, (SELECT COUNT(*) FROM results r WHERE r.account=a.id) results,
+          (SELECT group_concat(v.name, ', ') FROM venues v WHERE v.owner=a.id) venues FROM accounts a WHERE ?='' OR lower(a.email) LIKE ? OR lower(a.display_name) LIKE ? ORDER BY a.created DESC LIMIT 200`, q, like, like);
+        return send(200, {total: one('SELECT COUNT(*) n FROM accounts').n, accounts: list.map(r => ({id: r.id, email: r.email, displayName: r.display_name, created: r.created, admin: !!r.admin, photo: !!r.photo, results: r.results, venues: r.venues || ''}))});
+      }
+      if (parts[0] === 'admin' && parts[1] === 'accounts' && parts.length === 3 && (method === 'PATCH' || method === 'DELETE')) {
+        const a = admin(), target = one('SELECT * FROM accounts WHERE id=?', parts[2]); check(target, 'Account not found', 404);
+        if (method === 'DELETE') {check(target.id !== a.id, 'You can’t delete your own account here'); run('DELETE FROM accounts WHERE id=?', target.id); return send(200, {deleted: true});}
+        if (input.admin !== undefined) {check(typeof input.admin === 'boolean', 'Invalid setting'); check(input.admin || target.id !== a.id, 'You can’t remove your own admin rights'); run('UPDATE accounts SET admin=? WHERE id=?', Number(input.admin), target.id);}
+        if (input.removePhoto === true) run('UPDATE accounts SET avatar=NULL WHERE id=?', target.id);
+        return send(200, {ok: true});
+      }
+
       // ---- Venues and events (venue operators) ----
       const myVenue = venueId => {const v = one('SELECT * FROM venues WHERE id=?', venueId); check(v, 'Venue not found', 404); check(v.owner === me().id || me().admin, 'Only the venue’s operator can change it', 403); return v;};
       if (method === 'GET' && p === '/v1/me/venues') return send(200, {venues: rows('SELECT * FROM venues WHERE owner=? ORDER BY name', me().id).map(v => ({...venueOut(v), keys: rows('SELECT key_id FROM venue_keys WHERE venue=?', v.id).map(k => k.key_id)}))});
@@ -326,9 +368,13 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       }
       // Venues don't add themselves: they come from the venue list, or an admin adds one here.
       if (method === 'POST' && p === '/v1/venues') {
-        check(me().admin, 'Venues are added by PubQuiz: ask to be added to the venue list', 403);
-        const fields = validVenue(input), venueId = id();
+        check(me().admin, 'Venues are added by PubQuiz: ask to be added', 403);
+        // A readable id from the name and town (it never changes, and names the venue in venues.json).
+        const fields = validVenue(input), slug = `${fields.name}-${fields.town}`.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'venue';
+        let venueId = slug;
+        for (let i = 2; one('SELECT 1 FROM venues WHERE id=?', venueId); i++) venueId = `${slug}-${i}`;
         run('INSERT INTO venues(id,name,town,postcode,address,website,lat,lon,quiz_nights,created) VALUES(?,?,?,?,?,?,?,?,?,?)', venueId, fields.name, fields.town, fields.postcode, fields.address, fields.website, fields.lat ?? null, fields.lon ?? null, fields.quiz_nights, now());
+        publishRegular(venueId);
         return send(201, venueOut(one('SELECT * FROM venues WHERE id=?', venueId)));
       }
       if (parts[0] === 'venues' && parts.length >= 2) {
@@ -344,7 +390,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
           run('UPDATE venues SET edited=? WHERE id=?', JSON.stringify([...new Set([...JSON.parse(v.edited), ...Object.keys(fields).filter(k => k !== 'lon')])]), v.id);
           return send(200, venueOut(one('SELECT * FROM venues WHERE id=?', v.id)));
         }
-        if (method === 'DELETE' && parts.length === 2) {const v = myVenue(parts[1]); check(me().admin, 'Ask PubQuiz to take a venue off the list', 403); run('DELETE FROM venues WHERE id=?', v.id); return send(200, {ok: true});}
+        if (method === 'DELETE' && parts.length === 2) {const v = myVenue(parts[1]); check(me().admin, 'Ask PubQuiz to take a venue off', 403); run('DELETE FROM venues WHERE id=?', v.id); return send(200, {ok: true});}
         // An admin links the venue to its operator's account (or unlinks it with {email: null}).
         if (method === 'POST' && parts[2] === 'operator' && parts.length === 3) {
           check(me().admin, 'Admins only', 403);
@@ -433,12 +479,12 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   }
   const server = http.createServer(handle);
   server.requestTimeout = 15000;
-  return {server, db, importVenues, publishRegular, venuesLoaded, close: () => new Promise(resolve => {clearInterval(venueTimer); clearInterval(regularTimer); server.close(() => {db.close(); resolve();}); server.closeAllConnections();})};
+  return {server, db, importVenues, publishRegular, close: () => new Promise(resolve => {clearInterval(regularTimer); server.close(() => {db.close(); resolve();}); server.closeAllConnections();})};
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const service = createService({database: process.env.ONLINE_DB || 'online.sqlite', allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
-    venuesFile: process.env.VENUES_FILE || '', venuesUrl: process.env.VENUES_URL || '', trustProxy: process.env.TRUST_PROXY === '1'});
+    backupDir: process.env.BACKUP_DIR || '', trustProxy: process.env.TRUST_PROXY === '1'});
   service.server.listen(Number(process.env.PORT || 8080), process.env.BIND || '127.0.0.1', () => console.log(`PubQuiz Online on http://${process.env.BIND || '127.0.0.1'}:${process.env.PORT || 8080} (put HTTPS in front before going public)`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => service.close().then(() => process.exit(0)));
 }
