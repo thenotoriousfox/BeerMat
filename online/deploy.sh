@@ -11,6 +11,8 @@
 #   * a nightly database backup in /var/backups/beermat-online (14 kept); copy them off the server too
 #   * the key that signs BeerMat Pro licences, from ~/.local/share/beermat/licence-key.txt (or LICENCE_KEY_FILE),
 #     in /etc/beermat-online, readable by the service only. Without it the service runs but issues no licences.
+#   * /etc/beermat-online/env for secrets set on the server by hand (made empty the first time), such as the email
+#     service's key: RESEND_API_KEY=… and MAIL_FROM="BeerMat <noreply@your.domain>". Restart the service after editing.
 set -euo pipefail
 target=${1:?usage: online/deploy.sh user@server-ip [domain]}
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -26,7 +28,7 @@ cp "$repo/online/service.js" "$repo/online/client.js" "$repo/online/admin.js" "$
 cp "$repo/shared/claims.js" "$repo/shared/achievements.js" "$repo/shared/venues.js" "$stage/shared/"
 mkdir -p "$stage/brand" && cp "$repo"/brand/*.svg "$repo/brand/fredoka.woff2" "$stage/brand/"
 cp -r "$repo/mobile/www" "$stage/mobile/"
-cp -r "$repo/online/admin" "$stage/online/"
+cp -r "$repo/online/admin" "$repo/online/pages" "$stage/online/"
 printf '{"private": true, "type": "module"}\n' > "$stage/package.json"
 tar -C "$stage" -czf - . | ssh "$target" "rm -rf /tmp/beermat-online && mkdir /tmp/beermat-online && tar -C /tmp/beermat-online -xzf -"
 
@@ -43,7 +45,7 @@ if [ "$(swapon --noheadings | wc -l)" = 0 ] && [ "$(awk '/MemTotal/ {print $2}' 
   grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 apt-get update -qq
-apt-get install -y -qq caddy sqlite3 curl xz-utils iptables-persistent >/dev/null
+apt-get install -y -qq caddy sqlite3 curl xz-utils rsync iptables-persistent >/dev/null
 
 # Node.js 24 from nodejs.org, checked against its published checksums.
 arch=$(uname -m); case $arch in x86_64) arch=x64;; aarch64) arch=arm64;; esac
@@ -59,12 +61,14 @@ id beermat >/dev/null 2>&1 || useradd --system --home /var/lib/beermat-online --
 install -d -o beermat -g beermat -m 700 /var/lib/beermat-online
 install -d -m 750 -g beermat /var/backups/beermat-online
 chgrp beermat /var/backups/beermat-online && chmod 750 /var/backups/beermat-online
+install -d -m 750 -g beermat /etc/beermat-online
+[ -f /etc/beermat-online/env ] || install -o root -g beermat -m 640 /dev/null /etc/beermat-online/env
 if [ -f /tmp/beermat-licence-key ]; then
   install -D -o root -g beermat -m 640 /tmp/beermat-licence-key /etc/beermat-online/licence-key.txt && rm /tmp/beermat-licence-key
 fi
 rm -rf /opt/beermat-online && mv /tmp/beermat-online /opt/beermat-online && chown -R root:root /opt/beermat-online && chmod -R u=rwX,go=rX /opt/beermat-online
 
-cat > /etc/systemd/system/beermat-online.service <<'UNIT'
+cat > /etc/systemd/system/beermat-online.service <<UNIT
 [Unit]
 Description=BeerMat Online
 After=network-online.target
@@ -78,6 +82,10 @@ Environment=PORT=8080 BIND=127.0.0.1 ONLINE_DB=/var/lib/beermat-online/online.sq
 Environment=BACKUP_DIR=/var/backups/beermat-online
 # Signs BeerMat Pro licences for quiz laptops (shared/licence.js).
 Environment=LICENCE_KEY_FILE=/etc/beermat-online/licence-key.txt
+# Links in emails (confirm an address, reset a password) point here.
+Environment=PUBLIC_URL=https://$DOMAIN
+# Secrets added on the server by hand: RESEND_API_KEY, MAIL_FROM.
+EnvironmentFile=-/etc/beermat-online/env
 ExecStart=/opt/node/bin/node --disable-warning=ExperimentalWarning /opt/beermat-online/online/service.js
 Restart=on-failure
 NoNewPrivileges=true

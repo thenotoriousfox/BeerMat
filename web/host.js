@@ -775,6 +775,7 @@ function renderVenue() {
   const signedIn = !!venueAccount?.signedIn;
   $('venueService').textContent = venueAccount?.service ? `BeerMat Online: ${venueAccount.service}` : 'Set the BeerMat Online address under Settings → Past quizzes';
   $('venueSignedOut').hidden = signedIn; $('venueSignedIn').hidden = !signedIn;
+  if (venueAccount?.service) $('venueForgot').href = venueAccount.service.replace(/\/$/, '') + '/reset';
   if (!signedIn) return;
   $('venueWho').textContent = `Signed in as ${venueAccount.name} (${venueAccount.email})`;
   $('venueNone').hidden = !!venue; $('venueDetails').hidden = !venue;

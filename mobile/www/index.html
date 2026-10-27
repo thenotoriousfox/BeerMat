@@ -20,11 +20,12 @@
   <p id="onlineMissing" class="card hint" hidden>BeerMat Online isn’t set up in this copy of the app. You can still play every quiz as a guest.</p>
   <div id="signedOut" hidden>
     <p class="hint">Optional. Keep your quiz results, see your statistics and earn badges. Your profile stays private unless you choose otherwise.</p>
-    <form id="signInForm" class="card"><h3>Sign in</h3><label>Email<input id="signInEmail" type="email" autocomplete="email" required></label><label>Password<input id="signInPassword" type="password" autocomplete="current-password" required></label><button class="big">Sign in</button></form>
+    <form id="signInForm" class="card"><h3>Sign in</h3><label>Email<input id="signInEmail" type="email" autocomplete="email" required></label><label>Password<input id="signInPassword" type="password" autocomplete="current-password" required></label><button class="big">Sign in</button><p class="hint"><a id="forgotPassword" target="_blank" rel="noopener">Forgot your password?</a></p></form>
     <form id="signUpForm" class="card"><h3>Create an account</h3><label>Name shown to others (if you allow it)<input id="signUpName" maxlength="40" autocomplete="nickname" required></label><label>Email<input id="signUpEmail" type="email" autocomplete="email" required></label><label>Password (10 characters or more)<input id="signUpPassword" type="password" minlength="10" autocomplete="new-password" required></label><label class="check"><input id="signUpConsent" type="checkbox" required> I agree that BeerMat Online keeps my email, name and the quiz results I choose to save, until I delete my account.</label><button class="big">Create account</button></form>
   </div>
   <div id="signedIn" hidden>
     <div class="card me"><img id="avatar" class="avatar" alt="" hidden><div><strong id="meName"></strong><p id="meTeam" class="hint"></p></div></div>
+    <p id="verifyNote" class="card hint" hidden><span></span> <button id="resendVerify" type="button" class="subtle">Send the link again</button></p>
     <p id="pending" class="card hint" hidden></p>
     <p id="statsStale" class="card warning" hidden></p>
     <div id="stats" class="stats"></div>

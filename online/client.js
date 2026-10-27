@@ -53,6 +53,9 @@ export function createOnlineClient({baseUrl, venueListUrl = '', fetch = globalTh
     async refreshProfile() {const p = await api('GET', '/v1/me'); write('profile', p); return p;},
     async updateProfile(changes) {const p = await api('PATCH', '/v1/me', changes); write('profile', p); return p;},
     exportData: () => api('GET', '/v1/me/export'),
+    resendVerify: () => api('POST', '/v1/me/verify'),
+    // The service's own page for choosing a new password (it emails a link).
+    get resetUrl() {return base() ? base() + '/reset' : '';},
     async deleteAccount() {const r = await api('DELETE', '/v1/me'); for (const name of ['token', 'profile', 'outbox', 'stats']) write(name, null); return r;},
 
     // Keeps a team's signed result (from the quiz's "Keep this result") and sends it when it can.
@@ -106,6 +109,7 @@ export function createOnlineClient({baseUrl, venueListUrl = '', fetch = globalTh
       }
     },
     venue: venueId => api('GET', '/v1/venues/' + encodeURIComponent(venueId)),
+    report: (venueId, reason) => api('POST', '/v1/reports', {kind: 'venue', target: venueId, reason}),
     favourites: () => api('GET', '/v1/me/favourites'),
     favourite: (venueId, on) => api(on ? 'PUT' : 'DELETE', '/v1/me/favourites/' + encodeURIComponent(venueId)),
     leaderboard: venueId => api('GET', '/v1/leaderboards' + (venueId ? '?venue=' + encodeURIComponent(venueId) : '')),

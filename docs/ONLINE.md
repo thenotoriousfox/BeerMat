@@ -15,6 +15,10 @@ only for the app (`capacitor://localhost`, `http(s)://localhost`) and origins li
 |---|---|---|
 | `POST /v1/accounts` `{email, password, displayName}` | anyone | create an account (password ≥ 10 characters) |
 | `POST /v1/sessions` `{email, password}` · `DELETE /v1/sessions` | anyone · signed in | sign in (10 tries a minute per address and per email) · sign out |
+| `POST /v1/verify` `{token}` · `POST /v1/me/verify` | anyone with the link · signed in | confirm the email address from the emailed link (a week, once) · send the link again |
+| `POST /v1/password-reset` `{email}` · `POST /v1/password-reset/confirm` `{token, password}` | anyone | email a reset link (the same answer for unknown addresses) · set the new password (an hour, once; every device is signed out) |
+| `POST /v1/reports` `{kind: "venue", target, reason}` | anyone | report a problem with a venue page (app: venue page → Report a problem) |
+| `GET /v1/admin/reports[?all=1]` · `PATCH /v1/admin/reports/:id` `{resolved}` | admin | the admin console's Reports tab |
 | `GET/PATCH /v1/me` | signed in | profile: display name, usual team name, picture (≤ 200 KB JPEG/PNG/WebP), privacy |
 | `GET /v1/me/export` · `DELETE /v1/me` | signed in | everything held (access request) · erase the account and everything linked to it |
 | `POST /v1/me/results` `{claim}` (+ `Idempotency-Key`) | signed in | keep a laptop-signed team result; the same one again is a no-op |
@@ -155,7 +159,9 @@ Still needed before going live (organisational, not code):
 `online/deploy.sh ubuntu@<server ip> [domain]` sets up a fresh Ubuntu server from this repository, and running it
 again updates the service (the database is kept): Node.js 24, the service under systemd on 127.0.0.1:8080, Caddy
 with Let's Encrypt HTTPS in front (on `<ip>.sslip.io` when there is no domain), ports 80/443 opened, 2 GB swap on
-small servers, and a nightly database backup in `/var/backups/beermat-online` (14 kept). Admin jobs run on the server:
+small servers, and a nightly database backup in `/var/backups/beermat-online` (14 kept). Copy those backups off the
+server with `online/pull-backups.sh ubuntu@<server ip>` (to `~/BeerMatBackups`; `--daily` adds a systemd user timer
+that does it every day). Admin jobs run on the server:
 `sudo -u beermat env ONLINE_DB=/var/lib/beermat-online/online.sqlite /opt/node/bin/node /opt/beermat-online/online/admin.js venues`.
 
 The live server: Oracle Cloud, UK South (London), VM.Standard.E2.1.Micro (1 OCPU, 1 GB), Ubuntu 24.04, public IP
@@ -168,9 +174,13 @@ What a deployment needs in general:
   `PORT`, `BIND`, `ONLINE_DB`, `ALLOWED_ORIGINS` configure it: `node online/service.js`.
 * HTTPS in front (Caddy or nginx with Let's Encrypt). Bind the service to `127.0.0.1` behind the proxy.
 * Back up `online.sqlite` (for example `sqlite3 online.sqlite ".backup …"` nightly, kept off the server).
-* Before opening to the public: email verification and password reset (needs an email provider; not implemented),
-  rate limiting at the proxy as well (the built-in limits are per process), monitoring, and an abuse/report route for
-  venue pages and pictures.
+* **Email** (confirming addresses, password reset) goes through [Resend](https://resend.com): put `RESEND_API_KEY=…`
+  and `MAIL_FROM="BeerMat <noreply@your.domain>"` (a domain verified with Resend) in `/etc/beermat-online/env` on the
+  server and restart the service. `PUBLIC_URL` (set by deploy.sh) is where the emailed links point: `/verify` and
+  `/reset`, pages served by the service (`online/pages/`). Without email, sign-up still works, accounts stay
+  unconfirmed, and password reset says it isn't set up.
+* Before opening to the public: rate limiting at the proxy as well (the built-in limits are per process) and
+  monitoring (an uptime check on `/health`).
 * Point the app at it: `node mobile/scripts/build-web.mjs --online https://your.domain`, and quizmasters at it on
   the desk (**Past quizzes → BeerMat Online**).
 * `LICENCE_KEY_FILE`: the Ed25519 key that signs BeerMat Pro licences (see Plans). Without it the service runs but

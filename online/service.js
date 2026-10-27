@@ -62,7 +62,7 @@ const venuesTable = name => `CREATE TABLE IF NOT EXISTS ${name}(id TEXT PRIMARY 
   verified INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, quiz_nights TEXT NOT NULL DEFAULT '[]', listed INTEGER NOT NULL DEFAULT 0, edited TEXT NOT NULL DEFAULT '[]',
   plan TEXT NOT NULL DEFAULT 'free', plan_until INTEGER);`;
 
-export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), adminDir = path.join(here, 'admin'), backupDir = '', trustProxy = false, licenceKey = ''} = {}) {
+export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), adminDir = path.join(here, 'admin'), backupDir = '', trustProxy = false, licenceKey = '', publicUrl = '', mail = null, pagesDir = path.join(here, 'pages')} = {}) {
   const startedAt = now();
   const db = new DatabaseSync(database);
   // Before the venue list, every venue had to have an owner: rebuild that table once (foreign keys off, so nothing
@@ -86,7 +86,11 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       claim TEXT NOT NULL, date INTEGER NOT NULL, added INTEGER NOT NULL, PRIMARY KEY(account, event, team));
     CREATE TABLE IF NOT EXISTS venue_results(venue_key TEXT NOT NULL, event TEXT NOT NULL, summary TEXT NOT NULL, received INTEGER NOT NULL, PRIMARY KEY(venue_key, event));
     CREATE INDEX IF NOT EXISTS events_starts ON events(starts);
+    CREATE TABLE IF NOT EXISTS email_tokens(hash TEXT PRIMARY KEY, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, purpose TEXT NOT NULL, expires INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS reports(id TEXT PRIMARY KEY, kind TEXT NOT NULL, target TEXT NOT NULL, reason TEXT NOT NULL, reporter TEXT, created INTEGER NOT NULL, resolved INTEGER);
   `);
+  // Email addresses are confirmed by a link. Accounts made before that existed count as confirmed.
+  if (!db.prepare('PRAGMA table_info(accounts)').all().some(c => c.name === 'email_verified')) db.exec('ALTER TABLE accounts ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0; UPDATE accounts SET email_verified=1');
   // Quiz nights became a list of days and times (a short-lived quiz_night text column is left unused).
   // Quiz nights published from a venue's regular nights: regular=1, occurs = their London date.
   if (!db.prepare('PRAGMA table_info(events)').all().some(c => c.name === 'regular')) db.exec("ALTER TABLE events ADD COLUMN regular INTEGER NOT NULL DEFAULT 0; ALTER TABLE events ADD COLUMN occurs TEXT NOT NULL DEFAULT ''");
@@ -103,7 +107,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   }
   const session = account => {const t = token(); run('INSERT INTO sessions VALUES(?,?,?)', sha(t), account, now() + SESSION_MS); return t;};
   const privacy = a => ({...defaultPrivacy, ...JSON.parse(a.privacy || '{}')});
-  const profile = a => ({id: a.id, admin: !!a.admin, email: a.email, displayName: a.display_name, preferredTeam: a.preferred_team, avatar: a.avatar || null, privacy: privacy(a), created: a.created});
+  const profile = a => ({id: a.id, admin: !!a.admin, email: a.email, emailVerified: !!a.email_verified, displayName: a.display_name, preferredTeam: a.preferred_team, avatar: a.avatar || null, privacy: privacy(a), created: a.created});
   const venueOut = v => ({id: v.id, name: v.name, town: v.town, postcode: v.postcode, address: v.address, website: v.website, lat: v.lat, lon: v.lon, quizNights: JSON.parse(v.quiz_nights || '[]'), verified: !!v.verified,
     directions: 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(v.postcode || v.lat === null ? [v.name, v.address, v.town, v.postcode].filter(Boolean).join(', ') : `${v.lat},${v.lon}`)});
   const londonDate = t => {const d = london(t); return `${d.year}-${d.month.padStart(2, '0')}-${d.day.padStart(2, '0')}`;};
@@ -135,6 +139,20 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   const regularTimer = setInterval(() => publishRegular(), 3600000);
   regularTimer.unref();
   publishRegular();
+  // Emails: a link to confirm the address (a week) or to choose a new password (an hour). Each link works once.
+  const link = (account, purpose) => {
+    const t = token(); run('DELETE FROM email_tokens WHERE account=? AND purpose=?', account, purpose);
+    run('INSERT INTO email_tokens VALUES(?,?,?,?)', sha(t), account, purpose, now() + (purpose === 'reset' ? 3600000 : 7 * 86400000));
+    return `${publicUrl.replace(/\/$/, '')}/${purpose === 'reset' ? 'reset' : 'verify'}?token=${t}`;
+  };
+  const useLink = (t, purpose) => {
+    const row = typeof t === 'string' ? one('SELECT * FROM email_tokens WHERE hash=? AND purpose=? AND expires>?', sha(t), purpose, now()) : null;
+    check(row, purpose === 'reset' ? 'This reset link has expired or was already used. Ask for a new one.' : 'This link has expired or was already used.', 400);
+    run('DELETE FROM email_tokens WHERE hash=?', row.hash);
+    return row.account;
+  };
+  const sendVerify = a => mail && publicUrl ? mail({to: a.email, subject: 'Confirm your BeerMat email address',
+    text: `Hi ${a.display_name},\n\nConfirm this is your email address for BeerMat:\n${link(a.id, 'verify')}\n\nThe link works for a week. If you didn't make a BeerMat account, ignore this email.\n`}).catch(e => console.error('Email not sent:', e.message)) : null;
   const planOf = v => v.plan === 'pro' && (v.plan_until === null || v.plan_until > now()) ? 'pro' : 'free';
   // A venue key counts once a venue has registered it.
   const venueOfKey = key => one('SELECT v.* FROM venue_keys k JOIN venues v ON v.id=k.venue WHERE k.public_key=?', key);
@@ -228,6 +246,13 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         res.writeHead(200, {'Content-Type': staticTypes[path.extname(name)], 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'max-age=86400'});
         return res.end(readFileSync(file));
       }
+      // The pages emailed links open: confirm an email address, choose a new password.
+      if (method === 'GET' && (p === '/verify' || p === '/reset' || p === '/pages/pages.js' || p === '/pages/pages.css')) {
+        const file = path.join(pagesDir, {'/verify': 'verify.html', '/reset': 'reset.html'}[p] || path.basename(p));
+        res.writeHead(200, {'Content-Type': staticTypes[path.extname(file)], 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-cache',
+          'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"});
+        return res.end(readFileSync(file));
+      }
       // The admin console: its own pages; everything it shows comes from the admin API below.
       if (method === 'GET' && (p === '/admin' || p.startsWith('/admin/'))) {
         if (p === '/admin') {res.writeHead(302, {Location: '/admin/'}); return res.end();}
@@ -261,6 +286,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         check(!one('SELECT 1 FROM accounts WHERE email=?', email), 'An account already uses that email', 409);
         const accountId = id();
         run('INSERT INTO accounts(id,email,password,created,display_name,privacy) VALUES(?,?,?,?,?,?)', accountId, email, hashPassword(input.password), now(), displayName, JSON.stringify(defaultPrivacy));
+        sendVerify(one('SELECT * FROM accounts WHERE id=?', accountId));
         return send(201, {token: session(accountId), account: profile(one('SELECT * FROM accounts WHERE id=?', accountId))});
       }
       if (method === 'POST' && p === '/v1/sessions') {
@@ -268,6 +294,30 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         const found = typeof input.email === 'string' && typeof input.password === 'string' ? one('SELECT * FROM accounts WHERE email=?', input.email.trim().toLowerCase()) : null;
         check(found && passwordOk(input.password, found.password), 'Email or password not recognised', 401);
         return send(200, {token: session(found.id), account: profile(found)});
+      }
+      // Confirming the email address, and a new password by email (the same answer whether or not the address has an
+      // account, so it can't be used to find out who has one).
+      if (method === 'POST' && p === '/v1/me/verify') {
+        const a = me(); check(!a.email_verified, 'Your email address is already confirmed');
+        check(mail && publicUrl, 'Email isn’t set up on this service yet', 503);
+        limit('verify:' + a.id); await sendVerify(a); return send(200, {sent: true});
+      }
+      if (method === 'POST' && p === '/v1/verify') {run('UPDATE accounts SET email_verified=1 WHERE id=?', useLink(input.token, 'verify')); return send(200, {verified: true});}
+      if (method === 'POST' && p === '/v1/password-reset') {
+        limit('reset:' + ip); limit('reset:' + String(input.email).toLowerCase());
+        check(mail && publicUrl, 'Password reset isn’t set up on this service yet. Ask BeerMat for help.', 503);
+        const a = typeof input.email === 'string' ? one('SELECT * FROM accounts WHERE email=?', input.email.trim().toLowerCase()) : null;
+        if (a) await mail({to: a.email, subject: 'Reset your BeerMat password', text: `Hi ${a.display_name},\n\nChoose a new BeerMat password here:\n${link(a.id, 'reset')}\n\nThe link works for an hour. If you didn't ask for this, ignore this email: your password stays the same.\n`})
+          .catch(e => {console.error('Email not sent:', e.message); throw new ApiError(502, 'The email couldn’t be sent. Try again later.');});
+        return send(200, {sent: true});
+      }
+      if (method === 'POST' && p === '/v1/password-reset/confirm') {
+        check(typeof input.password === 'string' && input.password.length >= 10 && input.password.length <= 200, 'Password must be at least 10 characters');
+        const accountId = useLink(input.token, 'reset');
+        // The link came by email, so the address is confirmed too; every signed-in device is signed out.
+        run('UPDATE accounts SET password=?,email_verified=1 WHERE id=?', hashPassword(input.password), accountId);
+        run('DELETE FROM sessions WHERE account=?', accountId);
+        return send(200, {reset: true});
       }
       if (method === 'DELETE' && p === '/v1/sessions') {run('DELETE FROM sessions WHERE hash=?', sha(auth)); return send(200, {ok: true});}
       if (method === 'GET' && p === '/v1/me') return send(200, profile(me()));
@@ -332,6 +382,15 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return send(200, {ok: true});
       }
 
+      // ---- Reports: anyone can flag a venue page that looks wrong or abusive; admins see them in the console ----
+      if (method === 'POST' && p === '/v1/reports') {
+        limit('report:' + ip);
+        check(input.kind === 'venue' && typeof input.target === 'string' && one('SELECT 1 FROM venues WHERE id=?', input.target), 'Venue not found', 404);
+        const reason = text(input.reason, 500, {required: true, name: 'What’s wrong'});
+        run('INSERT INTO reports(id,kind,target,reason,reporter,created) VALUES(?,?,?,?,?,?)', id(), 'venue', input.target, reason, account?.id ?? null, now());
+        return send(201, {reported: true});
+      }
+
       // ---- Admin console ----
       const admin = () => {const a = me(); check(a.admin, 'Admins only', 403); return a;};
       if (method === 'GET' && p === '/v1/admin/overview') {
@@ -343,7 +402,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
           mappedVenues: n('SELECT COUNT(*) n FROM venues WHERE lat IS NOT NULL'), proVenues: n("SELECT COUNT(*) n FROM venues WHERE plan='pro' AND (plan_until IS NULL OR plan_until>?)", now()), accounts: n('SELECT COUNT(*) n FROM accounts'), admins: n('SELECT COUNT(*) n FROM accounts WHERE admin=1'),
           newAccounts: n('SELECT COUNT(*) n FROM accounts WHERE created>?', now() - 7 * 86400000), results: n('SELECT COUNT(*) n FROM results'), laptops: n('SELECT COUNT(*) n FROM venue_keys'),
           venueResults: n('SELECT COUNT(*) n FROM venue_results'), upcoming: n('SELECT COUNT(*) n FROM events WHERE cancelled=0 AND starts>? AND starts<?', now(), now() + 7 * 86400000),
-          databaseBytes: (() => {try {return statSync(database).size;} catch {return null;}})(), lastBackup, startedAt, now: now()});
+          openReports: n('SELECT COUNT(*) n FROM reports WHERE resolved IS NULL'), databaseBytes: (() => {try {return statSync(database).size;} catch {return null;}})(), lastBackup, startedAt, now: now()});
       }
       if (method === 'GET' && p === '/v1/admin/venues') {
         admin();
@@ -355,12 +414,23 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
             .map(r => {const sum = JSON.parse(r.summary); return {title: sum.title, date: sum.date, teams: sum.teams.length, winner: sum.teams.find(t => t.rank === 1)?.name || '', received: r.received};}),
         }))});
       }
+      if (method === 'GET' && p === '/v1/admin/reports') {
+        admin();
+        const list = rows(`SELECT r.*, v.name venue_name, a.email reporter_email FROM reports r LEFT JOIN venues v ON r.kind='venue' AND v.id=r.target LEFT JOIN accounts a ON a.id=r.reporter
+          WHERE ?=1 OR r.resolved IS NULL ORDER BY r.created DESC LIMIT 200`, Number(url.searchParams.get('all') === '1'));
+        return send(200, {reports: list.map(r => ({id: r.id, kind: r.kind, target: r.target, targetName: r.venue_name || '(removed)', reason: r.reason, reporter: r.reporter_email || null, created: r.created, resolved: r.resolved}))});
+      }
+      if (method === 'PATCH' && parts[0] === 'admin' && parts[1] === 'reports' && parts.length === 3) {
+        admin(); check(one('SELECT 1 FROM reports WHERE id=?', parts[2]), 'Report not found', 404);
+        run('UPDATE reports SET resolved=? WHERE id=?', input.resolved === false ? null : now(), parts[2]);
+        return send(200, {ok: true});
+      }
       if (method === 'GET' && p === '/v1/admin/accounts') {
         admin();
         const q = (url.searchParams.get('q') || '').trim().toLowerCase().slice(0, 100), like = `%${q.replace(/[%_]/g, '')}%`;
-        const list = rows(`SELECT a.id, a.email, a.display_name, a.created, a.admin, a.avatar IS NOT NULL photo, (SELECT COUNT(*) FROM results r WHERE r.account=a.id) results,
+        const list = rows(`SELECT a.id, a.email, a.display_name, a.created, a.admin, a.email_verified, a.avatar IS NOT NULL photo, (SELECT COUNT(*) FROM results r WHERE r.account=a.id) results,
           (SELECT group_concat(v.name, ', ') FROM venues v WHERE v.owner=a.id) venues FROM accounts a WHERE ?='' OR lower(a.email) LIKE ? OR lower(a.display_name) LIKE ? ORDER BY a.created DESC LIMIT 200`, q, like, like);
-        return send(200, {total: one('SELECT COUNT(*) n FROM accounts').n, accounts: list.map(r => ({id: r.id, email: r.email, displayName: r.display_name, created: r.created, admin: !!r.admin, photo: !!r.photo, results: r.results, venues: r.venues || ''}))});
+        return send(200, {total: one('SELECT COUNT(*) n FROM accounts').n, accounts: list.map(r => ({id: r.id, email: r.email, emailVerified: !!r.email_verified, displayName: r.display_name, created: r.created, admin: !!r.admin, photo: !!r.photo, results: r.results, venues: r.venues || ''}))});
       }
       if (parts[0] === 'admin' && parts[1] === 'accounts' && parts.length === 3 && (method === 'PATCH' || method === 'DELETE')) {
         const a = admin(), target = one('SELECT * FROM accounts WHERE id=?', parts[2]); check(target, 'Account not found', 404);
@@ -519,9 +589,17 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   return {server, db, importVenues, publishRegular, close: () => new Promise(resolve => {clearInterval(regularTimer); server.close(() => {db.close(); resolve();}); server.closeAllConnections();})};
 }
 
+// Email through Resend (resend.com: RESEND_API_KEY, and MAIL_FROM on a domain verified there).
+export const resendMail = (key, from) => async ({to, subject, text}) => {
+  const response = await fetch('https://api.resend.com/emails', {method: 'POST', headers: {Authorization: 'Bearer ' + key, 'Content-Type': 'application/json'},
+    body: JSON.stringify({from, to: [to], subject, text}), signal: AbortSignal.timeout(10000)});
+  if (!response.ok) throw Error(`Resend said ${response.status}`);
+};
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const service = createService({database: process.env.ONLINE_DB || 'online.sqlite', allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
-    backupDir: process.env.BACKUP_DIR || '', trustProxy: process.env.TRUST_PROXY === '1', licenceKey: process.env.LICENCE_KEY_FILE && existsSync(process.env.LICENCE_KEY_FILE) ? readFileSync(process.env.LICENCE_KEY_FILE, 'utf8').trim() : ''});
+    backupDir: process.env.BACKUP_DIR || '', trustProxy: process.env.TRUST_PROXY === '1', licenceKey: process.env.LICENCE_KEY_FILE && existsSync(process.env.LICENCE_KEY_FILE) ? readFileSync(process.env.LICENCE_KEY_FILE, 'utf8').trim() : '',
+    publicUrl: process.env.PUBLIC_URL || '', mail: process.env.RESEND_API_KEY ? resendMail(process.env.RESEND_API_KEY, process.env.MAIL_FROM || 'BeerMat <noreply@example.com>') : null});
   service.server.listen(Number(process.env.PORT || 8080), process.env.BIND || '127.0.0.1', () => console.log(`BeerMat Online on http://${process.env.BIND || '127.0.0.1'}:${process.env.PORT || 8080} (put HTTPS in front before going public)`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => service.close().then(() => process.exit(0)));
 }

@@ -108,6 +108,7 @@ function renderPending() {
 async function renderProfile() {
   $('serviceUrl').value = client.baseUrl;
   $('onlineMissing').hidden = !!client.baseUrl;
+  $('forgotPassword').href = client.resetUrl;
   const signedIn = client.signedIn();
   $('signedOut').hidden = !client.baseUrl || signedIn; $('signedIn').hidden = !signedIn;
   renderPending();
@@ -129,6 +130,8 @@ async function renderProfile() {
   } catch (e) {say(e.message, true);}
 }
 function fillProfile(me) {
+  $('verifyNote').hidden = me.emailVerified !== false;
+  $('verifyNote').firstChild.textContent = `Confirm your email address: we sent a link to ${me.email}.`;
   $('meName').textContent = me.displayName; $('meTeam').textContent = me.preferredTeam ? `Usual team: ${me.preferredTeam}` : me.email;
   $('avatar').hidden = !me.avatar; if (me.avatar) $('avatar').src = me.avatar;
   if (document.activeElement !== $('editName')) $('editName').value = me.displayName;
@@ -137,6 +140,7 @@ function fillProfile(me) {
 }
 const guarded = fn => async e => {e?.preventDefault?.(); try {await fn(e);} catch (error) {say(error.message, true);}};
 $('signInForm').onsubmit = guarded(async () => {await client.signIn($('signInEmail').value, $('signInPassword').value); $('signInPassword').value = ''; say('Signed in'); renderProfile();});
+$('resendVerify').onclick = guarded(async () => {await client.resendVerify(); say('Link sent: check your email');});
 $('signUpForm').onsubmit = guarded(async () => {
   await client.signUp({email: $('signUpEmail').value, password: $('signUpPassword').value, displayName: $('signUpName').value});
   $('signUpPassword').value = ''; await client.flush(); say('Account created'); renderProfile();
@@ -299,7 +303,10 @@ async function showVenue(v) {
   go.target = '_blank'; go.rel = 'noopener'; card.append(go);
   const star = el('button', saved ? '★ Your venue' : '☆ Save venue', 'subtle'); star.type = 'button'; star.onclick = guarded(() => toggleFavourite(v, !saved));
   const upcoming = el('ul', undefined, 'list events');
-  card.append(el('br'), star, el('h4', 'Next quiz'), upcoming);
+  // Anyone can tell BeerMat a venue's page is wrong (or worse).
+  const report = el('button', 'Report a problem', 'subtle'); report.type = 'button';
+  report.onclick = guarded(async () => {const reason = prompt(`What’s wrong with ${v.name}’s page?`); if (!reason?.trim()) return; await client.report(v.id, reason.trim().slice(0, 500)); say('Thanks: BeerMat will take a look');});
+  card.append(el('br'), star, report, el('h4', 'Next quiz'), upcoming);
   card.hidden = false; card.scrollIntoView({behavior: 'smooth', block: 'nearest'});
   try {
     const page = await client.venue(v.id);

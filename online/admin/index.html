@@ -12,7 +12,7 @@
 </main>
 
 <div id="console" hidden>
-  <nav class="tabs" role="tablist"><button data-tab="overview" aria-selected="true">Overview</button><button data-tab="venues">Venues</button><button data-tab="accounts">Accounts</button></nav>
+  <nav class="tabs" role="tablist"><button data-tab="overview" aria-selected="true">Overview</button><button data-tab="venues">Venues</button><button data-tab="accounts">Accounts</button><button data-tab="reports">Reports <span id="reportCount" class="count" hidden></span></button></nav>
 
   <section id="overview" class="tab">
     <div id="stats" class="stats"></div>
@@ -28,6 +28,12 @@
   <section id="accounts" class="tab" hidden>
     <div class="toolbar"><input id="accountSearch" type="search" placeholder="Find by email or name" aria-label="Find an account"><span id="accountTotal" class="muted"></span></div>
     <table class="list"><thead><tr><th>Account</th><th>Joined</th><th>Runs</th><th>Results</th><th></th></tr></thead><tbody id="accountRows"></tbody></table>
+  </section>
+
+  <section id="reports" class="tab" hidden>
+    <div class="toolbar"><label class="check"><input id="reportsAll" type="checkbox"> Show dealt-with reports too</label></div>
+    <p class="muted">Problems people reported on venue pages from the app. Fix the venue (Venues tab), then mark the report dealt with.</p>
+    <table class="list"><thead><tr><th>Venue</th><th>What’s wrong</th><th>From</th><th>When</th><th></th></tr></thead><tbody id="reportRows"></tbody></table>
   </section>
 </div>
 

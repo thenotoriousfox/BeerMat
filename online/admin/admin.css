@@ -78,3 +78,5 @@ label > input, label > select { width: 100%; min-width: 0; }
 .grid > * { min-width: 0; }
 td.pro { color: var(--gold); font-weight: 800; }
 #planForm { align-items: center; flex-wrap: wrap; } #planForm label { flex-direction: row; align-items: center; gap: 8px; margin: 0; } #planForm select { width: auto; }
+.tabs .count { display: inline-block; min-width: 1.4em; padding: 0 6px; margin-left: 4px; border-radius: 99px; background: var(--bad); color: #fff; font-size: .75rem; line-height: 1.4em; text-align: center; }
+.tabs .count[hidden] { display: none; }

@@ -44,11 +44,11 @@ $('signOut').onclick = guarded(async () => {await api('DELETE', '/v1/sessions').
 
 // ---- Tabs ----
 function show(tab) {
-  if (!['overview', 'venues', 'accounts'].includes(tab)) tab = 'overview';
+  if (!['overview', 'venues', 'accounts', 'reports'].includes(tab)) tab = 'overview';
   for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   for (const s of document.querySelectorAll('.tab')) s.hidden = s.id !== tab;
   history.replaceState(null, '', '#' + tab);
-  ({overview: loadOverview, venues: loadVenues, accounts: loadAccounts})[tab]().catch(e => toast(e.message, true));
+  ({overview: loadOverview, venues: loadVenues, accounts: loadAccounts, reports: loadReports})[tab]().catch(e => toast(e.message, true));
 }
 for (const b of document.querySelectorAll('.tabs button')) b.onclick = () => show(b.dataset.tab);
 
@@ -59,10 +59,12 @@ async function loadOverview() {
   $('stats').replaceChildren(
     tile(o.venues, 'venues', `${o.verifiedVenues} verified · ${o.operatedVenues} with an operator · ${o.mappedVenues} on the map`),
     tile(o.proVenues, 'venues on Pro'),
+    tile(o.openReports, 'reports to look at'),
     tile(o.upcoming, 'quizzes in the next 7 days'),
     tile(o.accounts, 'accounts', `${o.newAccounts} new this week · ${o.admins} admin${o.admins === 1 ? '' : 's'}`),
     tile(o.results, 'results kept by players'),
     tile(o.laptops, 'quiz laptops registered', `${o.venueResults} quizzes shared`));
+  $('reportCount').textContent = String(o.openReports); $('reportCount').hidden = !o.openReports;
   const backupOld = !o.lastBackup || Date.now() - o.lastBackup > 36 * 3600000;
   const facts = [['Running since', `${when(o.startedAt)} (${ago(o.startedAt)})`], ['Database', o.databaseBytes === null ? '—' : `${(o.databaseBytes / 1048576).toFixed(1)} MB`],
     ['Last backup', o.lastBackup ? `${when(o.lastBackup)} (${ago(o.lastBackup)})` : 'none found']];
@@ -170,6 +172,7 @@ async function loadAccounts() {
     const tr = el('tr'), who = el('td');
     who.append(el('strong', a.displayName), el('span', ` ${a.email}`, 'muted'));
     if (a.admin) who.append(el('span', 'admin', 'badge good'));
+    if (!a.emailVerified) who.append(el('span', 'email not confirmed', 'badge warn'));
     const actions = el('td', undefined, 'actions');
     const button = (label, fn, done, cls = 'ghost small') => {const b = el('button', label, cls); b.type = 'button'; b.onclick = guarded(async () => {if (await fn() === false) return false; await loadAccounts();}, done); return b;};
     actions.append(button(a.admin ? 'Remove admin' : 'Make admin', () => confirm(a.admin ? `Remove ${a.email}’s admin rights?` : `Give ${a.email} admin rights? They can change every venue and account.`) ? api('PATCH', `/v1/admin/accounts/${a.id}`, {admin: !a.admin}) : false, 'Saved'));
@@ -181,5 +184,26 @@ async function loadAccounts() {
   if (!accounts.length) {const tr = el('tr'), td = el('td', 'No accounts match.', 'muted'); td.colSpan = 5; tr.append(td); $('accountRows').append(tr);}
 }
 $('accountSearch').oninput = () => {clearTimeout(searchTimer); searchTimer = setTimeout(() => loadAccounts().catch(e => toast(e.message, true)), 250);};
+
+// ---- Reports ----
+async function loadReports() {
+  // The Open buttons need the venue list.
+  if (!venues.length) venues = (await api('GET', '/v1/admin/venues')).venues;
+  const {reports} = await api('GET', '/v1/admin/reports' + ($('reportsAll').checked ? '?all=1' : ''));
+  $('reportCount').textContent = String(reports.filter(r => !r.resolved).length); $('reportCount').hidden = !reports.some(r => !r.resolved);
+  $('reportRows').replaceChildren(...reports.map(r => {
+    const tr = el('tr'), act = el('td', undefined, 'actions'), venue = el('td'), open = venues.find(v => v.id === r.target);
+    venue.append(el('strong', r.targetName));
+    if (open) {const b = el('button', 'Open', 'ghost small'); b.type = 'button'; b.onclick = () => openVenue(open); venue.append(document.createTextNode(' '), b);}
+    const done = el('button', r.resolved ? 'Reopen' : 'Dealt with', 'ghost small'); done.type = 'button';
+    done.onclick = guarded(async () => {await api('PATCH', `/v1/admin/reports/${r.id}`, {resolved: !r.resolved}); await loadReports();}, 'Saved');
+    act.append(done);
+    tr.append(venue, el('td', r.reason), el('td', r.reporter || 'someone not signed in', r.reporter ? undefined : 'muted'), el('td', when(r.created)), act);
+    if (r.resolved) tr.className = 'muted';
+    return tr;
+  }));
+  if (!reports.length) {const tr = el('tr'), td = el('td', 'Nothing reported.', 'muted'); td.colSpan = 5; tr.append(td); $('reportRows').append(tr);}
+}
+$('reportsAll').onchange = () => loadReports().catch(e => toast(e.message, true));
 
 start();
