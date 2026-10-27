@@ -402,6 +402,90 @@ nav button { background: transparent; color: var(--muted); box-shadow: none; mar
 nav button.selected { background: linear-gradient(180deg, var(--gold-hi), var(--gold-2)); color: var(--on-accent); box-shadow: var(--glow-gold); }
 nav a { margin: 4px 16px; font-weight: 700; }
 nav #logout { margin-left: auto; }
+/* ---------- Desk: Tonight (the night itself), Quizzes, Teams, Venue, Settings ---------- */
+body[data-role=host] { max-width: 1380px; }
+body[data-role=host] nav { top: 8px; }
+/* The control bar stays in reach while the page scrolls: where the quiz is, and one big button for what's next. */
+.control-bar { position: sticky; top: 74px; z-index: 9; backdrop-filter: blur(14px); background: color-mix(in srgb, var(--surface-solid) 92%, transparent); border-color: var(--line-strong); }
+.control-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+.control-top .event h2 { margin: 2px 0 0; font-size: 1.5rem; }
+.steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.steps li { position: relative; padding: 6px 12px 6px 30px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); font-size: .85rem; font-weight: 700; counter-increment: step; }
+.steps li::before { content: counter(step); position: absolute; left: 6px; top: 50%; translate: 0 -50%; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: .7rem; background: var(--line-strong); color: var(--text); }
+.steps li.done { color: var(--text); } .steps li.done::before { content: "✓"; background: var(--good); color: #052e1f; }
+.steps li.now { color: var(--on-accent); background: linear-gradient(180deg, var(--gold-hi), var(--gold-2)); border-color: transparent; box-shadow: var(--glow-gold); }
+.steps li.now::before { background: var(--on-accent); color: var(--gold-hi); }
+.control-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.control-row .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.control-row .actions button { margin: 0; padding: 9px 16px; font-size: .92rem; background: var(--surface-2); color: var(--text); box-shadow: none; border: 1px solid var(--line); }
+.control-row .actions button:disabled { opacity: .35; }
+/* The next step: big, first, in the brand's gold (red while answers are open). */
+.control-row .actions button.go { order: -1; font-family: var(--display); font-size: 1.45rem; padding: 16px 34px; border-radius: 18px; min-width: 280px; border: 0;
+  background: linear-gradient(180deg, var(--gold-hi), var(--gold-2)); color: var(--on-accent); box-shadow: var(--glow-gold); }
+.control-row .actions button#close.go { background: linear-gradient(180deg, #ff7a94, var(--bad)); color: #2a0510; box-shadow: var(--glow-pink); }
+.control-row .actions button.go:disabled { opacity: .5; }
+/* Desk messages pop up in a corner instead of pushing the page down. */
+body[data-role=host] #message { position: fixed; right: 20px; bottom: 20px; z-index: 30; max-width: 420px; margin: 0; padding: 12px 18px; border-radius: 14px; background: var(--surface-solid); border: 1px solid var(--line-strong); box-shadow: var(--shadow); min-height: 0; }
+body[data-role=host] #message:empty { display: none; }
+body[data-role=host] #message.error { background: #4a1426; border-color: rgba(255, 84, 112, .6); color: #ffd1d9; }
+.outline-col .row button { padding: 6px 12px; font-size: .85rem; margin: 4px 4px 4px 0; }
+details.menu { position: relative; margin: 0 0 0 auto; border: 0; padding: 0; background: none; box-shadow: none; }
+/* A section with an open menu sits above the sections after it, so the menu isn't hidden under them. */
+section:has(details.menu[open]) { position: relative; z-index: 15; }
+details.menu > summary { list-style: none; cursor: pointer; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line-strong); font-weight: 700; color: var(--muted); }
+details.menu > summary::-webkit-details-marker { display: none; }
+details.menu > summary::after { content: " ▾"; }
+details.menu[open] > summary { color: var(--text); background: var(--surface-2); }
+.menu-items { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; display: grid; gap: 8px; min-width: 260px; padding: 12px; border-radius: 16px; background: var(--surface-solid); border: 1px solid var(--line-strong); box-shadow: var(--shadow); }
+.menu-items button { margin: 0; width: 100%; }
+.control-bar #progress { margin: 10px 0 0; } .control-bar #alerts:empty { display: none; }
+/* Before the first question: a short checklist. */
+.setup-card h2 { font-size: 1.1rem; }
+.checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.checklist li { display: flex; align-items: center; gap: 10px; }
+.checklist .tick { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; background: var(--surface-2); color: var(--muted); }
+.checklist li.ok .tick { background: var(--good); color: #052e1f; }
+.checklist li button { margin: 0 0 0 auto; padding: 6px 14px; font-size: .85rem; }
+/* The question and its answers on the left; the room, what's next and the TV on the right. */
+.tonight-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+.tonight-side { display: grid; gap: 0; position: sticky; top: 260px; max-height: calc(100vh - 280px); overflow: auto; padding-right: 4px; }
+.tonight-side section { padding: 16px 18px; }
+.tonight-side h2 { font-size: 1.05rem; }
+.room-teams { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+.room-teams li { display: grid; grid-template-columns: 30px 1fr auto auto; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.room-teams .avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; display: grid; place-items: center; font-weight: 800; background: var(--surface-2); }
+.room-teams .name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-teams .status { font-size: .8rem; color: var(--muted); }
+.room-teams .score { font-family: var(--display); color: var(--gold-hi); min-width: 2ch; text-align: right; }
+.room-teams li.answered { border-color: color-mix(in srgb, var(--good) 60%, transparent); background: color-mix(in srgb, var(--good) 12%, transparent); }
+.room-teams li.answered .status { color: var(--good); font-weight: 700; }
+.room-teams li.waiting { border-style: dashed; } .room-teams li.offline { opacity: .55; }
+.up-next { margin: 0; padding-left: 22px; display: grid; gap: 4px; color: var(--muted); }
+.up-next li.played { text-decoration: line-through; opacity: .55; }
+.up-next li.now { color: var(--gold-hi); font-weight: 800; }
+details.tools { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; background: var(--surface); margin: 14px 0; }
+details.tools > summary { cursor: pointer; font-weight: 700; }
+/* Quizzes: the outline beside the editor. */
+.quiz-head .title-row { align-items: flex-end; } .quiz-head details.menu { margin-left: 0; }
+.quiz-head .title-row label { flex: 1; min-width: 260px; }
+.file-items { min-width: 340px; }
+.editor-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 22px; align-items: start; }
+.outline-col { position: sticky; top: 80px; max-height: calc(100vh - 100px); overflow: auto; }
+.outline-col .grid { grid-template-columns: 1fr; }
+.outline { display: grid; gap: 10px; margin-top: 12px; }
+.outline-round { border: 1px solid var(--line); border-radius: 14px; padding: 6px; background: var(--surface); }
+.outline-round.current { border-color: color-mix(in srgb, var(--gold) 55%, transparent); }
+.outline-title { width: 100%; margin: 0; text-align: left; background: transparent; color: var(--text); box-shadow: none; font-family: var(--display); padding: 6px 8px; }
+.outline-round ol { margin: 0; padding: 0 0 0 26px; display: grid; gap: 2px; }
+.outline-round ol button { width: 100%; margin: 0; padding: 4px 8px; text-align: left; font-weight: 500; font-size: .88rem; background: transparent; color: var(--muted); box-shadow: none; border-radius: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.outline-round ol button:hover { background: var(--surface-2); color: var(--text); }
+.outline-round ol button.current { background: color-mix(in srgb, var(--gold) 20%, transparent); color: var(--text); font-weight: 700; }
+.outline-round ol button.played::after { content: " ✓"; color: var(--good); }
+@media (max-width: 1100px) {
+  .tonight-grid, .editor-layout { grid-template-columns: 1fr; }
+  .tonight-side, .outline-col { position: static; max-height: none; }
+  .control-bar { position: static; }
+}
 .stage { min-height: 230px; border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); box-shadow: var(--shadow), 0 0 40px color-mix(in srgb, var(--gold) 12%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--gold) 10%, transparent), var(--surface)); }
 .stage h2 { font-size: clamp(1.5rem, 3vw, 2.3rem); font-weight: 900; }
 .shortcuts { font-size: .85rem; }

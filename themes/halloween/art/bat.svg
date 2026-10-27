@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 -40 120 80">
-  <!-- A bat, flapping (drawn for PubQuiz, CC0). -->
+  <!-- A bat, flapping (drawn for BeerMat, CC0). -->
   <path fill="#07030c">
     <animate attributeName="d" dur=".42s" repeatCount="indefinite" calcMode="spline" keySplines=".4 0 .6 1;.4 0 .6 1"
       values="M0-6c4 0 6 4 6 4l2-6 2 6c8-4 22-18 46-20-8 6-10 14-8 22-6-4-12-4-16 2-4-6-10-6-14 0-4-4-8-4-12 4H0h-2c-4-8-8-8-12-4-4-6-10-6-14 0-4-6-10-6-16-2 2-8 0-16-8-22 24 2 38 16 46 20l2-6 2 6s2-4 6-4z;

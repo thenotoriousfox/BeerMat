@@ -41,14 +41,14 @@ test('statistics and achievements are summed across quizzes and dated by the qui
 });
 
 test('claims: signed by the venue key, any change breaks the signature, key order does not matter', () => {
-  const key = newVenueKey(), claim = signClaim({v: 1, kind: 'pubquiz.result', event: 'e1', result: {points: 5, rank: 1}}, key);
+  const key = newVenueKey(), claim = signClaim({v: 1, kind: 'beermat.result', event: 'e1', result: {points: 5, rank: 1}}, key);
   assert.equal(claim.venueKey, key.publicKey);
   assert.equal(verifyClaim(claim), true);
   assert.equal(verifyClaim({...claim, result: {points: 50, rank: 1}}), false);
   assert.equal(verifyClaim({...claim, venueKey: newVenueKey().publicKey}), false);
   assert.equal(verifyClaim({...claim, sig: 'nonsense'}), false);
   assert.equal(verifyClaim({...claim, sig: undefined}), false);
-  assert.equal(verifyClaim(JSON.parse(JSON.stringify({sig: claim.sig, result: {rank: 1, points: 5}, event: 'e1', kind: 'pubquiz.result', v: 1, venueKey: claim.venueKey}))), true);
+  assert.equal(verifyClaim(JSON.parse(JSON.stringify({sig: claim.sig, result: {rank: 1, points: 5}, event: 'e1', kind: 'beermat.result', v: 1, venueKey: claim.venueKey}))), true);
   assert.equal(canonical({b: 1, a: {d: [2, {f: 1, e: 0}], c: 3}}), '{"a":{"c":3,"d":[2,{"e":0,"f":1}]},"b":1}');
 });
 
@@ -85,7 +85,7 @@ test('finishing a quiz keeps its results on the laptop, gives each team a signed
 
     const {claim} = await call('team/result', {}, fox.secret);
     assert.equal(verifyClaim(claim), true);
-    assert.equal(claim.kind, 'pubquiz.result');
+    assert.equal(claim.kind, 'beermat.result');
     assert.equal(claim.title, 'Lion quiz');
     assert.deepEqual(claim.result, {name: 'Foxes', rank: 1, teams: 2, points: 4, answered: 2, correct: 2, fastestMs: 4000, perfectRounds: 0, categories: {Capitals: {answered: 2, correct: 2}}});
     assert.equal(claim.team.length, 24);

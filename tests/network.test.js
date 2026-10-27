@@ -8,13 +8,13 @@ import {lanAddresses, diagnose, joinUrlFor} from '../network.js';
 
 const hostKey = 'a-secure-quiz-test-key';
 const v4 = (address, internal = false) => ({address, family: 'IPv4', internal});
-const interfaces = {lo: [v4('127.0.0.1', true)], wlan0: [v4('192.168.1.23'), {address: 'fe80::1', family: 'IPv6', internal: false}], pq0: [v4('10.42.0.1')],
+const interfaces = {lo: [v4('127.0.0.1', true)], wlan0: [v4('192.168.1.23'), {address: 'fe80::1', family: 'IPv6', internal: false}], bm0: [v4('10.42.0.1')],
   docker0: [v4('172.17.0.1')], 'vEthernet (WSL)': [v4('172.20.0.1')], eth9: [v4('169.254.3.3')], tailscale0: [v4('100.64.0.2')]};
 
 test('venue network: addresses phones can use come first; the hotspot, containers, VMs and link-local are labelled or left out', () => {
   assert.deepEqual(lanAddresses(interfaces), [
     {name: 'wlan0', address: '192.168.1.23', kind: 'lan', private: true},
-    {name: 'pq0', address: '10.42.0.1', kind: 'hotspot', private: true},
+    {name: 'bm0', address: '10.42.0.1', kind: 'hotspot', private: true},
     {name: 'docker0', address: '172.17.0.1', kind: 'virtual', private: true},
     {name: 'vEthernet (WSL)', address: '172.20.0.1', kind: 'virtual', private: true},
     {name: 'tailscale0', address: '100.64.0.2', kind: 'virtual', private: false},
@@ -40,7 +40,7 @@ test('connection check: reachability per address, firewall hints for Linux and W
   assert.match(windows[2].text, /choose Private/);
   // Not on any network, or only on the hotspot.
   assert.match((await diagnose({port: 3000, addresses: [], platform: 'darwin'}))[0].text, /not on a network/);
-  assert.match((await diagnose({port: 3000, addresses: [{name: 'pq0', address: '10.42.0.1', kind: 'hotspot'}], platform: 'darwin'}))[0].text, /only on its quiz hotspot/);
+  assert.match((await diagnose({port: 3000, addresses: [{name: 'bm0', address: '10.42.0.1', kind: 'hotspot'}], platform: 'darwin'}))[0].text, /only on its quiz hotspot/);
 });
 
 test('desk: venue network mode shows the address on the TV; a Wi-Fi password is checked and never shown online; desktop desk tickets', async () => {

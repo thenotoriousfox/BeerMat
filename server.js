@@ -494,7 +494,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     run('INSERT INTO event_results VALUES(?,?,?,?) ON CONFLICT(event) DO UPDATE SET title=excluded.title,finished=excluded.finished,data=excluded.data', event, settings().title, now(), JSON.stringify(results));
     // Shared online only when the quizmaster has switched it on: team names, positions and points, signed by this laptop.
     if (settings().shareResults && settings().onlineService) {
-      const summary = signClaim({v: 1, kind: 'pubquiz.event', event, title: settings().title, date: now(), teams: results.map(r => ({ref: teamRef(event, r.team), name: r.name, rank: r.rank, points: r.points}))}, venueKey());
+      const summary = signClaim({v: 1, kind: 'beermat.event', event, title: settings().title, date: now(), teams: results.map(r => ({ref: teamRef(event, r.team), name: r.name, rank: r.rank, points: r.points}))}, venueKey());
       run('INSERT INTO sync_outbox(id,kind,payload,created) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,sent=NULL,attempts=0', 'event:' + event, 'event', JSON.stringify(summary), now());
       flushOutbox();
     }
@@ -1110,7 +1110,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/drive') return send(200, {quiz: await fetchDriveQuiz(body.url, fetchImpl)});
         if (p === '/api/host/spotify/import') return send(200, {songs: await spotify.tracks(body.links)});
         if (p === '/api/host/spotify/pause') {await spotify.pause(); return send(200, {ok: true});}
-        // Build quiz: hear a track from its start point on the chosen Spotify player; nothing is logged or shown to teams.
+        // Quizzes: hear a track from its start point on the chosen Spotify player; nothing is logged or shown to teams.
         if (p === '/api/host/spotify/preview') {
           const uri = spotifyTrack(body.link), start = body.start ?? 0;
           requireValue(uri, 'Not a Spotify song link'); requireValue(Number.isInteger(start) && start >= 0 && start <= 3600, 'Start must be 0–3,600 seconds');
@@ -1305,7 +1305,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         const event = getMeta('event', ''), saved = one('SELECT finished,data FROM event_results WHERE event=?', event);
         const mine = saved && JSON.parse(saved.data).find(r => r.team === team.id); requireValue(mine, 'No result for this team', 404);
         const {team: _id, ...result} = mine;
-        return send(200, {claim: signClaim({v: 1, kind: 'pubquiz.result', event, title: settings().title, date: saved.finished, team: teamRef(event, team.id), result}, venueKey())});
+        return send(200, {claim: signClaim({v: 1, kind: 'beermat.result', event, title: settings().title, date: saved.finished, team: teamRef(event, team.id), result}, venueKey())});
       }
       if (p === '/api/team/sound') {
         requireValue(Number.isInteger(body.sound) && body.sound >= 0 && body.sound < SOUNDS + soundPack().buzzers.length, 'Unknown buzzer sound');
@@ -1405,7 +1405,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   // ALLOWED_ADDRESSES limits which local addresses answer, e.g. 127.0.0.1,10.42.0.1 for hotspot-only play.
   const allowedAddresses = process.env.ALLOWED_ADDRESSES ? process.env.ALLOWED_ADDRESSES.split(',').map(s => s.trim()).filter(Boolean) : null;
   // Started from the app icon (scripts/beermat-app.sh): the desk can also close BeerMat.
-  const app = process.env.PUBQUIZ_APP === '1';
+  const app = process.env.BEERMAT_APP === '1';
   // QUIZ_DB, MEDIA_DIR and PACK_DIR move the quiz's own files out of the program folder (the desktop app keeps them
   // in the user's data folder).
   const packDir = process.env.PACK_DIR || path.join(root, 'soundpack');

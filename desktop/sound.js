@@ -14,8 +14,8 @@ export function pickOutput(outputs, choice = 'auto', tvOnScreen = false) {
 export function sinkScript(name) {
   return `(async name => {
     const w = window;
-    if (!w.__pubquizSink) {
-      const state = w.__pubquizSink = {id: '', contexts: new Set()};
+    if (!w.__beermatSink) {
+      const state = w.__beermatSink = {id: '', contexts: new Set()};
       const play = HTMLMediaElement.prototype.play;
       HTMLMediaElement.prototype.play = function (...args) {
         if (this.sinkId === state.id || !this.setSinkId) return play.apply(this, args);
@@ -26,7 +26,7 @@ export function sinkScript(name) {
         w[key] = class extends Base {constructor(...args) {super(...args); state.contexts.add(this); if (state.id && this.setSinkId) this.setSinkId(state.id).catch(() => {});}};
       }
     }
-    const state = w.__pubquizSink;
+    const state = w.__beermatSink;
     const outputs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audiooutput');
     const id = name === null ? '' : outputs.find(d => d.label === name)?.deviceId;
     if (id === undefined) return false;

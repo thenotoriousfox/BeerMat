@@ -10,17 +10,17 @@ import os from 'node:os';
 import {_electron as electron} from 'playwright';
 
 const root = path.join(import.meta.dirname, '..');
-// PUBQUIZ_DESKTOP_BINARY=dist/linux-unpacked/pubquiz tests a packaged build instead of the source.
-const packaged = process.env.PUBQUIZ_DESKTOP_BINARY ? path.resolve(process.env.PUBQUIZ_DESKTOP_BINARY) : null;
+// BEERMAT_DESKTOP_BINARY=dist/linux-unpacked/beermat tests a packaged build instead of the source.
+const packaged = process.env.BEERMAT_DESKTOP_BINARY ? path.resolve(process.env.BEERMAT_DESKTOP_BINARY) : null;
 const binary = packaged || path.join(root, 'node_modules', 'electron', 'dist', 'electron'), appArgs = packaged ? [] : [root];
-const data = mkdtempSync(path.join(os.tmpdir(), 'pubquiz-desktop-e2e-')), port = 3900 + Math.floor(Math.random() * 50);
+const data = mkdtempSync(path.join(os.tmpdir(), 'beermat-desktop-e2e-')), port = 3900 + Math.floor(Math.random() * 50);
 writeFileSync(path.join(data, 'desktop.json'), JSON.stringify({port}));
 
 // A display of its own: Electron must not use the desktop's Wayland or X session.
 let number = 90; while (existsSync(`/tmp/.X11-unix/X${number}`)) number++;
 const xvfb = spawn('Xvfb', [`:${number}`, '-screen', '0', '1600x900x24', '-nolisten', 'tcp'], {stdio: 'ignore'});
 for (let i = 0; i < 50 && !existsSync(`/tmp/.X11-unix/X${number}`); i++) await new Promise(r => setTimeout(r, 100));
-const env = {...process.env, DISPLAY: `:${number}`, XDG_SESSION_TYPE: 'x11', PUBQUIZ_USER_DATA: data, PUBQUIZ_TEST: '1', PUBQUIZ_LAPTOP: '0'};
+const env = {...process.env, DISPLAY: `:${number}`, XDG_SESSION_TYPE: 'x11', BEERMAT_USER_DATA: data, BEERMAT_TEST: '1', BEERMAT_LAPTOP: '0'};
 delete env.WAYLAND_DISPLAY;
 const launch = () => electron.launch({executablePath: binary, args: [...appArgs, '--ozone-platform=x11'], env, timeout: 60000});
 const pass = name => console.log('PASS:', name);
@@ -40,8 +40,8 @@ try {
 
   assert.equal(await desk.evaluate(() => typeof window.require), 'undefined');
   assert.equal(await desk.evaluate(() => typeof window.process), 'undefined');
-  assert.deepEqual(await desk.evaluate(() => Object.keys(window.pubquizDesktop).sort()).then(k => k.length), 15);
-  await desk.locator('#screensPanel').waitFor({state: 'visible'});
+  assert.deepEqual(await desk.evaluate(() => Object.keys(window.beermatDesktop).sort()).then(k => k.length), 15);
+  await desk.locator('[data-tab=settings]').click(); await desk.locator('#screensPanel').waitFor({state: 'visible'});
   assert.match(await desk.locator('#screensInfo').textContent(), /One screen connected/);
   pass('desk page: no Node access, only the desktop calls; Screens panel shows one screen');
 
@@ -52,26 +52,26 @@ try {
   await tv.locator('#projection').waitFor({state: 'attached'});
   const tvWindow = await app.browserWindow(tv);
   assert.equal(await tvWindow.evaluate(w => w.isFullScreen()), false, 'one screen: a preview window');
-  assert.equal(await tv.evaluate(() => typeof window.pubquizDesktop), 'undefined', 'the TV page gets no desktop calls');
-  assert.equal(await tv.evaluate(() => localStorage.getItem('pubquiz-host')), null, 'the TV page never sees the desk login');
+  assert.equal(await tv.evaluate(() => typeof window.beermatDesktop), 'undefined', 'the TV page gets no desktop calls');
+  assert.equal(await tv.evaluate(() => localStorage.getItem('beermat-host')), null, 'the TV page never sees the desk login');
   await desk.locator('#tvBlank').click();
-  await tv.waitForFunction(() => document.documentElement.classList.contains('pubquiz-blank'));
+  await tv.waitForFunction(() => document.documentElement.classList.contains('beermat-blank'));
   assert.equal(await tvWindow.evaluate(w => w.webContents.isAudioMuted()), true);
   await desk.locator('#tvBlank').click();
-  await tv.waitForFunction(() => !document.documentElement.classList.contains('pubquiz-blank'));
+  await tv.waitForFunction(() => !document.documentElement.classList.contains('beermat-blank'));
   pass('TV preview window opens from the desk, blanks and unblanks without reloading; it has no desk access');
 
   // TV sound: a preview window plays with the laptop; choosing an output moves the TV page's sound (and only the TV's).
-  let sound = (await desk.evaluate(() => window.pubquizDesktop.screens())).sound;
+  let sound = (await desk.evaluate(() => window.beermatDesktop.screens())).sound;
   assert.equal(sound.choice, 'auto'); assert.equal(sound.active, null);
   if (sound.outputs.length) {
-    sound = (await desk.evaluate(name => window.pubquizDesktop.tvSound(name), sound.outputs[0])).sound;
+    sound = (await desk.evaluate(name => window.beermatDesktop.tvSound(name), sound.outputs[0])).sound;
     assert.equal(sound.active, sound.outputs[0]);
-    await tv.waitForFunction(() => window.__pubquizSink?.id && window.__pubquizSink.id !== 'default');
-    assert.equal(await desk.evaluate(() => window.__pubquizSink), undefined, 'the desk keeps the laptop output');
-    sound = (await desk.evaluate(() => window.pubquizDesktop.tvSound('auto'))).sound;
-    assert.equal(sound.active, null); await tv.waitForFunction(() => window.__pubquizSink.id === '');
-    await assert.rejects(desk.evaluate(() => window.pubquizDesktop.tvSound('No such speaker')), /no longer connected/);
+    await tv.waitForFunction(() => window.__beermatSink?.id && window.__beermatSink.id !== 'default');
+    assert.equal(await desk.evaluate(() => window.__beermatSink), undefined, 'the desk keeps the laptop output');
+    sound = (await desk.evaluate(() => window.beermatDesktop.tvSound('auto'))).sound;
+    assert.equal(sound.active, null); await tv.waitForFunction(() => window.__beermatSink.id === '');
+    await assert.rejects(desk.evaluate(() => window.beermatDesktop.tvSound('No such speaker')), /no longer connected/);
     pass(`TV sound: the TV page plays through a chosen output (${sound.outputs.length} found) and back to the laptop's`);
   } else pass('TV sound: no sound outputs on this machine, so only the automatic choice was checked');
 

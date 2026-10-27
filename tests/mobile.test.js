@@ -1,4 +1,4 @@
-// PubQuiz Player's own logic (mobile/www/join.js): what scanning or typing gives, handing results over, reminders.
+// BeerMat Player's own logic (mobile/www/join.js): what scanning or typing gives, handing results over, reminders.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -10,13 +10,13 @@ test('typed addresses: an IP with a port, a full link or an app link; nothing bu
   assert.equal(normaliseAddress('192.168.1.20:3000'), 'http://192.168.1.20:3000');
   assert.equal(normaliseAddress(' http://10.42.0.1/ '), 'http://10.42.0.1');
   assert.equal(normaliseAddress('https://smart-quiz-name.trycloudflare.com/display'), 'https://smart-quiz-name.trycloudflare.com');
-  assert.equal(normaliseAddress('pubquiz://join?url=' + encodeURIComponent('http://192.168.0.5:3002')), 'http://192.168.0.5:3002');
+  assert.equal(normaliseAddress('beermat://join?url=' + encodeURIComponent('http://192.168.0.5:3002')), 'http://192.168.0.5:3002');
   for (const bad of ['', 'javascript:alert(1)', 'file:///etc/passwd', 'data:text/html,hi', 'http://user:pass@10.0.0.1', 'ftp://x.example']) assert.throws(() => normaliseAddress(bad), /./, bad);
 });
 
 test('scanned codes: the TV\'s quiz link, the open quiz Wi-Fi, and a Windows hotspot with its password (escapes included)', () => {
   assert.deepEqual(parseScan('http://192.168.1.20:3000'), {type: 'quiz', url: 'http://192.168.1.20:3000'});
-  assert.deepEqual(parseScan(wifiCode('PubQuiz')), {type: 'wifi', ssid: 'PubQuiz', password: '', open: true, candidates: hotspotCandidates});
+  assert.deepEqual(parseScan(wifiCode('BeerMat')), {type: 'wifi', ssid: 'BeerMat', password: '', open: true, candidates: hotspotCandidates});
   const locked = parseScan(wifiCode('Fox; "Quiz"', 'pa;ss:word'));
   assert.deepEqual([locked.ssid, locked.password, locked.open], ['Fox; "Quiz"', 'pa;ss:word', false]);
   assert.equal(parseScan('WIFI:T:WPA;;').type, 'invalid');
@@ -25,7 +25,7 @@ test('scanned codes: the TV\'s quiz link, the open quiz Wi-Fi, and a Windows hot
 });
 
 test('results handed over by the quiz page are read back exactly; anything else is ignored', () => {
-  const claim = {v: 1, kind: 'pubquiz.result', event: 'e1', team: 't', result: {name: 'Foxés 🦊', rank: 1}, sig: 'abc'};
+  const claim = {v: 1, kind: 'beermat.result', event: 'e1', team: 't', result: {name: 'Foxés 🦊', rank: 1}, sig: 'abc'};
   // The same packing as the quiz page (client.js).
   const packed = btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(claim)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   assert.deepEqual(readClaim('#claim=' + packed), claim);
@@ -51,8 +51,8 @@ test('app configuration: the player page knows the app by its user agent, and qu
   const client = readFileSync(path.join(import.meta.dirname, '..', 'client.js'), 'utf8');
   for (const platform of ['android', 'ios']) {
     const agent = config[platform].appendUserAgent;
-    assert.match(agent, new RegExp(`^PubQuizPlayer/[\\d.]+ \\(${platform}\\)$`));
-    assert.match(client, /PubQuizPlayer\\\/\[\\d\.\]\+ \\\(\(ios\|android\)\\\)/);
+    assert.match(agent, new RegExp(`^BeerMatApp/[\\d.]+ \\(${platform}\\)$`));
+    assert.match(client, /BeerMatApp\\\/\[\\d\.\]\+ \\\(\(ios\|android\)\\\)/);
   }
   assert.equal(config.server.androidScheme, 'http', 'the app page must be able to reach http quiz addresses (no mixed content)');
   assert.deepEqual(config.server.allowNavigation, ['*']);

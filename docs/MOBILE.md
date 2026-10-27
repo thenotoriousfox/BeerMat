@@ -27,7 +27,7 @@ The same screens are also BeerMat Online's web app (`/app/`), for browser player
 
 [Capacitor](https://capacitorjs.com) 8 wraps `mobile/www` (plain HTML/JS, no framework) in native Android and iOS
 projects (`mobile/android`, `mobile/ios`). Quiz pages are loaded from the quiz laptop into the same web view, which
-identifies itself with `PubQuizPlayer/<version> (android|ios)` in its user agent. Plugins: ML Kit barcode scanning
+identifies itself with `BeerMatApp/<version> (android|ios)` in its user agent. Plugins: ML Kit barcode scanning
 (`@capacitor-mlkit/barcode-scanning`) and local notifications (`@capacitor/local-notifications`).
 
 Why not a separate native quiz client: the player page already implements every format and is what browsers use; a
@@ -70,7 +70,7 @@ newer APK installs over the old one.
 The release workflow (`.github/workflows/release.yml`) signs it with the upload key kept in the repository's
 secrets `ANDROID_KEYSTORE_BASE64` (the keystore, base64) and `ANDROID_KEYSTORE_PASSWORD`. The same key must sign
 every release, or phones refuse the update: keep a backup of the keystore and its password (the maintainer's copy is
-in `~/.local/share/pubquiz/`). Raise `versionCode` in `android/app/build.gradle` and `version` in
+in `~/.local/share/beermat/`). Raise `versionCode` in `android/app/build.gradle` and `version` in
 `mobile/package.json` (it must match the release tag) for each release.
 
 ## Signing and store submission (not done: needs your accounts)
@@ -90,7 +90,7 @@ in `~/.local/share/pubquiz/`). Raise `versionCode` in `android/app/build.gradle`
 
 **Apple App Store**
 
-1. Apple Developer Program membership; an App ID `uk.pubquiz.player`; a distribution certificate and an App Store
+1. Apple Developer Program membership; an App ID `uk.beermat.app`; a distribution certificate and an App Store
    provisioning profile (Xcode's automatic signing handles both once a team is chosen).
 2. App Store Connect: privacy nutrition labels, privacy policy URL, age rating, screenshots for 6.9" and 6.5" iPhones.
 3. Review notes: the app opens quiz pages from the venue's laptop over the local network; give reviewers an online

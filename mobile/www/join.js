@@ -6,12 +6,12 @@
 // app's usual port.
 export const hotspotCandidates = ['http://10.42.0.1', 'http://192.168.137.1:3000'];
 
-// A quiz address from a link, an IP with or without a port, or a pubquiz://join?url= link. Only http(s), no
+// A quiz address from a link, an IP with or without a port, or a beermat://join?url= link. Only http(s), no
 // passwords in the address, and nothing but the site itself (the player page is always /).
 export function normaliseAddress(input) {
   let text = String(input || '').trim();
   if (!text) throw Error('Type the address shown on the TV');
-  const deep = /^pubquiz:\/\/join\?url=(.+)$/i.exec(text);
+  const deep = /^beermat:\/\/join\?url=(.+)$/i.exec(text);
   if (deep) text = decodeURIComponent(deep[1]);
   if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) text = 'http://' + text;
   let url;
@@ -55,7 +55,7 @@ export function readClaim(hash) {
   try {
     const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/'), bytes = Uint8Array.from(atob(b64 + '='.repeat((4 - b64.length % 4) % 4)), c => c.charCodeAt(0));
     const claim = JSON.parse(new TextDecoder().decode(bytes));
-    return claim && claim.kind === 'pubquiz.result' && typeof claim.sig === 'string' ? claim : null;
+    return claim && claim.kind === 'beermat.result' && typeof claim.sig === 'string' ? claim : null;
   } catch {return null;}
 }
 

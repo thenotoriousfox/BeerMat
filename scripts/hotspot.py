@@ -13,13 +13,10 @@ PROFILE = 'BeerMat-offline'
 TABLE = 'beermat'
 DNSMASQ_UNIT = 'beermat-dnsmasq.service'
 RUNTIME = '/run/beermat'
-# Names from before the rename to BeerMat: a hotspot left up by the old version is still found and taken down.
-OLD_PROFILE, OLD_TABLE, OLD_UNITS = 'PubQuiz-offline', 'pubquiz', ('pubquiz-dnsmasq.service', 'pubquiz-ap.service')
-OURS = (PROFILE, OLD_PROFILE)
 # With --keep-wifi the hotspot runs on this second, virtual interface while the card stays on your normal Wi-Fi.
 # NetworkManager cannot drive it: it always starts a Wi-Fi interface as a second client, which cards such as the
 # Intel AX200 refuse alongside the existing connection ("Device or resource busy"). wpa_supplicant runs it instead.
-AP_IFACE = 'pq0'
+AP_IFACE = 'bm0'
 AP_UNIT = 'beermat-ap.service'
 
 def channel_of(freq):
@@ -103,16 +100,16 @@ def ask(cmd):
     return subprocess.run(cmd, check=False, capture_output=True, text=True).stdout.strip()
 
 def cards():
-    """Wi-Fi cards NetworkManager knows (not the hotspot's own pq0): name, AP support and the network each is on."""
+    """Wi-Fi cards NetworkManager knows (not the hotspot's own bm0): name, AP support and the network each is on."""
     found = []
     for line in ask(['nmcli', '-t', '-f', 'DEVICE,TYPE', 'device', 'status']).splitlines():
         name, _, kind = line.rpartition(':')
         if kind != 'wifi' or name == AP_IFACE:
             continue
         state, network = (ask(['nmcli', '-g', 'GENERAL.STATE,GENERAL.CONNECTION', 'device', 'show', name]).splitlines() + ['', ''])[:2]
-        on = state.startswith('100') and network not in OURS
+        on = state.startswith('100') and network != PROFILE
         found.append({'name': name, 'ap': ask(['nmcli', '-g', 'WIFI-PROPERTIES.AP', 'device', 'show', name]) == 'yes',
-                      'connected': on, 'network': network if on else '', 'hosting': network in OURS})
+                      'connected': on, 'network': network if on else '', 'hosting': network == PROFILE})
     return found
 
 def pick(found, interface='auto', offline=False):
@@ -131,7 +128,7 @@ def running():
         return {'interface': AP_IFACE, 'ssid': ssid(AP_IFACE), 'keepWifi': True}
     for line in ask(['nmcli', '-t', '-f', 'NAME,DEVICE', 'connection', 'show', '--active']).splitlines():
         name, _, device = line.rpartition(':')
-        if name in OURS:
+        if name == PROFILE:
             return {'interface': device, 'ssid': ssid(device), 'keepWifi': False}
     return None
 
@@ -140,12 +137,6 @@ def take_down():
     # fails (for example dnsmasq already stopped), so a partial setup is still fully removed.
     names = ask(['nmcli', '-g', 'NAME', 'connection', 'show']).splitlines()
     steps = [c for c in teardown() if PROFILE in names or c[0] != 'nmcli'] + ([['iw', 'dev', AP_IFACE, 'del']] if Path(f'/sys/class/net/{AP_IFACE}').exists() else [])
-    # Whatever the old version left behind, and only that (so a clean laptop doesn't report its absence).
-    steps += [['systemctl', 'stop', u] for u in OLD_UNITS if subprocess.run(['systemctl', 'is-active', '--quiet', u], check=False).returncode == 0]
-    if f'table inet {OLD_TABLE}' in ask(['nft', 'list', 'tables']):
-        steps.append(['nft', 'delete', 'table', 'inet', OLD_TABLE])
-    if OLD_PROFILE in names:
-        steps += [['nmcli', 'connection', 'down', OLD_PROFILE], ['nmcli', 'connection', 'delete', OLD_PROFILE]]
     return [' '.join(cmd) for cmd in steps if subprocess.run(cmd, check=False, capture_output=True).returncode != 0]
 
 def main():
@@ -198,10 +189,12 @@ def main():
     # Leftovers happen when the laptop rejoins another network without running down first.
     leftovers = []
     names = run(['nmcli', '-g', 'NAME', 'connection', 'show'], capture_output=True).stdout.splitlines()
-    leftovers += [f'Wi-Fi profile {name}' for name in OURS if name in names]
+    if PROFILE in names:
+        leftovers.append(f'Wi-Fi profile {PROFILE}')
     tables = run(['nft', 'list', 'tables'], capture_output=True).stdout
-    leftovers += [f'firewall table inet {table}' for table in (TABLE, OLD_TABLE) if f'table inet {table}' in tables]
-    for unit in (DNSMASQ_UNIT, AP_UNIT, *OLD_UNITS):
+    if f'table inet {TABLE}' in tables:
+        leftovers.append(f'firewall table inet {TABLE}')
+    for unit in (DNSMASQ_UNIT, AP_UNIT):
         if subprocess.run(['systemctl', 'is-active', '--quiet', unit], check=False).returncode == 0:
             leftovers.append(unit.replace('.service', ' service'))
     if leftovers and a.replace:

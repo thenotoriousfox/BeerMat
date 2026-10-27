@@ -59,7 +59,7 @@ lives in a frame from Spotify's own site, so the app sets that frame's output fr
 plays inside its frame is undocumented, so check it once with a real song.
 
 On Linux the app runs through XWayland on Wayland desktops (KDE Plasma, GNOME), because Wayland does not let an app
-put a window on a chosen screen. Set `PUBQUIZ_WAYLAND=1` to run natively on Wayland instead (then move the TV window
+put a window on a chosen screen. Set `BEERMAT_WAYLAND=1` to run natively on Wayland instead (then move the TV window
 yourself).
 
 ## How players join
@@ -88,7 +88,7 @@ yourself).
 
 ## Your data
 
-A folder from before the rename (`PubQuiz`) moves to `BeerMat` the first time the app starts, with everything in it.
+A folder from before the rename (`BeerMat`) moves to `BeerMat` the first time the app starts, with everything in it.
 
 | | Windows | Linux |
 |---|---|---|

@@ -5,8 +5,8 @@
 
 // venueListUrl: the venue list on GitHub (venues.json), shown on the map when the service can't be reached.
 export function createOnlineClient({baseUrl, venueListUrl = '', fetch = globalThis.fetch.bind(globalThis), storage, now = Date.now, timeout = 10000}) {
-  const read = (name, fallback) => {try {return JSON.parse(storage.getItem('pq-online:' + name)) ?? fallback;} catch {return fallback;}};
-  const write = (name, value) => value === null ? storage.removeItem('pq-online:' + name) : storage.setItem('pq-online:' + name, JSON.stringify(value));
+  const read = (name, fallback) => {try {return JSON.parse(storage.getItem('beermat-online:' + name)) ?? fallback;} catch {return fallback;}};
+  const write = (name, value) => value === null ? storage.removeItem('beermat-online:' + name) : storage.setItem('beermat-online:' + name, JSON.stringify(value));
   const base = () => (read('baseUrl', null) || baseUrl || '').replace(/\/$/, '');
 
   async function api(method, route, body, {headers = {}} = {}) {

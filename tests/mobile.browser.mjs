@@ -1,8 +1,8 @@
-// PubQuiz Player and phone browsers in the same quiz, in real Chromium (Playwright), with phone-sized screens:
+// BeerMat Player and phone browsers in the same quiz, in real Chromium (Playwright), with phone-sized screens:
 //   node tests/mobile.browser.mjs
 // One team plays as the app does (the app's user agent, its own screens served at http://localhost as the Android
 // app serves them), one in a normal phone browser. Both play the same question; after the quiz each keeps the result
-// in a PubQuiz Online profile: the app through its own screens, the browser through the web app.
+// in a BeerMat Online profile: the app through its own screens, the browser through the web app.
 // This emulates the app's web view; it is not a test on a phone (see docs/MOBILE.md for what still needs one).
 import assert from 'node:assert/strict';
 import {mkdtempSync, rmSync, readFileSync, existsSync} from 'node:fs';
@@ -13,7 +13,7 @@ import {createQuiz} from '../server.js';
 import {createService} from '../online/service.js';
 
 const root = path.join(import.meta.dirname, '..');
-const dir = mkdtempSync(path.join(os.tmpdir(), 'pubquiz-mobile-'));
+const dir = mkdtempSync(path.join(os.tmpdir(), 'beermat-mobile-'));
 const quiz = createQuiz({hostKey: 'mobile-test-private-key', database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: dir, soundsDir: dir});
 const service = createService({database: path.join(dir, 'online.sqlite')});
 await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
@@ -32,15 +32,15 @@ const watch = page => {page.on('pageerror', e => errors.push(`${page.url()}: ${e
 // The app's own screens at http://localhost, as the Android app serves mobile/www (shared code from the source).
 const www = path.join(root, 'mobile', 'www'), shared = {'/shared/online-client.js': path.join(root, 'online', 'client.js'), '/shared/achievements.js': path.join(root, 'achievements.js')};
 async function appContext() {
-  const context = await browser.newContext({...phone, userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36 PubQuizPlayer/0.4.0 (android)'});
+  const context = await browser.newContext({...phone, userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36 BeerMatApp/0.4.0 (android)'});
   await context.route('http://localhost/**', route => {
     const p = new URL(route.request().url()).pathname, file = shared[p] || path.join(www, p === '/' ? 'index.html' : p);
     if (!existsSync(file)) return route.fulfill({status: 404, body: ''});
     route.fulfill({status: 200, body: readFileSync(file), contentType: {'.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css'}[path.extname(file)]});
   });
-  // This copy of the app points at the test's PubQuiz Online; the quiz page records vibrations.
+  // This copy of the app points at the test's BeerMat Online; the quiz page records vibrations.
   await context.addInitScript(url => {
-    if (location.host === 'localhost') localStorage.setItem('pq-online:baseUrl', JSON.stringify(url));
+    if (location.host === 'localhost') localStorage.setItem('beermat-online:baseUrl', JSON.stringify(url));
     window.vibrations = []; navigator.vibrate = pattern => {window.vibrations.push(pattern); return true;};
   }, online);
   return context;
@@ -113,7 +113,7 @@ try {
   await webApp.check('#signUpConsent'); await webApp.click('#signUpForm button');
   await webApp.waitForFunction(() => document.querySelector('#stats strong')?.textContent === '1');
   assert.doesNotMatch(await webApp.locator('#badges').textContent(), /🏅 First Win/);
-  pass('a browser team keeps its result through the PubQuiz Online web app, no install needed');
+  pass('a browser team keeps its result through the BeerMat Online web app, no install needed');
 
   // Find a quiz in the app, then offline: the last listing, marked as possibly out of date.
   await post(online + `/v1/venues/${venue.id}/events`, {title: 'Tuesday Quiz', startsAt: Date.now() + 86400000, entry: '£2'}, operator.token);

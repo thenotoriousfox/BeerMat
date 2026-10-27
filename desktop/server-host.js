@@ -14,7 +14,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const channel = process.parentPort
   ? {send: m => process.parentPort.postMessage(m), on: f => process.parentPort.on('message', e => f(e.data))}
   : {send: m => process.send?.(m), on: f => process.on('message', f)};
-const env = process.env, data = env.PUBQUIZ_DATA;
+const env = process.env, data = env.BEERMAT_DATA;
 const database = path.join(data, 'quiz.sqlite'), backups = path.join(data, 'backups');
 
 // Phones on the quiz Wi-Fi are sent to the preferred port (3000); if something else already uses it, the next free one.
@@ -35,7 +35,7 @@ try {
   const prepared = prepareDatabase(database, backups);
   if (prepared.state !== 'ok' && prepared.state !== 'new') console.error(`Database ${prepared.state}: ${prepared.problem}; damaged file kept as ${prepared.kept}`);
   const packDir = path.join(data, 'soundpack');
-  const laptop = ['linux', 'win32'].includes(process.platform) && env.PUBQUIZ_LAPTOP !== '0' ? createLaptop({root, packDir}) : null;
+  const laptop = ['linux', 'win32'].includes(process.platform) && env.BEERMAT_LAPTOP !== '0' ? createLaptop({root, packDir}) : null;
   const quiz = createQuiz({hostKey: env.HOST_KEY, database, mediaDir: path.join(data, 'media'), packDir, laptop, onQuit: () => channel.send({type: 'quit'})});
   const preferred = Number(env.PORT || 3000);
   const port = await listen(quiz.server, preferred ? [preferred, ...Array.from({length: 10}, (_, i) => preferred + 2 + i)] : [0], env.BIND || '0.0.0.0');

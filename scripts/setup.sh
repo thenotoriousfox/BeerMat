@@ -9,7 +9,7 @@ app() {
   local electron=$PWD/node_modules/.bin/electron exec
   mkdir -p "$apps" "$icons"
   # Entries from before the rename to BeerMat go.
-  rm -f "$apps/pubquiz.desktop" "$icons/pubquiz.svg"
+  rm -f "$apps/beermat.desktop" "$icons/beermat.svg"
   cp scripts/beermat.svg "$icons/beermat.svg"
   if [[ ${1:-} != browser && -x $electron ]] && "$electron" --version >/dev/null 2>&1; then
     exec="Exec=\"$electron\" \"$PWD\""

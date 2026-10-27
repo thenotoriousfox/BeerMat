@@ -49,18 +49,8 @@ if ! /opt/node/bin/node -e 'process.exit(Number(process.versions.node.split(".")
 fi
 /opt/node/bin/node --version
 
-# A server set up before the rename to BeerMat: its database and backups move to the new names, the old service goes.
-if [ -d /var/lib/pubquiz-online ] && [ ! -d /var/lib/beermat-online ]; then
-  systemctl disable --now pubquiz-online pubquiz-online-backup.timer >/dev/null 2>&1 || true
-  mv /var/lib/pubquiz-online /var/lib/beermat-online
-  if [ -d /var/backups/pubquiz-online ]; then mv /var/backups/pubquiz-online /var/backups/beermat-online; fi
-  rm -f /etc/systemd/system/pubquiz-online.service /etc/systemd/system/pubquiz-online-backup.service /etc/systemd/system/pubquiz-online-backup.timer
-  rm -rf /opt/pubquiz-online
-  moved=1
-fi
 id beermat >/dev/null 2>&1 || useradd --system --home /var/lib/beermat-online --shell /usr/sbin/nologin beermat
 install -d -o beermat -g beermat -m 700 /var/lib/beermat-online
-if [ -n "${moved:-}" ]; then chown -R beermat:beermat /var/lib/beermat-online; id pubquiz >/dev/null 2>&1 && userdel pubquiz; fi
 install -d -m 750 -g beermat /var/backups/beermat-online
 chgrp beermat /var/backups/beermat-online && chmod 750 /var/backups/beermat-online
 rm -rf /opt/beermat-online && mv /tmp/beermat-online /opt/beermat-online && chown -R root:root /opt/beermat-online && chmod -R u=rwX,go=rX /opt/beermat-online

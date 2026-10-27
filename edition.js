@@ -6,7 +6,7 @@
 export const features = ['quiz', 'allFormats', 'desktopApp', 'hotspot', 'venueNetwork', 'onlineMode', 'tvScreens', 'soundPacks', 'spotify', 'resultsHistory', 'onlineProfiles', 'eventListings'];
 export const editions = {free: {name: 'BeerMat', features}, pro: {name: 'BeerMat Pro', features}};
 
-export function edition(name = process.env.PUBQUIZ_EDITION || 'free') {
+export function edition(name = process.env.BEERMAT_EDITION || 'free') {
   const chosen = editions[name] || editions.free;
   return {name: chosen.name, has: feature => chosen.features.includes(feature)};
 }

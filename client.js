@@ -2,10 +2,10 @@ import {qrMatrix} from './qr.js';
 import {t, setLanguage, language, languages, translatePage} from './i18n.js';
 import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
 const role = document.body.dataset.role;
-let secret = readStorage('pubquiz-team'), current = null, renderedQuestion = 'unset', offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
+let secret = readStorage('beermat-team'), current = null, renderedQuestion = 'unset', offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
 let build = null, reloading = false, firstArmed = null, firstTimer, localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0, winnerShown = '';
 const inputs = () => [...$('inputs').querySelectorAll('input,select')];
-const draftKey = id => `pubquiz-draft:${secret}:${id}`;
+const draftKey = id => `beermat-draft:${secret}:${id}`;
 const keypad = type => ['choice', 'vote', 'letter'].includes(type);
 const listValue = type => ['sequence', 'multi', 'pinpoint', 'wordsnake', 'tiles'].includes(type);
 const modes = {progressive: 'Full game', line: 'One line', twoLines: 'Two lines', fullHouse: 'Full house'}, mode = m => t(modes[m]);
@@ -26,7 +26,7 @@ const shoutText = g => {
 };
 function saveIdentity(code) {
   secret = code; current = null; renderedQuestion = 'unset'; localDraft = null; inputRevision = 0;
-  if (!writeStorage('pubquiz-team', code)) $('storageWarning').textContent = t('Browser storage is unavailable. Write down your recovery code before closing this window.');
+  if (!writeStorage('beermat-team', code)) $('storageWarning').textContent = t('Browser storage is unavailable. Write down your recovery code before closing this window.');
   updates?.reconnect();
 }
 function inputValue() {
@@ -193,7 +193,7 @@ function renderBuzzer(q) {
   $('agree').disabled = !canAgree || b.agreed; $('agree').textContent = b.agreed ? t('✓ You agreed') : t('I agree');
 }
 // Teams dab their own ticket, as on paper; dabs stay on this phone.
-const dabKey = id => `pubquiz-dabs:${secret}:${id}`;
+const dabKey = id => `beermat-dabs:${secret}:${id}`;
 function buildTicket(q) {
   let dabs = []; try {dabs = JSON.parse(readStorage(dabKey(q.id)) || '[]');} catch {}
   $('ticket').classList.toggle('music', !!q.bingo.music);
@@ -222,7 +222,7 @@ function renderBingo(q) {
   $('bingoStatus').textContent = b.claimed ? t('✓ Bingo! The quizmaster says yes.') : checking ? t('Your BINGO call is being checked…') : turnedDown ? t('Not a bingo this time — keep playing') : shoutText(b) || (b.winners.length ? winText(b) : '');
 }
 function playerState(s) {
-  current = s; writeStorage('pubquiz-event', s.event || ''); offset = s.serverTime - Date.now(); $('join').hidden = true; $('game').hidden = false;
+  current = s; writeStorage('beermat-event', s.event || ''); offset = s.serverTime - Date.now(); $('join').hidden = true; $('game').hidden = false;
   $('team').textContent = s.team.name; $('code').textContent = secret; const q = s.question;
   // Once the quiz is finished, a player may keep the team's result (signed by the quiz laptop) in an online profile.
   $('keepResult').hidden = !s.settings.ended || s.team.waiting || !(appPlatform || s.settings.onlineService);
@@ -532,12 +532,12 @@ async function publicState() {
   const response = await fetch('/api/leaderboard', {signal: AbortSignal.timeout(8000)}); if (!response.ok) throw Error(t('Cannot reach quiz server')); return response.json();
 }
 let initialised = false, deviceChecked = false, lastSettings = null;
-// Inside the BeerMat app (its web view adds PubQuizPlayer/<version> to the user agent): a way back to the app's
+// Inside the BeerMat app (its web view adds BeerMatApp/<version> to the user agent): a way back to the app's
 // own screens, and results handed to it for the player's profile. Everyone else plays exactly the same in a browser.
-const appPlatform = /PubQuizPlayer\/[\d.]+ \((ios|android)\)/.exec(navigator.userAgent)?.[1] || null;
+const appPlatform = /BeerMatApp\/[\d.]+ \((ios|android)\)/.exec(navigator.userAgent)?.[1] || null;
 const appHome = appPlatform === 'ios' ? 'capacitor://localhost/' : appPlatform ? 'http://localhost/' : null;
 // Vibration (where the phone supports it): on by default in the app, off in a browser until switched on.
-const vibrateOn = () => (readStorage('pubquiz-vibrate') || (appPlatform ? '1' : '0')) === '1';
+const vibrateOn = () => (readStorage('beermat-vibrate') || (appPlatform ? '1' : '0')) === '1';
 const nudge = pattern => {if (vibrateOn()) navigator.vibrate?.(pattern);};
 let seenQuestion = null, myTurn = null;
 // A phone that already joined (for example in the Wi-Fi sign-in window) is offered its team back.
@@ -580,9 +580,9 @@ async function refresh() {
     if (!e.status && !(e instanceof TypeError && /fetch|network/i.test(e.message))) console.error(e);
     online = false; $('connection').textContent = t('● Connection lost — retrying'); $('connection').classList.add('offline');
     if (role === 'player') {
-      if (e.status === 401) {secret = ''; writeStorage('pubquiz-team', ''); current = null; $('join').hidden = false; $('game').hidden = true; $('menuButton').hidden = true; $('myScore').textContent = ''; updates.reconnect();
+      if (e.status === 401) {secret = ''; writeStorage('beermat-team', ''); current = null; $('join').hidden = false; $('game').hidden = true; $('menuButton').hidden = true; $('myScore').textContent = ''; updates.reconnect();
         // After the quizmaster starts the next quiz, every team joins afresh.
-        const joined = readStorage('pubquiz-event');
+        const joined = readStorage('beermat-event');
         publicState().then(s => message(joined && s.event !== joined ? t('A new quiz has started — pick your team name again.') : t('Your old recovery code is no longer valid. Ask the quizmaster for a new one.'), !(joined && s.event !== joined))).catch(() => {});}
       else if (e.status === 403) message(e.message, true);
       updateControls();
@@ -602,7 +602,7 @@ async function flushDraft() {
 if (role === 'player') {
   if (appHome) {$('appHome').hidden = false; $('appHome').href = appHome; $('appHome').textContent = t('Quizzes');}
   $('vibrateToggle').checked = vibrateOn();
-  $('vibrateToggle').onchange = () => {writeStorage('pubquiz-vibrate', $('vibrateToggle').checked ? '1' : '0'); if ($('vibrateToggle').checked) navigator.vibrate?.(60);};
+  $('vibrateToggle').onchange = () => {writeStorage('beermat-vibrate', $('vibrateToggle').checked ? '1' : '0'); if ($('vibrateToggle').checked) navigator.vibrate?.(60);};
   $('keepResultButton').onclick = async () => {
     try {
       const {claim} = await api('team/result', {}, secret);
@@ -629,7 +629,7 @@ if (role === 'player') {
     } catch (e) {message(e.message, true);}
   };
   $('menuButton').onclick = () => $('teamMenu').showModal();
-  $('switchTeam').onclick = () => {$('teamMenu').close(); if (!confirm(t('Switch teams on this browser? Save your current recovery code first.'))) return; clearTimeout(draftTimer); secret = ''; writeStorage('pubquiz-team', ''); current = null; renderedQuestion = 'unset'; $('join').hidden = false; $('game').hidden = true; $('menuButton').hidden = true; $('myScore').textContent = ''; updates.reconnect(); refresh();};
+  $('switchTeam').onclick = () => {$('teamMenu').close(); if (!confirm(t('Switch teams on this browser? Save your current recovery code first.'))) return; clearTimeout(draftTimer); secret = ''; writeStorage('beermat-team', ''); current = null; renderedQuestion = 'unset'; $('join').hidden = false; $('game').hidden = true; $('menuButton').hidden = true; $('myScore').textContent = ''; updates.reconnect(); refresh();};
   $('inputs').oninput = () => {
     localDraft = inputValue(); inputRevision++; writeStorage(draftKey(current.question.id), JSON.stringify(localDraft));
     $('draftStatus').textContent = online ? t('Saving draft…') : t('Draft kept in this browser — waiting for connection');
@@ -665,11 +665,11 @@ async function shrinkPhoto(file) {
 }
 if (role === 'player') {
   // Phones use their own language unless the team picks one.
-  const chosen = readStorage('pubquiz-lang'), browser = navigator.language.slice(0, 2);
+  const chosen = readStorage('beermat-lang'), browser = navigator.language.slice(0, 2);
   setLanguage(chosen || (languages[browser] ? browser : 'en')); translatePage();
   for (const select of document.querySelectorAll('.language')) {
     selectOptions(select, Object.entries(languages), language());
-    select.onchange = () => {writeStorage('pubquiz-lang', select.value); location.reload();};
+    select.onchange = () => {writeStorage('beermat-lang', select.value); location.reload();};
   }
   $('continueTeam').onclick = async () => {
     try {const {secret: code} = await api('device/continue'); saveIdentity(code); $('continueBox').hidden = true; message('Welcome back'); await refresh();} catch (e) {message(e.message, true);}

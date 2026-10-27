@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 520" preserveAspectRatio="xMidYMax slice">
-  <!-- PubQuiz Halloween scenery (drawn for PubQuiz, CC0): hills, a manor on the hill, a dead tree, a graveyard and
+  <!-- BeerMat Halloween scenery (drawn for BeerMat, CC0): hills, a manor on the hill, a dead tree, a graveyard and
        jack-o'-lanterns, as silhouettes against the sky behind. -->
   <defs>
     <radialGradient id="window" cx="50%" cy="60%" r="70%"><stop offset="0" stop-color="#ffd27a"/><stop offset=".6" stop-color="#ff9a2e"/><stop offset="1" stop-color="#c2410c"/></radialGradient>

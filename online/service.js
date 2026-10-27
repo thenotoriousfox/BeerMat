@@ -297,7 +297,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       // ---- Results (signed by a quiz laptop) ----
       if (method === 'POST' && p === '/v1/me/results') {
         const a = me(), claim = input.claim;
-        check(claim && typeof claim === 'object' && claim.kind === 'pubquiz.result' && claim.v === 1, 'Not a BeerMat result');
+        check(claim && typeof claim === 'object' && claim.kind === 'beermat.result' && claim.v === 1, 'Not a BeerMat result');
         check(verifyClaim(claim), 'This result was not signed by a quiz laptop, or has been changed', 422);
         check(typeof claim.event === 'string' && claim.event.length <= 40 && typeof claim.team === 'string' && claim.team.length <= 40 && Number.isSafeInteger(claim.date), 'Not a BeerMat result');
         const r = claim.result;
@@ -457,7 +457,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
 
       // ---- Venue results from quiz laptops (desk: Share results) ----
       if (method === 'POST' && p === '/v1/venue-results') {
-        check(input.kind === 'pubquiz.event' && input.v === 1 && Array.isArray(input.teams) && input.teams.length <= 300, 'Not a BeerMat event summary');
+        check(input.kind === 'beermat.event' && input.v === 1 && Array.isArray(input.teams) && input.teams.length <= 300, 'Not a BeerMat event summary');
         check(verifyClaim(input), 'This summary was not signed by a quiz laptop, or has been changed', 422);
         check(venueOfKey(input.venueKey), 'This laptop is not registered to a venue yet', 403);
         const before = one('SELECT summary FROM venue_results WHERE venue_key=? AND event=?', input.venueKey, input.event);

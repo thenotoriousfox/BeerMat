@@ -8,7 +8,7 @@ python -m unittest discover -s tests -p 'test_*.py'   # Linux hotspot plans
 npx playwright install chromium            # once, for the three runs below
 npm run test:browser                       # desk, TV and phones in Chromium (every round format)
 npm run test:desktop                       # the Electron app on a private Xvfb screen (Linux; needs Xvfb)
-PUBQUIZ_DESKTOP_BINARY=dist/linux-unpacked/pubquiz npm run test:desktop   # the same against a packaged build
+BEERMAT_DESKTOP_BINARY=dist/linux-unpacked/beermat npm run test:desktop   # the same against a packaged build
 node tests/mobile.browser.mjs              # app-emulating and browser phones in one quiz, profiles, listings
 ```
 

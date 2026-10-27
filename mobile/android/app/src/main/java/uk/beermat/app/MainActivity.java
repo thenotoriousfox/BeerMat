@@ -1,4 +1,4 @@
-package uk.pubquiz.player;
+package uk.beermat.app;
 
 import com.getcapacitor.BridgeActivity;
 

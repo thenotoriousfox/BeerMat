@@ -40,12 +40,12 @@ test('laptop jobs: the Wi-Fi goes through pkexec with fixed arguments, and messa
 test('laptop jobs on Windows: Mobile Hotspot through PowerShell, always with a password, settings passed as base64 JSON', async () => {
   const calls = [], results = [];
   const run = async (file, args) => {calls.push([file, ...args]); return results.shift() || {ok: true, code: 0, out: '{"available":true,"platform":"windows","needsPassword":true,"wifiOn":true,"cards":[{"name":"Wi-Fi","ap":true,"connected":true}],"pick":{"interface":"Mobile Hotspot","keepWifi":true},"running":null}'};};
-  const laptop = createLaptop({root: 'C:\\PubQuiz', run, platform: 'win32', cloudflared: null, piper: ['/nowhere']});
+  const laptop = createLaptop({root: 'C:\\BeerMat', run, platform: 'win32', cloudflared: null, piper: ['/nowhere']});
   const status = await laptop.status();
   assert.equal(status.platform, 'windows');
   assert.equal(status.wifi.needsPassword, true);
   assert.equal(status.wifi.address, '192.168.137.1');
-  const ps = ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join('C:\\PubQuiz', 'scripts', 'hotspot-windows.ps1')];
+  const ps = ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join('C:\\BeerMat', 'scripts', 'hotspot-windows.ps1')];
   assert.deepEqual(calls.pop(), [...ps, 'status']);
   assert.throws(() => laptop.startWifi({ssid: 'Quiz', password: 'short'}), /8–63/);
   assert.throws(() => laptop.startWifi({ssid: 'Quiz', password: 'pässwörd-long'}), /8–63/);
@@ -93,7 +93,7 @@ function fakeLaptop() {
   return fake;
 }
 
-test('desk Wi-Fi: starting it names the network on the TV, and PubQuiz then answers only on the quiz Wi-Fi and the laptop', () => {
+test('desk Wi-Fi: starting it names the network on the TV, and BeerMat then answers only on the quiz Wi-Fi and the laptop', () => {
   const laptop = fakeLaptop();
   return fixture({laptop}, async ({call}) => {
     assert.equal((await call('host/laptop')).canQuit, false);
@@ -113,7 +113,7 @@ test('desk Wi-Fi: starting it names the network on the TV, and PubQuiz then answ
   });
 });
 
-test('desk without laptop controls, and closing PubQuiz from the desk', async () => {
+test('desk without laptop controls, and closing BeerMat from the desk', async () => {
   await fixture({}, async ({call}) => assert.equal((await call('host/laptop')).status, 404));
   const laptop = fakeLaptop(); let quit = 0;
   await fixture({laptop, onQuit: () => {quit++;}}, async ({call}) => {
@@ -215,7 +215,7 @@ test('online players get live nudges over a WebSocket, and their https pages may
   socket.close();
 }));
 
-test('cloudflared installed while PubQuiz runs is found without a restart', async () => {
+test('cloudflared installed while BeerMat runs is found without a restart', async () => {
   const {mkdtempSync, writeFileSync, rmSync} = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-path-')), saved = process.env.PATH, home = process.env.HOME;
   process.env.PATH = dir; process.env.HOME = dir;

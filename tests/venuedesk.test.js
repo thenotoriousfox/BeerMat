@@ -1,5 +1,5 @@
-// The desk's Venue tab: the laptop signs in to PubQuiz Online for the venue's operator and passes on only the calls
-// that run a venue, against a real PubQuiz Online on a temporary database.
+// The desk's Venue tab: the laptop signs in to BeerMat Online for the venue's operator and passes on only the calls
+// that run a venue, against a real BeerMat Online on a temporary database.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync, rmSync} from 'node:fs';
@@ -28,7 +28,7 @@ test('desk venue tab: sign in through the laptop, edit only your venue, register
   let host;
   try {
     host = (await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/login`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: 'a-secure-quiz-test-key'})}).then(r => r.json())).key;
-    assert.equal((await call('online/account')).service, 'https://130-162-161-81.sslip.io', 'the desk knows where PubQuiz Online is');
+    assert.equal((await call('online/account')).service, 'https://130-162-161-81.sslip.io', 'the desk knows where BeerMat Online is');
     await call('settings', {onlineService: online});
     service.importVenues({venues: [{id: 'red-lion-bristol', name: 'The Red Lion', town: 'Bristol'}, {id: 'crown-bath', name: 'The Crown', town: 'Bath'}]});
 
@@ -36,13 +36,13 @@ test('desk venue tab: sign in through the laptop, edit only your venue, register
     assert.equal((await call('online/signup', {email: 'landlord@example.com', password: 'short', displayName: 'Lou'})).status, 400);
     const account = await call('online/signup', {email: 'landlord@example.com', password: 'correct horse battery', displayName: 'Lou'});
     assert.deepEqual([account.signedIn, account.name], [true, 'Lou']);
-    assert.deepEqual((await call('online/call', {method: 'GET', path: '/v1/me/venues'})).venues, [], 'no venue until PubQuiz links one');
+    assert.deepEqual((await call('online/call', {method: 'GET', path: '/v1/me/venues'})).venues, [], 'no venue until BeerMat links one');
     service.db.prepare("UPDATE venues SET owner=(SELECT id FROM accounts WHERE email='landlord@example.com') WHERE id='red-lion-bristol'").run();
 
     // Only the calls that run a venue go through: not adding venues, not other people's data.
     for (const [method, route] of [['POST', '/v1/venues'], ['GET', '/v1/me/export'], ['DELETE', '/v1/me'], ['POST', '/v1/venues/red-lion-bristol/operator'], ['GET', '/v1/venues/../me']])
       assert.equal((await call('online/call', {method, path: route})).status, 400, `${method} ${route}`);
-    assert.equal((await call('online/call', {method: 'PATCH', path: '/v1/venues/crown-bath', body: {name: 'Mine'}})).status, 400, 'someone else’s venue: refused by PubQuiz Online');
+    assert.equal((await call('online/call', {method: 'PATCH', path: '/v1/venues/crown-bath', body: {name: 'Mine'}})).status, 400, 'someone else’s venue: refused by BeerMat Online');
 
     const at = await call('online/locate', {postcode: 'BS1 4DJ'});
     assert.deepEqual([at.lat, at.lon], [51.45451, -2.58791]);

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
-  <!-- A full harvest moon with its glow (drawn for PubQuiz, CC0). -->
+  <!-- A full harvest moon with its glow (drawn for BeerMat, CC0). -->
   <defs>
     <radialGradient id="glow" r="50%"><stop offset=".42" stop-color="#ffe9b0" stop-opacity=".55"/><stop offset=".6" stop-color="#ffb35c" stop-opacity=".18"/><stop offset="1" stop-color="#ff8a3d" stop-opacity="0"/></radialGradient>
     <radialGradient id="face" cx="42%" cy="38%" r="62%"><stop offset="0" stop-color="#fffaf0"/><stop offset=".6" stop-color="#ffe8b8"/><stop offset="1" stop-color="#f5c27a"/></radialGradient>

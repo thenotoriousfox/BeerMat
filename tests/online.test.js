@@ -1,4 +1,4 @@
-// PubQuiz Online (online/service.js) and the player app's client for it (online/client.js), against a real service
+// BeerMat Online (online/service.js) and the player app's client for it (online/client.js), against a real service
 // on a temporary database. No internet involved.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,11 +10,11 @@ import {createOnlineClient} from '../online/client.js';
 import {newVenueKey, signClaim} from '../claims.js';
 
 const memory = () => {const m = new Map(); return {getItem: k => m.has(k) ? m.get(k) : null, setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), m};};
-const result = (key, event, team, result, date = 1700000000000) => signClaim({v: 1, kind: 'pubquiz.result', event, title: 'Quiz ' + event, date, team,
+const result = (key, event, team, result, date = 1700000000000) => signClaim({v: 1, kind: 'beermat.result', event, title: 'Quiz ' + event, date, team,
   result: {name: 'Foxes', rank: 1, teams: 6, points: 30, answered: 10, correct: 8, fastestMs: 2500, perfectRounds: 1, categories: {Music: {answered: 5, correct: 5}}, ...result}}, key);
 
 async function fixture(fn) {
-  const dir = mkdtempSync(path.join(os.tmpdir(), 'pubquiz-online-')); let time = 1700000000000;
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'beermat-online-')); let time = 1700000000000;
   const service = createService({database: path.join(dir, 'online.sqlite'), now: () => time, allowedOrigins: ['https://quiz.example']});
   await new Promise(r => service.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${service.server.address().port}`;
@@ -110,7 +110,7 @@ test('results: only laptop-signed claims, once each however often sent; stats an
 
 test('venue results from quiz laptops: registered laptops only, a repeat replaces rather than duplicates', () => fixture(async ({call, signUp, addVenue}) => {
   const operator = await signUp('host@example.com'), key = newVenueKey();
-  const summary = signClaim({v: 1, kind: 'pubquiz.event', event: 'ev9', title: 'Tuesday', date: 1, teams: [{ref: 'r1', name: 'Foxes', rank: 1, points: 20}]}, key);
+  const summary = signClaim({v: 1, kind: 'beermat.event', event: 'ev9', title: 'Tuesday', date: 1, teams: [{ref: 'r1', name: 'Foxes', rank: 1, points: 20}]}, key);
   assert.equal((await call('POST', '/v1/venue-results', summary)).status, 403);
   const venue = await addVenue({name: 'Lamb', town: 'Leeds'}, 'host@example.com');
   await call('POST', `/v1/venues/${venue.id}/keys`, {publicKey: key.publicKey}, operator);
@@ -227,7 +227,7 @@ test('venue list: imported, kept up to date, operators edit their own profile on
   assert.equal((await call('PATCH', '/v1/venues/red-lion-bristol', {quizNights: [{day: 'wednesday', time: '7.30pm'}]}, landlord)).status, 400);
   const edited = await call('PATCH', '/v1/venues/red-lion-bristol', {quizNights: [{day: 'sunday', time: '18:00'}, {day: 'wednesday', time: '19:30'}], lat: 51.46, lon: -2.59}, landlord);
   assert.deepEqual([edited.quizNights, edited.lat], [[{day: 'wednesday', time: '19:30'}, {day: 'sunday', time: '18:00'}], 51.46], 'in weekday order');
-  assert.equal((await call('DELETE', '/v1/venues/red-lion-bristol', null, landlord)).status, 403, 'taking a venue off is for PubQuiz');
+  assert.equal((await call('DELETE', '/v1/venues/red-lion-bristol', null, landlord)).status, 403, 'taking a venue off is for BeerMat');
   await call('POST', '/v1/venues/red-lion-bristol/events', {title: 'Quiz', startsAt: 1700000000000 + 86400000}, landlord);
 
   // The list again: its changes apply except to what the operator changed; a venue taken off the list goes.
@@ -243,7 +243,7 @@ test('venue list: imported, kept up to date, operators edit their own profile on
 }));
 
 test('venue list: a database from before the list keeps its venues, quiz nights and laptops', async () => {
-  const dir = mkdtempSync(path.join(os.tmpdir(), 'pubquiz-online-old-')), file = path.join(dir, 'online.sqlite');
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'beermat-online-old-')), file = path.join(dir, 'online.sqlite');
   const {DatabaseSync} = await import('node:sqlite');
   const old = new DatabaseSync(file);
   old.exec(`CREATE TABLE accounts(id TEXT PRIMARY KEY, email TEXT UNIQUE COLLATE NOCASE NOT NULL, password TEXT NOT NULL, created INTEGER NOT NULL, display_name TEXT NOT NULL, preferred_team TEXT NOT NULL DEFAULT '', avatar TEXT, privacy TEXT NOT NULL DEFAULT '{}', admin INTEGER NOT NULL DEFAULT 0);
@@ -328,7 +328,7 @@ test('admin console: only admins; overview, venues with operators and laptops, a
   assert.equal((await call('GET', '/v1/me', null, player)).admin, false);
   const key = newVenueKey();
   await call('POST', `/v1/venues/${lion.id}/keys`, {publicKey: key.publicKey}, player);
-  await call('POST', '/v1/venue-results', signClaim({v: 1, kind: 'pubquiz.event', event: 'e1', title: 'Tuesday Quiz', date: 1, teams: [{ref: 'r', name: 'Foxes', rank: 1, points: 9}]}, key));
+  await call('POST', '/v1/venue-results', signClaim({v: 1, kind: 'beermat.event', event: 'e1', title: 'Tuesday Quiz', date: 1, teams: [{ref: 'r', name: 'Foxes', rank: 1, points: 9}]}, key));
 
   const overview = await call('GET', '/v1/admin/overview', null, root);
   assert.deepEqual([overview.venues, overview.operatedVenues, overview.mappedVenues, overview.accounts, overview.admins, overview.laptops, overview.venueResults, overview.lastBackup],

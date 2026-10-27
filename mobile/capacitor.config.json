@@ -1,5 +1,5 @@
 {
-  "appId": "uk.pubquiz.player",
+  "appId": "uk.beermat.app",
   "appName": "BeerMat",
   "webDir": "www",
   "server": {
@@ -7,10 +7,10 @@
     "allowNavigation": ["*"]
   },
   "android": {
-    "appendUserAgent": "PubQuizPlayer/0.4.0 (android)"
+    "appendUserAgent": "BeerMatApp/0.4.0 (android)"
   },
   "ios": {
-    "appendUserAgent": "PubQuizPlayer/0.4.0 (ios)",
+    "appendUserAgent": "BeerMatApp/0.4.0 (ios)",
     "contentInset": "never"
   }
 }

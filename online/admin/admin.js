@@ -10,7 +10,7 @@ const when = t => new Date(t).toLocaleString(undefined, {weekday: 'short', day: 
 const date = t => new Date(t).toLocaleDateString(undefined, {day: 'numeric', month: 'short', year: 'numeric'});
 const ago = t => {const m = Math.round((Date.now() - t) / 60000); return m < 2 ? 'just now' : m < 120 ? `${m} minutes ago` : m < 2880 ? `${Math.round(m / 60)} hours ago` : `${Math.round(m / 1440)} days ago`;};
 
-let token = sessionStorage.getItem('pq-admin') || '', venues = [], editing = null;
+let token = sessionStorage.getItem('beermat-admin') || '', venues = [], editing = null;
 function toast(text, error = false) {
   $('toast').textContent = text; $('toast').classList.toggle('error', error); $('toast').hidden = false;
   clearTimeout(toast.timer); toast.timer = setTimeout(() => {$('toast').hidden = true;}, error ? 6000 : 3000);
@@ -26,7 +26,7 @@ async function api(method, route, body) {
 const guarded = (fn, done) => async e => {e?.preventDefault?.(); try {if (await fn(e) !== false && done) toast(done);} catch (error) {toast(error.message, true);}};
 
 // ---- Signing in ----
-function signedOut() {token = ''; sessionStorage.removeItem('pq-admin'); $('signIn').hidden = false; $('console').hidden = true; $('who').hidden = true;}
+function signedOut() {token = ''; sessionStorage.removeItem('beermat-admin'); $('signIn').hidden = false; $('console').hidden = true; $('who').hidden = true;}
 async function start() {
   if (!token) return signedOut();
   let me;
@@ -38,7 +38,7 @@ async function start() {
 }
 $('signInForm').onsubmit = guarded(async () => {
   const {token: t} = await api('POST', '/v1/sessions', {email: $('email').value, password: $('password').value});
-  token = t; sessionStorage.setItem('pq-admin', t); $('password').value = ''; await start();
+  token = t; sessionStorage.setItem('beermat-admin', t); $('password').value = ''; await start();
 });
 $('signOut').onclick = guarded(async () => {await api('DELETE', '/v1/sessions').catch(() => {}); signedOut();});
 

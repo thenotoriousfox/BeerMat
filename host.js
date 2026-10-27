@@ -1,6 +1,6 @@
 import {$, element, api, message, readStorage, writeStorage, download, renderMedia, renderSolution, timeText, selectOptions, letters, live, enableSound, useSounds, buzzSound, renderPinpoint, bingoCall, avatar} from './app.js';
 import {slotFiles} from './soundnames.js';
-let key = readStorage('pubquiz-host', true), state = null, library = null, editingId = null, tab = 'live', dirty = false, reviewId = '', reviewSignature = '', busy = false;
+let key = readStorage('beermat-host', true), state = null, library = null, editingId = null, tab = 'live', dirty = false, reviewId = '', reviewSignature = '', busy = false;
 const uid = () => 'id-' + crypto.getRandomValues(new Uint32Array(4)).join('-');
 const request = (p, body = {}) => api('host/' + p, body, key);
 let offset = 0, selectedRoundId = '', lastBuzz = '', liveQuestion = null, pinTarget = null, clipItems = [], targetClip = 0, clipRun = null;
@@ -30,8 +30,8 @@ function chooseTab(name) {
   tab = name;
   document.querySelectorAll('[data-pane]').forEach(el => el.hidden = el.dataset.pane !== name);
   document.querySelectorAll('[data-tab]').forEach(el => el.classList.toggle('selected', el.dataset.tab === name));
-  if (name === 'mark') loadReview().catch(e => message(e.message, true));
-  if (name === 'build') loadSpotify();
+  if (name === 'live') loadReview().catch(e => message(e.message, true));
+  if (name === 'build' || name === 'settings') loadSpotify();
   if (name === 'venue') loadVenue();
 }
 // Spotify: optional, for private quizzes. The server talks to Spotify; the desk only shows status and starts sign-in.
@@ -55,7 +55,7 @@ $('spotifyForm').onsubmit = e => {e.preventDefault(); const clientId = $('spotif
 // the quizmaster presses Start, and the click also unlocks audio in the browser.
 let deskPlayer = null, deskReady = false;
 function startDeskPlayer() {
-  if (!spotify?.connected) return message('Connect Spotify first (Build quiz → Spotify)', true);
+  if (!spotify?.connected) return message('Connect Spotify first (Settings → Spotify)', true);
   if (!spotify.deskPlayer) return message('Press Connect Spotify again to allow playing on this desk (a permission was added)', true);
   if (deskPlayer) {deskPlayer.activateElement?.(); deskPlayer.connect(); return;}
   window.onSpotifyWebPlaybackSDKReady = () => {
@@ -124,7 +124,7 @@ function songLine(line) {
   const [title, rest = ''] = line.split(/\s*\|\s*(?=\/media\/|spotify:track:|https:\/\/open\.spotify\.com\/)/), [file = '', start = '', seconds = ''] = rest.split('|').map(s => s.trim());
   return {title: title.trim(), media: file.startsWith('/media/') ? file : null, ...(/^(spotify:|https:)/.test(file) ? {spotify: file} : {}), ...(start !== '' && {start: Number(start)}), ...(seconds !== '' && {seconds: Number(seconds)})};
 }
-// Build quiz previews, heard only at the desk: a Spotify track plays on the chosen Spotify player from its start
+// Quizzes previews, heard only at the desk: a Spotify track plays on the chosen Spotify player from its start
 // point, an uploaded song plays here; either stops after its play time (or on Stop).
 let previewing = null;
 function stopPreview() {
@@ -135,7 +135,7 @@ function stopPreview() {
 async function preview({spotify: link, media, start = 0, seconds = 0, title = ''}) {
   await stopPreview();
   if (link) {
-    if (!spotify?.connected) throw Error('Connect Spotify first (Build quiz → Spotify)');
+    if (!spotify?.connected) throw Error('Connect Spotify first (Settings → Spotify)');
     await request('spotify/preview', {link, start});
     previewing = {spotify: true};
   } else if (media) {
@@ -214,6 +214,27 @@ function fillQuestion(q = null) {
   $('mediaUpload').value = ''; renderMedia($('mediaPreview'), q); formTypes(); dirty = false;
   $('editorStatus').textContent = q ? 'Saved question loaded' : 'New question — save it to a round';
   $('playSelected').disabled = !q; $('deleteQuestion').disabled = !q;
+  renderOutline();
+}
+// The quiz at a glance beside the editor: every round and its questions; click one to edit it.
+function renderOutline() {
+  if (!library) return;
+  const played = new Set(state?.history.map(q => q.sourceId) || []);
+  $('outline').replaceChildren(...library.rounds.map(r => {
+    const block = element('div', undefined, 'outline-round' + (r.id === $('roundSelect').value ? ' current' : ''));
+    const head = element('button', `${r.title}${r.secret ? ' 🤫' : ''}`, 'outline-title'); head.type = 'button';
+    head.onclick = () => {if (r.id !== $('roundSelect').value && guardEditor()) roundOptions(r.id);};
+    const list = element('ol');
+    list.append(...r.questions.map(q => {
+      const li = element('li'), b = element('button', q.text || '(untitled)'); b.type = 'button';
+      b.className = (q.id === editingId ? 'current' : '') + (played.has(q.id) ? ' played' : '');
+      b.title = `${q.type}${played.has(q.id) ? ' · played tonight' : ''}`;
+      b.onclick = () => {if (q.id === editingId || !guardEditor()) return; if (r.id !== $('roundSelect').value) roundOptions(r.id, q.id); else {$('questionSelect').value = q.id; fillQuestion(q);}};
+      li.append(b); return li;
+    }));
+    block.append(head, list); return block;
+  }));
+  if (!library.rounds.length) $('outline').append(element('p', 'No rounds yet: add one above.', 'muted'));
 }
 function guardEditor() {return !dirty || confirm('Discard unsaved question changes?');}
 function roundOptions(preferredRound, preferredQuestion) {
@@ -383,7 +404,7 @@ $('next').onclick = () => {
 function renderTie(s) {
   const tie = s.tie; $('tiePrompt').hidden = !tie || s.settings.ended; if (!tie) return;
   $('tieText').textContent = `🎯 ${tie.teams.length} teams are tied for first on ${tie.points} ${tie.points === 1 ? 'point' : 'points'}: ${tie.teams.join(', ')}.` +
-    (tie.breaker ? '' : ' No tie-breaker is saved: add a Nearest wins question with Tie-breaker ticked in Build quiz.');
+    (tie.breaker ? '' : ' No tie-breaker is saved: add a Nearest wins question with Tie-breaker ticked in Quizzes.');
   $('playTie').hidden = !tie.breaker; if (tie.breaker) $('playTie').textContent = `Play the tie-breaker: ${tie.breaker.text}`;
 }
 $('playTie').onclick = () => action(() => request('start', {id: state.tie.breaker.id, expectedQuestion: state.question?.id || null}), 'Tie-breaker opened');
@@ -583,7 +604,7 @@ $('spinWheel').onclick = () => action(async () => {
   if (!auto && state.settings.displayMode !== 'wheel') await request('settings', {displayMode: 'wheel'});
   const wheel = await request('wheel', items.length ? {items} : {});
   $('wheelLast').textContent = `Last spin: ${wheel.items[wheel.result]}`;
-  return auto ? 'Wheel spinning on the projector — Auto carries on once the result has shown' : 'Wheel spinning on the projector — set Projector view back to Auto when you are done';
+  return auto ? 'Wheel spinning on the projector — Auto carries on once the result has shown' : 'Wheel spinning on the projector — set TV shows back to Auto when you are done';
 });
 // Single-key shortcuts, also usable from a Stream Deck or presenter remote that sends key presses.
 const shortcuts = {n: 'next', c: 'close', r: 'reveal', 1: 'buzzCorrect', 2: 'buzzWrong', 3: 'buzzPass', a: 'startAgree', b: 'callNumber', w: 'spinWheel', t: 'timerPause', s: 'showScores'};
@@ -642,7 +663,7 @@ const finishQuiz = () => action(async () => {
   const tie = state.tie, tied = tie ? `${tie.teams.join(', ')} are tied for first${tie.breaker ? ' and the tie-breaker hasn\'t been played' : ''}. ` : '';
   if (!state.settings.ended && !confirm(`${tied}Finish this quiz and close answers and registration? You can resume it later.`)) return;
   // Finishing puts the final leaderboard on the projector (a secret round's scores included), revealed position by
-  // position with Next; the winner celebration is one choice away under Projector view.
+  // position with Next; the winner celebration is one choice away under TV shows.
   if (state.settings.ended) return request('settings', {ended: false});
   await request('settings', {ended: true, leaderboardVisible: true, ...(state.settings.displayMode === 'auto' ? {} : {displayMode: 'leaderboard'})});
   if (state.question) await request('board', {action: 'show'});
@@ -650,12 +671,12 @@ const finishQuiz = () => action(async () => {
 $('finish').onclick = finishQuiz;
 document.addEventListener('pointerdown', enableSound);
 $('loginForm').onsubmit = async e => {e.preventDefault(); await action(async () => {
-  key = (await api('login', {key: $('key').value})).key; writeStorage('pubquiz-host', key, true); $('key').value = ''; updates.reconnect(); await loadLibrary();
+  key = (await api('login', {key: $('key').value})).key; writeStorage('beermat-host', key, true); $('key').value = ''; updates.reconnect(); await loadLibrary();
 }, 'Quiz desk unlocked');};
 // Quiz night: the laptop's own Wi-Fi and setup jobs. Only on the laptop itself; hidden anywhere else.
 let laptop = null, laptopTimer = null, panelsLoaded = false, network = null, past = null;
 // Screens: only in the desktop app (preload.cjs), which owns the TV window.
-const desktop = window.pubquizDesktop;
+const desktop = window.beermatDesktop;
 function renderScreens(info) {
   $('screensPanel').hidden = false;
   const tv = info.displays.find(d => d.audience);
@@ -748,7 +769,7 @@ async function loadVenue() {
 }
 function renderVenue() {
   const signedIn = !!venueAccount?.signedIn;
-  $('venueService').textContent = venueAccount?.service ? `BeerMat Online: ${venueAccount.service}` : 'Set the BeerMat Online address under Run quiz → Past quizzes';
+  $('venueService').textContent = venueAccount?.service ? `BeerMat Online: ${venueAccount.service}` : 'Set the BeerMat Online address under Settings → Past quizzes';
   $('venueSignedOut').hidden = signedIn; $('venueSignedIn').hidden = !signedIn;
   if (!signedIn) return;
   $('venueWho').textContent = `Signed in as ${venueAccount.name} (${venueAccount.email})`;
@@ -851,7 +872,7 @@ function renderLaptop() {
   $('wifiControls').hidden = !w.available || !laptop.local;
   $('wifiState').textContent = !w.available ? '' : working ? '⏳ Working…' : on ? `● “${on.ssid}” is on` : '○ Quiz Wi-Fi off';
   $('wifiInfo').textContent = !laptop.local ? (on ? `The quiz Wi-Fi “${on.ssid}” is on. It can only be changed at the laptop.` : 'The quiz Wi-Fi can only be started at the laptop (it isn’t needed for online quizzes).') : !w.available ? 'This laptop has no Wi-Fi control (NetworkManager), so use ./scripts/quiz-night.sh or your own hotspot.'
-    : on ? `Phones join “${on.ssid}” and open http://10.42.0.1. Hosted on ${on.interface === 'pq0' ? 'the Wi-Fi card beside your home Wi-Fi' : on.interface}.`
+    : on ? `Phones join “${on.ssid}” and open http://10.42.0.1. Hosted on ${on.interface === 'bm0' ? 'the Wi-Fi card beside your home Wi-Fi' : on.interface}.`
     : !w.wifiOn ? 'Wi-Fi is switched off on this laptop.'
     : w.cards.length ? 'Wi-Fi cards: ' + w.cards.map(c => `${c.name} (${c.ap ? where(c) : 'can’t host'})`).join(' · ') : 'No Wi-Fi card found.';
   const chosen = $('wifiCard').value || 'auto';
@@ -874,7 +895,7 @@ function renderLaptop() {
   $('goOnline').hidden = !!o; $('goOffline').hidden = !o; $('goOnline').disabled = !laptop.cloudflared;
   $('onlineLink').hidden = $('copyOnline').hidden = !o?.ready; $('onlineLink').value = o?.url || '';
   $('onlineInfo').textContent = !laptop.cloudflared ? `Install cloudflared first (${laptop.platform === 'windows' ? 'winget install Cloudflare.cloudflared' : 'sudo pacman -S cloudflared'}), then reload this page.`
-    : o?.ready ? 'Share this link with the players; the TV join screen shows it too, with a QR code. In person, the TV page (Projector ↗) plays sound as usual. Remote players: share the TV page with sound over a video call, or they can open the link + /display themselves. Anyone with the link can join, so the waiting room (Room controls) lets you check teams first.' + (state?.settings.deskOnline ? '' : ' The desk stays on this laptop.')
+    : o?.ready ? 'Share this link with the players; the TV join screen shows it too, with a QR code. In person, the TV page (TV screen ↗) plays sound as usual. Remote players: share the TV page with sound over a video call, or they can open the link + /display themselves. Anyone with the link can join, so the waiting room (Settings → Quiz room) lets you check teams first.' + (state?.settings.deskOnline ? '' : ' The desk stays on this laptop.')
     : o ? 'Connecting to Cloudflare…'
     : laptop.onlineError || 'Play over the internet: Go online makes a free public link (a Cloudflare quick tunnel) to the players’ page and the TV, never the desk. The link changes each time you go online.';
   $('onlineInfo').classList.toggle('warning', !o && !!laptop.onlineError);
@@ -900,7 +921,7 @@ $('quitApp').onclick = () => {
   if (!confirm('Close BeerMat? The quiz Wi-Fi stops too (one more password prompt). Everything is saved: start it again from the app menu.')) return;
   action(async () => {await request('laptop/quit'); clearTimeout(laptopTimer); return 'BeerMat is closing. You can close this tab.';});
 };
-$('logout').onclick = () => action(async () => {await request('logout'); key = ''; writeStorage('pubquiz-host', '', true); $('panel').hidden = true; $('login').hidden = false;}, 'Quiz desk locked');
+$('logout').onclick = () => action(async () => {await request('logout'); key = ''; writeStorage('beermat-host', '', true); $('panel').hidden = true; $('login').hidden = false;}, 'Quiz desk locked');
 let adjustRequest = null;
 $('adjustForm').oninput = () => {adjustRequest = null;};
 $('adjustForm').onsubmit = e => {e.preventDefault(); action(async () => {
@@ -1041,7 +1062,7 @@ function renderState(s) {
   if (q?.id !== liveQuestion) {liveQuestion = q?.id; $('announced').value = '';}
   renderBuzzPanel(q); renderBingoPanel(q); audioClipCue(q); showDeskPlayer(); renderSounds(s); useSounds(s.sounds); renderLooks(s); renderTie(s);
   if (clipRun && (q?.id !== clipRun.question || !q.live)) stopClips(); else renderClipsPanel(q);
-  $('liveCount').textContent = q ? `${s.answers.length} answers received · ${s.teams.filter(t => t.enabled && !t.waiting).length} active teams` : 'Add rounds in Build quiz, then start your first question.';
+  $('liveCount').textContent = q ? `${s.answers.length} answers received · ${s.teams.filter(t => t.enabled && !t.waiting).length} active teams` : 'Add rounds in Quizzes, then start your first question.';
   renderMedia($('liveMedia'), q); renderSolution($('liveSolution'), q);
   const step = nextStep(s); $('next').disabled = !!q?.live || !step; $('next').textContent = nextLabels[step] || 'Quiz finished'; $('close').textContent = ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type) ? 'End game' : 'Close answers'; $('close').disabled = !pending; $('pause').disabled = !q?.open; $('resume').disabled = !q?.paused; $('reveal').disabled = !q || !!pending;
   $('reveal').textContent = q?.revealing ? 'Revealing…' : q?.revealed ? 'Hide answer reveal' : 'Reveal answer';
@@ -1053,7 +1074,7 @@ function renderState(s) {
   $('liveAway').textContent = awayText(s.away);
   const waiting = s.teams.filter(t => t.enabled && t.waiting);
   $('waitingRoom').textContent = `Waiting room: ${s.settings.waitingRoom ? 'on' : 'off'}`;
-  $('waitingRoom').title = 'New teams wait on their phone until you let them in (here or in Teams & results).';
+  $('waitingRoom').title = 'New teams wait on their phone until you let them in (here or in Teams).';
   $('admitAll').hidden = !waiting.length; $('admitAll').textContent = `Let everyone in (${waiting.length})`;
   $('showScores').textContent = `Board shows: ${s.settings.showScores ? 'scores' : 'positions only'}`;
   if (!$('maxTeamsForm').contains(document.activeElement)) $('maxTeams').value = s.settings.maxTeams;
@@ -1061,7 +1082,7 @@ function renderState(s) {
   $('scramble').textContent = `Scramble keypads: ${s.settings.scrambleKeypads ? 'on' : 'off'}`; $('phrases').textContent = `Bingo phrases: ${s.settings.bingoPhrases ? 'on' : 'off'}`; $('caller').textContent = `Bingo caller voice: ${s.settings.bingoVoice ? 'on' : 'off'}`; $('board').textContent = `TV shows called numbers: ${s.settings.bingoBoard ? 'on' : 'off'}`;
   if (!$('blockedForm').contains(document.activeElement)) $('blockedWords').value = s.blockedWords.join('\n'); $('displayMode').value = s.settings.displayMode; $('autoView').textContent = s.settings.displayMode === 'auto' ? `(now: ${{join: 'join screen', leaderboard: 'leaderboard', question: 'question', winner: 'winner'}[s.view] || s.view})` : ''; $('tvLanguage').value = s.settings.language; $('finish').textContent = s.settings.ended ? 'Resume quiz' : 'Finish quiz';
   const offline = s.teams.filter(t => t.enabled && !t.waiting && !t.connected), photos = s.teams.filter(t => t.photo_status === 'pending').length;
-  $('alerts').textContent = [waiting.length ? `🚪 Waiting room: ${waiting.map(t => t.name).join(', ')}` : '', offline.length ? `⚠ Disconnected: ${offline.map(t => t.name).join(', ')}` : '', photos ? `📷 ${photos} team ${photos === 1 ? 'photo' : 'photos'} waiting for approval in Teams & results` : ''].filter(Boolean).join(' · ');
+  $('alerts').textContent = [waiting.length ? `🚪 Waiting room: ${waiting.map(t => t.name).join(', ')}` : '', offline.length ? `⚠ Disconnected: ${offline.map(t => t.name).join(', ')}` : '', photos ? `📷 ${photos} team ${photos === 1 ? 'photo' : 'photos'} waiting for approval in Teams` : ''].filter(Boolean).join(' · ');
   const played = new Set(s.history.map(q => q.sourceId)); const all = library?.rounds.flatMap(r => r.questions) || [];
   $('progress').textContent = `${all.filter(q => played.has(q.id)).length} of ${all.length} saved questions played`;
   if (library && library.revision !== s.libraryRevision) $('libraryStatus').textContent = 'Saved quiz changed in another window. Reload before editing.';
@@ -1069,6 +1090,67 @@ function renderState(s) {
   const teamSignature = JSON.stringify(s.teams.map(({seen, ...t}) => t));
   if (teamSignature !== teamsSignature && !$('teamCards').contains(document.activeElement)) {teamsSignature = teamSignature; $('teamCards').replaceChildren(...s.teams.map(teamControls));}
   selectOptions($('adjustTeam'), s.teams.filter(t => t.enabled).map(t => [t.id, t.name]), $('adjustTeam').value);
+  renderTonight(s);
+}
+// ---- Tonight: one big button for whatever comes next, where the quiz is, and who's in the room ----
+// Whichever of Next, Close and Reveal is the natural next thing becomes the big button, first in the row: close an open
+// question, reveal a closed one, otherwise Next.
+function goStep(s) {
+  const q = s.question;
+  if (q?.live) return {button: 'close'};
+  if (q && !q.revealed && !q.revealing && !$('reveal').disabled && q.type !== 'vote' && !s.board?.active) return {button: 'reveal'};
+  return {button: 'next'};
+}
+function renderTonight(s) {
+  const q = s.question, step = goStep(s), active = s.teams.filter(t => t.enabled && !t.waiting);
+  for (const id of ['next', 'close', 'reveal']) $(id).classList.toggle('go', id === step.button);
+  // Where the quiz is: joining, each round, the final scores.
+  const rounds = library?.rounds.filter(r => r.questions.some(x => !x.tieBreaker)) || [], played = new Set(s.history.map(h => h.sourceId));
+  const roundOf = id => rounds.findIndex(r => r.questions.some(x => x.id === id));
+  const now = s.settings.ended ? rounds.length + 1 : q ? roundOf(q.sourceId) + 1 : 0;
+  const steps = [['Teams join', 0], ...rounds.map((r, i) => [r.title, i + 1]), ['Final scores', rounds.length + 1]];
+  $('steps').replaceChildren(...steps.map(([label, i]) => {
+    const li = element('li', label, i < now ? 'done' : i === now ? 'now' : '');
+    if (i > 0 && i <= rounds.length) li.title = `${rounds[i - 1].questions.filter(x => played.has(x.id)).length} of ${rounds[i - 1].questions.length} played`;
+    return li;
+  }));
+  // Before the first question: a checklist of what makes a night work.
+  const fresh = !s.history.length && !s.settings.ended;
+  $('setupCard').hidden = !fresh;
+  if (fresh) {
+    const all = library?.rounds.flatMap(r => r.questions) || [], wifi = laptop?.wifi?.running, lan = s.settings.joinMode === 'lan';
+    const items = [
+      [all.length > 0, all.length ? `Quiz ready: ${library.rounds.length} ${library.rounds.length === 1 ? 'round' : 'rounds'}, ${all.length} questions` : 'No questions yet', 'build', 'Build the quiz'],
+      [!!(wifi || lan || s.online), wifi ? `Quiz Wi-Fi “${wifi.ssid}” is on` : lan ? 'Teams join on the venue’s Wi-Fi' : s.online ? 'Teams join over the internet' : 'Quiz Wi-Fi is off', 'settings', 'Set up joining'],
+      [!!screensInfo?.tv || !window.beermatDesktop, window.beermatDesktop ? (screensInfo?.tv ? 'TV screen is open' : 'TV screen not open yet') : 'Open the TV screen (TV screen ↗ above) on the TV', 'settings', 'Screens'],
+      [active.length > 0, active.length ? `${active.length} ${active.length === 1 ? 'team has' : 'teams have'} joined` : 'Waiting for teams to join', null, null],
+    ];
+    $('setupList').replaceChildren(...items.map(([ok, text, to, label]) => {
+      const li = element('li', undefined, ok ? 'ok' : 'todo'); li.append(element('span', ok ? '✓' : '○', 'tick'), element('span', text));
+      if (!ok && to) {const b = element('button', label, 'subtle'); b.type = 'button'; b.onclick = () => chooseTab(to); li.append(b);}
+      return li;
+    }));
+  }
+  // Who's in, who has answered the open question, and their scores.
+  const answered = new Set(s.answers.filter(a => a.submitted).map(a => a.team));
+  $('roomCount').textContent = `${active.length} ${active.length === 1 ? 'team' : 'teams'}${q?.live ? ` · ${active.filter(t => answered.has(t.id)).length} answered` : ''}`;
+  const roomSig = JSON.stringify([s.teams.map(t => [t.id, t.name, t.score, t.connected, t.waiting, t.enabled, t.photo]), [...answered], q?.id, q?.live]);
+  if (roomSig !== renderTonight.room) {
+    renderTonight.room = roomSig;
+    $('roomTeams').replaceChildren(...[...s.teams].filter(t => t.enabled).sort((a, b) => a.waiting - b.waiting || (b.score ?? 0) - (a.score ?? 0)).map(t => {
+      const li = element('li', undefined, [t.waiting ? 'waiting' : '', !t.connected && !t.waiting ? 'offline' : '', q?.live && answered.has(t.id) ? 'answered' : ''].join(' ').trim());
+      li.append(t.photo ? avatar(t.photo) : element('span', t.name.slice(0, 1).toUpperCase(), 'avatar'), element('span', t.name, 'name'),
+        element('span', t.waiting ? 'waiting' : q?.live ? (answered.has(t.id) ? '✓ answered' : '…') : !t.connected ? 'offline' : '', 'status'), element('strong', String(t.score ?? 0), 'score'));
+      return li;
+    }));
+    if (!s.teams.some(t => t.enabled)) $('roomTeams').append(element('li', 'No teams yet: they scan the code on the TV.', 'muted'));
+  }
+  // Up next: the rest of the current round (or the next one).
+  const current = rounds[Math.max(0, (q ? roundOf(q.sourceId) : rounds.findIndex(r => r.questions.some(x => !played.has(x.id)))))];
+  const upcoming = current ? current.questions.filter(x => !x.tieBreaker) : [];
+  $('upNextPanel').querySelector('h2').textContent = current ? `Up next · ${current.title}` : 'Up next';
+  $('upNext').replaceChildren(...upcoming.map(x => element('li', x.text, played.has(x.id) ? (x.id === q?.sourceId ? 'now' : 'played') : '')));
+  if (!upcoming.length) $('upNext').append(element('li', 'Build the quiz to see what’s coming.', 'muted'));
 }
 $('reviewSelect').onchange = () => {
   if ($('markCards').querySelector('[data-dirty=true]') && !confirm('Discard unsaved marks and change question?')) {$('reviewSelect').value = reviewId || String(state.question?.id || ''); return;}
@@ -1111,9 +1193,9 @@ async function refresh() {
   try {
     const s = await request('state'); if (busy) return; if (!library) await loadLibrary(); if (!panelsLoaded) {panelsLoaded = true; loadSpotify(); loadLaptop(); loadNetwork(); loadHistory();}
     $('login').hidden = true; $('panel').hidden = false; $('connection').textContent = '● Server connected'; const wasEnded = state?.settings.ended; renderState(s); renderNetwork(); if (panelsLoaded && s.settings.ended && !wasEnded) loadHistory(); else renderHistory();
-    if (tab === 'mark') await loadReview();
+    if (tab === 'live') await loadReview();
   } catch (e) {
-    if (e.status === 403) {key = ''; writeStorage('pubquiz-host', '', true); $('panel').hidden = true; $('login').hidden = false; message('Log in to unlock the desk again.', true);}
+    if (e.status === 403) {key = ''; writeStorage('beermat-host', '', true); $('panel').hidden = true; $('login').hidden = false; message('Log in to unlock the desk again.', true);}
     $('connection').textContent = '● Server unavailable — reconnecting';
     for (const id of ['next', 'close', 'pause', 'resume', 'reveal']) $(id).disabled = true;
   }
@@ -1125,5 +1207,5 @@ const updates = live(refresh, () => key);
 const ticket = new URLSearchParams(location.hash.slice(1)).get('ticket');
 if (ticket) {
   history.replaceState(null, '', location.pathname);
-  api('login', {ticket}).then(r => {key = r.key; writeStorage('pubquiz-host', key, true); updates.reconnect(); refresh();}).catch(e => {if (!key) message(e.message, true);});
+  api('login', {ticket}).then(r => {key = r.key; writeStorage('beermat-host', key, true); updates.reconnect(); refresh();}).catch(e => {if (!key) message(e.message, true);});
 }

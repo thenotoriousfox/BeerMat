@@ -5,9 +5,9 @@ import zlib from 'node:zlib';
 import os from 'node:os';
 import path from 'node:path';
 import {createQuiz} from '../server.js';
-const {chromium} = await import(process.env.PUBQUIZ_PLAYWRIGHT || 'playwright');
-const browser = await chromium.launch({headless: true, ...(process.env.PUBQUIZ_BROWSER ? {executablePath: process.env.PUBQUIZ_BROWSER, args: ['--no-sandbox', '--disable-dev-shm-usage', '--no-zygote']} : {})});
-const dir = mkdtempSync(path.join(os.tmpdir(), 'pubquiz-browser-'));
+const {chromium} = await import(process.env.BEERMAT_PLAYWRIGHT || 'playwright');
+const browser = await chromium.launch({headless: true, ...(process.env.BEERMAT_BROWSER ? {executablePath: process.env.BEERMAT_BROWSER, args: ['--no-sandbox', '--disable-dev-shm-usage', '--no-zygote']} : {})});
+const dir = mkdtempSync(path.join(os.tmpdir(), 'beermat-browser-'));
 let quiz;
 async function start(port = 0) {quiz = createQuiz({database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, hostKey: 'browser-test-private-key'}); await new Promise(r => quiz.server.listen(port, '127.0.0.1', r));}
 await start(); const port = quiz.server.address().port, base = `http://127.0.0.1:${port}`;
@@ -82,7 +82,7 @@ try {
   await waitFor(projector, () => document.querySelector('#quizQr svg')?.getAttribute('aria-label') === 'QR code: http://10.42.0.1');
   assert.equal(await projector.locator('.qr:visible').count(), 1, 'one code to scan'); assert.match(await projector.locator('#joinStepWifi').textContent(), /“BeerMat”/);
   assert.match(await projector.locator('#joinStepUrl').textContent(), /10\.42\.0\.1/); await waitFor(projector, () => /1 team has joined/.test(document.getElementById('joinStatus').textContent));
-  await host.locator('#joinSsidInput').fill('Fox Quiz'); await host.locator('#joinDetails button').click(); await waitFor(projector, () => document.getElementById('joinStepWifi').textContent.includes('Fox Quiz'));
+  await host.locator('[data-tab=settings]').click(); await host.locator('#joinSsidInput').fill('Fox Quiz'); await host.locator('#joinDetails button').click(); await waitFor(projector, () => document.getElementById('joinStepWifi').textContent.includes('Fox Quiz')); await host.locator('[data-tab=live]').click();
   await projector.mouse.move(5, 5); await projector.mouse.move(20, 20); await projector.locator('#fullscreen').click(); await waitFor(projector, () => !!document.fullscreenElement && document.getElementById('fullscreen').textContent.includes('Exit'));
   await projector.keyboard.press('f'); await waitFor(projector, () => !document.fullscreenElement);
   await host.locator('#displayMode').selectOption('leaderboard'); await waitFor(projector, () => document.getElementById('joinHint').textContent.includes('Fox Quiz')); await projector.getByText('1. Fox team').waitFor();
@@ -99,7 +99,7 @@ try {
   log('captive fallback, registration, draft reload, offline reconnect, pause/resume, final submission and reveal');
   await host.locator('#next').click(); await player.getByRole('heading', {name: 'Select orange', exact: true}).waitFor(); await player.getByRole('button', {name: 'A. orange'}).click(); await player.locator('#submit').click(); await waitFor(player, () => document.getElementById('answerState').textContent.includes('Final answer saved')); await host.locator('#close').click();
   await host.locator('#next').click(); await player.getByRole('heading', {name: 'One-item sheet', exact: true}).waitFor(); await player.locator('#inputs input').fill('one'); await player.locator('#submit').click(); await waitFor(player, () => document.getElementById('answerState').textContent.includes('Final answer saved')); await host.locator('#close').click();
-  await host.locator('[data-tab=mark]').click(); await host.locator('#reviewSelect').selectOption('3'); await host.locator('#markCards select').selectOption('0');
+  await host.locator('[data-tab=live]').click(); await host.locator('#reviewSelect').selectOption('3'); await host.locator('#markCards select').selectOption('0');
   await host.locator('#markCards select').evaluate(select => select.blur());
   for (let i = 0; i < 2; i++) await host.waitForResponse(response => response.url().endsWith('/api/host/review'));
   assert.equal(await host.locator('#markCards select').inputValue(), '0', 'Polling must preserve unsaved marks');
@@ -126,7 +126,7 @@ try {
   await saveQuestion('buzzer', 'Classic buzz', {answer: 'Yes'});
   await saveQuestion('buzzer', 'Advanced buzz', {answer: 'Giraffe', variation: 'advanced', agreePoints: '2'});
   await host.locator('[data-tab=teams]').click(); const before = await scoreOf('Fox team');
-  await host.locator('[data-tab=live]').click(); await host.locator('#scramble').click(); await waitFor(host, () => document.getElementById('scramble').textContent.endsWith('on'));
+  await host.locator('[data-tab=settings]').click(); await host.locator('#scramble').click(); await waitFor(host, () => document.getElementById('scramble').textContent.endsWith('on')); await host.locator('[data-tab=live]').click();
   await play('Sonic is a what'); await rival.getByRole('heading', {name: 'Sonic is a what', exact: true}).waitFor();
   const layout = page => page.locator('#inputs .keypad button').allTextContents();
   assert.notDeepEqual(await layout(player), await layout(rival), 'scrambled keypads differ per team'); assert.deepEqual([...await layout(player)].sort(), [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']);
@@ -222,7 +222,7 @@ try {
       return start.call(this, when, ...rest);
     };
   });
-  await host.locator('#wheelItems').fill('Red\nBlue\nGreen'); await host.locator('#wheelItems').evaluate(e => e.blur()); await host.keyboard.press('w');
+  await host.evaluate(() => {document.querySelector('details.tools').open = true;}); await host.locator('#wheelItems').fill('Red\nBlue\nGreen'); await host.locator('#wheelItems').evaluate(e => e.blur()); await host.keyboard.press('w');
   await visible(projector, '#wheelSection'); await waitFor(projector, () => document.getElementById('wheelResult').textContent.startsWith('🎉'));
   assert.match(await projector.locator('#wheelResult').textContent(), /Red|Blue|Green/);
   const {clicks, angles} = await projector.evaluate(() => window.wheelLog);
@@ -269,7 +269,7 @@ try {
   await play('Name that tune bingo'); await visible(player, '#ticket');
   assert.equal(await player.locator('#ticket button').count(), 15);
   // With the board switched on, the TV lists the songs played so far.
-  await host.locator('#board').click(); await waitFor(host, () => document.getElementById('board').textContent.endsWith('on'));
+  await host.locator('[data-tab=settings]').click(); await host.locator('#board').click(); await waitFor(host, () => document.getElementById('board').textContent.endsWith('on')); await host.locator('[data-tab=live]').click();
   for (let i = 0; i < 15; i++) {
     await host.locator('#callNumber').click(); await host.waitForFunction(n => document.getElementById('bingoCalls').textContent.startsWith(`${n} of`), i + 1, {timeout: 12000});
     if (/Final Track/.test(await host.locator('#bingoInfo').textContent())) await waitFor(host, () => !document.getElementById('songAudio').hidden && document.getElementById('songAudio').currentSrc.includes('/media/'));
@@ -313,19 +313,19 @@ try {
   await french.locator('#name').fill('Les Renards'); await french.locator('#joinButton').click(); await visible(french, '#game');
   await waitFor(french, () => document.getElementById('connection').textContent === '● Connecté' && document.getElementById('message').textContent.startsWith('C’est parti'));
   await french.locator('#menuButton').click(); await french.locator('#teamMenu .language').selectOption('es'); await waitFor(french, () => document.getElementById('connection').textContent === '● Conectado');
-  await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await Promise.all([projector.waitForEvent('load'), host.locator('#tvLanguage').selectOption('es')]);
+  await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await Promise.all([projector.waitForEvent('load'), host.locator('[data-tab=settings]').click().then(() => host.locator('#tvLanguage').selectOption('es'))]);
   await waitFor(projector, () => document.querySelector('#boardSection h2')?.textContent === 'Clasificación');
   await Promise.all([projector.waitForEvent('load'), host.locator('#tvLanguage').selectOption('en')]); await waitFor(projector, () => document.querySelector('#boardSection h2')?.textContent === 'Leaderboard');
   await host.locator('[data-tab=teams]').click(); await host.locator('#teamCards article', {hasText: 'Les Renards'}).getByRole('button', {name: 'Disable'}).click();
   log('French phone by browser locale, switched to Spanish; TV language follows the desk setting');
-  await host.locator('[data-tab=live]').click(); await host.locator('#waitingRoom').click(); await waitFor(host, () => document.getElementById('waitingRoom').textContent === 'Waiting room: on');
+  await host.locator('[data-tab=settings]').click(); await host.locator('#waitingRoom').click(); await waitFor(host, () => document.getElementById('waitingRoom').textContent === 'Waiting room: on'); await host.locator('[data-tab=live]').click();
   const door = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true}).then(c => c.newPage()); door.on('pageerror', e => errors.push(e.message));
   await door.goto(base + '/'); await door.locator('#name').fill('Door team'); await door.locator('#joinButton').click();
   await waitFor(door, () => document.getElementById('question').textContent.includes('waiting room'));
   await waitFor(host, () => document.getElementById('admitAll').textContent === 'Let everyone in (1)' && document.getElementById('alerts').textContent.includes('Waiting room: Door team'));
   assert.equal(await projector.locator('#leaderboard', {hasText: 'Door team'}).count(), 0);
   await host.locator('#admitAll').click(); await waitFor(door, () => !document.getElementById('question').textContent.includes('waiting room'));
-  await projector.locator('#leaderboard', {hasText: 'Door team'}).waitFor(); await host.locator('#waitingRoom').click();
+  await projector.locator('#leaderboard', {hasText: 'Door team'}).waitFor(); await host.locator('[data-tab=settings]').click(); await host.locator('#waitingRoom').click(); await host.locator('[data-tab=live]').click();
   log('waiting room: a new team waits on its phone until the desk lets it in');
   await host.locator('#timerMinutes').fill('0'); await host.locator('#timerSeconds').fill('2'); await host.locator('#timerLabel').fill('Pens down'); await host.locator('#timerForm button[type=submit], #timerForm > button:not([type])').first().click();
   await visible(projector, '#countdown'); assert.equal(await projector.locator('#countdownLabel').textContent(), 'Pens down');
@@ -335,8 +335,8 @@ try {
   await waitFor(player, () => /^#\d+$/.test(document.getElementById('myScore').textContent)); await host.locator('#showScores').click();
   await waitFor(projector, () => document.querySelector('#leaderboard strong').textContent.endsWith('pts'));
   log('TV countdown over the leaderboard; board switches between scores and positions only');
-  await host.locator('[data-tab=build]').click(); await waitFor(host, () => document.getElementById('spotifyStatus').textContent === 'Not connected' && /^http:\/\/127\.0\.0\.1:\d+\/spotify\/callback$/.test(document.getElementById('spotifyRedirect').textContent));
-  assert.equal(await host.locator('#spotifySongs').isDisabled(), true);
+  await host.locator('[data-tab=settings]').click(); await waitFor(host, () => document.getElementById('spotifyStatus').textContent === 'Not connected' && /^http:\/\/127\.0\.0\.1:\d+\/spotify\/callback$/.test(document.getElementById('spotifyRedirect').textContent));
+  await host.locator('[data-tab=build]').click(); assert.equal(await host.locator('#spotifySongs').isDisabled(), true);
   await host.locator('#questionSelect').selectOption(''); await host.locator('#qType').selectOption('vote');
   assert.equal(await host.locator('#evilLabel').isHidden(), true); await host.locator('#qType').selectOption('text'); assert.equal(await host.locator('#evilLabel').isVisible(), true);
   assert.equal(await host.locator('#speedLabel').isHidden(), true); await host.locator('#qFastest').check(); assert.equal(await host.locator('#speedLabel').isVisible(), true);
@@ -346,7 +346,7 @@ try {
   const saved = (await hostApi('library')).rounds.flatMap(r => r.questions).find(q => q.text === 'Evil capital');
   assert.deepEqual([saved.evil, saved.fastestFingers, saved.bonusMode, saved.bonusPlaces, saved.speedBonus], [true, true, 'fixed', 2, 3]);
   log('builder: Evil Mode and fixed speed bonus fields save with the question');
-  await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await host.locator('#finish').click(); await waitFor(projector, () => document.getElementById('boardStatus').textContent === 'Final standings');
+  await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await host.evaluate(() => {document.getElementById('finish').closest('details').open = true;}); await host.locator('#finish').click(); await waitFor(projector, () => document.getElementById('boardStatus').textContent === 'Final standings');
   await visible(projector, '#boardSection'); await host.locator('#displayMode').selectOption('winner');
   await visible(projector, '#winnerSection'); await waitFor(projector, () => document.getElementById('winnerName').textContent === 'Fox team' && document.querySelectorAll('#confetti span').length === 80);
   assert.match(await projector.locator('#podium').textContent(), /🥈 Owl team/); await waitFor(player, () => document.getElementById('answerState').textContent === 'Quiz finished');
@@ -358,26 +358,26 @@ try {
   await player.waitForURL(url => url.pathname === '/', {timeout: 30000, waitUntil: 'domcontentloaded'});
   await waitFor(player, () => document.getElementById('connection').textContent.includes('Connected'));
   assert.equal(await player.locator('#team').textContent(), 'Fox team');
-  await host.locator('[data-tab=build]').click(); await host.evaluate(() => window.print = () => {document.body.dataset.printed = 'yes';}); await host.locator('#printSheets').click();
+  await host.evaluate(() => {document.querySelector('.file-items').closest('details').open = true;}); await host.locator('[data-tab=build]').click(); await host.evaluate(() => window.print = () => {document.body.dataset.printed = 'yes';}); await host.locator('#printSheets').click();
   assert.equal(await host.locator('body').getAttribute('data-printed'), 'yes'); assert.match(await host.locator('#paper').textContent(), /One-item sheet/);
-  await player.screenshot({path: '/tmp/pubquiz-player-review.png', fullPage: true});
-  await host.screenshot({path: '/tmp/pubquiz-host-review.png', fullPage: true});
+  await player.screenshot({path: '/tmp/beermat-app-review.png', fullPage: true});
+  await host.screenshot({path: '/tmp/beermat-host-review.png', fullPage: true});
   log('server restart preserves the event, host session and player identity; blank sheets are printable');
   // The test quiz file carries its pictures and sounds; importing uploads them, and exporting packs them back in.
   // Loading a quiz file starts a fresh quiz: the night so far is saved and downloaded, and phones are asked to rejoin.
   await host.locator('[data-tab=build]').click();
-  const [nightOne] = await Promise.all([host.waitForEvent('download', {timeout: 60000}), host.locator('#importQuiz').setInputFiles('examples/test-quiz.json')]);
+  await host.evaluate(() => {document.querySelector('.file-items').closest('details').open = true;}); const [nightOne] = await Promise.all([host.waitForEvent('download', {timeout: 60000}), host.locator('#importQuiz').setInputFiles('examples/test-quiz.json')]);
   assert.match(nightOne.suggestedFilename(), /^beermat-results-/);
   await waitFor(host, () => document.getElementById('message').textContent.startsWith('New quiz loaded: Test quiz'), 60000);
   await waitFor(player, () => !document.getElementById('join').hidden && document.getElementById('message').textContent === 'A new quiz has started — pick your team name again.');
   assert.deepEqual((await hostApi('state')).teams, []);
   const imported = await hostApi('library'), importedMedia = imported.rounds.flatMap(r => r.questions.flatMap(q => [q.media, ...(q.clips || []).map(c => c.media), ...(q.songs || []).map(x => x.media)])).filter(Boolean);
   assert.deepEqual([imported.title, imported.rounds.length, importedMedia.length > 30, importedMedia.every(m => /^\/media\/[a-f0-9]+\.(png|wav)$/.test(m))], ['Test quiz', 6, true, true]);
-  const [packed] = await Promise.all([host.waitForEvent('download'), host.locator('#exportQuizMedia').click()]);
+  await host.evaluate(() => {document.querySelector('.file-items').closest('details').open = true;}); const [packed] = await Promise.all([host.waitForEvent('download'), host.locator('#exportQuizMedia').click()]);
   const bundle = JSON.parse(readFileSync(await packed.path(), 'utf8'));
   assert.match(bundle.rounds[1].questions[1].media, /^data:image\/png;base64,/); assert.equal(bundle.revision, undefined);
   log('loading a quiz file starts a fresh quiz; quiz files carry their media in and out');
-  await host.locator('[data-tab=live]').click(); await host.locator('#newEvent').click(); await visible(host, '#newEventDialog');
+  await host.locator('[data-tab=live]').click(); await host.evaluate(() => {document.getElementById('finish').closest('details').open = true;}); await host.locator('#newEvent').click(); await visible(host, '#newEventDialog');
   await host.locator('#newEventTitle').fill('Second night');
   const [results] = await Promise.all([host.waitForEvent('download'), host.locator('#newEventConfirm').click()]);
   assert.match(results.suggestedFilename(), /^beermat-results-.*\.json$/);

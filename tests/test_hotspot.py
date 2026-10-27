@@ -25,7 +25,7 @@ class HotspotTests(unittest.TestCase):
             hotspot.nft_config('wlan0', 70000)
     def test_injection_rejected(self):
         with self.assertRaises(ValueError):
-            hotspot.commands('wlan0; rm', 'PubQuiz')
+            hotspot.commands('wlan0; rm', 'BeerMat')
     def test_default_makes_no_changes(self):
         with patch('sys.argv', ['hotspot.py', 'up']), patch.object(hotspot, 'run') as run, patch('builtins.print'):
             hotspot.main()
@@ -43,12 +43,6 @@ class HotspotTests(unittest.TestCase):
     def test_down_continues_after_a_failed_step(self):
         steps = self.down_run('BeerMat-offline\n')
         self.assertEqual(len(steps), 5)  # every teardown step, though the first failed
-        self.assertNotIn('pubquiz', ' '.join(' '.join(c) for c in steps), 'nothing from the old version on a clean laptop')
-    def test_down_also_removes_a_hotspot_left_by_the_pubquiz_version(self):
-        steps = self.down_run('Home\nPubQuiz-offline\n', 'table inet pubquiz\n', ('pubquiz-dnsmasq.service',))
-        for step in (['systemctl', 'stop', 'pubquiz-dnsmasq.service'], ['nft', 'delete', 'table', 'inet', 'pubquiz'], ['nmcli', 'connection', 'delete', 'PubQuiz-offline']):
-            self.assertIn(step, steps)
-        self.assertNotIn(['systemctl', 'stop', 'pubquiz-ap.service'], steps)
     def test_apply_runs_every_step_in_order(self):
         calls = []
         def fake(cmd, **kw):
@@ -75,18 +69,18 @@ class HotspotTests(unittest.TestCase):
         with patch('sys.argv', ['hotspot.py', 'up', '--interface', 'wlan0', '--keep-wifi', '--apply', *extra]), patch('os.geteuid', return_value=0), \
                 patch.object(hotspot, 'run', side_effect=fake), patch.object(hotspot.Path, 'mkdir'), patch.object(hotspot.Path, 'write_text'), \
                 patch.object(hotspot.Path, 'exists', exists), patch.object(hotspot.Path, 'read_text', return_value='9c:67:d6:d7:ae:4c\n'), \
-                patch('subprocess.run', side_effect=lambda cmd, **kw: type('R', (), {'returncode': 3 if 'is-active' in cmd else 0, 'stdout': 'type AP\n\tssid PubQuiz\n'})), patch('builtins.print'):
+                patch('subprocess.run', side_effect=lambda cmd, **kw: type('R', (), {'returncode': 3 if 'is-active' in cmd else 0, 'stdout': 'type AP\n\tssid BeerMat\n'})), patch('builtins.print'):
             hotspot.main()
         return calls
     def test_keep_wifi_hosts_on_a_virtual_interface_on_the_home_channel(self):
         calls = self.keep_wifi_run('Connected to aa:bb\n\tfreq: 2437.0\n')
-        self.assertIn(['iw', 'dev', 'wlan0', 'interface', 'add', 'pq0', 'type', '__ap'], calls)
-        self.assertIn(['ip', 'link', 'set', 'pq0', 'address', '9e:67:d6:d7:ae:4d'], calls)
-        self.assertIn(['ip', 'addr', 'add', '10.42.0.1/24', 'dev', 'pq0'], calls)
+        self.assertIn(['iw', 'dev', 'wlan0', 'interface', 'add', 'bm0', 'type', '__ap'], calls)
+        self.assertIn(['ip', 'link', 'set', 'bm0', 'address', '9e:67:d6:d7:ae:4d'], calls)
+        self.assertIn(['ip', 'addr', 'add', '10.42.0.1/24', 'dev', 'bm0'], calls)
         # NetworkManager cannot run a second interface on this kind of card, so wpa_supplicant hosts it.
         self.assertFalse(any(c[:3] == ['nmcli', 'connection', 'add'] for c in calls))
         ap = next(c for c in calls if c[0] == 'systemd-run' and '--unit=beermat-ap.service' in c)
-        self.assertEqual(ap[-6:-1], ['-D', 'nl80211', '-i', 'pq0', '-c'])
+        self.assertEqual(ap[-6:-1], ['-D', 'nl80211', '-i', 'bm0', '-c'])
     def test_ap_config_is_open_on_the_home_channel(self):
         conf = hotspot.ap_config('Pub "Quiz"', 6)
         self.assertIn('ssid=' + 'Pub "Quiz"'.encode().hex(), conf); self.assertIn('frequency=2437', conf)
@@ -99,14 +93,14 @@ class HotspotTests(unittest.TestCase):
         self.assertEqual([hotspot.channel_of(f) for f in (2412, 2437, 2472, 2484, 5180)], [1, 6, 13, 14, None])
     def test_leftovers_are_named_with_the_down_command(self):
         def fake(cmd, **kw):
-            out = {('nmcli', '-g', 'WIFI-PROPERTIES.AP'): 'yes\n', ('nmcli', '-g', 'NAME'): 'BTB\nPubQuiz-offline\n', ('nft', 'list', 'tables'): 'table inet pubquiz\n'}
+            out = {('nmcli', '-g', 'WIFI-PROPERTIES.AP'): 'yes\n', ('nmcli', '-g', 'NAME'): 'BTB\nBeerMat-offline\n', ('nft', 'list', 'tables'): 'table inet beermat\n'}
             return type('R', (), {'stdout': out.get(tuple(cmd[:3]), ''), 'returncode': 0})
         with patch('sys.argv', ['hotspot.py', 'up', '--apply']), patch('os.geteuid', return_value=0), patch.object(hotspot, 'run', side_effect=fake), \
                 patch('subprocess.run', return_value=type('R', (), {'returncode': 0})), patch.object(hotspot.Path, 'exists', return_value=False), \
                 self.assertRaises(SystemExit), patch('sys.stderr') as err:
             hotspot.main()
         message = ''.join(c.args[0] for c in err.write.call_args_list)
-        self.assertIn('Wi-Fi profile PubQuiz-offline, firewall table inet pubquiz, beermat-dnsmasq service, beermat-ap service, pubquiz-dnsmasq service, pubquiz-ap service', message)
+        self.assertIn('Wi-Fi profile BeerMat-offline, firewall table inet beermat, beermat-dnsmasq service, beermat-ap service', message)
         self.assertIn('hotspot.py down --interface wlan0 --apply', message)
     def test_pick_prefers_a_free_card_and_shares_only_when_it_must(self):
         self.assertEqual(hotspot.pick([card('wlan0', True), card('wlan1')]), {'interface': 'wlan1', 'keepWifi': False})
@@ -125,7 +119,7 @@ class HotspotTests(unittest.TestCase):
         self.assertEqual((status['wifiOn'], status['pick'], len(status['cards'])), (True, {'interface': 'wlan1', 'keepWifi': False}, 2))
     def test_replace_takes_leftovers_down_and_carries_on(self):
         def fake(cmd, **kw):
-            out = {('nmcli', '-g', 'WIFI-PROPERTIES.AP'): 'yes\n', ('nmcli', '-g', 'NAME'): 'PubQuiz-offline\n', ('nft', 'list', 'tables'): ''}
+            out = {('nmcli', '-g', 'WIFI-PROPERTIES.AP'): 'yes\n', ('nmcli', '-g', 'NAME'): 'BeerMat-offline\n', ('nft', 'list', 'tables'): ''}
             return type('R', (), {'stdout': out.get(tuple(cmd[:3]), ''), 'returncode': 0})
         with patch('sys.argv', ['hotspot.py', 'up', '--apply', '--replace']), patch('os.geteuid', return_value=0), patch.object(hotspot, 'run', side_effect=fake) as run, \
                 patch('subprocess.run', return_value=type('R', (), {'returncode': 3})), patch.object(hotspot, 'take_down', return_value=[]) as down, \

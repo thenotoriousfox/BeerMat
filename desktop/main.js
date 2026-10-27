@@ -6,7 +6,6 @@
 // reach the app only through the few calls in preload.cjs, accepted only from the desk page itself.
 import electron, {app, BrowserWindow, screen, ipcMain, dialog, Menu, shell, utilityProcess, safeStorage, session, clipboard} from 'electron';
 import path from 'node:path';
-import {existsSync, renameSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
 import {spawn} from 'node:child_process';
@@ -17,18 +16,13 @@ import {restoreDatabase} from './database.js';
 import {pickOutput, sinkScript, listScript} from './sound.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-// Quizzes, settings, the quizmaster key and logs: %APPDATA%\BeerMat or ~/.config/BeerMat. The folder from before the
-// rename (…\PubQuiz) moves there on the first start, so nothing is lost. Tests (and a portable copy) can use their own.
-const dataDir = process.env.PUBQUIZ_USER_DATA || path.join(app.getPath('appData'), 'BeerMat'), oldDataDir = path.join(app.getPath('appData'), 'PubQuiz');
-if (!process.env.PUBQUIZ_USER_DATA && !existsSync(dataDir) && existsSync(oldDataDir)) {
-  try {renameSync(oldDataDir, dataDir); if (existsSync(path.join(dataDir, 'logs', 'pubquiz.log'))) renameSync(path.join(dataDir, 'logs', 'pubquiz.log'), path.join(dataDir, 'logs', 'beermat.log'));}
-  catch (e) {console.error(`Could not move ${oldDataDir} to ${dataDir}: ${e.message}`);}
-}
-app.setPath('userData', existsSync(dataDir) || !existsSync(oldDataDir) ? dataDir : oldDataDir);
+// Quizzes, settings, the quizmaster key and logs: %APPDATA%\BeerMat or ~/.config/BeerMat. Tests (and a portable copy)
+// can keep everything in one folder of their own.
+app.setPath('userData', process.env.BEERMAT_USER_DATA || path.join(app.getPath('appData'), 'BeerMat'));
 app.setAppLogsPath(path.join(app.getPath('userData'), 'logs'));
 // Wayland does not let a window choose its screen, which the TV window must; XWayland does. The display system is
-// chosen before this file runs, so on a Wayland desktop the app starts itself again on X11 (PUBQUIZ_WAYLAND=1 opts out).
-const toX11 = process.platform === 'linux' && process.env.DISPLAY && (process.env.WAYLAND_DISPLAY || process.env.XDG_SESSION_TYPE === 'wayland') && process.env.PUBQUIZ_WAYLAND !== '1' && !process.argv.some(a => a.startsWith('--ozone-platform'));
+// chosen before this file runs, so on a Wayland desktop the app starts itself again on X11 (BEERMAT_WAYLAND=1 opts out).
+const toX11 = process.platform === 'linux' && process.env.DISPLAY && (process.env.WAYLAND_DISPLAY || process.env.XDG_SESSION_TYPE === 'wayland') && process.env.BEERMAT_WAYLAND !== '1' && !process.argv.some(a => a.startsWith('--ozone-platform'));
 // Started as a detached child without CHROME_DESKTOP, which Electron sets in this process: castlabs' Electron crashes at
 // startup when it inherits it (as it would through app.relaunch).
 if (toX11) {
@@ -39,7 +33,7 @@ else if (!app.requestSingleInstanceLock()) app.quit();
 else run();
 
 function run() {
-  const data = app.getPath('userData'), test = process.env.PUBQUIZ_TEST === '1';
+  const data = app.getPath('userData'), test = process.env.BEERMAT_TEST === '1';
   const log = createLog(path.join(app.getPath('logs'), 'beermat.log'), {echo: test}), serverLog = createLog(path.join(app.getPath('logs'), 'server.log'));
   const prefs = createPrefs(path.join(data, 'desktop.json'), {port: 3000, autoOpen: true, audience: null, desk: null, welcomed: false, tvSound: 'auto'});
   const icon = path.join(here, '..', 'scripts', 'beermat.png');
@@ -55,7 +49,7 @@ function run() {
     return new Promise((resolve, reject) => {
       info = null;
       const child = utilityProcess.fork(path.join(here, 'server-host.js'), [], {serviceName: 'BeerMat quiz server', stdio: 'pipe',
-        env: {...process.env, HOST_KEY: key, PUBQUIZ_DATA: data, PORT: String(prefs.get().port), ...(test ? {PUBQUIZ_LAPTOP: process.env.PUBQUIZ_LAPTOP || '0'} : {})}});
+        env: {...process.env, HOST_KEY: key, BEERMAT_DATA: data, PORT: String(prefs.get().port), ...(test ? {BEERMAT_LAPTOP: process.env.BEERMAT_LAPTOP || '0'} : {})}});
       server = child;
       for (const stream of [child.stdout, child.stderr]) stream?.on('data', text => serverLog(String(text).trimEnd()));
       child.on('message', m => {
@@ -172,7 +166,7 @@ function run() {
   let outputs = [], tvOutput = null, soundTimers = [];
   const spotifyFrames = () => desk && !desk.isDestroyed() ? desk.webContents.mainFrame.framesInSubtree.filter(f => f.origin === 'https://sdk.scdn.co') : [];
   const screensState = () => ({...screens.info(), sound: {choice: prefs.get().tvSound, active: tvOutput, outputs}});
-  const pushScreens = () => {try {if (desk && !desk.isDestroyed()) desk.webContents.send('pubquiz:screens', screensState());} catch {}};
+  const pushScreens = () => {try {if (desk && !desk.isDestroyed()) desk.webContents.send('beermat:screens', screensState());} catch {}};
   async function listOutputs() {
     if (!desk || desk.isDestroyed()) return outputs;
     try {outputs = await desk.webContents.executeJavaScript(listScript);} catch {outputs = [];}
@@ -195,7 +189,7 @@ function run() {
 
   // ---- Desk calls (preload.cjs) ----
   const fromDesk = event => {try {const u = new URL(event.senderFrame.url); return sameOrigin(u.href) && u.pathname === '/host';} catch {return false;}};
-  const handle = (name, fn) => ipcMain.handle('pubquiz:' + name, (event, ...args) => {if (!fromDesk(event)) throw Error('Not allowed'); return fn(...args);});
+  const handle = (name, fn) => ipcMain.handle('beermat:' + name, (event, ...args) => {if (!fromDesk(event)) throw Error('Not allowed'); return fn(...args);});
   handle('screens', async () => {await listOutputs(); return screensState();});
   handle('open-tv', () => {screens.open(); return screensState();});
   handle('close-tv', () => {screens.close(); return screensState();});

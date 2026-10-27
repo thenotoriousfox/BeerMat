@@ -4,7 +4,7 @@
 import {plan, swapped, describe} from './displays.js';
 
 // Blanking hides the page and mutes it, without reloading: the quiz carries on underneath.
-const BLANK_CSS = 'html.pubquiz-blank, html.pubquiz-blank body { background: #000 !important; } html.pubquiz-blank body > * { visibility: hidden !important; }';
+const BLANK_CSS = 'html.beermat-blank, html.beermat-blank body { background: #000 !important; } html.beermat-blank body > * { visibility: hidden !important; }';
 
 export function createScreens({screen, openAudience, deskWindow = () => null, prefs, savePrefs, log = () => {}, changed = () => {}}) {
   let tv = null, blanked = false, current = {desk: null, audience: null, windowed: true};
@@ -43,7 +43,7 @@ export function createScreens({screen, openAudience, deskWindow = () => null, pr
   function setBlank(on) {
     blanked = !!on;
     if (!alive(tv)) return;
-    tv.webContents.executeJavaScript(`document.documentElement.classList.toggle('pubquiz-blank', ${blanked})`).catch(() => {});
+    tv.webContents.executeJavaScript(`document.documentElement.classList.toggle('beermat-blank', ${blanked})`).catch(() => {});
     tv.webContents.setAudioMuted(blanked);
     changed();
   }

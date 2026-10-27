@@ -6,7 +6,7 @@ import path from 'node:path';
 import {createQuiz} from '../server.js';
 const key='a-private-test-password';
 test('persistent identities, authoritative deadlines, validation, scoring and access control',async()=>{
- const dir=mkdtempSync(path.join(os.tmpdir(),'pubquiz-'));let clock=100000;let quiz;
+ const dir=mkdtempSync(path.join(os.tmpdir(),'beermat-'));let clock=100000;let quiz;
  async function start(){quiz=createQuiz({database:path.join(dir,'test.sqlite'),hostKey:key,now:()=>clock});await new Promise(r=>quiz.server.listen(0,'127.0.0.1',r));}
  await start();
  async function api(p,b={},auth=''){const r=await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/${p}`,{method:'POST',headers:{Authorization:'Bearer '+auth,'Content-Type':'application/json'},body:JSON.stringify(b)});return {status:r.status,...await r.json()};}

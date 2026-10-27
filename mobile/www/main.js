@@ -43,13 +43,13 @@ async function reachable(url) {
 async function openQuiz(url, title) {
   $('openAnyway').hidden = true;
   say(`Looking for the quiz at ${url.replace(/^https?:\/\//, '')}…`);
-  const go = () => {store.set('pq-recent', remember(store.get('pq-recent', []), url, title)); location.href = url + '/';};
+  const go = () => {store.set('beermat-recent', remember(store.get('beermat-recent', []), url, title)); location.href = url + '/';};
   if (await reachable(url)) return go();
   say('Can’t reach that quiz. Check you’re on the same Wi-Fi as the quiz (or the quiz Wi-Fi), and that the address matches the TV.', true);
   $('openAnyway').hidden = false; $('openAnyway').onclick = go;
 }
 function renderRecent() {
-  const list = store.get('pq-recent', []);
+  const list = store.get('beermat-recent', []);
   $('recentBox').hidden = !list.length;
   $('recent').replaceChildren(...list.map(r => {
     const li = el('li'), button = el('button', `${r.title || r.url.replace(/^https?:\/\//, '')} · ${ago(r.at)}`);
@@ -156,7 +156,7 @@ for (const [id, key] of [['privLeaderboards', 'leaderboards'], ['privPhoto', 'ph
   $(id).onchange = guarded(async () => {fillProfile(await client.updateProfile({privacy: {[key]: $(id).checked}})); say('Privacy saved');});
 $('exportData').onclick = guarded(async () => {
   const data = await client.exportData(), link = el('a');
-  link.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'})); link.download = 'pubquiz-online-data.json'; link.click();
+  link.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'})); link.download = 'beermat-online-data.json'; link.click();
 });
 $('deleteAccount').onclick = guarded(async () => {
   if (!confirm('Delete your BeerMat Online account, profile and saved results? This cannot be undone.')) return;
@@ -193,7 +193,7 @@ function directions(v) {
   return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(v.postcode || v.lat === null || v.lat === undefined ? place : `${v.lat},${v.lon}`);
 }
 function renderEvents(events, list = $('events')) {
-  const favourites = new Set(store.get('pq-favourites', []).map(v => v.id));
+  const favourites = new Set(store.get('beermat-favourites', []).map(v => v.id));
   list.replaceChildren(...events.map(e => {
     const li = el('li');
     li.append(el('div', when(e.startsAt), 'when'), el('strong', e.regular ? `${e.title} · every ${dayName(weekday(e.startsAt))}` : e.title), el('div', `${e.venue.name}, ${e.venue.town}${e.distanceKm !== undefined ? ` · ${e.distanceKm} km` : ''}`, 'where'));
@@ -221,8 +221,8 @@ async function reminder(event) {
 }
 // Favourite venues are kept on the phone, and in the profile when signed in.
 async function toggleFavourite(venue, on) {
-  const list = store.get('pq-favourites', []).filter(v => v.id !== venue.id);
-  store.set('pq-favourites', on ? [...list, {id: venue.id, name: venue.name, town: venue.town}] : list);
+  const list = store.get('beermat-favourites', []).filter(v => v.id !== venue.id);
+  store.set('beermat-favourites', on ? [...list, {id: venue.id, name: venue.name, town: venue.town}] : list);
   if (client.signedIn()) await client.favourite(venue.id, on).catch(() => {});
   say(on ? `${venue.name} saved` : `${venue.name} removed`);
   if (lastSearch) search(lastSearch); renderFavourites();
@@ -235,14 +235,14 @@ const dayName = d => d[0].toUpperCase() + d.slice(1);
 const weekday = t => days[(new Date(t).getDay() + 6) % 7];
 const clock = time => {const [h, m] = time.split(':').map(Number); return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''}${h < 12 ? 'am' : 'pm'}`;};
 const nightsText = nights => nights.map(n => `${dayName(n.day)}s at ${clock(n.time)}`).join(', ');
-let dayFilter = store.get('pq-day', '');
+let dayFilter = store.get('beermat-day', '');
 if (!days.includes(dayFilter)) dayFilter = '';
 function renderDays() {
   const today = weekday(Date.now());
   $('dayFilter').replaceChildren(...['', ...days].map(d => {
     const b = el('button', d ? dayName(d).slice(0, 3) : 'Any day', d === today ? 'today' : undefined); b.type = 'button';
     b.setAttribute('aria-pressed', String(d === dayFilter)); if (d) b.title = d === today ? `${dayName(d)} (today)` : dayName(d);
-    b.onclick = () => {dayFilter = d; store.set('pq-day', d); renderDays(); drawPins(); if (lastSearch) search(lastSearch);};
+    b.onclick = () => {dayFilter = d; store.set('beermat-day', d); renderDays(); drawPins(); if (lastSearch) search(lastSearch);};
     return b;
   }));
 }
@@ -290,7 +290,7 @@ async function renderMap() {
 // A venue's page: its details and upcoming quiz nights.
 async function showVenue(v) {
   shownVenue = v;
-  const card = $('venueCard'), saved = store.get('pq-favourites', []).some(f => f.id === v.id);
+  const card = $('venueCard'), saved = store.get('beermat-favourites', []).some(f => f.id === v.id);
   const close = el('button', '✕', 'subtle close'); close.type = 'button'; close.setAttribute('aria-label', 'Close'); close.onclick = () => {card.hidden = true; shownVenue = null; drawPins();};
   card.replaceChildren(close, el('h3', v.name), el('p', [v.address, v.town, v.postcode].filter(Boolean).join(', '), 'where'));
   if (v.quizNights?.length) card.append(el('p', `🗓 Quiz night${v.quizNights.length > 1 ? 's' : ''}: ${nightsText(v.quizNights)}`, 'nights'));
@@ -310,8 +310,8 @@ async function showVenue(v) {
   } catch {upcoming.replaceChildren(el('li', 'The next quiz needs a connection to BeerMat Online.', 'hint'));}
 }
 async function renderFavourites() {
-  let list = store.get('pq-favourites', []);
-  if (client.signedIn()) try {const remote = (await client.favourites()).venues; if (remote.length) {list = remote.map(v => ({id: v.id, name: v.name, town: v.town})); store.set('pq-favourites', list);}} catch {}
+  let list = store.get('beermat-favourites', []);
+  if (client.signedIn()) try {const remote = (await client.favourites()).venues; if (remote.length) {list = remote.map(v => ({id: v.id, name: v.name, town: v.town})); store.set('beermat-favourites', list);}} catch {}
   $('favouritesBox').hidden = !list.length;
   $('favourites').replaceChildren(...list.map(v => {const li = el('li'), b = el('button', `${v.name}, ${v.town} — upcoming quizzes`); b.onclick = () => search({q: v.town}); li.append(b); return li;}));
 }

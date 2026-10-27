@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 -400 60 430">
-  <!-- A spider on its thread (drawn for PubQuiz, CC0); the thread runs up out of view. -->
+  <!-- A spider on its thread (drawn for BeerMat, CC0); the thread runs up out of view. -->
   <path d="M0-400V-6" stroke="#d9cdf2" stroke-opacity=".55" stroke-width="1"/>
   <g stroke="#07030c" stroke-width="2.4" fill="none" stroke-linecap="round">
     <path d="M-4 0c-10-8-14-14-22-12M-4 4c-12-2-16 2-24 8M-4 8c-10 4-12 10-18 18M-3 11c-6 6-6 12-10 18"/>

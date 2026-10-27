@@ -34,7 +34,7 @@
   "license": "UNLICENSED",
   "main": "desktop/main.js",
   "build": {
-    "appId": "uk.pubquiz.desktop",
+    "appId": "uk.beermat.desktop",
     "productName": "BeerMat",
     "copyright": "Copyright \u00a9 2026 Daniel Weatherall",
     "asar": false,

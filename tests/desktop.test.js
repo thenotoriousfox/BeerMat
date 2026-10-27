@@ -101,15 +101,15 @@ test('TV window: choosing a screen, swapping with the desk, blanking without rel
   assert.deepEqual(opened[0].bounds, laptopScreen.bounds);
   assert.equal(screens.info().displays.find(d => d.desk).id, 7);
   opened[0].webContents.emit('did-finish-load');
-  assert.match(opened[0].css[0], /pubquiz-blank/);
+  assert.match(opened[0].css[0], /beermat-blank/);
   screens.toggleBlank();
-  assert.deepEqual([opened[0].muted, opened[0].scripts.at(-1)], [true, "document.documentElement.classList.toggle('pubquiz-blank', true)"]);
+  assert.deepEqual([opened[0].muted, opened[0].scripts.at(-1)], [true, "document.documentElement.classList.toggle('beermat-blank', true)"]);
   assert.equal(screens.info().blanked, true);
   screens.setBlank(false);
   assert.equal(opened[0].muted, false);
   // A blanked TV stays blank across a page reload.
   screens.setBlank(true); opened[0].webContents.emit('did-finish-load');
-  assert.equal(opened[0].scripts.at(-1), "document.documentElement.classList.toggle('pubquiz-blank', true)");
+  assert.equal(opened[0].scripts.at(-1), "document.documentElement.classList.toggle('beermat-blank', true)");
   screens.close();
   assert.equal(screens.info().open, false);
   screens.setAutoOpen(false);
@@ -179,7 +179,7 @@ test('database: a checked copy on each start, the newest ten kept; a damaged fil
     assert.equal(checkDatabase(file), null);
     assert.equal(new DatabaseSync(file).prepare('SELECT name FROM teams').get().name, 'Foxes');
 
-    // Restoring: only a PubQuiz database is accepted; the current one is backed up first.
+    // Restoring: only a BeerMat database is accepted; the current one is backed up first.
     const other = path.join(dir, 'other.sqlite'); new DatabaseSync(other).exec('CREATE TABLE x(y)');
     assert.throws(() => restoreDatabase(other, file, backups), /not a BeerMat database/);
     writeFileSync(path.join(dir, 'junk.sqlite'), 'not a database at all, honestly');
@@ -199,7 +199,7 @@ test('quiz server process: starts on the preferred port or the next free one, mi
   const dir = temp(), blocker = (await import('node:http')).createServer();
   await new Promise(r => blocker.listen(0, '127.0.0.1', r));
   const busy = blocker.address().port;
-  const child = fork(path.join(import.meta.dirname, '..', 'desktop', 'server-host.js'), [], {env: {...process.env, HOST_KEY: 'a-secure-quiz-test-key', PUBQUIZ_DATA: dir, PORT: String(busy), BIND: '127.0.0.1', PUBQUIZ_LAPTOP: '0'}, execArgv: ['--disable-warning=ExperimentalWarning'], stdio: 'pipe'});
+  const child = fork(path.join(import.meta.dirname, '..', 'desktop', 'server-host.js'), [], {env: {...process.env, HOST_KEY: 'a-secure-quiz-test-key', BEERMAT_DATA: dir, PORT: String(busy), BIND: '127.0.0.1', BEERMAT_LAPTOP: '0'}, execArgv: ['--disable-warning=ExperimentalWarning'], stdio: 'pipe'});
   const messages = [];
   const next = type => new Promise((resolve, reject) => {
     const found = messages.find(m => m.type === type); if (found) return resolve(found);

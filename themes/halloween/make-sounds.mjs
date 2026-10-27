@@ -58,7 +58,7 @@ function write(name, buf, {loop = false} = {}) {
   console.log(`${name}.mp3  ${(buf.length / RATE).toFixed(1)} s`);
 }
 
-const work = mkdtempSync(path.join(os.tmpdir(), 'pubquiz-halloween-'));
+const work = mkdtempSync(path.join(os.tmpdir(), 'beermat-halloween-'));
 mkdirSync(out, {recursive: true});
 try {
   // Start of a round: the organ's famous-sounding flourish and a D minor chord.
