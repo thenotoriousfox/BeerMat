@@ -70,6 +70,7 @@ test('checkout: the pub’s details are checked, then Stripe’s payment page', 
     const {params, auth} = calls.find(c => c.route === '/v1/checkout/sessions');
     assert.equal(auth, 'Bearer sk_test_x');
     assert.deepEqual([params.mode, params['line_items[0][price]'], params.customer_email, params.success_url, params.cancel_url], ['subscription', 'price_m', 'vic@example.com', 'https://site.test/pro/thanks', 'https://site.test/pro']);
+    assert.equal(params['managed_payments[enabled]'], 'false', 'never Stripe’s Managed Payments');
     assert.deepEqual([params['metadata[venue]'], params['metadata[postcode]'], params['metadata[town]'], params['metadata[lat]']], ['The Victoria Inn', 'DE1 2RR', 'Derby', '52.9168']);
     assert.equal((await api('POST', '/v1/checkout', {...form, interval: 'yearly'})).status, 200);
     assert.equal(calls.filter(c => c.route === '/v1/checkout/sessions').at(-1).params['line_items[0][price]'], 'price_y');

@@ -495,6 +495,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         const town = (text(input.town, 80, {name: 'Town'}) || place.admin_district || place.parish || 'Unknown').slice(0, 80);
         const site = stripe.siteUrl || 'https://beermatquiz.co.uk';
         const session = await stripeApi('POST', 'checkout/sessions', {mode: 'subscription', line_items: [{price: stripe.prices[input.interval], quantity: 1}],
+          // Never Stripe's Managed Payments (merchant of record, 3.5% more), even if the account turns it on by default.
+          managed_payments: {enabled: false},
           customer_email: buyer, allow_promotion_codes: true, success_url: `${site}/pro/thanks`, cancel_url: `${site}/pro`,
           metadata: {venue, contact, address: street, postcode: place.postcode, town, lat: String(place.latitude), lon: String(place.longitude)}, subscription_data: {metadata: {venue}}});
         return send(200, {url: session.url});
