@@ -60,6 +60,7 @@ async function loadOverview() {
     tile(o.venues, 'venues', `${o.verifiedVenues} verified · ${o.operatedVenues} with an operator · ${o.mappedVenues} on the map`),
     tile(o.proVenues, 'venues on Pro'),
     tile(o.openReports, 'reports to look at'),
+    tile(o.awaitingApproval, 'new venues to approve'),
     tile(o.upcoming, 'quizzes in the next 7 days'),
     tile(o.accounts, 'accounts', `${o.newAccounts} new this week · ${o.admins} admin${o.admins === 1 ? '' : 's'}`),
     tile(o.results, 'results kept by players'),
@@ -80,10 +81,11 @@ async function loadVenues() {
 function renderVenues() {
   const find = $('venueSearch').value.trim().toLowerCase(), filter = $('venueFilter').value;
   const shown = venues.filter(v => (!find || `${v.name} ${v.town} ${v.postcode} ${v.id}`.toLowerCase().includes(find))
-    && (filter !== 'unverified' || !v.verified) && (filter !== 'nooperator' || !v.operator) && (filter !== 'unmapped' || v.lat === null) && (filter !== 'nonights' || !v.quizNights.length));
+    && (filter !== 'awaiting' || !v.approved) && (filter !== 'unverified' || !v.verified) && (filter !== 'nooperator' || !v.operator) && (filter !== 'unmapped' || v.lat === null) && (filter !== 'nonights' || !v.quizNights.length));
   $('venueRows').replaceChildren(...shown.map(v => {
     const tr = el('tr'), name = el('td');
     name.append(el('strong', v.name), el('span', ` ${v.town}${v.postcode ? ', ' + v.postcode : ''}`, 'muted'));
+    if (!v.approved) name.append(el('span', 'awaiting approval', 'badge warn'));
     if (v.verified) name.append(el('span', '✓ verified', 'badge good'));
     if (v.lat === null) name.append(el('span', 'not on map', 'badge warn'));
     const edit = el('button', 'Open', 'ghost'); edit.type = 'button'; edit.onclick = () => openVenue(v);
@@ -116,6 +118,14 @@ function openVenue(v) {
 function fillExtras(v) {
   editing = v;
   $('vVerified').checked = v.verified;
+  $('vApproved').checked = v.approved;
+  // Stripe's dashboard for this venue's subscription (test-mode ids open in test mode).
+  $('vStripe').replaceChildren();
+  if (v.stripeCustomer) {
+    const a = el('a', 'Open its subscription in Stripe'); a.target = '_blank'; a.rel = 'noopener';
+    a.href = `https://dashboard.stripe.com/customers/${v.stripeCustomer}`;
+    $('vStripe').append(document.createTextNode('Paid by card. '), a);
+  } else $('vStripe').textContent = v.plan === 'pro' ? 'Pro set by hand (not paid by card).' : '';
   $('vPlan').value = v.planSet; $('vPlanUntil').value = v.planUntil ? new Date(v.planUntil).toISOString().slice(0, 10) : '';
   $('vPlanNow').textContent = v.plan === 'pro' ? `On Pro${v.planUntil ? ' until ' + date(v.planUntil) : ', with no end date'}.` : v.planSet === 'pro' ? `Pro ended ${date(v.planUntil)}: on Free.` : 'On Free: 3 questions and 3 teams per quiz.';
   $('vOperator').textContent = v.operator ? `Run by ${v.operator.name} (${v.operator.email}): they edit this venue and its quiz nights from their quiz desk.` : 'No operator yet. Link the account of whoever runs the quiz here; they sign up in the BeerMat app or on their quiz desk first.';
@@ -149,6 +159,7 @@ $('venueForm').onsubmit = guarded(async e => {
   await loadVenues();
   openVenue(venues.find(v => v.id === saved.id));
 }, 'Venue saved');
+$('vApproved').onchange = guarded(async () => {await api('POST', `/v1/venues/${editing.id}/approve`, {approved: $('vApproved').checked}); await loadVenues();}, 'Saved');
 $('vVerified').onchange = guarded(async () => {await api('POST', `/v1/venues/${editing.id}/verify`, {verified: $('vVerified').checked}); await loadVenues();}, 'Saved');
 $('planForm').onsubmit = guarded(async () => {
   const until = $('vPlanUntil').value, plan = $('vPlan').value;

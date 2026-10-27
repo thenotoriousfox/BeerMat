@@ -20,7 +20,7 @@
   </section>
 
   <section id="venues" class="tab" hidden>
-    <div class="toolbar"><input id="venueSearch" type="search" placeholder="Find a venue or town" aria-label="Find a venue"><select id="venueFilter" aria-label="Show"><option value="">All venues</option><option value="unverified">Not verified</option><option value="nooperator">No operator</option><option value="unmapped">Not on the map</option><option value="nonights">No quiz nights</option></select><button id="addVenue" type="button" class="primary">＋ Add venue</button></div>
+    <div class="toolbar"><input id="venueSearch" type="search" placeholder="Find a venue or town" aria-label="Find a venue"><select id="venueFilter" aria-label="Show"><option value="">All venues</option><option value="awaiting">Awaiting approval</option><option value="unverified">Not verified</option><option value="nooperator">No operator</option><option value="unmapped">Not on the map</option><option value="nonights">No quiz nights</option></select><button id="addVenue" type="button" class="primary">＋ Add venue</button></div>
     <table class="list"><thead><tr><th>Venue</th><th>Quiz nights</th><th>Operator</th><th>Next quiz</th><th>Laptops</th><th>Plan</th><th></th></tr></thead><tbody id="venueRows"></tbody></table>
     <p id="venuesEmpty" class="muted" hidden>No venues match.</p>
   </section>
@@ -47,6 +47,7 @@
     <div class="actions"><button class="primary" value="save">Save venue</button><button type="button" class="ghost" data-close>Close</button></div>
   </form>
   <div id="venueExtras" hidden>
+    <div class="extra"><h3>On the map</h3><label class="check"><input id="vApproved" type="checkbox"> Approved: shown on the map and in listings while it’s on Pro</label><p id="vStripe" class="muted"></p></div>
     <div class="extra"><h3>Verified</h3><label class="check"><input id="vVerified" type="checkbox"> Checked to be a real venue: its results count on public leaderboards</label></div>
     <div class="extra"><h3>Plan</h3><p id="vPlanNow" class="muted"></p><form id="planForm" class="inline"><select id="vPlan" aria-label="Plan"><option value="free">Free</option><option value="pro">Pro</option></select><label>until <input id="vPlanUntil" type="date" aria-label="Pro until"></label><button class="primary">Save plan</button></form><p class="muted">Leave the date empty for Pro with no end. Laptops pick up a change next time they’re online (or straight away with <em>Check my plan</em> on the desk).</p></div>
     <div class="extra"><h3>Operator</h3><p id="vOperator" class="muted"></p><form id="operatorForm" class="inline"><input id="vOperatorEmail" type="email" placeholder="their account’s email" aria-label="Operator email" required><button class="primary">Link</button><button id="vUnlink" type="button" class="ghost">Unlink</button></form></div>

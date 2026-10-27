@@ -15,7 +15,7 @@
 // counts on public leaderboards. Players' own submissions are never trusted for scores.
 import http from 'node:http';
 import {DatabaseSync} from 'node:sqlite';
-import {randomBytes, scryptSync, timingSafeEqual, createHash} from 'node:crypto';
+import {randomBytes, scryptSync, timingSafeEqual, createHash, createHmac} from 'node:crypto';
 import {readFileSync, existsSync, statSync, readdirSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -62,7 +62,7 @@ const venuesTable = name => `CREATE TABLE IF NOT EXISTS ${name}(id TEXT PRIMARY 
   verified INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, quiz_nights TEXT NOT NULL DEFAULT '[]', listed INTEGER NOT NULL DEFAULT 0, edited TEXT NOT NULL DEFAULT '[]',
   plan TEXT NOT NULL DEFAULT 'free', plan_until INTEGER);`;
 
-export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), adminDir = path.join(here, 'admin'), backupDir = '', trustProxy = false, licenceKey = '', publicUrl = '', mail = null, pagesDir = path.join(here, 'pages')} = {}) {
+export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), adminDir = path.join(here, 'admin'), backupDir = '', trustProxy = false, licenceKey = '', publicUrl = '', mail = null, pagesDir = path.join(here, 'pages'), stripe = null, adminEmail = '', fetchImpl = globalThis.fetch} = {}) {
   const startedAt = now();
   const db = new DatabaseSync(database);
   // Before the venue list, every venue had to have an owner: rebuild that table once (foreign keys off, so nothing
@@ -87,6 +87,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     CREATE TABLE IF NOT EXISTS venue_results(venue_key TEXT NOT NULL, event TEXT NOT NULL, summary TEXT NOT NULL, received INTEGER NOT NULL, PRIMARY KEY(venue_key, event));
     CREATE INDEX IF NOT EXISTS events_starts ON events(starts);
     CREATE TABLE IF NOT EXISTS email_tokens(hash TEXT PRIMARY KEY, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, purpose TEXT NOT NULL, expires INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS stripe_events(id TEXT PRIMARY KEY, received INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS reports(id TEXT PRIMARY KEY, kind TEXT NOT NULL, target TEXT NOT NULL, reason TEXT NOT NULL, reporter TEXT, created INTEGER NOT NULL, resolved INTEGER);
   `);
   // Email addresses are confirmed by a link. Accounts made before that existed count as confirmed.
@@ -97,6 +98,9 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   if (!db.prepare('PRAGMA table_info(venues)').all().some(c => c.name === 'quiz_nights')) db.exec("ALTER TABLE venues ADD COLUMN quiz_nights TEXT NOT NULL DEFAULT '[]'");
   // A venue's plan: free, or pro until plan_until (no date: until an admin changes it).
   if (!db.prepare('PRAGMA table_info(venues)').all().some(c => c.name === 'plan')) db.exec("ALTER TABLE venues ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'; ALTER TABLE venues ADD COLUMN plan_until INTEGER");
+  // Venues bought on the website: their Stripe customer and subscription, and whether an admin has approved them for
+  // the map yet (venues added any other way are approved).
+  if (!db.prepare('PRAGMA table_info(venues)').all().some(c => c.name === 'approved')) db.exec("ALTER TABLE venues ADD COLUMN approved INTEGER NOT NULL DEFAULT 1; ALTER TABLE venues ADD COLUMN stripe_customer TEXT; ALTER TABLE venues ADD COLUMN stripe_subscription TEXT");
   const one = (sql, ...a) => db.prepare(sql).get(...a), rows = (sql, ...a) => db.prepare(sql).all(...a), run = (sql, ...a) => db.prepare(sql).run(...a);
   const attempts = new Map();
   // Ten tries a minute per address (and per email for sign-in), then a pause.
@@ -143,10 +147,12 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   const link = (account, purpose) => {
     const t = token(); run('DELETE FROM email_tokens WHERE account=? AND purpose=?', account, purpose);
     run('INSERT INTO email_tokens VALUES(?,?,?,?)', sha(t), account, purpose, now() + (purpose === 'reset' ? 3600000 : 7 * 86400000));
-    return `${publicUrl.replace(/\/$/, '')}/${purpose === 'reset' ? 'reset' : 'verify'}?token=${t}`;
+    // A new venue's first password (setup) uses the reset page, with a week to do it.
+    return `${publicUrl.replace(/\/$/, '')}/${purpose === 'verify' ? 'verify' : 'reset'}?token=${t}`;
   };
-  const useLink = (t, purpose) => {
-    const row = typeof t === 'string' ? one('SELECT * FROM email_tokens WHERE hash=? AND purpose=? AND expires>?', sha(t), purpose, now()) : null;
+  const useLink = (t, ...purposes) => {
+    const row = typeof t === 'string' ? one(`SELECT * FROM email_tokens WHERE hash=? AND purpose IN (${purposes.map(() => '?').join(',')}) AND expires>?`, sha(t), ...purposes, now()) : null;
+    const purpose = purposes[0];
     check(row, purpose === 'reset' ? 'This reset link has expired or was already used. Ask for a new one.' : 'This link has expired or was already used.', 400);
     run('DELETE FROM email_tokens WHERE hash=?', row.hash);
     return row.account;
@@ -158,10 +164,78 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   const sendVerify = a => mail && publicUrl ? email({to: a.email, subject: 'Confirm your BeerMat email address', name: a.display_name,
     intro: 'Tap the button to confirm this is your email address for BeerMat.', button: 'Confirm my email', url: link(a.id, 'verify'),
     outro: 'The link works for a week. If you didn’t make a BeerMat account, you can ignore this email.'}).catch(e => console.error('Email not sent:', e.message)) : null;
+  // A readable venue id from the name and town (it never changes, and names the venue in venues.json).
+  function newVenueId(name, town) {
+    const slug = `${name}-${town}`.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'venue';
+    let venueId = slug;
+    for (let i = 2; one('SELECT 1 FROM venues WHERE id=?', venueId); i++) venueId = `${slug}-${i}`;
+    return venueId;
+  }
+  // ---- BeerMat Pro by subscription (Stripe) ----
+  // A venue buys on the website: Stripe Checkout takes the payment, then its webhook tells us, and the venue, its
+  // operator's account and its Pro plan are made here. Renewals, plan changes and cancellations arrive the same way.
+  async function stripeApi(method, route, params = {}) {
+    check(stripe?.secretKey, 'Payments aren’t set up on this service yet', 503);
+    const body = new URLSearchParams();
+    const add = (prefix, value) => {
+      if (Array.isArray(value)) value.forEach((v, i) => add(`${prefix}[${i}]`, v));
+      else if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) add(`${prefix}[${k}]`, v);
+      else if (value !== undefined && value !== null) body.append(prefix, String(value));
+    };
+    for (const [k, v] of Object.entries(params)) add(k, v);
+    let response;
+    try {
+      response = await fetchImpl(`${stripe.apiBase || 'https://api.stripe.com'}/v1/${route}${method === 'GET' && body.size ? '?' + body : ''}`,
+        {method, headers: {Authorization: 'Bearer ' + stripe.secretKey}, ...(method === 'GET' ? {} : {body}), signal: AbortSignal.timeout(15000)});
+    } catch {throw new ApiError(502, 'The payment service can’t be reached. Try again in a minute.');}
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {console.error('Stripe', method, route, data.error?.message || response.status); throw new ApiError(502, 'The payment service said no. Try again, or email us.');}
+    return data;
+  }
+  // Stripe signs each webhook: HMAC-SHA256 of "<time>.<body>" with the endpoint's secret, in the Stripe-Signature header.
+  function stripeSigned(raw, header) {
+    const parts = Object.fromEntries((header || '').split(',').map(x => x.split('=')).filter(x => x.length === 2).map(([k, v]) => [k, v]));
+    const signatures = (header || '').split(',').filter(x => x.startsWith('v1=')).map(x => Buffer.from(x.slice(3), 'hex'));
+    const time = Number(parts.t), expected = createHmac('sha256', stripe?.webhookSecret || '').update(`${parts.t}.${raw}`).digest();
+    return !!stripe?.webhookSecret && Number.isFinite(time) && Math.abs(now() / 1000 - time) < 300 && signatures.some(sig => sig.length === expected.length && timingSafeEqual(sig, expected));
+  }
+  // Paid until the end of the current period, with two days for the renewal to arrive.
+  const paidUntil = sub => ((sub.items?.data?.[0]?.current_period_end ?? sub.current_period_end) + 2 * 86400) * 1000;
+  function applySubscription(sub) {
+    const v = one('SELECT * FROM venues WHERE stripe_subscription=?', sub.id);
+    if (!v) return;
+    if (['active', 'trialing', 'past_due'].includes(sub.status)) run("UPDATE venues SET plan='pro',plan_until=? WHERE id=?", paidUntil(sub), v.id);
+    else if (['canceled', 'unpaid', 'incomplete_expired'].includes(sub.status)) run('UPDATE venues SET plan_until=? WHERE id=?', Math.min(v.plan_until ?? now(), now()), v.id);
+  }
+  async function checkoutCompleted(session) {
+    if (session.mode !== 'subscription' || !session.subscription || one('SELECT 1 FROM venues WHERE stripe_subscription=?', session.subscription)) return;
+    const m = session.metadata || {}, address = String(session.customer_details?.email || session.customer_email || m.email || '').trim().toLowerCase();
+    const sub = await stripeApi('GET', `subscriptions/${session.subscription}`);
+    // The operator's account: theirs if the email already has one, otherwise a new one they set a password for.
+    let account = one('SELECT * FROM accounts WHERE email=?', address), made = false;
+    if (!account) {
+      const accountId = id(); made = true;
+      run('INSERT INTO accounts(id,email,password,created,display_name,privacy) VALUES(?,?,?,?,?,?)', accountId, address, hashPassword(token()), now(), (m.contact || m.venue || 'BeerMat venue').slice(0, 40), JSON.stringify(defaultPrivacy));
+      account = one('SELECT * FROM accounts WHERE id=?', accountId);
+    }
+    const venueId = newVenueId(m.venue, m.town);
+    run(`INSERT INTO venues(id,owner,name,town,postcode,address,lat,lon,created,plan,plan_until,approved,stripe_customer,stripe_subscription) VALUES(?,?,?,?,?,?,?,?,?,'pro',?,0,?,?)`,
+      venueId, account.id, m.venue, m.town, m.postcode || '', m.address || '', m.lat ? Number(m.lat) : null, m.lon ? Number(m.lon) : null, now(), paidUntil(sub), session.customer, session.subscription);
+    if (mail && publicUrl) {
+      const site = stripe.siteUrl || 'https://beermatquiz.co.uk';
+      await email({to: address, subject: `Welcome to BeerMat Pro, ${m.venue}`, name: account.display_name,
+        intro: made ? `Thanks for choosing BeerMat Pro for ${m.venue}. First, choose a password for your BeerMat account. Then download BeerMat for the quiz laptop, sign in on its Venue tab, and add your quiz nights.`
+          : `Thanks for choosing BeerMat Pro for ${m.venue}. It’s linked to your BeerMat account, so sign in on the quiz desk’s Venue tab with your usual password and add your quiz nights.`,
+        button: made ? 'Choose my password' : 'Download BeerMat', url: made ? link(account.id, 'setup') : `${site}/download`,
+        outro: `Your pub goes on the BeerMat map once we’ve checked it, usually within a day. Download BeerMat: ${site}/download. Questions? Just reply to this email.`}).catch(e => console.error('Email not sent:', e.message));
+      if (adminEmail) await mail({to: adminEmail, subject: `New BeerMat Pro venue to approve: ${m.venue}, ${m.town}`,
+        text: `${m.venue}, ${[m.address, m.town, m.postcode].filter(Boolean).join(', ')}\nOperator: ${account.display_name} <${address}>\n\nApprove it for the map: ${publicUrl.replace(/\/$/, '')}/admin/#venues\n`}).catch(e => console.error('Email not sent:', e.message));
+    }
+  }
   const planOf = v => v.plan === 'pro' && (v.plan_until === null || v.plan_until > now()) ? 'pro' : 'free';
   // Only BeerMat Pro venues are on the map, in quiz listings and on public venue pages: they're the pubs running
   // BeerMat quizzes. A venue's operator and admins still see it, to get it ready before it goes Pro.
-  const PRO_SQL = "plan='pro' AND (plan_until IS NULL OR plan_until>?)";
+  const PRO_SQL = "plan='pro' AND (plan_until IS NULL OR plan_until>?) AND approved=1";
   // A venue key counts once a venue has registered it.
   const venueOfKey = key => one('SELECT v.* FROM venue_keys k JOIN venues v ON v.id=k.venue WHERE k.public_key=?', key);
   function history(accountId) {
@@ -281,6 +355,20 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       const auth = req.headers.authorization?.replace(/^Bearer /, '') || '';
       const account = auth ? one('SELECT a.* FROM sessions s JOIN accounts a ON a.id=s.account WHERE s.hash=? AND s.expires>?', sha(auth), now()) : null;
       const me = () => {check(account, 'Sign in first', 401); return account;};
+      // Stripe's webhook: the body is checked byte for byte against its signature, so it's read raw. An event that
+      // fails here (Stripe unreachable, say) isn't recorded, so Stripe sends it again.
+      if (method === 'POST' && p === '/v1/stripe/webhook') {
+        const chunks = []; let size = 0;
+        for await (const chunk of req) {size += chunk.length; check(size <= 1024 * 1024, 'Request too large', 413); chunks.push(chunk);}
+        const raw = Buffer.concat(chunks).toString('utf8');
+        check(stripeSigned(raw, req.headers['stripe-signature']), 'Bad signature', 400);
+        const event = JSON.parse(raw), object = event.data?.object || {};
+        if (one('SELECT 1 FROM stripe_events WHERE id=?', event.id)) return send(200, {received: true});
+        if (event.type === 'checkout.session.completed') await checkoutCompleted(object);
+        else if (String(event.type).startsWith('customer.subscription.')) applySubscription(object);
+        run('INSERT OR IGNORE INTO stripe_events VALUES(?,?)', event.id, now());
+        return send(200, {received: true});
+      }
       const input = ['POST', 'PATCH', 'PUT'].includes(method) ? await body(req) : {};
       const parts = p.split('/').slice(2);
 
@@ -322,7 +410,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       }
       if (method === 'POST' && p === '/v1/password-reset/confirm') {
         check(typeof input.password === 'string' && input.password.length >= 10 && input.password.length <= 200, 'Password must be at least 10 characters');
-        const accountId = useLink(input.token, 'reset');
+        const accountId = useLink(input.token, 'reset', 'setup');
         // The link came by email, so the address is confirmed too; every signed-in device is signed out.
         run('UPDATE accounts SET password=?,email_verified=1 WHERE id=?', hashPassword(input.password), accountId);
         run('DELETE FROM sessions WHERE account=?', accountId);
@@ -391,6 +479,27 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return send(200, {ok: true});
       }
 
+      // ---- Buying BeerMat Pro on the website: a Stripe Checkout page for the venue's subscription ----
+      if (method === 'POST' && p === '/v1/checkout') {
+        limit('checkout:' + ip);
+        check(stripe?.secretKey && stripe.prices, 'Payments aren’t set up yet. Email us instead.', 503);
+        const venue = text(input.venue, 120, {required: true, name: 'Pub name'}), contact = text(input.name, 40, {required: true, name: 'Your name'});
+        const street = text(input.address, 200, {name: 'Address'}), buyer = text(input.email, 200, {required: true, name: 'Email'}).toLowerCase();
+        check(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(buyer), 'Enter a valid email address');
+        check(Object.hasOwn(stripe.prices, input.interval), 'Choose monthly or yearly');
+        const postcode = text(input.postcode, 10, {required: true, name: 'Postcode'}).replace(/\s+/g, '').toUpperCase();
+        let place;
+        try {const r = await fetchImpl('https://api.postcodes.io/postcodes/' + encodeURIComponent(postcode), {signal: AbortSignal.timeout(8000)}); place = r.ok ? (await r.json()).result : null;}
+        catch {throw new ApiError(502, 'We couldn’t check that postcode just now. Try again in a minute.');}
+        check(place, 'That postcode wasn’t found. Check it and try again.');
+        const town = (text(input.town, 80, {name: 'Town'}) || place.admin_district || place.parish || 'Unknown').slice(0, 80);
+        const site = stripe.siteUrl || 'https://beermatquiz.co.uk';
+        const session = await stripeApi('POST', 'checkout/sessions', {mode: 'subscription', line_items: [{price: stripe.prices[input.interval], quantity: 1}],
+          customer_email: buyer, allow_promotion_codes: true, success_url: `${site}/pro/thanks`, cancel_url: `${site}/pro`,
+          metadata: {venue, contact, address: street, postcode: place.postcode, town, lat: String(place.latitude), lon: String(place.longitude)}, subscription_data: {metadata: {venue}}});
+        return send(200, {url: session.url});
+      }
+
       // ---- Reports: anyone can flag a venue page that looks wrong or abusive; admins see them in the console ----
       if (method === 'POST' && p === '/v1/reports') {
         limit('report:' + ip);
@@ -411,12 +520,12 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
           mappedVenues: n('SELECT COUNT(*) n FROM venues WHERE lat IS NOT NULL'), proVenues: n("SELECT COUNT(*) n FROM venues WHERE plan='pro' AND (plan_until IS NULL OR plan_until>?)", now()), accounts: n('SELECT COUNT(*) n FROM accounts'), admins: n('SELECT COUNT(*) n FROM accounts WHERE admin=1'),
           newAccounts: n('SELECT COUNT(*) n FROM accounts WHERE created>?', now() - 7 * 86400000), results: n('SELECT COUNT(*) n FROM results'), laptops: n('SELECT COUNT(*) n FROM venue_keys'),
           venueResults: n('SELECT COUNT(*) n FROM venue_results'), upcoming: n('SELECT COUNT(*) n FROM events WHERE cancelled=0 AND starts>? AND starts<?', now(), now() + 7 * 86400000),
-          openReports: n('SELECT COUNT(*) n FROM reports WHERE resolved IS NULL'), databaseBytes: (() => {try {return statSync(database).size;} catch {return null;}})(), lastBackup, startedAt, now: now()});
+          openReports: n('SELECT COUNT(*) n FROM reports WHERE resolved IS NULL'), awaitingApproval: n('SELECT COUNT(*) n FROM venues WHERE approved=0'), databaseBytes: (() => {try {return statSync(database).size;} catch {return null;}})(), lastBackup, startedAt, now: now()});
       }
       if (method === 'GET' && p === '/v1/admin/venues') {
         admin();
         return send(200, {venues: rows('SELECT v.*, a.email operator_email, a.display_name operator_name FROM venues v LEFT JOIN accounts a ON a.id=v.owner ORDER BY v.name COLLATE NOCASE').map(v => ({
-          ...venueOut(v), operator: v.owner ? {email: v.operator_email, name: v.operator_name} : null, plan: planOf(v), planSet: v.plan, planUntil: v.plan_until,
+          ...venueOut(v), operator: v.owner ? {email: v.operator_email, name: v.operator_name} : null, plan: planOf(v), planSet: v.plan, planUntil: v.plan_until, approved: !!v.approved, stripeCustomer: v.stripe_customer, stripeSubscription: v.stripe_subscription,
           laptops: rows('SELECT key_id id, added FROM venue_keys WHERE venue=? ORDER BY added', v.id),
           upcoming: rows('SELECT * FROM events WHERE venue=? AND cancelled=0 AND starts>? ORDER BY starts LIMIT 20', v.id, now()).map(e => ({id: e.id, title: e.title, startsAt: e.starts, regular: !!e.regular})),
           sharedResults: rows('SELECT r.summary, r.received FROM venue_results r JOIN venue_keys k ON k.public_key=r.venue_key WHERE k.venue=? ORDER BY r.received DESC LIMIT 10', v.id)
@@ -476,7 +585,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
 
       // ---- Venues and events (venue operators) ----
       const myVenue = venueId => {const v = one('SELECT * FROM venues WHERE id=?', venueId); check(v, 'Venue not found', 404); check(v.owner === me().id || me().admin, 'Only the venue’s operator can change it', 403); return v;};
-      if (method === 'GET' && p === '/v1/me/venues') return send(200, {venues: rows('SELECT * FROM venues WHERE owner=? ORDER BY name', me().id).map(v => ({...venueOut(v), keys: rows('SELECT key_id FROM venue_keys WHERE venue=?', v.id).map(k => k.key_id)}))});
+      if (method === 'GET' && p === '/v1/me/venues') return send(200, {venues: rows('SELECT * FROM venues WHERE owner=? ORDER BY name', me().id).map(v => ({...venueOut(v), plan: planOf(v), planUntil: v.plan_until, approved: !!v.approved, billing: !!v.stripe_customer, keys: rows('SELECT key_id FROM venue_keys WHERE venue=?', v.id).map(k => k.key_id)}))});
       // Every venue, for the map: public details and its next quiz night.
       if (method === 'GET' && p === '/v1/venues') {
         const next = v => {const e = one('SELECT * FROM events WHERE venue=? AND starts>? AND cancelled=0 ORDER BY starts LIMIT 1', v.id, now() - 6 * 3600000); return e ? {id: e.id, title: e.title, startsAt: e.starts} : null;};
@@ -485,17 +594,14 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       // Venues don't add themselves: they come from the venue list, or an admin adds one here.
       if (method === 'POST' && p === '/v1/venues') {
         check(me().admin, 'Venues are added by BeerMat: ask to be added', 403);
-        // A readable id from the name and town (it never changes, and names the venue in venues.json).
-        const fields = validVenue(input), slug = `${fields.name}-${fields.town}`.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'venue';
-        let venueId = slug;
-        for (let i = 2; one('SELECT 1 FROM venues WHERE id=?', venueId); i++) venueId = `${slug}-${i}`;
+        const fields = validVenue(input), venueId = newVenueId(fields.name, fields.town);
         run('INSERT INTO venues(id,name,town,postcode,address,website,lat,lon,quiz_nights,created) VALUES(?,?,?,?,?,?,?,?,?,?)', venueId, fields.name, fields.town, fields.postcode, fields.address, fields.website, fields.lat ?? null, fields.lon ?? null, fields.quiz_nights, now());
         publishRegular(venueId);
         return send(201, venueOut(one('SELECT * FROM venues WHERE id=?', venueId)));
       }
       if (parts[0] === 'venues' && parts.length >= 2) {
         if (method === 'GET' && parts.length === 2) {
-          const v = one('SELECT * FROM venues WHERE id=?', parts[1]); check(v && (planOf(v) === 'pro' || account?.admin || (account && v.owner === account.id)), 'Venue not found', 404);
+          const v = one('SELECT * FROM venues WHERE id=?', parts[1]); check(v && ((planOf(v) === 'pro' && v.approved) || account?.admin || (account && v.owner === account.id)), 'Venue not found', 404);
           return send(200, {...venueOut(v), events: rows('SELECT * FROM events WHERE venue=? AND starts>? AND cancelled=0 ORDER BY starts', v.id, now() - 6 * 3600000).map(e => eventOut(e, v))});
         }
         // The operator edits the venue's profile; what they change stays theirs when the list is imported again.
@@ -534,6 +640,16 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
           return send(201, eventOut(one('SELECT * FROM events WHERE id=?', eventId), v));
         }
         // Admins mark a venue verified (checked to be real); its results then count on public leaderboards.
+        // The venue's operator manages its subscription (card, monthly or yearly, cancelling) on Stripe's own page.
+        if (method === 'POST' && parts[2] === 'billing' && parts.length === 3) {
+          const v = myVenue(parts[1]); check(v.stripe_customer, 'This venue’s plan isn’t paid by card. Email us to change it.', 404);
+          return send(200, {url: (await stripeApi('POST', 'billing_portal/sessions', {customer: v.stripe_customer, return_url: stripe.siteUrl || 'https://beermatquiz.co.uk'})).url});
+        }
+        // Venues bought on the website wait for an admin before they're on the map.
+        if (method === 'POST' && parts[2] === 'approve' && parts.length === 3) {
+          check(me().admin, 'Admins only', 403); check(one('SELECT 1 FROM venues WHERE id=?', parts[1]), 'Venue not found', 404);
+          run('UPDATE venues SET approved=? WHERE id=?', input.approved === false ? 0 : 1, parts[1]); return send(200, {ok: true});
+        }
         if (method === 'POST' && parts[2] === 'verify') {check(me().admin, 'Admins only', 403); run('UPDATE venues SET verified=? WHERE id=?', input.verified === false ? 0 : 1, parts[1]); return send(200, {ok: true});}
       }
       if (parts[0] === 'events' && parts.length === 2 && (method === 'PATCH' || method === 'DELETE')) {
@@ -632,7 +748,9 @@ export const resendMail = (key, from) => async ({to, subject, text, html}) => {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const service = createService({database: process.env.ONLINE_DB || 'online.sqlite', allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
     backupDir: process.env.BACKUP_DIR || '', trustProxy: process.env.TRUST_PROXY === '1', licenceKey: process.env.LICENCE_KEY_FILE && existsSync(process.env.LICENCE_KEY_FILE) ? readFileSync(process.env.LICENCE_KEY_FILE, 'utf8').trim() : '',
-    publicUrl: process.env.PUBLIC_URL || '', mail: process.env.RESEND_API_KEY ? resendMail(process.env.RESEND_API_KEY, process.env.MAIL_FROM || 'BeerMat <noreply@example.com>') : null});
+    publicUrl: process.env.PUBLIC_URL || '', adminEmail: process.env.ADMIN_EMAIL || '',
+    stripe: process.env.STRIPE_SECRET_KEY ? {secretKey: process.env.STRIPE_SECRET_KEY, webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '', siteUrl: process.env.SITE_URL || '',
+      prices: {monthly: process.env.STRIPE_PRICE_MONTHLY, yearly: process.env.STRIPE_PRICE_YEARLY}} : null, mail: process.env.RESEND_API_KEY ? resendMail(process.env.RESEND_API_KEY, process.env.MAIL_FROM || 'BeerMat <noreply@example.com>') : null});
   service.server.listen(Number(process.env.PORT || 8080), process.env.BIND || '127.0.0.1', () => console.log(`BeerMat Online on http://${process.env.BIND || '127.0.0.1'}:${process.env.PORT || 8080} (put HTTPS in front before going public)`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => service.close().then(() => process.exit(0)));
 }

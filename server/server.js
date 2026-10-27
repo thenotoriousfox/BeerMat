@@ -587,7 +587,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // calls that run a venue. The session stays on the laptop; the desk page never talks to the internet itself.
   const onlineCalls = [
     ['GET', /^\/v1\/me\/venues$/], ['GET', /^\/v1\/venues\/[\w-]{1,64}$/], ['PATCH', /^\/v1\/venues\/[\w-]{1,64}$/],
-    ['POST', /^\/v1\/venues\/[\w-]{1,64}\/keys$/], ['POST', /^\/v1\/venues\/[\w-]{1,64}\/events$/], ['PATCH', /^\/v1\/events\/[\w-]{1,64}$/], ['DELETE', /^\/v1\/events\/[\w-]{1,64}$/],
+    ['POST', /^\/v1\/venues\/[\w-]{1,64}\/keys$/], ['POST', /^\/v1\/venues\/[\w-]{1,64}\/billing$/], ['POST', /^\/v1\/venues\/[\w-]{1,64}\/events$/], ['PATCH', /^\/v1\/events\/[\w-]{1,64}$/], ['DELETE', /^\/v1\/events\/[\w-]{1,64}$/],
   ];
   async function onlineApi(method, route, body) {
     const base = settings().onlineService;

@@ -626,3 +626,6 @@ body.idle .screen-controls button { opacity: 0; pointer-events: none; }
 .plan-badge { padding: 4px 12px; border-radius: 99px; font-weight: 700; background: var(--surface-2); }
 .plan-badge.pro { background: var(--gold); color: #140b2e; }
 #spotifyPanel.locked > :not(h2, #spotifyStatus) { display: none; }
+/* The Venue tab: its plan, with Manage subscription or Get BeerMat Pro. */
+.venue-plan { align-items: center; } .venue-plan #venuePlan { font-weight: 700; }
+.button-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 999px; background: var(--gold); color: #140b2e; font-weight: 700; text-decoration: none; }

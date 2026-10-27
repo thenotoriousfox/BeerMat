@@ -781,6 +781,11 @@ function renderVenue() {
   $('venueNone').hidden = !!venue; $('venueDetails').hidden = !venue;
   if (!venue) return;
   $('venuePickLabel').hidden = myVenues.length < 2;
+  // The venue's plan: Pro (on the map once BeerMat has checked it) or Free (not on the map); a card subscription is
+  // managed on Stripe's own page.
+  const pro = venue.plan === 'pro';
+  $('venuePlan').textContent = pro ? `BeerMat Pro${venue.planUntil ? `, paid until ${longDate(venue.planUntil)}` : ''}${venue.approved ? ' · on the map' : ' · on the map once BeerMat has checked it'}` : 'BeerMat Free: not on the map';
+  $('venueBilling').hidden = !venue.billing; $('venueGetPro').hidden = pro;
   $('venuePick').replaceChildren(...myVenues.map(v => {const o = element('option', `${v.name}, ${v.town}`); o.value = v.id; o.selected = v.id === venue.id; return o;}));
   for (const [field, key] of [['vName', 'name'], ['vTown', 'town'], ['vPostcode', 'postcode'], ['vAddress', 'address'], ['vWebsite', 'website'], ['vLat', 'lat'], ['vLon', 'lon']]) $(field).value = venue[key] ?? '';
   $('vNights').replaceChildren(...venueDays.map(day => {
@@ -1109,6 +1114,11 @@ function renderPlan(plan) {
     : plan.venue ? `${plan.venue} is on BeerMat Free.` : 'This laptop is on BeerMat Free.';
 }
 $('planSee').onclick = () => chooseTab('settings');
+$('venueBilling').onclick = () => action(async () => {
+  const {url} = await onlineCall('POST', `/v1/venues/${encodeURIComponent(venue.id)}/billing`);
+  if (!window.open(url, '_blank')) location.assign(url);
+  return 'Manage your subscription in the Stripe page that opened';
+});
 $('planRefresh').onclick = () => action(async () => {const plan = await request('plan/refresh'); renderPlan(plan); return `Plan checked: ${plan.name}`;});
 // ---- Tonight: one big button for whatever comes next, where the quiz is, and who's in the room ----
 // Whichever of Next, Close and Reveal is the natural next thing becomes the big button, first in the row: close an open

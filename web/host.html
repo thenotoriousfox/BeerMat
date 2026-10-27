@@ -37,7 +37,7 @@
 <details><summary>No BeerMat Online account yet? Create one</summary><form id="venueSignUp" class="row"><label>Your name<input id="venueName" maxlength="40" required></label><button>Create account with the email and password above</button></form><p class="muted">Then ask BeerMat to link your venue to this account.</p></details></div>
 <div id="venueSignedIn" hidden><p class="row"><span id="venueWho"></span><button id="venueSignOut" type="button" class="subtle">Sign out</button></p>
 <p id="venueNone" class="warning" hidden>This account doesn’t run a venue yet. Ask BeerMat to add your venue to the list and link it to this account’s email.</p>
-<div id="venueDetails" hidden><label id="venuePickLabel" hidden>Venue<select id="venuePick"></select></label>
+<div id="venueDetails" hidden><label id="venuePickLabel" hidden>Venue<select id="venuePick"></select></label><div class="row venue-plan"><span id="venuePlan"></span><button id="venueBilling" type="button" class="subtle" hidden>Manage subscription</button><a id="venueGetPro" class="button-link" target="_blank" rel="noopener" href="https://beermatquiz.co.uk/pro" hidden>Get BeerMat Pro</a></div>
 <form id="venueForm"><div class="row"><label>Venue name<input id="vName" maxlength="120" required></label><label>Town<input id="vTown" maxlength="80" required></label><label>Postcode<input id="vPostcode" maxlength="10"></label></div>
 <div class="row"><label>Address<input id="vAddress" maxlength="200"></label><label>Website<input id="vWebsite" maxlength="200" placeholder="https://"></label></div>
 <fieldset class="quiz-nights"><legend>Regular quiz nights: published by themselves, four weeks ahead (players can filter the map by day)</legend><div id="vNights" class="nights-grid"></div></fieldset>

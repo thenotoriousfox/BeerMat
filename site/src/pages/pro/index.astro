@@ -1,0 +1,53 @@
+---
+import Page from '../../layouts/Page.astro';
+import {ONLINE, PRICE, FREE_LIMITS} from '../../consts';
+// Buying BeerMat Pro: the pub's details here, then Stripe's own payment page (BeerMat Online starts the checkout and
+// sets the venue up when Stripe says it's paid).
+---
+<Page title="Get BeerMat Pro" description="BeerMat Pro for your pub: unlimited questions and teams, and your quiz nights on the BeerMat map.">
+	<section class="wrap grid gap-10 py-10 lg:grid-cols-[1fr_1.1fr]">
+		<div>
+			<p class="eyebrow">BeerMat Pro</p>
+			<h1 class="text-4xl sm:text-5xl">Get BeerMat Pro for your pub</h1>
+			<ul class="mt-6 space-y-3 text-lg text-muted">
+				<li>✓ As many questions and teams as you like (Free stops at {FREE_LIMITS.questions} and {FREE_LIMITS.teams})</li>
+				<li>✓ Your pub and its quiz nights on the BeerMat map, in the app and on this website</li>
+				<li>✓ Works offline on quiz night once it’s set up</li>
+				<li>✓ Cancel any time from your quiz desk</li>
+			</ul>
+			<p class="mt-6 text-muted">Payment is by card through Stripe. You’ll get an email to set up your account, then download BeerMat for the quiz laptop.</p>
+		</div>
+		<form id="buy" class="card space-y-4">
+			<fieldset class="grid gap-3 sm:grid-cols-2">
+				<legend class="mb-2 font-bold text-white">Choose how to pay</legend>
+				<label class="card !p-4 flex cursor-pointer gap-3 has-[:checked]:border-amber"><input type="radio" name="interval" value="monthly" checked class="mt-1 accent-amber" /><span><strong class="text-white">{PRICE.monthly} a month</strong><br /><span class="text-sm text-muted">Cancel any time</span></span></label>
+				<label class="card !p-4 flex cursor-pointer gap-3 has-[:checked]:border-amber"><input type="radio" name="interval" value="yearly" class="mt-1 accent-amber" /><span><strong class="text-white">{PRICE.yearly} a year</strong><br /><span class="text-sm text-muted">Two months free</span></span></label>
+			</fieldset>
+			<label class="block font-semibold">Pub name<input name="venue" required maxlength="120" autocomplete="organization" class="field" /></label>
+			<label class="block font-semibold">Street address <span class="font-normal text-muted">(optional)</span><input name="address" maxlength="200" autocomplete="address-line1" class="field" /></label>
+			<label class="block font-semibold">Postcode<input name="postcode" required maxlength="10" autocomplete="postal-code" class="field uppercase" /></label>
+			<label class="block font-semibold">Your name<input name="name" required maxlength="40" autocomplete="name" class="field" /></label>
+			<label class="block font-semibold">Your email<input name="email" type="email" required maxlength="200" autocomplete="email" class="field" /></label>
+			<label class="flex gap-3 text-sm text-muted"><input type="checkbox" required class="mt-1 accent-amber" /><span>I agree to the <a href="/terms" target="_blank">terms</a> and <a href="/privacy" target="_blank">privacy policy</a>.</span></label>
+			<button class="btn btn-primary w-full">Continue to payment</button>
+			<p id="buyStatus" class="min-h-6 text-sm text-muted" role="status"></p>
+		</form>
+	</section>
+	<script is:inline type="application/json" id="online" set:html={JSON.stringify(ONLINE)}></script>
+</Page>
+
+<script>
+	const form = document.getElementById('buy') as HTMLFormElement, status = document.getElementById('buyStatus')!;
+	const online = JSON.parse(document.getElementById('online')!.textContent!) as string;
+	form.addEventListener('submit', async e => {
+		e.preventDefault();
+		const button = form.querySelector('button')!; button.disabled = true; status.textContent = 'Taking you to the payment page…';
+		const data = Object.fromEntries(new FormData(form));
+		try {
+			const response = await fetch(online + '/v1/checkout', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+			const result = await response.json().catch(() => ({}));
+			if (!response.ok || !result.url) throw Error(result.error || 'Something went wrong. Try again, or email hello@beermatquiz.co.uk.');
+			location.assign(result.url);
+		} catch (error) {status.textContent = (error as Error).message; button.disabled = false;}
+	});
+</script>
