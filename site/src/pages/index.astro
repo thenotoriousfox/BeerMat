@@ -1,0 +1,115 @@
+---
+import Page from '../layouts/Page.astro';
+import {ONLINE, PRICE, FREE_LIMITS} from '../consts';
+
+const steps = [
+	['1', 'Open BeerMat on the laptop', 'Write your quiz on the desk, or load one you made earlier. Windows or Linux.'],
+	['2', 'Put the quiz on the TV', 'A second screen, a projector or the pub’s big telly. It shows the questions, a QR code to join and the scores.'],
+	['3', 'Teams play on their phones', 'They scan the code and play in their browser: no app, no account, no sign-up. Answers land on your desk as they come in.'],
+];
+const formats = [
+	['Multiple choice', 'and multi-tap, with speed bonuses'], ['Buzz-in', 'first to buzz answers out loud'], ['Nearest wins', 'for the “how many…” questions'],
+	['Picture & audio', 'pictures, clips and intros'], ['Pinpoint', 'tap the spot on the picture'], ['Number & music bingo', 'tickets on every phone'],
+	['Word snake', 'trace the answer through a grid'], ['Letter tiles', 'unscramble the answer'], ['Sequence', 'put them in order'],
+	['Sound clips', 'tap THIS ONE! on the right clip'], ['Answer sheets', 'several answers, one question'], ['Votes', 'let the room decide'],
+];
+const features = [
+	['No internet needed', 'The laptop makes its own quiz Wi-Fi, or uses the pub’s. If the internet goes down, the quiz doesn’t.'],
+	['The desk does the marking', 'Typed answers are marked as they arrive, with alternative spellings. Overrule anything with one tap.'],
+	['Built for the room', 'A big Next button, a checklist before you start, buzzers with silly sounds, and a leaderboard reveal.'],
+	['Nothing lost', 'Everything saves as you go. If the laptop restarts, the quiz carries on where it was, and teams keep their place.'],
+	['Your venue on the map', 'A venue page in the BeerMat app with your quiz nights, so players can find you.'],
+	['Players keep score', 'Players who want to can keep their results, stats and badges in the BeerMat app. No one has to.'],
+];
+---
+<Page>
+	<section class="wrap grid items-center gap-10 pt-6 pb-16 lg:grid-cols-[1.05fr_1fr] lg:pt-14">
+		<div>
+			<p class="eyebrow">gettin’ quizzy with it</p>
+			<h1 class="text-4xl sm:text-5xl lg:text-6xl">Run the whole pub quiz from <span class="text-amber neon">one laptop</span></h1>
+			<p class="mt-5 max-w-xl text-lg text-muted">The desk for the quizmaster, the quiz on the TV, and every team playing on their phones. No paper, no marking by hand, and it works with or without internet.</p>
+			<div class="mt-8 flex flex-wrap gap-3">
+				<a href="/download" class="btn btn-primary">Try it free</a>
+				<a href={`${ONLINE}/app/`} class="btn btn-ghost">Find a quiz near you</a>
+			</div>
+			<p class="mt-4 text-sm text-muted">Free to try: {FREE_LIMITS.questions} questions and {FREE_LIMITS.teams} teams. Players never pay.</p>
+		</div>
+		<div class="relative">
+			<img src="/shots/tv.png" alt="The quiz on the TV: a question, a timer and the QR code to join" width="1280" height="720" class="rounded-2xl border border-white/15 shadow-2xl shadow-pink/20" />
+			<img src="/shots/phone.png" alt="A team answering on a phone" width="390" height="844" class="absolute -right-2 -bottom-16 w-24 rounded-2xl border border-white/20 shadow-2xl sm:w-32 lg:-right-6" />
+		</div>
+	</section>
+
+	<section id="how" class="wrap scroll-mt-8 py-16">
+		<p class="eyebrow">How it works</p>
+		<h2 class="text-3xl sm:text-4xl">Three screens, one laptop</h2>
+		<ol class="mt-8 grid gap-5 md:grid-cols-3">
+			{steps.map(([n, title, text]) => (
+				<li class="card list-none">
+					<span class="font-display mb-3 grid h-11 w-11 place-items-center rounded-full bg-amber text-xl font-bold text-night">{n}</span>
+					<h3 class="text-xl">{title}</h3>
+					<p class="text-muted">{text}</p>
+				</li>
+			))}
+		</ol>
+		<img src="/shots/desk.png" alt="The quizmaster’s desk: the next question, teams in the room and their answers" width="1280" height="720" class="mt-10 rounded-2xl border border-white/15 shadow-2xl" />
+	</section>
+
+	<section class="wrap py-16">
+		<p class="eyebrow">Round formats</p>
+		<h2 class="text-3xl sm:text-4xl">More than questions and answers</h2>
+		<ul class="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+			{formats.map(([name, text]) => <li class="card list-none !p-4"><strong class="text-gold">{name}</strong> <span class="text-muted">{text}</span></li>)}
+		</ul>
+	</section>
+
+	<section class="wrap py-16">
+		<p class="eyebrow">Why BeerMat</p>
+		<h2 class="text-3xl sm:text-4xl">Made for a Tuesday night in a busy pub</h2>
+		<div class="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+			{features.map(([title, text]) => <div class="card"><h3 class="text-lg">{title}</h3><p class="mb-0 text-muted">{text}</p></div>)}
+		</div>
+	</section>
+
+	<section id="pricing" class="wrap scroll-mt-8 py-16">
+		<p class="eyebrow">Pricing</p>
+		<h2 class="text-3xl sm:text-4xl">One simple price for your venue</h2>
+		<p class="max-w-2xl text-muted">No per-night credits and no per-player charges. Players always play free.</p>
+		<div class="mt-8 grid gap-5 md:grid-cols-2">
+			<div class="card">
+				<h3 class="text-2xl">BeerMat Free</h3>
+				<p class="font-display text-4xl font-bold text-white">£0</p>
+				<p class="text-muted">To try everything out.</p>
+				<ul class="mb-6 space-y-2 text-muted">
+					<li>✓ Every round format, the TV and phones</li>
+					<li>✓ Quiz Wi-Fi from the laptop, or the pub’s Wi-Fi</li>
+					<li>• {FREE_LIMITS.questions} questions and {FREE_LIMITS.teams} teams per quiz</li>
+				</ul>
+				<a href="/download" class="btn btn-ghost w-full">Download free</a>
+			</div>
+			<div class="card relative border-amber/60 shadow-2xl shadow-amber/10">
+				<span class="absolute -top-3 right-6 rounded-full bg-pink px-3 py-1 text-xs font-bold text-white">For quiz nights</span>
+				<h3 class="text-2xl">BeerMat Pro</h3>
+				<p class="font-display text-4xl font-bold text-amber">{PRICE.monthly}<span class="text-lg text-muted"> a month</span></p>
+				<p class="text-muted">or {PRICE.yearly} a year (two months free)</p>
+				<ul class="mb-6 space-y-2 text-muted">
+					<li>✓ Everything in Free</li>
+					<li>✓ As many questions and teams as you like</li>
+					<li>✓ Help by email when you need it</li>
+					<li>✓ Works offline once activated; cancel any time</li>
+				</ul>
+				<a href={`mailto:hello@beermatquiz.co.uk?subject=BeerMat%20Pro`} class="btn btn-primary w-full">Get BeerMat Pro</a>
+			</div>
+		</div>
+	</section>
+
+	<section class="wrap py-16">
+		<div class="card flex flex-col items-start gap-6 !p-8 md:flex-row md:items-center md:justify-between">
+			<div>
+				<h2 class="text-2xl sm:text-3xl">Playing, not hosting?</h2>
+				<p class="mb-0 text-muted">Find a quiz near you on the map, or get the BeerMat app to keep your results and earn badges.</p>
+			</div>
+			<a href="/players" class="btn btn-primary shrink-0">For players</a>
+		</div>
+	</section>
+</Page>

@@ -1,0 +1,48 @@
+---
+import Page from '../layouts/Page.astro';
+import {CONTACT} from '../consts';
+// DRAFT: written from what BeerMat actually stores (docs/ONLINE.md, docs/ARCHITECTURE.md). The business's legal name
+// and address are placeholders; have it reviewed before relying on it.
+const updated = '27 October 2026';
+---
+<Page title="Privacy policy · BeerMat" description="What BeerMat keeps about you, why, and how to get it or delete it.">
+	<article class="wrap prose max-w-3xl py-10">
+		<p class="eyebrow">Last updated {updated}</p>
+		<h1 class="text-4xl">Privacy policy</h1>
+		<p>This explains what BeerMat keeps about you and why. BeerMat is run by <strong>[business name and address]</strong> (“we”), the data controller for BeerMat Online. Questions or requests: <a href={`mailto:${CONTACT}`}>{CONTACT}</a>.</p>
+
+		<h2>Playing a quiz</h2>
+		<p>You can play any BeerMat quiz without an account. Your team name, answers, scores and any team photo are kept on the quizmaster’s laptop for that quiz, not by us. The venue or quizmaster running the quiz is responsible for that information; ask them about it.</p>
+
+		<h2>A BeerMat Online account (optional)</h2>
+		<p>If you make an account in the BeerMat app or on the quiz desk, we keep:</p>
+		<ul>
+			<li>your email address, the name you choose to show, and your password (stored only as a one-way hash);</li>
+			<li>your usual team name and profile picture, if you add them, and your privacy choices;</li>
+			<li>the quiz results you choose to save (event, team, position, points and the venue’s laptop that signed them);</li>
+			<li>the venues you save as favourites.</li>
+		</ul>
+		<p>We use these to run your profile, statistics and badges, and, only if you switch it on, to show your name (and picture, if you allow it) on public leaderboards. The lawful basis is our contract with you to provide the service you signed up for.</p>
+
+		<h2>Venues and quizmasters</h2>
+		<p>For a venue’s page we keep its public details (name, address, website, location and quiz nights), the account of the person who runs it, and the quiz laptops registered to it. A venue can choose to share each quiz’s team names, positions and points with us. Venue plans and their dates are kept for billing.</p>
+
+		<h2>Finding quizzes and reports</h2>
+		<p>If you use “near me”, your phone sends a rounded position for that search only; we don’t store it. If you report a problem with a venue page, we keep what you wrote and, if you were signed in, your account.</p>
+
+		<h2>Who else handles it</h2>
+		<ul>
+			<li><strong>Oracle Cloud</strong> hosts BeerMat Online, in London.</li>
+			<li><strong>Cloudflare</strong> runs this website, the downloads and our domain’s DNS.</li>
+			<li><strong>Resend</strong> sends account emails (confirming your address, resetting your password).</li>
+			<li><strong>[Payment provider]</strong> handles payments for BeerMat Pro; we never see card details.</li>
+		</ul>
+		<p>We don’t sell your information or use it for advertising. There are no advertising or tracking cookies.</p>
+
+		<h2>How long we keep it</h2>
+		<p>Your account and saved results stay until you delete them. Deleting your account (in the app: Profile → <em>Delete my account and results</em>) removes it and everything kept with it straight away; copies in our backups are gone within 30 days. Billing records are kept as long as the law requires.</p>
+
+		<h2>Your rights</h2>
+		<p>You can download everything we keep about you (Profile → <em>Download everything BeerMat Online holds about you</em>), correct it, or delete it at any time in the app. You can also ask us by email to access, correct, delete or restrict your information, or object to how we use it. If you’re unhappy with how we handle it, you can complain to the Information Commissioner’s Office (<a href="https://ico.org.uk">ico.org.uk</a>).</p>
+	</article>
+</Page>

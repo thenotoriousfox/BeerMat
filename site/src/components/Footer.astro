@@ -1,0 +1,21 @@
+---
+import {CONTACT, ONLINE} from '../consts';
+---
+<footer class="mt-24 border-t border-white/10">
+	<div class="wrap flex flex-col gap-6 py-10 text-sm text-muted sm:flex-row sm:items-start sm:justify-between">
+		<div>
+			<img src="/brand/logo.svg" alt="BeerMat" width="150" height="56" class="mb-3 h-10 w-auto" />
+			<p>Pub quizzes on one laptop, made in the UK.</p>
+		</div>
+		<nav aria-label="Footer" class="grid grid-cols-2 gap-x-10 gap-y-2">
+			<a href="/download" class="text-muted">Download</a>
+			<a href="/#pricing" class="text-muted">Pricing</a>
+			<a href="/players" class="text-muted">For players</a>
+			<a href={`${ONLINE}/app/`} class="text-muted">Find a quiz</a>
+			<a href="/terms" class="text-muted">Terms</a>
+			<a href="/privacy" class="text-muted">Privacy</a>
+			<a href={`mailto:${CONTACT}`} class="text-muted">{CONTACT}</a>
+		</nav>
+	</div>
+	<p class="wrap pb-8 text-xs text-muted/70">© {new Date().getFullYear()} BeerMat. Fredoka font under the SIL Open Font License.</p>
+</footer>

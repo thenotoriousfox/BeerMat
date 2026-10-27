@@ -1,0 +1,52 @@
+---
+import Page from '../layouts/Page.astro';
+import {CONTACT, FREE_LIMITS} from '../consts';
+// DRAFT: the business's legal name and address, and the payment details, are placeholders; have it reviewed before
+// relying on it.
+const updated = '27 October 2026';
+---
+<Page title="Terms · BeerMat" description="The terms for using BeerMat, BeerMat Pro and BeerMat Online.">
+	<article class="wrap prose max-w-3xl py-10">
+		<p class="eyebrow">Last updated {updated}</p>
+		<h1 class="text-4xl">Terms of use</h1>
+		<p>These terms cover the BeerMat desktop app, the BeerMat phone app, BeerMat Online and this website. BeerMat is provided by <strong>[business name and address]</strong> (“we”). Questions: <a href={`mailto:${CONTACT}`}>{CONTACT}</a>.</p>
+
+		<h2>Using BeerMat</h2>
+		<ul>
+			<li>Playing a quiz is free and needs no account.</li>
+			<li>BeerMat Free lets you run quizzes of up to {FREE_LIMITS.questions} questions and {FREE_LIMITS.teams} teams so you can try it. BeerMat Pro removes those limits.</li>
+			<li>Don’t try to break, overload or get round the limits of BeerMat or BeerMat Online, or use them for anything unlawful.</li>
+		</ul>
+
+		<h2>BeerMat Pro</h2>
+		<ul>
+			<li>BeerMat Pro is a subscription for a venue, paid monthly or yearly through <strong>[payment provider]</strong>, which handles billing, VAT and receipts.</li>
+			<li>It renews automatically until you cancel. Cancel any time; Pro then lasts until the end of the period you’ve paid for.</li>
+			<li>A licence on the venue’s laptop keeps Pro working offline. If a subscription ends, the laptop returns to BeerMat Free after a short grace period. Your quizzes, questions and results stay on the laptop.</li>
+			<li>Refunds: [refund policy]. This doesn’t affect your legal rights.</li>
+		</ul>
+
+		<h2>Your quizzes and music</h2>
+		<ul>
+			<li>Your questions, pictures, sounds and results are yours, and stay on your laptop unless you choose to share them.</li>
+			<li>You’re responsible for having the right to use what you put in a quiz, and for the music licences your venue needs to play music in public (in the UK, usually from PPL PRS). Spotify’s terms only allow personal listening, so don’t use BeerMat’s Spotify option for a pub audience.</li>
+			<li>Venues are responsible for the accuracy of their venue page and quiz nights.</li>
+		</ul>
+
+		<h2>Accounts</h2>
+		<ul>
+			<li>Keep your password to yourself. You can delete your account at any time in the app.</li>
+			<li>We may remove names, pictures or venue pages that are offensive or misleading, and close accounts that break these terms.</li>
+		</ul>
+
+		<h2>Our responsibility</h2>
+		<ul>
+			<li>We work hard to keep BeerMat reliable, but we can’t promise BeerMat Online will always be available. Quizzes themselves run on your laptop and don’t depend on it.</li>
+			<li>Nothing in these terms limits liability that can’t be limited by law, including for death or personal injury caused by negligence, or your rights as a consumer.</li>
+			<li>Otherwise, for business customers our total liability is limited to what you paid us in the 12 months before the claim, and we aren’t liable for lost profits or business.</li>
+		</ul>
+
+		<h2>Changes and law</h2>
+		<p>We may update these terms; if a change matters, we’ll tell Pro customers by email before it takes effect. These terms are governed by the law of England and Wales.</p>
+	</article>
+</Page>

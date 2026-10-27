@@ -3,13 +3,15 @@
 # lose the accounts and venues. The backups hold people's email addresses and results: keep the folder private.
 #   online/pull-backups.sh ubuntu@<server ip> [folder]       copy now (default folder ~/BeerMatBackups)
 #   online/pull-backups.sh --daily ubuntu@<server ip> [folder]  also copy every day (a systemd user timer on this machine)
-# It only adds and updates files here; backups the server drops after 14 days stay on this machine.
+# Copies older than 30 days are deleted here too, so a deleted account is gone from every backup within 30 days
+# (the privacy policy says so: site/src/pages/privacy.astro).
 set -euo pipefail
 daily=0; [ "${1:-}" = --daily ] && { daily=1; shift; }
 target=${1:?usage: online/pull-backups.sh [--daily] user@server-ip [folder]}
 folder=${2:-$HOME/BeerMatBackups}
 install -d -m 700 "$folder"
 rsync -rt --chmod=D700,F600 -e 'ssh -o BatchMode=yes' --rsync-path='sudo rsync' "$target:/var/backups/beermat-online/" "$folder/"
+find "$folder" -name 'online-*.sqlite' -mtime +30 -delete
 echo "Backups in $folder: $(ls "$folder" | wc -l) files, newest $(ls -t "$folder" | head -1)"
 
 if [ $daily = 1 ]; then

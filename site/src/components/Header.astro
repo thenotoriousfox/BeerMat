@@ -1,0 +1,16 @@
+---
+const links = [['/#how', 'How it works'], ['/#pricing', 'Pricing'], ['/players', 'For players'], ['/download', 'Download']];
+---
+<header class="wrap flex items-center justify-between gap-4 py-5">
+	<a href="/" aria-label="BeerMat home"><img src="/brand/logo.svg" alt="BeerMat" width="190" height="71" class="h-12 w-auto sm:h-14" /></a>
+	<nav aria-label="Main" class="hidden items-center gap-6 md:flex">
+		{links.map(([href, label]) => <a href={href} class="font-semibold text-cream no-underline hover:text-amber">{label}</a>)}
+		<a href="/download" class="btn btn-primary !min-h-0 !py-2">Get BeerMat</a>
+	</nav>
+	<details class="relative md:hidden">
+		<summary class="btn btn-ghost !min-h-0 cursor-pointer list-none !py-2">Menu</summary>
+		<nav aria-label="Main" class="card absolute right-0 z-10 mt-2 flex w-56 flex-col gap-3 !p-4">
+			{links.map(([href, label]) => <a href={href} class="font-semibold text-cream no-underline">{label}</a>)}
+		</nav>
+	</details>
+</header>
