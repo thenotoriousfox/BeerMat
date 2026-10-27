@@ -18,7 +18,7 @@ if (at > 0) {
 // A player can also set it under Advanced.
 export const onlineService = ${JSON.stringify(url)};
 // The venue list on GitHub (venues.json), for the map when BeerMat Online can't be reached.
-export const venueListUrl = 'https://raw.githubusercontent.com/DTJW92/PubQuiz/main/venues.json';
+export const venueListUrl = 'https://raw.githubusercontent.com/DTJW92/BeerMat/main/venues.json';
 `);
 }
 console.log('mobile/www ready' + (at > 0 ? ` (BeerMat Online: ${process.argv[at + 1] || 'none'})` : ''));

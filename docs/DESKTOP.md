@@ -5,7 +5,7 @@ display full screen on a second screen. Nothing else needs installing: no Node.j
 
 ## Installing
 
-Download from the latest release: <https://github.com/DTJW92/PubQuiz/releases/latest> (`SHA256SUMS.txt` there has
+Download from the latest release: <https://github.com/DTJW92/BeerMat/releases/latest> (`SHA256SUMS.txt` there has
 each file's checksum).
 
 | System | File | How |

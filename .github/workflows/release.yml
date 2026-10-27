@@ -1,6 +1,6 @@
 name: Release
 # Push a tag like v0.4.0 (matching package.json's version) to build the Windows and Linux apps and the Android
-# BeerMat app (APK), and publish them as a GitHub release: https://github.com/DTJW92/PubQuiz/releases/latest.
+# BeerMat app (APK), and publish them as a GitHub release: https://github.com/DTJW92/BeerMat/releases/latest.
 # Run it by hand to build without publishing.
 on:
   push:

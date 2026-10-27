@@ -2,4 +2,4 @@
 // A player can also set it under Advanced.
 export const onlineService = "https://130-162-161-81.sslip.io";
 // The venue list on GitHub (venues.json), for the map when BeerMat Online can't be reached.
-export const venueListUrl = 'https://raw.githubusercontent.com/DTJW92/PubQuiz/main/venues.json';
+export const venueListUrl = 'https://raw.githubusercontent.com/DTJW92/BeerMat/main/venues.json';
