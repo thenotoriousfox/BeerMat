@@ -10,7 +10,7 @@
 #   logo-stacked.svg  neon mat above the name and tagline (splash screens)
 #   wordmark.svg      BeerMat on its own
 #   icon.svg          the app icon: the neon mat on a full night-coloured square
-#   icon-foreground.svg  the mat alone, sized for Android's adaptive icon safe zone
+#   icon-foreground.svg  the rings and question mark alone, filling Android's adaptive icon
 import math, os
 from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
@@ -97,8 +97,12 @@ files['logo-stacked.svg'] = svg(W, 690, neon(W / 2, 220, 200) + f'<g transform="
 # App icon: a full square (iOS adds its own corners) with a soft glow behind the mat.
 files['icon.svg'] = svg(1024, 1024, f'<defs><radialGradient id="bg" cx="50%" cy="45%" r="70%"><stop offset="0" stop-color="#2a1458"/><stop offset="1" stop-color="{C["night"]}"/></radialGradient></defs>'
                         f'<rect width="1024" height="1024" fill="url(#bg)"/>' + neon(512, 512, 420), 'BeerMat')
-# Android adaptive icon: only the middle 66% is always visible, so the mat sits inside it on a transparent square.
-files['icon-foreground.svg'] = svg(432, 432, neon(216, 216, 132), 'BeerMat')
+# Android adaptive icon: launchers show the middle 72dp of 108 (r=144 here) on the night background, so the rings sit
+# just inside that and the question mark fills the middle.
+files['icon-foreground.svg'] = svg(432, 432,
+    f'<circle cx="216" cy="216" r="130" fill="none" stroke="{C["pink"]}" stroke-width="7" filter="url(#glow)"/>'
+    f'<circle cx="216" cy="216" r="114" fill="none" stroke="{C["teal"]}" stroke-width="3.5" stroke-dasharray="1.4 10" stroke-linecap="round" filter="url(#glow)"/>'
+    + centred('?', 235, 216, 216, C['gold'], extra='filter="url(#glow)"'), 'BeerMat')
 for name, content in files.items():
     with open(os.path.join(HERE, name), 'w') as out: out.write(content)
 print('wrote', ', '.join(files))
