@@ -159,6 +159,9 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     intro: 'Tap the button to confirm this is your email address for BeerMat.', button: 'Confirm my email', url: link(a.id, 'verify'),
     outro: 'The link works for a week. If you didn’t make a BeerMat account, you can ignore this email.'}).catch(e => console.error('Email not sent:', e.message)) : null;
   const planOf = v => v.plan === 'pro' && (v.plan_until === null || v.plan_until > now()) ? 'pro' : 'free';
+  // Only BeerMat Pro venues are on the map, in quiz listings and on public venue pages: they're the pubs running
+  // BeerMat quizzes. A venue's operator and admins still see it, to get it ready before it goes Pro.
+  const PRO_SQL = "plan='pro' AND (plan_until IS NULL OR plan_until>?)";
   // A venue key counts once a venue has registered it.
   const venueOfKey = key => one('SELECT v.* FROM venue_keys k JOIN venues v ON v.id=k.venue WHERE k.public_key=?', key);
   function history(accountId) {
@@ -269,7 +272,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       }
       // The venue list, in venues.json's format: copied nightly into the repository (.github/workflows/venues-backup.yml).
       if (method === 'GET' && p === '/v1/venues.json') {
-        return send(200, {venues: rows('SELECT * FROM venues ORDER BY id').map(v => ({id: v.id, name: v.name, town: v.town, ...(v.postcode && {postcode: v.postcode}),
+        return send(200, {venues: rows('SELECT * FROM venues ORDER BY id').map(v => ({id: v.id, ...(planOf(v) === 'pro' && {onMap: true}), name: v.name, town: v.town, ...(v.postcode && {postcode: v.postcode}),
           ...(v.address && {address: v.address}), ...(v.website && {website: v.website}), ...(v.lat !== null && {lat: v.lat, lon: v.lon}), quizNights: JSON.parse(v.quiz_nights || '[]')}))});
       }
       check(p.startsWith('/v1/'), 'Not found', 404);
@@ -380,7 +383,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       }
 
       // ---- Favourites ----
-      if (method === 'GET' && p === '/v1/me/favourites') return send(200, {venues: rows('SELECT v.* FROM favourites f JOIN venues v ON v.id=f.venue WHERE f.account=? ORDER BY v.name', me().id).map(venueOut)});
+      if (method === 'GET' && p === '/v1/me/favourites') return send(200, {venues: rows(`SELECT v.* FROM favourites f JOIN venues v ON v.id=f.venue WHERE f.account=? AND ${PRO_SQL.replaceAll('plan', 'v.plan')} ORDER BY v.name`, me().id, now()).map(venueOut)});
       if ((method === 'PUT' || method === 'DELETE') && parts[0] === 'me' && parts[1] === 'favourites' && parts.length === 3) {
         const a = me();
         if (method === 'PUT') {check(one('SELECT 1 FROM venues WHERE id=?', parts[2]), 'Venue not found', 404); run('INSERT OR IGNORE INTO favourites VALUES(?,?)', a.id, parts[2]);}
@@ -477,7 +480,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       // Every venue, for the map: public details and its next quiz night.
       if (method === 'GET' && p === '/v1/venues') {
         const next = v => {const e = one('SELECT * FROM events WHERE venue=? AND starts>? AND cancelled=0 ORDER BY starts LIMIT 1', v.id, now() - 6 * 3600000); return e ? {id: e.id, title: e.title, startsAt: e.starts} : null;};
-        return send(200, {venues: rows('SELECT * FROM venues ORDER BY name COLLATE NOCASE').map(v => ({...venueOut(v), next: next(v)})), fetchedAt: now()});
+        return send(200, {venues: rows(`SELECT * FROM venues WHERE ${PRO_SQL} ORDER BY name COLLATE NOCASE`, now()).map(v => ({...venueOut(v), next: next(v)})), fetchedAt: now()});
       }
       // Venues don't add themselves: they come from the venue list, or an admin adds one here.
       if (method === 'POST' && p === '/v1/venues') {
@@ -492,7 +495,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       }
       if (parts[0] === 'venues' && parts.length >= 2) {
         if (method === 'GET' && parts.length === 2) {
-          const v = one('SELECT * FROM venues WHERE id=?', parts[1]); check(v, 'Venue not found', 404);
+          const v = one('SELECT * FROM venues WHERE id=?', parts[1]); check(v && (planOf(v) === 'pro' || account?.admin || (account && v.owner === account.id)), 'Venue not found', 404);
           return send(200, {...venueOut(v), events: rows('SELECT * FROM events WHERE venue=? AND starts>? AND cancelled=0 ORDER BY starts', v.id, now() - 6 * 3600000).map(e => eventOut(e, v))});
         }
         // The operator edits the venue's profile; what they change stays theirs when the list is imported again.
@@ -548,9 +551,9 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         const near = url.searchParams.has('lat') && Number.isFinite(lat) && Number.isFinite(lon) ? {lat, lon} : null;
         const radius = Math.min(Number(url.searchParams.get('radiusKm')) || 25, 200);
         check(q || near || url.searchParams.get('venue'), 'Search by town, postcode or location');
-        const venues = new Map(rows('SELECT * FROM venues').map(v => [v.id, v]));
+        const venues = new Map(rows(`SELECT * FROM venues WHERE ${PRO_SQL}`, now()).map(v => [v.id, v]));
         let list = rows('SELECT * FROM events WHERE cancelled=0 AND starts>? AND starts<? ORDER BY starts LIMIT 500', now() - 3 * 3600000, now() + 120 * 86400000)
-          .map(e => ({out: eventOut(e, venues.get(e.venue)), venue: venues.get(e.venue)}));
+          .filter(e => venues.has(e.venue)).map(e => ({out: eventOut(e, venues.get(e.venue)), venue: venues.get(e.venue)}));
         if (url.searchParams.get('venue')) list = list.filter(x => x.venue.id === url.searchParams.get('venue'));
         if (q) {
           const term = q.toLowerCase(), area = postcodeArea(q);

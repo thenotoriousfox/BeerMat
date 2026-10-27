@@ -30,9 +30,12 @@ async function fixture(fn) {
     const venue = await call('POST', '/v1/venues', fields, root);
     assert.equal(venue.status, 201, venue.error);
     if (operatorEmail) assert.equal((await call('POST', `/v1/venues/${venue.id}/operator`, {email: operatorEmail}, root)).status, 200);
+    // Only BeerMat Pro venues are public, so the venues in these tests are Pro (Free venues: their own test).
+    pro(venue.id);
     return venue;
   };
-  try {await fn({base, call, signUp, addVenue, service, tick: ms => time += ms, now: () => time});} finally {await service.close(); rmSync(dir, {recursive: true, force: true});}
+  const pro = (venueId = null) => service.db.prepare(`UPDATE venues SET plan='pro' WHERE ? IS NULL OR id=?`).run(venueId, venueId);
+  try {await fn({base, call, signUp, addVenue, pro, service, tick: ms => time += ms, now: () => time});} finally {await service.close(); rmSync(dir, {recursive: true, force: true});}
 }
 
 test('accounts: sign up, sign in, wrong passwords limited, profile and privacy, export and erasure', () => fixture(async ({call, signUp}) => {
@@ -198,7 +201,7 @@ test('client: results wait offline and are sent once when back; listings come fr
   assert.equal(JSON.stringify([...storage.m.values()]).includes('correct horse'), false, 'the password is never stored');
 }));
 
-test('venue list: imported, kept up to date, operators edit their own profile only; nobody adds themselves', () => fixture(async ({call, signUp, addVenue, service}) => {
+test('venue list: imported, kept up to date, operators edit their own profile only; nobody adds themselves', () => fixture(async ({call, signUp, addVenue, pro, service}) => {
   const list = {venues: [
     {id: 'red-lion-bristol', name: 'The Red Lion', town: 'Bristol', postcode: 'bs1 4dj', lat: 51.4545, lon: -2.5879, quizNights: [{day: 'tuesday', time: '20:00'}]},
     {id: 'crown-bath', name: 'The Crown', town: 'Bath'},
@@ -208,6 +211,9 @@ test('venue list: imported, kept up to date, operators edit their own profile on
   ]};
   const first = service.importVenues(list);
   assert.deepEqual([first.imported, first.errors.length], [2, 7]);
+  assert.deepEqual((await call('GET', '/v1/venues')).venues, [], 'Free venues aren’t on the map');
+  assert.equal((await call('GET', '/v1/venues/crown-bath')).status, 404, 'nor have a public page');
+  pro();
   let venues = (await call('GET', '/v1/venues')).venues;
   assert.deepEqual(venues.map(v => [v.id, v.postcode, v.quizNights, v.next]), [['crown-bath', '', [], null], ['red-lion-bristol', 'BS1 4DJ', [{day: 'tuesday', time: '20:00'}], {id: venues[1].next.id, title: 'Quiz night', startsAt: Date.UTC(2023, 10, 21, 20)}]], 'its regular night is published');
   assert.equal(venues[0].owner, undefined, 'operators are not public');
@@ -268,10 +274,10 @@ test('venues.json in this repository is a valid venue list', async () => {
   assert.deepEqual(errors, []);
 });
 
-test('client: the map\'s venues come from the service, then its last list offline, then the venue list on GitHub', () => fixture(async ({base, service}) => {
-  service.importVenues({venues: [{id: 'ship-hull', name: 'The Ship', town: 'Hull', lat: 53.74, lon: -0.33, quizNights: [{day: 'thursday', time: '19:30'}]}]});
+test('client: the map\'s venues come from the service, then its last list offline, then the venue list on GitHub', () => fixture(async ({base, service, pro}) => {
+  service.importVenues({venues: [{id: 'ship-hull', name: 'The Ship', town: 'Hull', lat: 53.74, lon: -0.33, quizNights: [{day: 'thursday', time: '19:30'}]}]}); pro();
   let online = true;
-  const github = {venues: [{id: 'listed', name: 'Listed', town: 'York', website: 'javascript:alert(1)'}, {name: 'no id'}]};
+  const github = {venues: [{id: 'listed', onMap: true, name: 'Listed', town: 'York', website: 'javascript:alert(1)'}, {id: 'free-pub', name: 'Free', town: 'York'}, {name: 'no id', onMap: true}]};
   const fetchSometimes = (url, options) => url.startsWith('https://raw.githubusercontent.com/') ? Promise.resolve(new Response(JSON.stringify(github))) : online ? fetch(url, options) : Promise.reject(new TypeError('fetch failed'));
   const client = createOnlineClient({baseUrl: base, venueListUrl: 'https://raw.githubusercontent.com/x/venues.json', fetch: fetchSometimes, storage: memory()});
   const live = await client.venues();
@@ -284,9 +290,11 @@ test('client: the map\'s venues come from the service, then its last list offlin
   await assert.rejects(createOnlineClient({baseUrl: base, fetch: fetchSometimes, storage: memory()}).venues(), /No connection/);
 }));
 
-test('regular quiz nights publish themselves four weeks ahead in UK time; a cancelled week stays cancelled, specials take the day', () => fixture(async ({call, signUp, service, tick}) => {
+test('regular quiz nights publish themselves four weeks ahead in UK time; a cancelled week stays cancelled, specials take the day', () => fixture(async ({call, signUp, service, tick, pro}) => {
   // 1700000000000 is Tuesday 14 November 2023, 22:13 in London: tonight's 8pm quiz has been and gone.
   service.importVenues({venues: [{id: 'vic-derby', name: 'The Victoria Inn', town: 'Derby', postcode: 'DE1 2RR', lat: 52.9168, lon: -1.4646, quizNights: [{day: 'monday', time: '20:00'}, {day: 'tuesday', time: '20:00'}]}]});
+  assert.deepEqual((await call('GET', '/v1/events?q=derby')).events, [], 'a Free venue’s quiz nights aren’t listed');
+  pro();
   const listed = async () => (await call('GET', '/v1/events?q=derby')).events.map(e => `${new Date(e.startsAt).toISOString().slice(0, 16)} ${e.title}${e.regular ? ' (regular)' : ''}`);
   const weeks = ['2023-11-20', '2023-11-21', '2023-11-27', '2023-11-28', '2023-12-04', '2023-12-05', '2023-12-11', '2023-12-12'].map(d => `${d}T20:00 Quiz night (regular)`);
   assert.deepEqual(await listed(), weeks);
@@ -352,7 +360,7 @@ test('admin console: only admins; overview, venues with operators and laptops, a
   // The copy for the repository: venues.json's own format, which venues.js accepts.
   const copy = await call('GET', '/v1/venues.json');
   assert.deepEqual(copy.venues.map(v => v.id), ['the-red-lion-bristol', 'the-red-lion-bristol-2']);
-  assert.deepEqual(copy.venues[0], {id: 'the-red-lion-bristol', name: 'The Red Lion', town: 'Bristol', postcode: 'BS1 4DJ', lat: 51.45, lon: -2.59, quizNights: [{day: 'tuesday', time: '20:00'}]});
+  assert.deepEqual(copy.venues[0], {id: 'the-red-lion-bristol', onMap: true, name: 'The Red Lion', town: 'Bristol', postcode: 'BS1 4DJ', lat: 51.45, lon: -2.59, quizNights: [{day: 'tuesday', time: '20:00'}]});
   const {parseVenueList} = await import('../shared/venues.js');
   assert.deepEqual(parseVenueList(copy).errors, []);
 

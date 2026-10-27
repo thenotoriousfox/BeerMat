@@ -158,7 +158,7 @@ import venueList from '../../../venues.json';
 			if (!r.ok) throw Error();
 			venues = (await r.json()).venues;
 		} catch {
-			venues = (JSON.parse($('venueList').textContent!).venues as Venue[]).map(v => ({...v, lat: v.lat ?? null, lon: v.lon ?? null, quizNights: v.quizNights || []}));
+			venues = (JSON.parse($('venueList').textContent!).venues as (Venue & {onMap?: boolean})[]).filter(v => v.onMap === true).map(v => ({...v, lat: v.lat ?? null, lon: v.lon ?? null, quizNights: v.quizNights || []}));
 			saved = true;
 		}
 		const placed = render().filter(v => v.lat !== null && v.lon !== null);

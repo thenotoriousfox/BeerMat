@@ -91,8 +91,13 @@ Players never pay. A venue has a plan, **free** or **pro** (with an end date, or
 | Questions played per quiz | 3 | no limit |
 | Teams per quiz | 3 (a 4th is told the quiz is full) | no limit |
 | Spotify music rounds | — | ✓ |
+| On the map, in quiz listings and with a public venue page (app and website) | — | ✓ |
 | Every round format, the TV, phones, hotspot, online quizzes, results | ✓ | ✓ |
 
+* **The map is Pro only**: `/v1/venues`, `/v1/events`, public venue pages and favourites include only venues whose plan
+  is Pro now, so a lapsed subscription drops off by itself. The operator and admins still see a Free venue, to get it
+  ready. `venues.json` keeps every venue (it's also the import list) and marks Pro ones `"onMap": true`; the app's and
+  the website's fallbacks show only those.
 * **Setting a plan**: admin console → Venues → open a venue → **Plan** (Free, or Pro until a date, or with no end).
   `PATCH /v1/admin/venues/:id {plan, planUntil}`. Payments will set the same fields; nothing is charged yet.
 * **Licences**: the laptop sends `POST /v1/licence` a request signed with its venue key (`kind: beermat.licence-request`,

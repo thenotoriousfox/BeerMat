@@ -87,6 +87,7 @@ try {
   const operator = await post(online + '/v1/accounts', {email: 'landlord@example.com', password: 'correct horse battery', displayName: 'Landlord'});
   service.importVenues({venues: [{id: 'the-lion', name: 'The Lion', town: 'Bristol', lat: 51.45, lon: -2.59}]});
   service.db.prepare("UPDATE venues SET owner=(SELECT id FROM accounts WHERE email='landlord@example.com') WHERE id='the-lion'").run();
+  service.db.prepare("UPDATE venues SET plan='pro' WHERE id='the-lion'").run(); // only Pro venues are on the map
   const venue = {id: 'the-lion'};
   await post(online + `/v1/venues/${venue.id}/keys`, {publicKey: (await post(base + '/api/host/results', {}, host)).venueKey}, operator.token);
 
