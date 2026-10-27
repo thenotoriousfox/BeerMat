@@ -8,7 +8,7 @@ on:
 permissions:
   contents: write
 env:
-  ONLINE: https://130-162-161-81.sslip.io
+  ONLINE: https://beermatquiz.co.uk
 jobs:
   copy:
     runs-on: ubuntu-latest

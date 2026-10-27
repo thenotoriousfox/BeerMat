@@ -28,7 +28,7 @@ test('desk venue tab: sign in through the laptop, edit only your venue, register
   let host;
   try {
     host = (await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/login`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: 'a-secure-quiz-test-key'})}).then(r => r.json())).key;
-    assert.equal((await call('online/account')).service, 'https://130-162-161-81.sslip.io', 'the desk knows where BeerMat Online is');
+    assert.equal((await call('online/account')).service, 'https://beermatquiz.co.uk', 'the desk knows where BeerMat Online is');
     await call('settings', {onlineService: online});
     service.importVenues({venues: [{id: 'red-lion-bristol', name: 'The Red Lion', town: 'Bristol'}, {id: 'crown-bath', name: 'The Crown', town: 'Bath'}]});
 

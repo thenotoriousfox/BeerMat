@@ -2,7 +2,8 @@
 # Puts BeerMat Online on a fresh Ubuntu 22.04/24.04 server (an Oracle Cloud Always Free VM, or any VPS), from this
 # repository on your own machine:
 #   online/deploy.sh ubuntu@<server ip> [domain]
-# Without a domain it uses <ip>.sslip.io, a free name that points at the server's IP. Run it again to update the
+# Without a domain it uses <ip>.sslip.io, a free name that points at the server's IP; with one, <ip>.sslip.io keeps
+# working too (for apps built before the domain) and www.<domain> redirects to it. Run it again to update the
 # service; the database is kept. What it sets up:
 #   * Node.js 24 (official build, checksum checked) in /opt/node
 #   * the service in /opt/beermat-online, run by systemd as its own user, listening on 127.0.0.1:8080 only
@@ -36,7 +37,7 @@ licence_key=${LICENCE_KEY_FILE:-$HOME/.local/share/beermat/licence-key.txt}
 if [ -f "$licence_key" ]; then ssh "$target" "umask 077 && cat > /tmp/beermat-licence-key" < "$licence_key"
 else echo "No licence key at $licence_key: the service won't issue BeerMat Pro licences"; fi
 
-ssh "$target" "sudo DOMAIN='$domain' bash -s" <<'REMOTE'
+ssh "$target" "sudo DOMAIN='$domain' IP_NAME='$(echo "$ip" | tr . -).sslip.io' bash -s" <<'REMOTE'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 # Small servers (1 GB, like Oracle's free AMD shape) get 2 GB of swap so updates and Node have room.
@@ -124,6 +125,16 @@ $DOMAIN {
 	reverse_proxy 127.0.0.1:8080
 }
 CADDY
+if [ "$DOMAIN" != "$IP_NAME" ]; then cat >> /etc/caddy/Caddyfile <<CADDY
+www.$DOMAIN {
+	redir https://$DOMAIN{uri} permanent
+}
+$IP_NAME {
+	encode gzip
+	reverse_proxy 127.0.0.1:8080
+}
+CADDY
+fi
 
 # Oracle's Ubuntu images reject everything but SSH in iptables, as well as in the cloud's security list.
 for port in 80 443; do
