@@ -12,6 +12,11 @@ const at = process.argv.indexOf('--online');
 if (at > 0) {
   const url = process.argv[at + 1] || '';
   if (url && !/^https:\/\/[^\s"'\\]+$/.test(url)) throw Error('--online needs an https:// address');
-  writeFileSync(path.join(www, 'config.js'), `// Written by scripts/build-web.mjs.\nexport const onlineService = ${JSON.stringify(url)};\n`);
+  writeFileSync(path.join(www, 'config.js'), `// Where PubQuiz Online runs (written by scripts/build-web.mjs). Empty: the app is play-only.
+// A player can also set it under Advanced.
+export const onlineService = ${JSON.stringify(url)};
+// The venue list on GitHub (venues.json), for the map when PubQuiz Online can't be reached.
+export const venueListUrl = 'https://raw.githubusercontent.com/DTJW92/PubQuiz/main/venues.json';
+`);
 }
 console.log('mobile/www ready' + (at > 0 ? ` (PubQuiz Online: ${process.argv[at + 1] || 'none'})` : ''));

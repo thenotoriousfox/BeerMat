@@ -21,7 +21,9 @@ only for the app (`capacitor://localhost`, `http(s)://localhost`) and origins li
 | `GET /v1/me/results` · `DELETE /v1/me/results/:event/:team` | signed in | kept results · forget one |
 | `GET /v1/me/stats` | signed in | statistics and badges (registered venues only) |
 | `GET/PUT/DELETE /v1/me/favourites[/:venue]` | signed in | saved venues |
-| `POST /v1/venues` · `PATCH/DELETE /v1/venues/:id` · `GET /v1/me/venues` | signed in (operator) | venue pages |
+| `GET /v1/venues` | anyone | every venue, for the app's map: public details and its next quiz night |
+| `PATCH /v1/venues/:id` · `GET /v1/me/venues` | operator | edit the venue's profile (name, town, postcode, address, website, quiz night, location) · the venues you run |
+| `POST /v1/venues` · `DELETE /v1/venues/:id` · `POST /v1/venues/:id/operator` `{email}` | admin | add or remove a venue outside the venue list · link it to its operator's account (`{email: null}` unlinks) |
 | `POST /v1/venues/:id/keys` `{publicKey}` | operator | register a quiz laptop (its key is on the desk under Past quizzes) |
 | `POST /v1/venues/:id/events` · `PATCH/DELETE /v1/events/:id` | operator | publish, change, cancel a quiz night |
 | `GET /v1/venues/:id` · `GET /v1/events?q=…|lat=…&lon=…&radiusKm=…` | anyone | venue page · upcoming quizzes by town, postcode area or location |
@@ -29,13 +31,41 @@ only for the app (`capacitor://localhost`, `http(s)://localhost`) and origins li
 | `GET /v1/leaderboards[?venue=]` | anyone | players who opted in, from verified venues |
 | `POST /v1/venues/:id/verify` | admin | mark a venue as checked (`node online/admin.js` for admins) |
 
+## Venues
+
+Venues don't add themselves. They come from **`venues.json`** in this repository, which only PubQuiz's maintainers
+edit (or, rarely, an admin adds one through the API):
+
+```json
+{"venues": [{"id": "red-lion-bristol", "name": "The Red Lion", "town": "Bristol", "postcode": "BS1 4DJ",
+  "address": "1 King Street", "website": "https://…", "lat": 51.4545, "lon": -2.5879, "quizNight": "Tuesdays, 8pm"}]}
+```
+
+Only `id` (2–60 lower-case letters, digits or dashes, never changed later), `name` and `town` are required; `lat`
+and `lon` put it on the map. `venues.js` checks the file (`npm test` does too), and a bad entry is skipped without
+hiding the rest. The service imports the list when it starts (`VENUES_FILE`, the copy `online/deploy.sh` ships), or
+hourly from `VENUES_URL` once the repository is public. Listed venues are added and updated; one taken off the list is
+removed with its quiz nights.
+
+**Operators.** An admin links a venue to the account of whoever runs it:
+`node online/admin.js operator <venue id> <email>` on the server (they create the account first, in the app or on the
+desk). The operator then uses the desk's **Venue** tab: edit the venue's profile, register the quiz laptop, publish
+and cancel quiz nights. Fields they change are theirs: later imports of the list leave them alone. They can't add,
+remove or take over other venues.
+
+**The map.** The player app's Find a quiz tab shows every venue on an OpenStreetMap map (Leaflet, shipped in the
+app; tiles from tile.openstreetmap.org, with attribution). Gold pins have a quiz night coming up; tapping one opens the
+venue's page. Offline, the app shows the last list it saw, or failing that the venue list straight from GitHub (once
+the repository is public). OpenStreetMap's tile servers are for light use: with many players, switch to a tile
+provider's plan.
+
 ## Data model
 
 | Table | Holds |
 |---|---|
 | `accounts` | id, email, password (scrypt), display name, usual team name, picture, privacy flags, admin flag |
 | `sessions` | SHA-256 of each session token, account, expiry (30 days) |
-| `venues`, `venue_keys` | operator, name, town, postcode, address, website, optional location, verified flag; registered laptop keys |
+| `venues`, `venue_keys` | operator (optional), name, town, postcode, address, website, quiz night, optional location, verified flag, whether it came from the venue list and which fields its operator changed; registered laptop keys |
 | `events` | venue, title, start time, format, entry, details, cancelled |
 | `results` | account, event, team reference, laptop key, the signed claim, date: one row per account/event/team |
 | `venue_results` | signed summaries shared by registered laptops, one per laptop/event |

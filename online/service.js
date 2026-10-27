@@ -1,9 +1,14 @@
 // PubQuiz Online: the optional internet service for player profiles, statistics and achievements across venues,
 // venue pages and quiz event listings. A quiz never needs it: laptops run quizzes offline and players join as guests.
-// This is a complete reference implementation (Node + SQLite) that runs anywhere Node 22 runs; it is not deployed
-// anywhere yet. docs/ONLINE.md covers the API, the data kept and what a production deployment needs.
+// It runs anywhere Node 22 runs (online/deploy.sh puts it on a server); docs/ONLINE.md covers the API, the data kept
+// and the deployment.
 //
-//   node online/service.js         PORT (8080), ONLINE_DB (online.sqlite), ALLOWED_ORIGINS (comma-separated web origins)
+//   node online/service.js         PORT (8080), ONLINE_DB (online.sqlite), ALLOWED_ORIGINS (comma-separated web origins),
+//                                  VENUES_FILE / VENUES_URL (the venue list, venues.js), TRUST_PROXY=1 (behind Caddy)
+//
+// Venues: only the venue list (venues.json, edited by PubQuiz's maintainers) and admins add venues. An admin links a
+// venue to its operator's account; the operator then edits its profile, publishes its quiz nights and registers its
+// quiz laptops, and those profile edits outlast later imports of the list.
 //
 // Trust: quiz results only come from claims signed by a quiz laptop (claims.js). A claim from a laptop key that a
 // venue has registered counts towards statistics and achievements; one from a venue the service has verified also
@@ -16,6 +21,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {verifyClaim, keyId, validKey} from '../claims.js';
 import {summarize, achievements} from '../achievements.js';
+import {parseVenueList} from '../venues.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(32).toString('base64url');
@@ -42,14 +48,24 @@ const distance = (a, b) => {
 };
 const postcodeArea = p => p.toUpperCase().replace(/\s+/g, ' ').trim().split(' ')[0];
 
-export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www')} = {}) {
+const venuesTable = name => `CREATE TABLE IF NOT EXISTS ${name}(id TEXT PRIMARY KEY, owner TEXT REFERENCES accounts(id) ON DELETE SET NULL, name TEXT NOT NULL,
+  town TEXT NOT NULL, postcode TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', website TEXT NOT NULL DEFAULT '', lat REAL, lon REAL,
+  verified INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, quiz_night TEXT NOT NULL DEFAULT '', listed INTEGER NOT NULL DEFAULT 0, edited TEXT NOT NULL DEFAULT '[]');`;
+
+export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), venuesFile = '', venuesUrl = '', fetchImpl = globalThis.fetch, trustProxy = false} = {}) {
   const db = new DatabaseSync(database);
+  // Before the venue list, every venue had to have an owner: rebuild that table once (foreign keys off, so nothing
+  // that points at a venue is lost).
+  if (db.prepare("SELECT 1 FROM sqlite_master WHERE name='venues'").get() && db.prepare('PRAGMA table_info(venues)').all().find(c => c.name === 'owner')?.notnull) {
+    db.exec(`PRAGMA foreign_keys=OFF; BEGIN; ${venuesTable('venues_new')}
+      INSERT INTO venues_new(id,owner,name,town,postcode,address,website,lat,lon,verified,created) SELECT id,owner,name,town,postcode,address,website,lat,lon,verified,created FROM venues;
+      DROP TABLE venues; ALTER TABLE venues_new RENAME TO venues; COMMIT;`);
+  }
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
     CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY, email TEXT UNIQUE COLLATE NOCASE NOT NULL, password TEXT NOT NULL, created INTEGER NOT NULL,
       display_name TEXT NOT NULL, preferred_team TEXT NOT NULL DEFAULT '', avatar TEXT, privacy TEXT NOT NULL DEFAULT '{}', admin INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS sessions(hash TEXT PRIMARY KEY, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, expires INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS venues(id TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, name TEXT NOT NULL, town TEXT NOT NULL,
-      postcode TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', website TEXT NOT NULL DEFAULT '', lat REAL, lon REAL, verified INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL);
+    ${venuesTable('venues')}
     CREATE TABLE IF NOT EXISTS venue_keys(key_id TEXT PRIMARY KEY, venue TEXT NOT NULL REFERENCES venues(id) ON DELETE CASCADE, public_key TEXT UNIQUE NOT NULL, added INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY, venue TEXT NOT NULL REFERENCES venues(id) ON DELETE CASCADE, title TEXT NOT NULL, starts INTEGER NOT NULL,
       format TEXT NOT NULL DEFAULT '', entry TEXT NOT NULL DEFAULT '', details TEXT NOT NULL DEFAULT '', cancelled INTEGER NOT NULL DEFAULT 0, updated INTEGER NOT NULL);
@@ -70,7 +86,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   const session = account => {const t = token(); run('INSERT INTO sessions VALUES(?,?,?)', sha(t), account, now() + SESSION_MS); return t;};
   const privacy = a => ({...defaultPrivacy, ...JSON.parse(a.privacy || '{}')});
   const profile = a => ({id: a.id, email: a.email, displayName: a.display_name, preferredTeam: a.preferred_team, avatar: a.avatar || null, privacy: privacy(a), created: a.created});
-  const venueOut = v => ({id: v.id, name: v.name, town: v.town, postcode: v.postcode, address: v.address, website: v.website, lat: v.lat, lon: v.lon, verified: !!v.verified,
+  const venueOut = v => ({id: v.id, name: v.name, town: v.town, postcode: v.postcode, address: v.address, website: v.website, lat: v.lat, lon: v.lon, quizNight: v.quiz_night ?? '', verified: !!v.verified,
     directions: v.lat !== null && v.lon !== null ? `https://www.openstreetmap.org/directions?to=${v.lat},${v.lon}` : `https://www.openstreetmap.org/search?query=${encodeURIComponent([v.name, v.address, v.town, v.postcode].filter(Boolean).join(', '))}`});
   const eventOut = (e, v) => ({id: e.id, title: e.title, startsAt: e.starts, format: e.format, entry: e.entry, details: e.details, cancelled: !!e.cancelled, updated: e.updated, venue: venueOut(v)});
   // A venue key counts once a venue has registered it.
@@ -95,10 +111,47 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     if (!partial || body.postcode !== undefined) out.postcode = text(body.postcode, 10, {name: 'Postcode'}).toUpperCase();
     if (!partial || body.address !== undefined) out.address = text(body.address, 200, {name: 'Address'});
     if (!partial || body.website !== undefined) {out.website = text(body.website, 200, {name: 'Website'}); check(!out.website || /^https:\/\//.test(out.website), 'Website must start with https://');}
+    if (!partial || body.quizNight !== undefined) out.quiz_night = text(body.quizNight, 120, {name: 'Quiz night'});
     for (const [k, lo, hi] of [['lat', -90, 90], ['lon', -180, 180]]) if (body[k] !== undefined) {check(body[k] === null || (typeof body[k] === 'number' && body[k] >= lo && body[k] <= hi), 'Invalid location'); out[k] = body[k];}
+    check(('lat' in out) === ('lon' in out) && (out.lat === null) === (out.lon === null), 'Give both latitude and longitude');
     return out;
   }
   const update = (table, idValue, fields) => {const keys = Object.keys(fields); if (keys.length) run(`UPDATE ${table} SET ${keys.map(k => `${k}=?`).join(',')} WHERE id=?`, ...keys.map(k => fields[k]), idValue);};
+
+  // The venue list: new venues are added, listed ones updated (except what their operator has changed since), and
+  // listed venues no longer on it removed. A list that can't be read changes nothing.
+  function importVenues(json) {
+    const {venues, errors} = parseVenueList(json);
+    if (!json || !Array.isArray(json.venues)) return {imported: 0, removed: 0, errors};
+    const ids = new Set(venues.map(v => v.id));
+    let removed = 0;
+    db.exec('BEGIN');
+    try {
+      for (const v of venues) {
+        const fields = {name: v.name, town: v.town, postcode: v.postcode, address: v.address, website: v.website, lat: v.lat, lon: v.lon, quiz_night: v.quizNight};
+        const existing = one('SELECT edited FROM venues WHERE id=?', v.id);
+        if (!existing) run('INSERT INTO venues(id,name,town,postcode,address,website,lat,lon,quiz_night,listed,created) VALUES(?,?,?,?,?,?,?,?,?,1,?)', v.id, v.name, v.town, v.postcode, v.address, v.website, v.lat, v.lon, v.quizNight, now());
+        else {
+          const edited = new Set(JSON.parse(existing.edited));
+          update('venues', v.id, Object.fromEntries(Object.entries(fields).filter(([k]) => !edited.has(k === 'lon' ? 'lat' : k))));
+          run('UPDATE venues SET listed=1 WHERE id=?', v.id);
+        }
+      }
+      for (const r of rows('SELECT id FROM venues WHERE listed=1')) if (!ids.has(r.id)) {run('DELETE FROM venues WHERE id=?', r.id); removed++;}
+      db.exec('COMMIT');
+    } catch (e) {db.exec('ROLLBACK'); throw e;}
+    return {imported: venues.length, removed, errors};
+  }
+  async function loadVenueList() {
+    try {
+      const json = venuesUrl ? await (await fetchImpl(venuesUrl, {signal: AbortSignal.timeout(15000)})).json() : JSON.parse(readFileSync(venuesFile, 'utf8'));
+      const {imported, removed, errors} = importVenues(json);
+      console.log(`Venue list: ${imported} venues${removed ? `, ${removed} removed` : ''}${errors.length ? `; skipped: ${errors.join('; ')}` : ''}`);
+    } catch (e) {console.error('Venue list not loaded:', e.message);}
+  }
+  const venueTimer = venuesUrl ? setInterval(loadVenueList, 3600000) : null;
+  venueTimer?.unref();
+  const venuesLoaded = venuesUrl || venuesFile ? loadVenueList() : Promise.resolve();
 
   async function body(req) {
     const chunks = []; let size = 0;
@@ -127,11 +180,12 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         const base = path.resolve(shared[p] ? path.dirname(shared[p]) : appDir), file = shared[p] || path.resolve(base, decodeURIComponent(p.slice(5)) || 'index.html');
         check(file.startsWith(base + path.sep) && existsSync(file) && statSync(file).isFile() && staticTypes[path.extname(file)], 'Not found', 404);
         res.writeHead(200, {'Content-Type': staticTypes[path.extname(file)], 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-cache',
-          'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; connect-src *; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'"});
+          'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; connect-src *; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'"});
         return res.end(readFileSync(file));
       }
       check(p.startsWith('/v1/'), 'Not found', 404);
-      const ip = req.socket.remoteAddress || '';
+      // Behind Caddy every request comes from 127.0.0.1; the client's address is the last one Caddy adds.
+      const ip = (trustProxy && req.headers['x-forwarded-for']?.split(',').pop().trim()) || req.socket.remoteAddress || '';
       const auth = req.headers.authorization?.replace(/^Bearer /, '') || '';
       const account = auth ? one('SELECT a.* FROM sessions s JOIN accounts a ON a.id=s.account WHERE s.hash=? AND s.expires>?', sha(auth), now()) : null;
       const me = () => {check(account, 'Sign in first', 401); return account;};
@@ -223,9 +277,16 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       // ---- Venues and events (venue operators) ----
       const myVenue = venueId => {const v = one('SELECT * FROM venues WHERE id=?', venueId); check(v, 'Venue not found', 404); check(v.owner === me().id || me().admin, 'Only the venue’s operator can change it', 403); return v;};
       if (method === 'GET' && p === '/v1/me/venues') return send(200, {venues: rows('SELECT * FROM venues WHERE owner=? ORDER BY name', me().id).map(v => ({...venueOut(v), keys: rows('SELECT key_id FROM venue_keys WHERE venue=?', v.id).map(k => k.key_id)}))});
+      // Every venue, for the map: public details and its next quiz night.
+      if (method === 'GET' && p === '/v1/venues') {
+        const next = v => {const e = one('SELECT * FROM events WHERE venue=? AND starts>? AND cancelled=0 ORDER BY starts LIMIT 1', v.id, now() - 6 * 3600000); return e ? {id: e.id, title: e.title, startsAt: e.starts} : null;};
+        return send(200, {venues: rows('SELECT * FROM venues ORDER BY name COLLATE NOCASE').map(v => ({...venueOut(v), next: next(v)})), fetchedAt: now()});
+      }
+      // Venues don't add themselves: they come from the venue list, or an admin adds one here.
       if (method === 'POST' && p === '/v1/venues') {
-        const a = me(), fields = validVenue(input), venueId = id();
-        run('INSERT INTO venues(id,owner,name,town,postcode,address,website,lat,lon,created) VALUES(?,?,?,?,?,?,?,?,?,?)', venueId, a.id, fields.name, fields.town, fields.postcode, fields.address, fields.website, fields.lat ?? null, fields.lon ?? null, now());
+        check(me().admin, 'Venues are added by PubQuiz: ask to be added to the venue list', 403);
+        const fields = validVenue(input), venueId = id();
+        run('INSERT INTO venues(id,name,town,postcode,address,website,lat,lon,quiz_night,created) VALUES(?,?,?,?,?,?,?,?,?,?)', venueId, fields.name, fields.town, fields.postcode, fields.address, fields.website, fields.lat ?? null, fields.lon ?? null, fields.quiz_night, now());
         return send(201, venueOut(one('SELECT * FROM venues WHERE id=?', venueId)));
       }
       if (parts[0] === 'venues' && parts.length >= 2) {
@@ -233,8 +294,23 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
           const v = one('SELECT * FROM venues WHERE id=?', parts[1]); check(v, 'Venue not found', 404);
           return send(200, {...venueOut(v), events: rows('SELECT * FROM events WHERE venue=? AND starts>? AND cancelled=0 ORDER BY starts', v.id, now() - 6 * 3600000).map(e => eventOut(e, v))});
         }
-        if (method === 'PATCH' && parts.length === 2) {const v = myVenue(parts[1]); update('venues', v.id, validVenue(input, true)); return send(200, venueOut(one('SELECT * FROM venues WHERE id=?', v.id)));}
-        if (method === 'DELETE' && parts.length === 2) {const v = myVenue(parts[1]); run('DELETE FROM venues WHERE id=?', v.id); return send(200, {ok: true});}
+        // The operator edits the venue's profile; what they change stays theirs when the list is imported again.
+        if (method === 'PATCH' && parts.length === 2) {
+          const v = myVenue(parts[1]), fields = validVenue(input, true);
+          update('venues', v.id, fields);
+          run('UPDATE venues SET edited=? WHERE id=?', JSON.stringify([...new Set([...JSON.parse(v.edited), ...Object.keys(fields).filter(k => k !== 'lon')])]), v.id);
+          return send(200, venueOut(one('SELECT * FROM venues WHERE id=?', v.id)));
+        }
+        if (method === 'DELETE' && parts.length === 2) {const v = myVenue(parts[1]); check(me().admin, 'Ask PubQuiz to take a venue off the list', 403); run('DELETE FROM venues WHERE id=?', v.id); return send(200, {ok: true});}
+        // An admin links the venue to its operator's account (or unlinks it with {email: null}).
+        if (method === 'POST' && parts[2] === 'operator' && parts.length === 3) {
+          check(me().admin, 'Admins only', 403);
+          const v = one('SELECT * FROM venues WHERE id=?', parts[1]); check(v, 'Venue not found', 404);
+          const account = input.email === null ? null : one('SELECT id FROM accounts WHERE email=?', String(input.email || '').trim().toLowerCase());
+          check(input.email === null || account, 'No account uses that email', 404);
+          run('UPDATE venues SET owner=? WHERE id=?', account?.id ?? null, v.id);
+          return send(200, {ok: true});
+        }
         // The quiz laptop's key (desk: Past quizzes → PubQuiz Online), so its results count for this venue.
         if (method === 'POST' && parts[2] === 'keys') {
           const v = myVenue(parts[1]);
@@ -311,11 +387,12 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   }
   const server = http.createServer(handle);
   server.requestTimeout = 15000;
-  return {server, db, close: () => new Promise(resolve => {server.close(() => {db.close(); resolve();}); server.closeAllConnections();})};
+  return {server, db, importVenues, venuesLoaded, close: () => new Promise(resolve => {clearInterval(venueTimer); server.close(() => {db.close(); resolve();}); server.closeAllConnections();})};
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const service = createService({database: process.env.ONLINE_DB || 'online.sqlite', allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean)});
+  const service = createService({database: process.env.ONLINE_DB || 'online.sqlite', allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
+    venuesFile: process.env.VENUES_FILE || '', venuesUrl: process.env.VENUES_URL || '', trustProxy: process.env.TRUST_PROXY === '1'});
   service.server.listen(Number(process.env.PORT || 8080), process.env.BIND || '127.0.0.1', () => console.log(`PubQuiz Online on http://${process.env.BIND || '127.0.0.1'}:${process.env.PORT || 8080} (put HTTPS in front before going public)`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => service.close().then(() => process.exit(0)));
 }

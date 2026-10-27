@@ -83,9 +83,11 @@ try {
   assert.deepEqual(board.teams.map(t => [t.name, t.score]), [['App Foxes', 2], ['Browser Owls', 0]]);
   pass('an app team and a browser team play the same question; both are marked by the quiz laptop');
 
-  // The venue registers its quiz laptop with PubQuiz Online so results count.
+  // The venue is on the venue list, linked to its operator, who registers the quiz laptop so results count.
   const operator = await post(online + '/v1/accounts', {email: 'landlord@example.com', password: 'correct horse battery', displayName: 'Landlord'});
-  const venue = await post(online + '/v1/venues', {name: 'The Lion', town: 'Bristol'}, operator.token);
+  service.importVenues({venues: [{id: 'the-lion', name: 'The Lion', town: 'Bristol', lat: 51.45, lon: -2.59}]});
+  service.db.prepare("UPDATE venues SET owner=(SELECT id FROM accounts WHERE email='landlord@example.com') WHERE id='the-lion'").run();
+  const venue = {id: 'the-lion'};
   await post(online + `/v1/venues/${venue.id}/keys`, {publicKey: (await post(base + '/api/host/results', {}, host)).venueKey}, operator.token);
 
   await app.locator('#keepResult').waitFor({state: 'visible'});
@@ -119,13 +121,18 @@ try {
   await app.fill('#search', 'Bristol'); await app.click('#searchForm button');
   await app.locator('#events li').first().waitFor();
   assert.match(await app.locator('#events').textContent(), /Tuesday Quiz.*The Lion, Bristol/s);
+  // The map: the venue's pin, and its page with the quiz night.
+  await app.waitForFunction(() => /1 venue\b/.test(document.querySelector('#mapNote').textContent));
+  await app.locator('#map path.leaflet-interactive').click({force: true});
+  await app.locator('#venueCard li').filter({hasText: 'Tuesday Quiz'}).waitFor();
+  assert.match(await app.locator('#venueCard h3').textContent(), /The Lion/);
   await appCtx.setOffline(true);
   await app.click('#searchForm button');
   await app.locator('#findStale').waitFor({state: 'visible'});
   assert.match(await app.locator('#findStale').textContent(), /may have changed/);
   assert.match(await app.locator('#events').textContent(), /Tuesday Quiz/);
   await appCtx.setOffline(false);
-  pass('finding quizzes works, and offline it shows the last listing marked as possibly out of date');
+  pass('finding quizzes works, the map shows venues and their quiz nights, and offline it shows the last listing marked as possibly out of date');
 
   assert.deepEqual(errors, []);
   pass('no JavaScript errors in the app screens, the quiz pages or the web app');

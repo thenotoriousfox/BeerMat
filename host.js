@@ -33,6 +33,7 @@ function chooseTab(name) {
   document.querySelectorAll('[data-tab]').forEach(el => el.classList.toggle('selected', el.dataset.tab === name));
   if (name === 'mark') loadReview().catch(e => message(e.message, true));
   if (name === 'build') loadSpotify();
+  if (name === 'venue') loadVenue();
 }
 // Spotify: optional, for private quizzes. The server talks to Spotify; the desk only shows status and starts sign-in.
 let spotify = null;
@@ -757,6 +758,69 @@ $('historyClear').onclick = () => {if (confirm('Delete every past quiz’s resul
 $('onlineServiceForm').onsubmit = e => {e.preventDefault(); action(async () => {await request('settings', {onlineService: $('onlineServiceUrl').value.trim()}); await loadHistory();}, 'Online service saved');};
 $('shareResults').onclick = () => action(async () => {await request('settings', {shareResults: !state.settings.shareResults}); await loadHistory();}, 'Sharing updated');
 $('syncNow').onclick = () => action(async () => {await request('results/sync'); await loadHistory();}, 'Sent what could be sent');
+// Your venue on PubQuiz Online. Venues are added by PubQuiz; their operators run them here. The laptop's server holds
+// the sign-in and passes on the calls, so this page never talks to the internet itself.
+let venueAccount = null, myVenues = [], venue = null;
+const onlineCall = (method, path, body) => request('online/call', {method, path, body});
+async function loadVenue() {
+  try {venueAccount = await request('online/account');} catch (e) {return message(e.message, true);}
+  if (!past) await loadHistory();
+  myVenues = []; venue = null;
+  if (venueAccount.signedIn) try {
+    myVenues = (await onlineCall('GET', '/v1/me/venues')).venues;
+    const pick = myVenues.find(v => v.id === $('venuePick').value) || myVenues[0];
+    if (pick) venue = {...pick, ...await onlineCall('GET', '/v1/venues/' + encodeURIComponent(pick.id))};
+  } catch (e) {message(e.message, true); venueAccount = await request('online/account').catch(() => venueAccount);}
+  renderVenue();
+}
+function renderVenue() {
+  const signedIn = !!venueAccount?.signedIn;
+  $('venueService').textContent = venueAccount?.service ? `PubQuiz Online: ${venueAccount.service}` : 'Set the PubQuiz Online address under Run quiz → Past quizzes';
+  $('venueSignedOut').hidden = signedIn; $('venueSignedIn').hidden = !signedIn;
+  if (!signedIn) return;
+  $('venueWho').textContent = `Signed in as ${venueAccount.name} (${venueAccount.email})`;
+  $('venueNone').hidden = !!venue; $('venueDetails').hidden = !venue;
+  if (!venue) return;
+  $('venuePickLabel').hidden = myVenues.length < 2;
+  $('venuePick').replaceChildren(...myVenues.map(v => {const o = element('option', `${v.name}, ${v.town}`); o.value = v.id; o.selected = v.id === venue.id; return o;}));
+  for (const [field, key] of [['vName', 'name'], ['vTown', 'town'], ['vPostcode', 'postcode'], ['vAddress', 'address'], ['vWebsite', 'website'], ['vQuizNight', 'quizNight'], ['vLat', 'lat'], ['vLon', 'lon']]) $(field).value = venue[key] ?? '';
+  const registered = past && venue.keys?.includes(past.venueKeyId);
+  $('venueLaptop').textContent = registered ? '✓ This laptop is registered: its shared results count for this venue.' : 'This laptop isn’t registered to this venue yet.';
+  $('venueRegister').hidden = !!registered;
+  $('venueEvents').replaceChildren(...venue.events.map(e => {
+    const li = element('li', `${new Date(e.startsAt).toLocaleString([], {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'})} — ${e.title}${e.entry ? ` (${e.entry})` : ''} `);
+    const cancel = element('button', 'Cancel', 'subtle'); cancel.type = 'button';
+    cancel.onclick = () => {if (confirm(`Cancel “${e.title}”? It disappears from the app.`)) action(async () => {await onlineCall('DELETE', '/v1/events/' + e.id); await loadVenue();}, 'Quiz night cancelled');};
+    li.append(cancel); return li;
+  }));
+  if (!venue.events.length) $('venueEvents').append(element('li', 'No quiz nights published yet.', 'muted'));
+}
+$('venueSignIn').onsubmit = e => {e.preventDefault(); action(async () => {venueAccount = await request('online/signin', {email: $('venueEmail').value, password: $('venuePassword').value}); $('venuePassword').value = ''; await loadVenue();}, 'Signed in to PubQuiz Online');};
+$('venueSignUp').onsubmit = e => {e.preventDefault(); if (!$('venueSignIn').reportValidity()) return; action(async () => {venueAccount = await request('online/signup', {email: $('venueEmail').value, password: $('venuePassword').value, displayName: $('venueName').value}); $('venuePassword').value = ''; await loadVenue();}, 'Account created');};
+$('venueSignOut').onclick = () => action(async () => {await request('online/signout'); await loadVenue();}, 'Signed out');
+$('venuePick').onchange = () => loadVenue();
+$('vLocate').onclick = () => action(async () => {const at = await request('online/locate', {postcode: $('vPostcode').value}); $('vLat').value = at.lat; $('vLon').value = at.lon;}, 'Found: save the venue to keep it');
+$('venueForm').onsubmit = e => {
+  e.preventDefault();
+  const lat = $('vLat').value.trim(), lon = $('vLon').value.trim();
+  if (!lat !== !lon || (lat && (!Number.isFinite(+lat) || !Number.isFinite(+lon)))) return message('Give both latitude and longitude as numbers, or neither', true);
+  action(async () => {
+    await onlineCall('PATCH', '/v1/venues/' + encodeURIComponent(venue.id), {name: $('vName').value, town: $('vTown').value, postcode: $('vPostcode').value, address: $('vAddress').value,
+      website: $('vWebsite').value.trim(), quizNight: $('vQuizNight').value, lat: lat ? +lat : null, lon: lon ? +lon : null});
+    await loadVenue();
+  }, 'Venue saved');
+};
+$('venueRegister').onclick = () => action(async () => {await onlineCall('POST', `/v1/venues/${encodeURIComponent(venue.id)}/keys`); await loadVenue();}, 'This laptop is registered');
+$('eventForm').onsubmit = e => {
+  e.preventDefault();
+  const startsAt = new Date($('eStart').value).getTime();
+  if (!Number.isFinite(startsAt)) return message('Choose when the quiz starts', true);
+  action(async () => {
+    await onlineCall('POST', `/v1/venues/${encodeURIComponent(venue.id)}/events`, {title: $('eTitle').value, startsAt, entry: $('eEntry').value, format: $('eFormat').value, details: $('eDetails').value});
+    for (const id of ['eTitle', 'eStart', 'eEntry', 'eFormat', 'eDetails']) $(id).value = '';
+    await loadVenue();
+  }, 'Quiz night published');
+};
 // How players join: the quiz hotspot, or the venue's own network (any computer, no laptop controls needed).
 async function loadNetwork() {
   try {network = await request('network');} catch {network = null;}

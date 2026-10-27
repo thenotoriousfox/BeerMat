@@ -3,7 +3,8 @@
 // never counts it twice), and quiz listings come from the last search, marked as possibly out of date.
 // No Node or browser-only APIs beyond fetch and a storage object with getItem/setItem/removeItem (localStorage).
 
-export function createOnlineClient({baseUrl, fetch = globalThis.fetch.bind(globalThis), storage, now = Date.now, timeout = 10000}) {
+// venueListUrl: the venue list on GitHub (venues.json), shown on the map when the service can't be reached.
+export function createOnlineClient({baseUrl, venueListUrl = '', fetch = globalThis.fetch.bind(globalThis), storage, now = Date.now, timeout = 10000}) {
   const read = (name, fallback) => {try {return JSON.parse(storage.getItem('pq-online:' + name)) ?? fallback;} catch {return fallback;}};
   const write = (name, value) => value === null ? storage.removeItem('pq-online:' + name) : storage.setItem('pq-online:' + name, JSON.stringify(value));
   const base = () => (read('baseUrl', null) || baseUrl || '').replace(/\/$/, '');
@@ -84,6 +85,24 @@ export function createOnlineClient({baseUrl, fetch = globalThis.fetch.bind(globa
         const cached = cache[cacheKey];
         if (e.offline && cached) return {...cached, stale: true};
         throw e;
+      }
+    },
+    // Every venue, for the map. Offline: the last list seen (marked stale), else the venue list from GitHub.
+    async venues() {
+      try {
+        const result = await api('GET', '/v1/venues');
+        write('venues', {venues: result.venues, fetchedAt: now()});
+        return {venues: result.venues, fetchedAt: now(), stale: false, source: 'service'};
+      } catch (e) {
+        const cached = read('venues', null);
+        if (cached) return {...cached, stale: true, source: 'cache'};
+        if (!venueListUrl) throw e;
+        let list;
+        try {list = await (await fetch(venueListUrl, {signal: AbortSignal.timeout(timeout)})).json();} catch {throw e;}
+        const venues = (Array.isArray(list?.venues) ? list.venues : []).filter(v => v && typeof v.id === 'string' && typeof v.name === 'string' && typeof v.town === 'string')
+          .map(v => ({id: v.id, name: v.name, town: v.town, postcode: v.postcode || '', address: v.address || '', website: /^https:\/\//.test(v.website || '') ? v.website : '',
+            lat: typeof v.lat === 'number' ? v.lat : null, lon: typeof v.lon === 'number' ? v.lon : null, quizNight: v.quizNight || '', next: null}));
+        return {venues, fetchedAt: now(), stale: true, source: 'list'};
       }
     },
     venue: venueId => api('GET', '/v1/venues/' + encodeURIComponent(venueId)),

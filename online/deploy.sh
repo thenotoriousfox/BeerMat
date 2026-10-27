@@ -16,11 +16,11 @@ ip=$(ssh -o BatchMode=yes "$target" "curl -fsS4 https://ifconfig.me || hostname 
 domain=${2:-$(echo "$ip" | tr . -).sslip.io}
 echo "Server $ip, address https://$domain"
 
-# Only what the service needs: itself, the shared modules it imports, and the web app it serves at /app/.
+# Only what the service needs: itself, the shared modules it imports, the venue list, and the web app it serves at /app/.
 stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/online" "$stage/mobile"
 cp "$repo/online/service.js" "$repo/online/client.js" "$repo/online/admin.js" "$stage/online/"
-cp "$repo/claims.js" "$repo/achievements.js" "$stage/"
+cp "$repo/claims.js" "$repo/achievements.js" "$repo/venues.js" "$repo/venues.json" "$stage/"
 cp -r "$repo/mobile/www" "$stage/mobile/"
 printf '{"private": true, "type": "module"}\n' > "$stage/package.json"
 tar -C "$stage" -czf - . | ssh "$target" "rm -rf /tmp/pubquiz-online && mkdir /tmp/pubquiz-online && tar -C /tmp/pubquiz-online -xzf -"
@@ -60,7 +60,11 @@ Wants=network-online.target
 [Service]
 User=pubquiz
 WorkingDirectory=/var/lib/pubquiz-online
-Environment=PORT=8080 BIND=127.0.0.1 ONLINE_DB=/var/lib/pubquiz-online/online.sqlite NODE_ENV=production
+Environment=PORT=8080 BIND=127.0.0.1 ONLINE_DB=/var/lib/pubquiz-online/online.sqlite NODE_ENV=production TRUST_PROXY=1
+# The venue list: the copy deployed with the service. Once the repository is public, VENUES_URL (checked hourly) makes
+# edits to venues.json on GitHub live without a redeploy:
+#   Environment=VENUES_URL=https://raw.githubusercontent.com/DTJW92/PubQuiz/main/venues.json
+Environment=VENUES_FILE=/opt/pubquiz-online/venues.json
 ExecStart=/opt/node/bin/node --disable-warning=ExperimentalWarning /opt/pubquiz-online/online/service.js
 Restart=on-failure
 NoNewPrivileges=true

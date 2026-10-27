@@ -23,7 +23,16 @@ async function fixture(fn) {
     return {status: res.status, headers: res.headers, ...await res.json().catch(() => ({}))};
   };
   const signUp = async (email, displayName = email.split('@')[0]) => (await call('POST', '/v1/accounts', {email, password: 'correct horse battery', displayName})).token;
-  try {await fn({base, call, signUp, service, tick: ms => time += ms, now: () => time});} finally {await service.close(); rmSync(dir, {recursive: true, force: true});}
+  // Venues don't add themselves: an admin adds one and links it to its operator's account.
+  let root;
+  const addVenue = async (fields, operatorEmail) => {
+    if (!root) {root = await signUp('root@example.com'); service.db.prepare("UPDATE accounts SET admin=1 WHERE email='root@example.com'").run();}
+    const venue = await call('POST', '/v1/venues', fields, root);
+    assert.equal(venue.status, 201, venue.error);
+    if (operatorEmail) assert.equal((await call('POST', `/v1/venues/${venue.id}/operator`, {email: operatorEmail}, root)).status, 200);
+    return venue;
+  };
+  try {await fn({base, call, signUp, addVenue, service, tick: ms => time += ms, now: () => time});} finally {await service.close(); rmSync(dir, {recursive: true, force: true});}
 }
 
 test('accounts: sign up, sign in, wrong passwords limited, profile and privacy, export and erasure', () => fixture(async ({call, signUp}) => {
@@ -52,7 +61,7 @@ test('accounts: sign up, sign in, wrong passwords limited, profile and privacy, 
   assert.equal((await call('GET', '/v1/me', null, login.token)).status, 401, 'every session goes with the account');
 }));
 
-test('results: only laptop-signed claims, once each however often sent; stats and achievements count registered venues only', () => fixture(async ({call, signUp, service}) => {
+test('results: only laptop-signed claims, once each however often sent; stats and achievements count registered venues only', () => fixture(async ({call, signUp, addVenue, service}) => {
   const player = await signUp('pat@example.com'), operator = await signUp('landlord@example.com');
   const lion = newVenueKey(), stranger = newVenueKey();
   const claim = result(lion, 'ev1', 'team-a');
@@ -67,7 +76,7 @@ test('results: only laptop-signed claims, once each however often sent; stats an
   // Until the venue registers its laptop, the result is kept but not counted.
   let stats = await call('GET', '/v1/me/stats', null, player);
   assert.deepEqual([stats.stats.quizzes, stats.waiting, stats.achievements.length], [0, 1, 0]);
-  const venue = await call('POST', '/v1/venues', {name: 'The Red Lion', town: 'Bristol', postcode: 'BS1 4DJ', lat: 51.4545, lon: -2.5879}, operator);
+  const venue = await addVenue({name: 'The Red Lion', town: 'Bristol', postcode: 'BS1 4DJ', lat: 51.4545, lon: -2.5879}, 'landlord@example.com');
   assert.equal((await call('POST', `/v1/venues/${venue.id}/keys`, {publicKey: 'not-a-key-at-all-but-long-enough-to-pass-the-pattern-check-xx'}, operator)).status, 400);
   assert.equal((await call('POST', `/v1/venues/${venue.id}/keys`, {publicKey: lion.publicKey}, player)).status, 403, 'only the operator registers laptops');
   assert.equal((await call('POST', `/v1/venues/${venue.id}/keys`, {publicKey: lion.publicKey}, operator)).status, 201);
@@ -76,7 +85,7 @@ test('results: only laptop-signed claims, once each however often sent; stats an
   assert.deepEqual(stats.achievements.map(a => a.id), ['first-quiz', 'first-win', 'podium', 'perfect-round', 'fastest-finger']);
   assert.equal((await call('GET', '/v1/me/results', null, player)).results[0].venueName, 'The Red Lion');
   // A laptop registered to one venue cannot be claimed by another.
-  const other = await call('POST', '/v1/venues', {name: 'Crown', town: 'Bath'}, player);
+  const other = await addVenue({name: 'Crown', town: 'Bath'}, 'pat@example.com');
   assert.equal((await call('POST', `/v1/venues/${other.id}/keys`, {publicKey: lion.publicKey}, player)).status, 409);
 
   // Teams are not people: two players in the same team both keep the result.
@@ -99,21 +108,21 @@ test('results: only laptop-signed claims, once each however often sent; stats an
   assert.deepEqual(board.map(p => [p.name, p.wins, p.avatar]), [['pat', 1, null]], 'no photo unless the player allows it');
 }));
 
-test('venue results from quiz laptops: registered laptops only, a repeat replaces rather than duplicates', () => fixture(async ({call, signUp}) => {
+test('venue results from quiz laptops: registered laptops only, a repeat replaces rather than duplicates', () => fixture(async ({call, signUp, addVenue}) => {
   const operator = await signUp('host@example.com'), key = newVenueKey();
   const summary = signClaim({v: 1, kind: 'pubquiz.event', event: 'ev9', title: 'Tuesday', date: 1, teams: [{ref: 'r1', name: 'Foxes', rank: 1, points: 20}]}, key);
   assert.equal((await call('POST', '/v1/venue-results', summary)).status, 403);
-  const venue = await call('POST', '/v1/venues', {name: 'Lamb', town: 'Leeds'}, operator);
+  const venue = await addVenue({name: 'Lamb', town: 'Leeds'}, 'host@example.com');
   await call('POST', `/v1/venues/${venue.id}/keys`, {publicKey: key.publicKey}, operator);
   assert.equal((await call('POST', '/v1/venue-results', {...summary, teams: []})).status, 422);
   assert.equal((await call('POST', '/v1/venue-results', summary)).status, 201);
   assert.equal((await call('POST', '/v1/venue-results', summary)).status, 200);
 }));
 
-test('events: operators publish and update; players search by town, postcode area or location; cancelled and past ones drop out', () => fixture(async ({call, signUp, tick, now}) => {
+test('events: operators publish and update; players search by town, postcode area or location; cancelled and past ones drop out', () => fixture(async ({call, signUp, addVenue, tick, now}) => {
   const operator = await signUp('op@example.com'), player = await signUp('pl@example.com');
-  const lion = await call('POST', '/v1/venues', {name: 'The Red Lion', town: 'Bristol', postcode: 'BS1 4DJ', lat: 51.4545, lon: -2.5879}, operator);
-  const crown = await call('POST', '/v1/venues', {name: 'The Crown', town: 'Bath', postcode: 'BA1 1SU', lat: 51.3811, lon: -2.3590}, operator);
+  const lion = await addVenue({name: 'The Red Lion', town: 'Bristol', postcode: 'BS1 4DJ', lat: 51.4545, lon: -2.5879}, 'op@example.com');
+  const crown = await addVenue({name: 'The Crown', town: 'Bath', postcode: 'BA1 1SU', lat: 51.3811, lon: -2.3590}, 'op@example.com');
   assert.equal((await call('POST', `/v1/venues/${lion.id}/events`, {title: 'Quiz', startsAt: now() + 86400000}, player)).status, 403);
   assert.equal((await call('POST', `/v1/venues/${lion.id}/events`, {title: '', startsAt: now()}, operator)).status, 400);
   const tuesday = await call('POST', `/v1/venues/${lion.id}/events`, {title: 'Tuesday Quiz', startsAt: now() + 86400000, format: 'General knowledge, 6 rounds', entry: '£2 a head'}, operator);
@@ -145,7 +154,7 @@ test('web: CORS for the app and listed sites only; the player web app is served 
   assert.equal((await call('POST', '/v1/accounts', null, '', {'Content-Type': 'application/json'})).status, 400);
 }));
 
-test('client: results wait offline and are sent once when back; listings come from the cache when offline, marked as such', () => fixture(async ({base, signUp}) => {
+test('client: results wait offline and are sent once when back; listings come from the cache when offline, marked as such', () => fixture(async ({base, signUp, addVenue}) => {
   let online = false;
   const storage = memory(), fetchSometimes = (url, options) => online ? fetch(url, options) : Promise.reject(new TypeError('fetch failed'));
   const client = createOnlineClient({baseUrl: base, fetch: fetchSometimes, storage});
@@ -166,7 +175,8 @@ test('client: results wait offline and are sent once when back; listings come fr
 
   const operator = createOnlineClient({baseUrl: base, storage: memory()});
   await operator.signUp({email: 'op2@example.com', password: 'correct horse battery', displayName: 'Op'});
-  const venue = await operator.createVenue({name: 'The Ship', town: 'Hull', lat: 53.74, lon: -0.33});
+  await assert.rejects(operator.createVenue({name: 'The Ship', town: 'Hull'}), /added by PubQuiz/);
+  const venue = await addVenue({name: 'The Ship', town: 'Hull', lat: 53.74, lon: -0.33}, 'op2@example.com');
   await operator.publishEvent(venue.id, {title: 'Ship Quiz', startsAt: Date.now() + 86400000 * 400});
   await operator.publishEvent(venue.id, {title: 'Ship Quiz Soon', startsAt: 1700000000000 + 86400000});
   const fresh = await client.findEvents({q: 'hull'});
@@ -185,4 +195,88 @@ test('client: results wait offline and are sent once when back; listings come fr
   await client.signOut();
   assert.equal(client.signedIn(), false);
   assert.equal(JSON.stringify([...storage.m.values()]).includes('correct horse'), false, 'the password is never stored');
+}));
+
+test('venue list: imported, kept up to date, operators edit their own profile only; nobody adds themselves', () => fixture(async ({call, signUp, addVenue, service}) => {
+  const list = {venues: [
+    {id: 'red-lion-bristol', name: 'The Red Lion', town: 'Bristol', postcode: 'bs1 4dj', lat: 51.4545, lon: -2.5879, quizNight: 'Tuesdays, 8pm'},
+    {id: 'crown-bath', name: 'The Crown', town: 'Bath'},
+    {id: 'Bad Id', name: 'Nope', town: 'X'}, {id: 'no-town', name: 'Nope'}, {id: 'half-located', name: 'X', town: 'Y', lat: 51},
+    {id: 'crown-bath', name: 'Twice', town: 'Bath'},
+  ]};
+  const first = service.importVenues(list);
+  assert.deepEqual([first.imported, first.errors.length], [2, 4]);
+  let venues = (await call('GET', '/v1/venues')).venues;
+  assert.deepEqual(venues.map(v => [v.id, v.postcode, v.quizNight, v.next]), [['crown-bath', '', '', null], ['red-lion-bristol', 'BS1 4DJ', 'Tuesdays, 8pm', null]]);
+  assert.equal(venues[0].owner, undefined, 'operators are not public');
+
+  // Nobody adds or removes a venue but an admin; operators are linked by an admin.
+  const landlord = await signUp('landlord@example.com'), stranger = await signUp('someone@example.com');
+  assert.equal((await call('POST', '/v1/venues', {name: 'My Pub', town: 'Leeds'}, stranger)).status, 403);
+  assert.equal((await call('PATCH', '/v1/venues/red-lion-bristol', {name: 'Mine now'}, landlord)).status, 403);
+  assert.equal((await call('POST', '/v1/venues/red-lion-bristol/operator', {email: 'landlord@example.com'}, landlord)).status, 403);
+  await addVenue({name: 'Admin Added', town: 'York'});
+  const root = (await call('POST', '/v1/sessions', {email: 'root@example.com', password: 'correct horse battery'})).token;
+  assert.equal((await call('POST', '/v1/venues/red-lion-bristol/operator', {email: 'nobody@example.com'}, root)).status, 404);
+  assert.equal((await call('POST', '/v1/venues/red-lion-bristol/operator', {email: 'landlord@example.com'}, root)).status, 200);
+  assert.deepEqual((await call('GET', '/v1/me/venues', null, landlord)).venues.map(v => v.id), ['red-lion-bristol']);
+  assert.equal((await call('PATCH', '/v1/venues/crown-bath', {name: 'Not mine'}, landlord)).status, 403, 'only their own venue');
+  assert.equal((await call('PATCH', '/v1/venues/red-lion-bristol', {lat: 51.5}, landlord)).status, 400, 'a location needs both');
+  const edited = await call('PATCH', '/v1/venues/red-lion-bristol', {quizNight: 'Wednesdays, 7:30pm', lat: 51.46, lon: -2.59}, landlord);
+  assert.deepEqual([edited.quizNight, edited.lat], ['Wednesdays, 7:30pm', 51.46]);
+  assert.equal((await call('DELETE', '/v1/venues/red-lion-bristol', null, landlord)).status, 403, 'taking a venue off is for PubQuiz');
+  await call('POST', '/v1/venues/red-lion-bristol/events', {title: 'Quiz', startsAt: 1700000000000 + 86400000}, landlord);
+
+  // The list again: its changes apply except to what the operator changed; a venue taken off the list goes.
+  const second = service.importVenues({venues: [{...list.venues[0], name: 'The Red Lion Inn', quizNight: 'Tuesdays', lat: 1, lon: 1}]});
+  assert.deepEqual([second.imported, second.removed], [1, 1]);
+  venues = (await call('GET', '/v1/venues')).venues;
+  assert.deepEqual(venues.map(v => [v.id, v.name, v.quizNight, v.lat, v.next?.title ?? null]), [[venues[0].id, 'Admin Added', '', null, null], ['red-lion-bristol', 'The Red Lion Inn', 'Wednesdays, 7:30pm', 51.46, 'Quiz']]);
+  assert.deepEqual(service.importVenues({nope: true}), {imported: 0, removed: 0, errors: ['venues.json must be {"venues": [...]}']}, 'an unreadable list changes nothing');
+  assert.equal((await call('GET', '/v1/venues')).venues.length, 2);
+  // An operator's account going doesn't take the venue with it.
+  await call('DELETE', '/v1/me', null, landlord);
+  assert.equal((await call('GET', '/v1/venues/red-lion-bristol')).name, 'The Red Lion Inn');
+}));
+
+test('venue list: a database from before the list keeps its venues, quiz nights and laptops', async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'pubquiz-online-old-')), file = path.join(dir, 'online.sqlite');
+  const {DatabaseSync} = await import('node:sqlite');
+  const old = new DatabaseSync(file);
+  old.exec(`CREATE TABLE accounts(id TEXT PRIMARY KEY, email TEXT UNIQUE COLLATE NOCASE NOT NULL, password TEXT NOT NULL, created INTEGER NOT NULL, display_name TEXT NOT NULL, preferred_team TEXT NOT NULL DEFAULT '', avatar TEXT, privacy TEXT NOT NULL DEFAULT '{}', admin INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE venues(id TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, name TEXT NOT NULL, town TEXT NOT NULL, postcode TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', website TEXT NOT NULL DEFAULT '', lat REAL, lon REAL, verified INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL);
+    CREATE TABLE events(id TEXT PRIMARY KEY, venue TEXT NOT NULL REFERENCES venues(id) ON DELETE CASCADE, title TEXT NOT NULL, starts INTEGER NOT NULL, format TEXT NOT NULL DEFAULT '', entry TEXT NOT NULL DEFAULT '', details TEXT NOT NULL DEFAULT '', cancelled INTEGER NOT NULL DEFAULT 0, updated INTEGER NOT NULL);
+    INSERT INTO accounts VALUES('a1','op@example.com','x',1,'Op','',NULL,'{}',0);
+    INSERT INTO venues(id,owner,name,town,verified,created) VALUES('v1','a1','Old Pub','Hull',1,1);
+    INSERT INTO events VALUES('e1','v1','Old Quiz',9999999999999,'','','',0,1);`);
+  old.close();
+  const service = createService({database: file});
+  try {
+    assert.deepEqual(service.db.prepare('SELECT id,owner,name,verified,listed FROM venues').all().map(r => ({...r})), [{id: 'v1', owner: 'a1', name: 'Old Pub', verified: 1, listed: 0}]);
+    assert.equal(service.db.prepare('SELECT COUNT(*) n FROM events').get().n, 1);
+    assert.equal(service.db.prepare('PRAGMA foreign_keys').get().foreign_keys, 1);
+  } finally {await service.close(); rmSync(dir, {recursive: true, force: true});}
+});
+
+test('venues.json in this repository is a valid venue list', async () => {
+  const {parseVenueList} = await import('../venues.js');
+  const {readFileSync} = await import('node:fs');
+  const {errors} = parseVenueList(JSON.parse(readFileSync(path.join(import.meta.dirname, '..', 'venues.json'), 'utf8')));
+  assert.deepEqual(errors, []);
+});
+
+test('client: the map\'s venues come from the service, then its last list offline, then the venue list on GitHub', () => fixture(async ({base, service}) => {
+  service.importVenues({venues: [{id: 'ship-hull', name: 'The Ship', town: 'Hull', lat: 53.74, lon: -0.33, quizNight: 'Thursdays'}]});
+  let online = true;
+  const github = {venues: [{id: 'listed', name: 'Listed', town: 'York', website: 'javascript:alert(1)'}, {name: 'no id'}]};
+  const fetchSometimes = (url, options) => url.startsWith('https://raw.githubusercontent.com/') ? Promise.resolve(new Response(JSON.stringify(github))) : online ? fetch(url, options) : Promise.reject(new TypeError('fetch failed'));
+  const client = createOnlineClient({baseUrl: base, venueListUrl: 'https://raw.githubusercontent.com/x/venues.json', fetch: fetchSometimes, storage: memory()});
+  const live = await client.venues();
+  assert.deepEqual([live.source, live.stale, live.venues.map(v => [v.name, v.quizNight])], ['service', false, [['The Ship', 'Thursdays']]]);
+  online = false;
+  assert.deepEqual([(await client.venues()).source, (await client.venues()).venues.length], ['cache', 1]);
+  const fresh = createOnlineClient({baseUrl: base, venueListUrl: 'https://raw.githubusercontent.com/x/venues.json', fetch: fetchSometimes, storage: memory()});
+  const listed = await fresh.venues();
+  assert.deepEqual([listed.source, listed.venues.map(v => [v.id, v.website, v.lat])], ['list', [['listed', '', null]]], 'only well-formed entries, and only https websites');
+  await assert.rejects(createOnlineClient({baseUrl: base, fetch: fetchSometimes, storage: memory()}).venues(), /No connection/);
 }));

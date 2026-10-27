@@ -1,3 +1,5 @@
-// Where PubQuiz Online runs (the Oracle Cloud server set up by online/deploy.sh). Empty: the app is play-only.
-// Set at build time (mobile/scripts/build-web.mjs --online https://…); a player can also set it under Advanced.
-export const onlineService = 'https://130-162-161-81.sslip.io';
+// Where PubQuiz Online runs (written by scripts/build-web.mjs). Empty: the app is play-only.
+// A player can also set it under Advanced.
+export const onlineService = "https://130-162-161-81.sslip.io";
+// The venue list on GitHub (venues.json), for the map when PubQuiz Online can't be reached.
+export const venueListUrl = 'https://raw.githubusercontent.com/DTJW92/PubQuiz/main/venues.json';

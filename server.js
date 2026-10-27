@@ -31,7 +31,7 @@ const deskSecurity = {...security, 'Content-Security-Policy': security['Content-
 const DELIVERY_GRACE_MS = 2000;
 const SESSION_MS = 12 * 60 * 60 * 1000;
 // Read-only routes never notify clients of a change.
-const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token', '/api/host/drive', '/api/host/spotify/preview', '/api/host/spotify/pause']);
+const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token', '/api/host/drive', '/api/host/spotify/preview', '/api/host/spotify/pause', '/api/host/online/account', '/api/host/online/signin', '/api/host/online/signup', '/api/host/online/signout', '/api/host/online/call', '/api/host/online/locate']);
 
 // Sound packs are laid out like SpeedQuizzing's Sounds folder: general/<name>.mp3 for each moment (soundnames.js),
 // buzzers/<pack>/*.mp3, and optionally its bingo calls file at the top. `prefix` is the URL they are served under.
@@ -60,6 +60,10 @@ function loadPack(dir, prefix) {
   } catch {}
   return {slots, themes, buzzers, calls, voice: voice.some(Boolean) ? voice : null};
 }
+
+// PubQuiz Online (online/service.js, deployed by online/deploy.sh). Only used when the quizmaster shares results or
+// runs their venue from the desk.
+export const onlineDefault = 'https://130-162-161-81.sslip.io';
 
 export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), themesDir = path.join(root, 'themes'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose, fetchImpl = globalThis.fetch} = {}) {
   if (typeof hostKey !== 'string' || hostKey.length < 12) throw Error('HOST_KEY must contain at least 12 characters');
@@ -123,7 +127,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', joinMode: 'hotspot', joinPassword: '', shareResults: false, onlineService: '', scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, bingoBoard: false, teamPhotos: true, language: 'en', onlineAfterJoin: true, deskOnline: false, waitingRoom: true, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {}};
+  const defaultSettings = {title: 'PubQuiz', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'PubQuiz', joinUrl: 'http://10.42.0.1', joinMode: 'hotspot', joinPassword: '', shareResults: false, onlineService: onlineDefault, scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, bingoBoard: false, teamPhotos: true, language: 'en', onlineAfterJoin: true, deskOnline: false, waitingRoom: true, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {}};
   const SOUNDS = 8;
   // Sound effects for the TV and extra buzzer sounds, both from the quizmaster's own files; custom bingo calls (1–90).
   // This laptop's sound pack (scripts/sound-pack.mjs) supplies the defaults until the desk changes them; a desk choice of
@@ -546,6 +550,26 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return flushing;
   }
   const syncTimer = setInterval(flushOutbox, 5 * 60 * 1000); syncTimer.unref?.();
+  // The desk's Venue section: this laptop signs in to PubQuiz Online for the venue's operator and passes on the few
+  // calls that run a venue. The session stays on the laptop; the desk page never talks to the internet itself.
+  const onlineCalls = [
+    ['GET', /^\/v1\/me\/venues$/], ['GET', /^\/v1\/venues\/[\w-]{1,64}$/], ['PATCH', /^\/v1\/venues\/[\w-]{1,64}$/],
+    ['POST', /^\/v1\/venues\/[\w-]{1,64}\/keys$/], ['POST', /^\/v1\/venues\/[\w-]{1,64}\/events$/], ['PATCH', /^\/v1\/events\/[\w-]{1,64}$/], ['DELETE', /^\/v1\/events\/[\w-]{1,64}$/],
+  ];
+  async function onlineApi(method, route, body) {
+    const base = settings().onlineService;
+    requireValue(base, 'Set the PubQuiz Online address first');
+    const session = getMeta('onlineSession', null);
+    let response;
+    try {
+      response = await fetchImpl(base.replace(/\/$/, '') + route, {method, headers: {'Content-Type': 'application/json', ...(session ? {Authorization: 'Bearer ' + session.token} : {})},
+        ...(body === undefined ? {} : {body: JSON.stringify(body)}), signal: AbortSignal.timeout(10000)});
+    } catch {throw new QuizError('PubQuiz Online can’t be reached. Is this laptop on the internet?', 502);}
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 401 && route !== '/v1/sessions') setMeta('onlineSession', null);
+    if (!response.ok) throw new QuizError(data.error || `PubQuiz Online said ${response.status}`, response.status === 401 ? 401 : response.status >= 500 ? 502 : 400);
+    return data;
+  }
   // Online mode: phones and the TV get the public link as the join address.
   const onlineUrl = () => laptop?.online?.()?.ready ? laptop.online().url : null;
   // A secret round (usually the last): from its first question until the quiz ends, phones and the TV get no marks, no
@@ -918,6 +942,34 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           transaction(() => {run('DELETE FROM regulars WHERE id=?', regular.id); run('UPDATE teams SET regular=NULL WHERE regular=?', regular.id);});
           if (regular.photo && !one('SELECT 1 FROM teams WHERE photo=?', regular.photo)) try {unlinkSync(path.join(mediaDir, path.basename(regular.photo)));} catch {}
           return send(200, {ok: true});
+        }
+        if (p === '/api/host/online/account') {const session = getMeta('onlineSession', null); return send(200, {service: settings().onlineService, signedIn: !!session, email: session?.email || '', name: session?.name || ''});}
+        if (p === '/api/host/online/signin' || p === '/api/host/online/signup') {
+          requireValue(typeof body.email === 'string' && typeof body.password === 'string', 'Enter your email and password');
+          const data = p.endsWith('signin') ? await onlineApi('POST', '/v1/sessions', {email: body.email, password: body.password})
+            : await onlineApi('POST', '/v1/accounts', {email: body.email, password: body.password, displayName: body.displayName});
+          setMeta('onlineSession', {token: data.token, email: data.account.email, name: data.account.displayName});
+          return send(200, {signedIn: true, email: data.account.email, name: data.account.displayName});
+        }
+        if (p === '/api/host/online/signout') {
+          if (getMeta('onlineSession', null)) await onlineApi('DELETE', '/v1/sessions').catch(() => {});
+          setMeta('onlineSession', null); return send(200, {signedIn: false});
+        }
+        if (p === '/api/host/online/call') {
+          requireValue(typeof body.method === 'string' && typeof body.path === 'string' && onlineCalls.some(([m, re]) => m === body.method && re.test(body.path)), 'Not a venue call');
+          requireValue(getMeta('onlineSession', null), 'Sign in to PubQuiz Online first', 401);
+          // Registering this laptop always sends this laptop's own key.
+          const sent = body.path.endsWith('/keys') ? {publicKey: venueKey().publicKey} : body.body;
+          return send(200, await onlineApi(body.method, body.path, sent));
+        }
+        // Where a UK postcode is, for the venue's map pin (postcodes.io, free and keyless; only when asked).
+        if (p === '/api/host/online/locate') {
+          requireValue(typeof body.postcode === 'string' && /^[A-Za-z0-9 ]{2,10}$/.test(body.postcode.trim()), 'Enter a postcode');
+          let found;
+          try {found = await (await fetchImpl('https://api.postcodes.io/postcodes/' + encodeURIComponent(body.postcode.trim()), {signal: AbortSignal.timeout(10000)})).json();}
+          catch {throw new QuizError('The postcode lookup can’t be reached. Is this laptop on the internet?', 502);}
+          requireValue(found?.status === 200 && found.result, 'Postcode not found', 404);
+          return send(200, {lat: Math.round(found.result.latitude * 1e5) / 1e5, lon: Math.round(found.result.longitude * 1e5) / 1e5, town: found.result.admin_district || ''});
         }
         if (p === '/api/host/results/sync') {await flushOutbox(); return send(200, {pending: one('SELECT COUNT(*) n FROM sync_outbox WHERE sent IS NULL').n});}
         // Playing on the venue's own network: this laptop's addresses, and checks for what stops phones reaching it.

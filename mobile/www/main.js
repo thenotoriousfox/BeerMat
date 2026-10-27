@@ -4,7 +4,7 @@
 import {createOnlineClient} from './shared/online-client.js';
 import {badges} from './shared/achievements.js';
 import {parseScan, normaliseAddress, readClaim, remember, calendarFile} from './join.js';
-import {onlineService} from './config.js';
+import {onlineService, venueListUrl} from './config.js';
 
 const $ = id => document.getElementById(id);
 const native = !!window.Capacitor?.isNativePlatform?.();
@@ -12,7 +12,8 @@ const platform = window.Capacitor?.getPlatform?.() || 'web';
 // Native plugins when the app has them; null in the web app.
 const plugin = name => native ? window.Capacitor.Plugins?.[name] || window.Capacitor.registerPlugin?.(name) || null : null;
 const store = {get: (k, d) => {try {return JSON.parse(localStorage.getItem(k)) ?? d;} catch {return d;}}, set: (k, v) => {try {localStorage.setItem(k, JSON.stringify(v));} catch {}}};
-const client = createOnlineClient({baseUrl: onlineService || (location.protocol.startsWith('http') && location.pathname.startsWith('/app/') ? location.origin : ''), storage: localStorage});
+// As the web app (served by PubQuiz Online at /app/), the service is wherever the page came from.
+const client = createOnlineClient({baseUrl: location.protocol.startsWith('http') && location.pathname.startsWith('/app/') ? location.origin : onlineService, venueListUrl, storage: localStorage});
 const say = (text, error = false) => {$('status').textContent = text; $('status').classList.toggle('error', error);};
 const el = (tag, text, className) => {const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (className) e.className = className; return e;};
 const when = t => new Date(t).toLocaleString(undefined, {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
@@ -24,7 +25,7 @@ function show(tab) {
   for (const s of document.querySelectorAll('.tab')) s.hidden = s.id !== tab;
   say('');
   if (tab === 'profile') renderProfile();
-  if (tab === 'find') renderFavourites();
+  if (tab === 'find') {renderFavourites(); renderMap();}
 }
 for (const b of document.querySelectorAll('.tabs button')) b.onclick = () => show(b.dataset.tab);
 const setOffline = off => {$('offline').hidden = !off;};
@@ -188,9 +189,9 @@ function directions(venue) {
   if (platform === 'ios') return `maps://?daddr=${venue.lat},${venue.lon}&q=${encodeURIComponent(venue.name)}`;
   return venue.directions;
 }
-function renderEvents(events) {
+function renderEvents(events, list = $('events')) {
   const favourites = new Set(store.get('pq-favourites', []).map(v => v.id));
-  $('events').replaceChildren(...events.map(e => {
+  list.replaceChildren(...events.map(e => {
     const li = el('li');
     li.append(el('div', when(e.startsAt), 'when'), el('strong', e.title), el('div', `${e.venue.name}, ${e.venue.town}${e.distanceKm !== undefined ? ` · ${e.distanceKm} km` : ''}`, 'where'));
     if (e.format) li.append(el('div', e.format));
@@ -222,6 +223,56 @@ async function toggleFavourite(venue, on) {
   if (client.signedIn()) await client.favourite(venue.id, on).catch(() => {});
   say(on ? `${venue.name} saved` : `${venue.name} removed`);
   if (lastSearch) search(lastSearch); renderFavourites();
+  if (!$('venueCard').hidden && shownVenue?.id === venue.id) showVenue(shownVenue);
+}
+
+// ---- The map: every venue (PubQuiz Online, or the venue list on GitHub when it can't be reached) ----
+// OpenStreetMap's tiles, loaded only while this tab is open; the map never sends the player's location anywhere.
+let map = null, markers = null, shownVenue = null;
+async function renderMap() {
+  if (!window.L || (!client.baseUrl && !venueListUrl)) return;
+  $('mapBox').hidden = false;
+  if (!map) {
+    map = L.map('map').setView([54.4, -3], 5);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin',
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+    markers = L.layerGroup().addTo(map);
+  }
+  map.invalidateSize();
+  let found;
+  try {found = await client.venues();} catch (e) {$('mapNote').textContent = 'The venue map needs an internet connection.'; return;}
+  const placed = found.venues.filter(v => v.lat !== null && v.lon !== null);
+  markers.clearLayers();
+  for (const v of placed) {
+    const marker = L.circleMarker([v.lat, v.lon], {radius: 9, weight: 2, color: '#fff', fillColor: v.next ? '#ffb000' : '#7c8db5', fillOpacity: 0.95});
+    marker.bindTooltip(v.name); marker.on('click', () => showVenue(v)); marker.addTo(markers);
+  }
+  if (placed.length) map.fitBounds(L.latLngBounds(placed.map(v => [v.lat, v.lon])).pad(0.3), {maxZoom: 13});
+  const unplaced = found.venues.length - placed.length;
+  $('mapNote').textContent = !found.venues.length ? 'No venues yet.'
+    : `${found.venues.length} venue${found.venues.length === 1 ? '' : 's'}${unplaced ? ` (${unplaced} not on the map yet)` : ''}. Gold: a quiz night is coming up. Tap one for details.`
+      + (found.stale ? ` Offline: from ${ago(found.fetchedAt)}.` : '');
+}
+// A venue's page: its details and upcoming quiz nights.
+async function showVenue(v) {
+  shownVenue = v;
+  const card = $('venueCard'), saved = store.get('pq-favourites', []).some(f => f.id === v.id);
+  const close = el('button', '✕', 'subtle close'); close.type = 'button'; close.setAttribute('aria-label', 'Close'); close.onclick = () => {card.hidden = true; shownVenue = null;};
+  card.replaceChildren(close, el('h3', v.name), el('p', [v.address, v.town, v.postcode].filter(Boolean).join(', '), 'where'));
+  if (v.quizNight) card.append(el('p', `🗓 Quiz night: ${v.quizNight}`));
+  if (v.website) {const site = el('a', 'Website'); site.href = v.website; site.target = '_blank'; site.rel = 'noopener'; card.append(site, document.createTextNode(' · '));}
+  const go = el('a', 'Directions'); go.href = directions({...v, directions: v.directions || `https://www.openstreetmap.org/search?query=${encodeURIComponent([v.name, v.address, v.town, v.postcode].filter(Boolean).join(', '))}`});
+  go.target = '_blank'; go.rel = 'noopener'; card.append(go);
+  const star = el('button', saved ? '★ Your venue' : '☆ Save venue', 'subtle'); star.type = 'button'; star.onclick = guarded(() => toggleFavourite(v, !saved));
+  const upcoming = el('ul', undefined, 'list events');
+  card.append(el('br'), star, el('h4', 'Upcoming quizzes'), upcoming);
+  card.hidden = false; card.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  try {
+    const page = await client.venue(v.id);
+    if (shownVenue !== v) return;
+    renderEvents(page.events, upcoming);
+    if (!page.events.length) upcoming.append(el('li', 'None published yet.', 'hint'));
+  } catch {upcoming.replaceChildren(el('li', 'Upcoming quizzes need a connection to PubQuiz Online.', 'hint'));}
 }
 async function renderFavourites() {
   let list = store.get('pq-favourites', []);

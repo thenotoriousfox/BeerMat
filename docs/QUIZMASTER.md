@@ -214,6 +214,8 @@ quizzes**, also after **End quiz & start next**; delete them there.
 After you **Finish quiz**, teams see **Keep this result in your PubQuiz profile** when PubQuiz Online is set up (in
 the PubQuiz Player app, always). It is the player's choice; the result is signed by this laptop so it can't be
 altered. For results to count towards players' statistics and badges, register this laptop with your venue on
-PubQuiz Online: the key is under **Past quizzes → PubQuiz Online**. **Share results** (off by default) also sends
+PubQuiz Online: the key is under **Past quizzes → PubQuiz Online**, or use the desk's **Venue** tab, which registers
+this laptop with one click once your venue is linked to your account (venues are added by PubQuiz, see
+docs/ONLINE.md). The Venue tab also edits your venue's page and pin on the app's map, and publishes your quiz nights. **Share results** (off by default) also sends
 each finished quiz's team names, positions and points to your venue's page; tell the room if you switch it on.
 Results wait on the laptop until the service can be reached. See [ONLINE.md](ONLINE.md).
