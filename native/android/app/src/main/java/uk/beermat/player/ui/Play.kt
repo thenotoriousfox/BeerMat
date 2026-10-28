@@ -224,7 +224,7 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
             @Suppress("UNCHECKED_CAST") val answers = value as List<String>
             q.items.forEachIndexed { i, item ->
                 OutlinedTextField(answers.getOrElse(i) { "" }, { v -> value = answers.toMutableList().also { it[i] = v.take(300) } }, enabled = !locked,
-                    label = { Text("${i + 1}. $item") }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                    label = { Text("${i + 1}. $item") }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).testTag("sheet-$i"))
             }
         }
         else -> OutlinedTextField(

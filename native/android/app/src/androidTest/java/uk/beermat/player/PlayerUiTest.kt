@@ -140,6 +140,36 @@ class PlayerUiTest {
         for (t in order) { val i = pieces.indices.first { pieces[it] == t && it !in used }; used += i; rule.onNodeWithTag("tile-$i").performClick() }
         lockIn("09-tiles")
 
+        val multi = open { it.getString("type") == "multi" }
+        val options = multi.getJSONArray("options").let { a -> List(a.length()) { a.getString(it) } }
+        multi.getJSONArray("correct").let { c -> for (i in 0 until c.length()) { val o = c.getString(i); rule.onNode(hasText("${'A' + options.indexOf(o)}. $o")).performClick() } }
+        lockIn("13-multi")
+
+        open { it.getString("type") == "number" }
+        rule.onNodeWithTag("answer").performTextInput("6")
+        lockIn("14-number")
+
+        open { it.getString("type") == "nearest" }
+        rule.onNodeWithTag("answer").performTextInput("1912")
+        lockIn("15-nearest")
+
+        open { it.getString("type") == "picture" }
+        rule.onNodeWithTag("answer").performTextInput("Triangle")
+        lockIn("16-picture")
+
+        open { it.getString("type") == "audio" }
+        waitText("Play the clip")
+        rule.onNodeWithTag("answer").performTextInput("4")
+        lockIn("17-audio")
+
+        open { it.getString("type") == "vote" }
+        rule.onNode(hasText("A. Crisps")).performClick()
+        lockIn("18-vote")
+
+        val sheet = open { it.getString("type") == "sheet" }
+        sheet.getJSONArray("itemAnswers").let { a -> for (i in 0 until a.length()) rule.onNodeWithTag("sheet-$i").performScrollTo().performTextInput(a.getString(i)) }
+        lockIn("19-sheet")
+
         open { it.getString("type") == "buzzer" }
         rule.onNode(hasContentDescription("Buzz")).performClick()
         waitText("You buzzed first"); shot("10-buzzer")
