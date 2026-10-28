@@ -127,6 +127,12 @@ and `.github/workflows/release.yml` builds Windows (on Windows) and Linux, runs 
 release with the four files, the Android BeerMat app APK (docs/MOBILE.md) and their checksums. Running the
 workflow by hand (Actions → Release) builds without publishing; the files are on the run's page.
 
+The same files are then copied to `https://downloads.beermatquiz.co.uk/<version>/` (the `beermat-downloads` bucket
+in Cloudflare R2, where the website's download page links) and the website is redeployed with the new version. That
+needs the repository's `CLOUDFLARE_API_TOKEN` secret (a Cloudflare token allowed to edit R2 and Workers) and its
+`CLOUDFLARE_ACCOUNT_ID` variable. The download page stays on "Downloads open soon" until `DOWNLOADS_READY` in
+`site/src/consts.ts` is `true`.
+
 To build by hand, you need Node 22.13+ and npm on the build machine only.
 
 ```bash
