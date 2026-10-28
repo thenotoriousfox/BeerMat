@@ -50,7 +50,7 @@ class TvSoundTest(unittest.TestCase):
     def step(self, s):
         self.heard.clear()
         self.sound.follow(s)
-        return list(self.heard)
+        return [h for h in self.heard if h != 'wheelTick']
 
     def test_moments(self):
         self.assertEqual(self.step(self.state(question())), ['timerMusic'], 'first load: only the music, no moments')
@@ -76,6 +76,21 @@ class TvSoundTest(unittest.TestCase):
     def test_quiet_questions_have_no_music(self):
         self.assertEqual(self.step(self.state(question(type='audio'))), [])
         self.assertEqual(self.step(self.state(question(media='/media/song.mp3'))), [])
+
+    def test_wheel_ticks_only_for_a_spin_seen_happening(self):
+        import time
+        wheel = lambda i, spun: {'id': f'w{i}', 'items': ['Red', 'Blue', 'Green'], 'result': 1, 'spun': spun}
+        self.step(self.state(None, view='wheel', wheel=wheel(1, 0)))
+        self.assertEqual(self.sound._wheel_timers, [], 'a wheel already shown when the TV opens is silent')
+        now = time.time() * 1000
+        self.step(self.state(None, view='wheel', wheel=wheel(2, now)))
+        self.assertGreater(len(self.sound._wheel_timers), 10, 'a fresh spin ticks at each segment edge')
+        end = time.time() + 0.6
+        while time.time() < end and 'wheelTick' not in self.heard:
+            app.processEvents(); time.sleep(0.01)
+        self.assertIn('wheelTick', self.heard)
+        self.step(self.state(None, view='leaderboard'))
+        self.assertEqual(self.sound._wheel_timers, [], 'leaving the wheel stops its ticks')
 
     def test_silent_while_tv_closed(self):
         self.sound.on = False

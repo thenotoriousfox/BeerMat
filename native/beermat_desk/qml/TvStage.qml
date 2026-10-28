@@ -450,7 +450,9 @@ Item {
                     spin.from = wheelCanvas.rotation; spin.to = wheelCanvas.rotation - (wheelCanvas.rotation % 360) + 360 * 6 + target
                     spin.start()
                 }
-                NumberAnimation { id: spin; target: wheelCanvas; property: "rotation"; duration: 6000; easing.type: Easing.OutCubic; onFinished: wheelView.done = true }
+                // The web TV's curve (cubic-bezier(.12,.6,.15,1)), which the tick sounds follow (tvsound.py).
+                NumberAnimation { id: spin; target: wheelCanvas; property: "rotation"; duration: 6000; easing.type: Easing.BezierSpline
+                                  easing.bezierCurve: [0.12, 0.6, 0.15, 1, 1, 1]; onFinished: wheelView.done = true }
                 Canvas {
                     id: wheelCanvas
                     width: 760; height: 760; anchors.centerIn: parent; anchors.verticalCenterOffset: -30

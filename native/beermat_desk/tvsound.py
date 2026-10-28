@@ -11,13 +11,15 @@ import wave
 from pathlib import Path
 
 from PySide6.QtCore import Property, QObject, QSettings, QTimer, QUrl, Signal, Slot
-from PySide6.QtMultimedia import QAudioOutput, QMediaDevices, QMediaPlayer
+from PySide6.QtMultimedia import QAudioOutput, QMediaDevices, QMediaPlayer, QSoundEffect
 
 # The synthesised buzzers (web/app.js `sounds`): name, wave, notes (0 is a rest), each note 0.13 s apart.
 SYNTH = [('Classic buzz', 'square', [330, 495]), ('Doorbell', 'sine', [660, 523]), ('Siren', 'sawtooth', [440, 660, 440]),
          ('Beep beep', 'square', [880, 0, 880]), ('Low horn', 'sawtooth', [147, 147]), ('Chime', 'triangle', [784, 988, 1175]),
          ('Laser', 'square', [1200, 600, 300]), ('Boing', 'sine', [220, 440])]
 FANFARE = [(523, 0), (659, 0.15), (784, 0.3), (1047, 0.45), (784, 0.7), (1047, 0.85)]
+# The wheel (web/client.js): six seconds on this cubic-bezier, which the native TV's spin uses too.
+WHEEL_MS, WHEEL_EASING = 6000, (0.12, 0.6, 0.15, 1)
 QUIET_TYPES = {'audio', 'clips', 'musicbingo', 'buzzer', 'bingo'}
 AUDIO_FILE = ('.mp3', '.ogg', '.wav')
 
@@ -43,6 +45,34 @@ def synth(path, notes, shape, gain=0.12, length=0.22):
         out.writeframes(b''.join(struct.pack('<h', int(max(-1, min(1, s)) * 32767)) for s in samples))
 
 
+def wheel_crossings(start, end, slice_):
+    """When (ms into the spin) each segment edge passes the pointer, as wheelCrossings() in web/client.js: edges sit
+    at whole multiples of `slice_` degrees of turn, and the turn follows the spin's cubic-bezier."""
+    x1, y1, x2, y2 = WHEEL_EASING
+    curve = lambda u, a, b: 3 * a * u * (1 - u) ** 2 + 3 * b * u * u * (1 - u) + u ** 3
+    times, last_time, last_turn = [], 0.0, start
+    for i in range(1, 4001):
+        u = i / 4000
+        time, turn = curve(u, x1, x2), start + (end - start) * curve(u, y1, y2)
+        k = math.floor(last_turn / slice_) + 1
+        while k * slice_ <= turn:
+            times.append((last_time + (time - last_time) * (k * slice_ - last_turn) / (turn - last_turn)) * WHEEL_MS)
+            k += 1
+        last_time, last_turn = time, turn
+    return times
+
+
+def tick_file(path):
+    """The wheel's peg: a short wooden knock (noise and a 1800 Hz ping, both dying away fast), as web/app.js makes."""
+    import random
+    rate = 44100
+    samples = [(random.uniform(-1, 1) * math.exp(-i / (rate * 0.003)) + math.sin(i / rate * 2 * math.pi * 1800) * math.exp(-i / (rate * 0.006)) * 0.6) * 0.5
+               for i in range(int(rate * 0.03))]
+    with wave.open(str(path), 'wb') as out:
+        out.setnchannels(1); out.setsampwidth(2); out.setframerate(rate)
+        out.writeframes(b''.join(struct.pack('<h', int(max(-1, min(1, x)) * 32767)) for x in samples))
+
+
 class TvSound(QObject):
     outputsChanged = Signal()
     played = Signal(str)      # which moment sounded (tests and the desk's log)
@@ -66,6 +96,8 @@ class TvSound(QObject):
         self.enabled = False      # sounds play while the TV is open (as Electron's TV window), see Main.qml
         self._tick = QTimer(self, interval=200, timeout=self._countdown_cue)
         self._tick.start()
+        self._wheel_id, self._wheel_turn, self._wheel_timers = None, 0.0, []
+        self._pegs, self._peg = [], 0
 
     onChanged = Signal()
 
@@ -143,6 +175,7 @@ class TvSound(QObject):
     def stop_all(self):
         for player, _ in self._players.values():
             player.stop()
+        self.stop_wheel()
 
     def _synth_file(self, key, notes, shape, gain=0.12, length=0.22):
         path = self._cache / f'{key}.wav'
@@ -165,6 +198,55 @@ class TvSound(QObject):
         if not self.play('applause'):
             self.play_file(self._synth_file('fanfare', FANFARE, 'triangle', 0.15, 0.3))
             self.played.emit('fanfare')
+
+    # ---- the wheel's pegs ----
+    def _peg_sounds(self):
+        if not self._pegs:
+            path = self._cache / 'wheel-tick.wav'
+            if not path.exists():
+                tick_file(path)
+            for _ in range(3):   # a few, taking turns, so quick ticks don't cut each other off
+                effect = QSoundEffect(self._device(), self)
+                effect.setSource(QUrl.fromLocalFile(str(path)))
+                effect.setVolume(0.6)
+                self._pegs.append(effect)
+        return self._pegs
+
+    def _knock(self):
+        if not self.enabled:
+            return
+        pegs = self._peg_sounds()
+        pegs[self._peg % len(pegs)].play()
+        self._peg += 1
+        self.played.emit('wheelTick')
+
+    def stop_wheel(self):
+        for timer in self._wheel_timers:
+            timer.stop()
+        self._wheel_timers = []
+
+    def _follow_wheel(self, s, first):
+        """A new spin seen happening ticks as the native TV's wheel turns; one already shown when the TV opens doesn't."""
+        wheel = s.get('wheel')
+        if s.get('view') != 'wheel':
+            self.stop_wheel()
+        if not wheel or wheel.get('id') == self._wheel_id or not wheel.get('items'):
+            return
+        slice_ = 360 / len(wheel['items'])
+        target = 360 - (wheel['result'] + 0.5) * slice_
+        fresh = not first and self._wheel_id is not None and self._now() - wheel.get('spun', 0) < 3000
+        self._wheel_id = wheel['id']
+        if not fresh:
+            self._wheel_turn = target
+            return
+        start = self._wheel_turn
+        end = start - (start % 360) + 360 * 6 + target
+        self._wheel_turn = end
+        self.stop_wheel()
+        for ms in wheel_crossings(start, end, slice_):
+            timer = QTimer(self, singleShot=True, interval=int(ms), timeout=self._knock)
+            timer.start()
+            self._wheel_timers.append(timer)
 
     def duration_ms(self, slot):
         """How long a moment's sound is (0 until it has loaded): the reveal waits for the drum roll."""
@@ -196,6 +278,7 @@ class TvSound(QObject):
             'leader': (((q or {}).get('buzz') or {}).get('active') or {}).get('name', ''),
             'view': s.get('view'), 'boardDone': (s.get('reveal') or {}).get('question') if (s.get('reveal') or {}).get('done') else None,
             'winner': ' & '.join(t['name'] for t in s.get('teams', []) if t.get('rank') == 1) if s.get('view') == 'winner' else ''}
+        self._follow_wheel(s, before is None)
         music = bool(q and q.get('open') and not q.get('paused') and not self._quiet(q) and self._countdown_for != q.get('id'))
         if music != self._music:
             self._music = music
