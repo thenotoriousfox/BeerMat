@@ -3,6 +3,7 @@ Quizzes workspace changes field by field and saves with /api/host/library/save. 
 (server/model.js validateQuestion) and answers with a sentence when something's missing, so the rules for each format
 live there, not here. Fields the native editor doesn't show (Evil Mode, speed bonus, buzzer and bingo options, …) are
 kept exactly as they are."""
+import base64
 import copy
 import json
 import secrets
@@ -24,14 +25,45 @@ FIELDS_BY_TYPE = {
     'wordsnake': ['answer'], 'buzzer': ['answer'],
 }
 
+SPEED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'}
+BINGO = {'bingo', 'musicbingo'}
+# Each format's options (server/model.js validateQuestion): key, label, kind, and for numbers their range, for choices
+# their values. The server checks them again when the quiz is saved.
+OPTIONS = [
+    ('evil', 'Evil Mode: a wrong answer loses the points', 'bool', None, lambda t: t not in ('vote', 'bingo', 'musicbingo', 'clips', 'buzzer')),
+    ('fastestFingers', 'Fastest fingers first (speed bonus)', 'bool', None, lambda t: t in SPEED),
+    ('speedBonus', 'Speed bonus points', 'int', (0, 100), lambda t: t in SPEED),
+    ('bonusMode', 'Speed bonus', 'choice', [('sliding', 'Fades over the time allowed'), ('fixed', 'Only the fastest answers')], lambda t: t in SPEED),
+    ('bonusPlaces', 'Fastest answers given the fixed bonus', 'int', (1, 50), lambda t: t in SPEED),
+    ('places', 'Places scored (closest first)', 'int', (1, 20), lambda t: t == 'nearest'),
+    ('tieBreaker', 'Tie-breaker (scores nothing, orders teams level on points)', 'bool', None, lambda t: t == 'nearest'),
+    ('goWide', 'Go wide: teams may take help for fewer points', 'bool', None, lambda t: t in ('wordsnake', 'pinpoint')),
+    ('goWidePoints', 'Points when going wide', 'int', (0, 100), lambda t: t in ('wordsnake', 'pinpoint')),
+    ('variation', 'Buzzer game', 'choice', [('classic', 'Classic'), ('advanced', 'Advanced (pass and agree)')], lambda t: t == 'buzzer'),
+    ('penalty', 'Points lost for a wrong answer', 'int', (0, 100), lambda t: t == 'buzzer'),
+    ('passPenalty', 'Points lost for passing', 'int', (0, 100), lambda t: t == 'buzzer'),
+    ('agreePoints', 'Points for agreeing with a right answer', 'int', (0, 100), lambda t: t == 'buzzer'),
+    ('agreeSeconds', 'Seconds to agree', 'int', (5, 60), lambda t: t == 'buzzer'),
+    ('mode', 'Bingo game', 'choice', [('line', 'One line'), ('twoLines', 'Two lines'), ('fullHouse', 'Full house'), ('progressive', 'Full game: line, two lines, full house')], lambda t: t in BINGO),
+    ('stagePoints', 'Full game points: line, two lines, full house (e.g. 2, 3, 5)', 'ints', (0, 100), lambda t: t in BINGO),
+    ('startAt', 'Songs start this far in (seconds)', 'int', (0, 600), lambda t: t == 'musicbingo'),
+    ('songSeconds', 'Play each song for (seconds, 0: whole song)', 'int', (0, 600), lambda t: t == 'musicbingo'),
+    ('autoNext', 'Play the next song by itself', 'bool', None, lambda t: t == 'musicbingo'),
+    ('revealNow', 'Show each song title as it plays', 'bool', None, lambda t: t == 'musicbingo'),
+    ('clipSeconds', 'Spotify clips play for (seconds)', 'int', (3, 60), lambda t: t == 'clips'),
+    ('partScoring', 'Sheet scoring', 'choice', [('each', 'A point for each part'), ('split', "The question's points shared"), ('all', 'Points only when every part is right')], lambda t: t == 'sheet'),
+]
+DEFAULTS = {'bonusMode': 'sliding', 'bonusPlaces': 1, 'places': 1, 'variation': 'classic', 'agreeSeconds': 10, 'mode': 'line', 'clipSeconds': 15, 'partScoring': 'each'}
+PICTURE, SOUND = ('.png', '.jpg', '.jpeg', '.webp'), ('.mp3', '.ogg', '.wav')
+
 
 class Library(QObject):
     changed = Signal()
     toast = Signal(str, bool)
 
-    def __init__(self, api, parent=None):
+    def __init__(self, api, media_dir=None, parent=None):
         super().__init__(parent)
-        self.api = api
+        self.api, self.media_dir = api, media_dir
         self._server, self._draft, self._dirty = None, None, False
         self._selected = (-1, -1)
 
@@ -80,6 +112,17 @@ class Library(QObject):
         shown['round'], shown['index'] = self._selected
         shown['roundTitle'] = self._draft['rounds'][self._selected[0]].get('title', '')
         shown['answer'] = '' if q.get('answer') is None else str(q.get('answer'))
+        kind = q.get('type')
+        shown['options_'] = [{'key': k, 'label': label, 'kind': kind_, 'range': list(rng) if kind_ in ('int', 'ints') else [],
+                              'choices': [{'value': v, 'text': t} for v, t in rng] if kind_ == 'choice' else [],
+                              'value': (', '.join(map(str, q.get(k) or [])) if kind_ == 'ints' else q.get(k, DEFAULTS.get(k, False if kind_ == 'bool' else 0)))}
+                             for k, label, kind_, rng, applies in OPTIONS if applies(kind)]
+        shown['clipsList'] = [{'label': c.get('label', ''), 'media': c.get('media') or '', 'spotify': c.get('spotify') or '', 'start': c.get('start', 0)} for c in q.get('clips') or []]
+        shown['songsList'] = [{'title': x.get('title', ''), 'media': x.get('media') or '', 'spotify': x.get('spotify') or '', 'start': x.get('start', ''), 'seconds': x.get('seconds', '')}
+                              for x in q.get('songs') or []]
+        shown['target'] = q.get('target') or {}
+        shown['spotifyClip'] = q.get('clip') or {}
+        shown['itemAliases'] = '\n'.join(' | '.join(a) for a in q.get('itemAliases') or [])
         return shown
 
     def _current(self):
@@ -119,6 +162,154 @@ class Library(QObject):
         else:
             q[field] = value
         self._touch()
+
+    @Slot(str, str)
+    def setOption(self, key, value):
+        """A format option, from the editor's text: true/false, a number, a choice, or numbers separated by commas."""
+        q = self._current()
+        spec = next((o for o in OPTIONS if o[0] == key), None)
+        if q is None or spec is None:
+            return
+        kind = spec[2]
+        try:
+            q[key] = (value == 'true' if kind == 'bool' else int(value) if kind == 'int'
+                      else [int(v) for v in value.replace(' ', '').split(',') if v] if kind == 'ints' else value)
+        except ValueError:
+            self.toast.emit(f'{spec[1]}: give whole numbers', True)
+            return
+        self._touch()
+
+    @Slot(str, QUrl)
+    def uploadMedia(self, field, url):
+        """A picture or sound for the question, uploaded to the quiz server's media (as the web editor's upload)."""
+        path = Path(url.toLocalFile() if isinstance(url, QUrl) else str(url))
+        if path.suffix.lower() not in PICTURE + SOUND:
+            return self.toast.emit('Choose a PNG, JPEG or WebP picture, or an MP3, Ogg or WAV sound', True)
+        try:
+            data = path.read_bytes()
+        except OSError as e:
+            return self.toast.emit(f'Could not read {path.name}: {e}', True)
+        r, i = self._selected
+
+        def done(media):
+            q = self._draft['rounds'][r]['questions'][i]
+            if field == 'clip':
+                q.setdefault('clips', []).append({'media': media, 'label': path.stem[:100]})
+            elif field == 'song':
+                q.setdefault('songs', []).append({'title': path.stem[:100], 'media': media})
+            else:
+                q['media'] = media
+                q.pop('clip', None)
+            self._touch()
+            self.toast.emit(f'{path.name} added', False)
+        self.api.upload(data, f'upload{path.suffix.lower()}', done, lambda e: self.toast.emit(e, True))
+
+    @Slot(float, float)
+    def setTarget(self, x, y):
+        """Pinpoint: the target's centre, as fractions of the picture; its size stays (or a sensible first size)."""
+        q = self._current()
+        if q is not None:
+            t = q.get('target') or {'r': 0.06, 'aspect': 1}
+            q['target'] = {**t, 'x': round(min(1, max(0, x)), 4), 'y': round(min(1, max(0, y)), 4)}
+            self._touch()
+
+    @Slot(float, float)
+    def setTargetShape(self, radius, aspect):
+        q = self._current()
+        if q is not None and q.get('target'):
+            q['target'] = {**q['target'], 'r': round(radius, 3), 'aspect': round(aspect, 3)}
+            self._touch()
+
+    @Slot(str, int, str, str)
+    def setItem(self, kind, index, field, value):
+        """A clip's or song's field: label, title, spotify (a track link), start, seconds. Empty numbers are removed."""
+        q = self._current()
+        items = (q or {}).get('clips' if kind == 'clip' else 'songs') or []
+        if not 0 <= index < len(items):
+            return
+        item = items[index]
+        if field in ('start', 'seconds'):
+            if str(value).strip() == '':
+                item.pop(field, None)
+            else:
+                try:
+                    item[field] = int(value)
+                except ValueError:
+                    return self.toast.emit('Give whole seconds', True)
+        elif field == 'spotify':
+            if value.strip():
+                item['spotify'] = value.strip()
+                item.pop('media', None)
+                if kind == 'clip':
+                    item.setdefault('start', 0)
+            else:
+                item.pop('spotify', None)
+        else:
+            item[field] = value
+        self._touch()
+
+    @Slot(str)
+    def addSpotifyItem(self, kind):
+        q = self._current()
+        if q is not None:
+            if kind == 'clip':
+                q.setdefault('clips', []).append({'spotify': '', 'start': 0, 'label': ''})
+            else:
+                q.setdefault('songs', []).append({'title': f'Song {len(q.get("songs") or []) + 1}', 'spotify': ''})
+            self._touch()
+
+    @Slot(str, int)
+    def removeItem(self, kind, index):
+        q = self._current()
+        items = (q or {}).get('clips' if kind == 'clip' else 'songs') or []
+        if 0 <= index < len(items):
+            del items[index]
+            self._touch()
+
+    @Slot(int)
+    def setTargetClip(self, index):
+        q = self._current()
+        if q is not None:
+            q['targetClip'] = index
+            self._touch()
+
+    @Slot(str)
+    def importSongs(self, links):
+        """Music bingo from Spotify: the server looks up each track's title (needs Spotify connected, Pro)."""
+        r, i = self._selected
+        lines = [line.strip() for line in links.split('\n') if line.strip()]
+
+        def done(reply):
+            q = self._draft['rounds'][r]['questions'][i]
+            q.setdefault('songs', []).extend({'title': x['title'][:100], 'spotify': x['spotify']} for x in reply.get('songs', []))
+            self._touch()
+            self.toast.emit(f'{len(reply.get("songs", []))} songs added', False)
+        self.api.host('spotify/import', {'links': lines}, done, lambda e: self.toast.emit(e, True), timeout_ms=60000)
+
+    @Slot(str, str, str)
+    def setSpotifyClip(self, track, start, seconds):
+        """An audio question (or a sheet) playing a Spotify track instead of a file."""
+        q = self._current()
+        if q is None:
+            return
+        if not track.strip():
+            q.pop('clip', None)
+        else:
+            try:
+                q['clip'] = {'spotify': track.strip(), 'start': int(start or 0), 'seconds': int(seconds or 30)}
+            except ValueError:
+                return self.toast.emit('Give whole seconds', True)
+            q.pop('media', None)
+        self._touch()
+
+    @Slot(str)
+    def setItemAliases(self, text):
+        """Sheet: other accepted answers for each part, one line per part, separated by |."""
+        q = self._current()
+        if q is not None:
+            lines = text.split('\n')
+            q['itemAliases'] = [[a.strip() for a in (lines[n] if n < len(lines) else '').split('|') if a.strip()] for n in range(len(q.get('items') or []))]
+            self._touch()
 
     @Slot(str)
     def setType(self, kind):
@@ -210,13 +401,24 @@ class Library(QObject):
         self._selected = (-1, -1)
         self.changed.emit()
 
-    @Slot(QUrl)
-    def export(self, url):
-        """The quiz as a BeerMat quiz file (as the web desk's Download quiz; pictures and sounds stay on this laptop)."""
+    @Slot(QUrl, bool)
+    def export(self, url, with_media=True):
+        """The quiz as a BeerMat quiz file, as the web desk's Download quiz. With its media, every picture and sound is
+        put inside the file (as data: URLs), so it loads on another laptop; Load quiz file unpacks them again."""
         path = Path(url.toLocalFile() if isinstance(url, QUrl) else str(url))
-        quiz = {k: v for k, v in (self._server or {}).items() if k != 'revision'}
+        quiz = copy.deepcopy({k: v for k, v in (self._server or {}).items() if k != 'revision'})
+        if with_media and self.media_dir:
+            kinds = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav'}
+            holders = [q for r in quiz.get('rounds', []) for q in r.get('questions', [])]
+            holders += [item for q in list(holders) for item in [*(q.get('clips') or []), *(q.get('songs') or [])]]
+            for holder in holders:
+                media = holder.get('media')
+                if isinstance(media, str) and media.startswith('/media/'):
+                    file = Path(self.media_dir) / Path(media).name
+                    if file.suffix.lower() in kinds and file.exists():
+                        holder['media'] = f'data:{kinds[file.suffix.lower()]};base64,' + base64.b64encode(file.read_bytes()).decode()
         try:
             path.write_text(json.dumps(quiz, indent=2, ensure_ascii=False), encoding='utf-8')
-            self.toast.emit(f'Quiz saved to {path.name}', False)
+            self.toast.emit(f'Quiz saved to {path.name}' + (' with its pictures and sounds' if with_media else ''), False)
         except OSError as e:
             self.toast.emit(f'Could not write {path.name}: {e}', True)

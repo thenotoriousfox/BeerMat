@@ -46,7 +46,7 @@ class Desk(QObject):
         super().__init__(parent)
         self.server = QuizServer(data_dir, host_key, port, laptop, self)
         self.api = DeskApi(self)
-        self.library = Library(self.api, self)
+        self.library = Library(self.api, Path(data_dir) / 'media', self)
         self.library.toast.connect(self.toast)
         self.tvSound = TvSound(self)
         self.liveTools = LiveTools(self)

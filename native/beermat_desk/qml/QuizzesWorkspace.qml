@@ -1,6 +1,6 @@
 // Quizzes: the quiz on this laptop, round by round. Add, duplicate, reorder and delete questions and rounds, edit each
-// question's format, wording, answer, choices, items, picture or sound, points and time, then save (Ctrl+S). The quiz
-// server checks every question when it saves; options the editor doesn't show yet are kept as they are.
+// question's format, wording, answer, choices, items, picture or sound (or a Spotify track), pinpoint target, clips,
+// songs, points, time and every format option, then save (Ctrl+S). The quiz server checks every question as it saves.
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Dialogs
@@ -13,13 +13,17 @@ RowLayout {
     readonly property var q: lib.question
     readonly property bool chosen: q.type !== undefined
     readonly property var fields: q.fields || []
+    readonly property var spotifyClip: q.spotifyClip || ({})
     signal openQuiz()
     signal openWebDesk()
     spacing: Theme.gap
 
     Shortcut { sequences: [StandardKey.Save]; enabled: quizzes.visible; onActivated: lib.save() }
+    FileDialog { id: mediaFile; property string target: "media"; title: "Choose a picture or sound"
+                 nameFilters: ["Pictures and sounds (*.png *.jpg *.jpeg *.webp *.mp3 *.ogg *.wav)"]
+                 onAccepted: { lib.uploadMedia(target, selectedFile); target = "media" } }
     FileDialog { id: exportFile; title: "Save the quiz as a file"; fileMode: FileDialog.SaveFile; defaultSuffix: "json"
-                 nameFilters: ["BeerMat quiz (*.json)"]; onAccepted: lib.export(selectedFile) }
+                 nameFilters: ["BeerMat quiz (*.json)"]; onAccepted: lib.export(selectedFile, true) }
 
     // ---- outline ----
     Panel {
@@ -128,15 +132,129 @@ RowLayout {
                 Label { text: "Note shown with the answer"; color: Theme.muted }
                 Field { Layout.fillWidth: true; text: q.answerNote || ""; onEditingFinished: lib.setField("answerNote", text) }
 
-                Rectangle {
-                    Layout.fillWidth: true; implicitHeight: more.implicitHeight + 24; radius: 10
-                    color: Qt.rgba(Theme.teal.r, Theme.teal.g, Theme.teal.b, 0.08); border.color: Qt.rgba(Theme.teal.r, Theme.teal.g, Theme.teal.b, 0.35)
+                // ---- picture or sound ----
+                RowLayout {
+                    visible: ["picture", "audio", "pinpoint", "text", "choice", "multi", "letter", "number", "nearest", "sequence", "tiles", "wordsnake", "vote", "buzzer", "sheet"].includes(q.type)
+                    spacing: 8
+                    DeskButton { text: q.media ? "Replace the picture or sound…" : "Add a picture or sound…"; implicitHeight: 34; onClicked: mediaFile.open() }
+                    DeskButton { visible: !!q.media; text: "Remove"; implicitHeight: 34; onClicked: lib.setField("media", "") }
+                    Text { text: q.media ? q.media.split("/").pop() : ""; color: Theme.muted; font.pixelSize: 12 }
+                }
+                // The picture; for a pinpoint question, click it to place the target.
+                Image {
+                    id: picture
+                    visible: !!q.media && !/\.(mp3|ogg|wav)$/i.test(q.media)
+                    source: visible ? desk.serverUrl + q.media : ""
+                    Layout.preferredWidth: Math.min(560, parent.width); Layout.preferredHeight: 320
+                    fillMode: Image.PreserveAspectFit; asynchronous: true
+                    readonly property real ox: (width - paintedWidth) / 2
+                    readonly property real oy: (height - paintedHeight) / 2
+                    Rectangle {
+                        visible: q.type === "pinpoint" && q.target && q.target.x !== undefined
+                        readonly property real rx: (q.target ? q.target.r || 0.06 : 0) * picture.paintedWidth
+                        width: rx * 2; height: width; radius: width / 2
+                        x: picture.ox + (q.target ? q.target.x : 0) * picture.paintedWidth - width / 2
+                        y: picture.oy + (q.target ? q.target.y : 0) * picture.paintedHeight - height / 2
+                        color: Qt.rgba(Theme.good.r, Theme.good.g, Theme.good.b, 0.25); border.color: Theme.good; border.width: 3
+                    }
+                    MouseArea {
+                        anchors.fill: parent; enabled: q.type === "pinpoint"; cursorShape: enabled ? Qt.CrossCursor : Qt.ArrowCursor
+                        onClicked: (m) => lib.setTarget((m.x - picture.ox) / picture.paintedWidth, (m.y - picture.oy) / picture.paintedHeight)
+                    }
+                }
+                RowLayout {
+                    visible: q.type === "pinpoint"
+                    Text { text: q.target && q.target.x !== undefined ? "Target size" : "Click the picture to place the target"; color: Theme.muted }
+                    Slider { visible: !!(q.target && q.target.x !== undefined); from: 0.01; to: 0.5; value: q.target && q.target.r ? q.target.r : 0.06; Layout.preferredWidth: 220
+                             onMoved: lib.setTargetShape(value, picture.paintedWidth / Math.max(1, picture.paintedHeight)) }
+                }
+                // An audio question (or a sheet) can play a Spotify track instead of a file.
+                RowLayout {
+                    visible: q.type === "audio" || q.type === "sheet"
+                    spacing: 6
+                    Label { text: "Or a Spotify track"; color: Theme.muted }
+                    Field { id: clipTrack; text: quizzes.spotifyClip.spotify || ""; placeholderText: "open.spotify.com/track/… (Pro)"; Layout.fillWidth: true }
+                    Field { id: clipStart; text: quizzes.spotifyClip.start !== undefined ? String(quizzes.spotifyClip.start) : ""; placeholderText: "Start (s)"; implicitWidth: 90 }
+                    Field { id: clipSeconds; text: quizzes.spotifyClip.seconds !== undefined ? String(quizzes.spotifyClip.seconds) : ""; placeholderText: "Plays (s)"; implicitWidth: 90 }
+                    DeskButton { text: "Set"; implicitHeight: 34; onClicked: lib.setSpotifyClip(clipTrack.text, clipStart.text, clipSeconds.text) }
+                }
+                Label { visible: q.type === "sheet"; text: "Also accept, for each part (one line per part, answers separated by |)"; color: Theme.muted }
+                Area { visible: q.type === "sheet"; Layout.fillWidth: true; text: q.itemAliases || ""; onEditingFinished: lib.setItemAliases(text) }
+
+                // ---- sound clips ----
+                ColumnLayout {
+                    visible: q.type === "clips"
+                    Layout.fillWidth: true; spacing: 4
+                    Text { text: "Clips, played in order (tick the one teams tap for)"; color: Theme.text; font.weight: Font.DemiBold }
+                    Repeater {
+                        model: q.clipsList || []
+                        delegate: RowLayout {
+                            required property var modelData
+                            required property int index
+                            Layout.fillWidth: true; spacing: 6
+                            RadioButton { checked: q.targetClip === index; onClicked: lib.setTargetClip(index) }
+                            Field { text: modelData.label; placeholderText: "Name"; Layout.preferredWidth: 180; onEditingFinished: lib.setItem("clip", index, "label", text) }
+                            Text { visible: !!modelData.media; text: modelData.media.split("/").pop(); color: Theme.muted; font.pixelSize: 12; Layout.fillWidth: true; elide: Text.ElideMiddle }
+                            Field { visible: !modelData.media; text: modelData.spotify; placeholderText: "Spotify track link"; Layout.fillWidth: true; onEditingFinished: lib.setItem("clip", index, "spotify", text) }
+                            Field { visible: !modelData.media; text: String(modelData.start); placeholderText: "Start (s)"; implicitWidth: 80; onEditingFinished: lib.setItem("clip", index, "start", text) }
+                            Tool { text: "✕"; onClicked: lib.removeItem("clip", index) }
+                        }
+                    }
                     RowLayout {
-                        id: more
-                        anchors.fill: parent; anchors.margins: 12
-                        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 13
-                               text: "This format's other settings (Evil Mode, speed bonus, go wide, buzzer and bingo options, clips and songs, the pinpoint target, word snake grid, uploading media) are kept as they are. Edit them in the web desk for now." }
-                        DeskButton { text: "Open the web desk"; implicitHeight: 32; onClicked: quizzes.openWebDesk() }
+                        DeskButton { text: "Upload a clip…"; implicitHeight: 32; onClicked: { mediaFile.target = "clip"; mediaFile.open() } }
+                        DeskButton { text: "Add a Spotify clip"; implicitHeight: 32; onClicked: lib.addSpotifyItem("clip") }
+                    }
+                }
+
+                // ---- music bingo songs ----
+                ColumnLayout {
+                    visible: q.type === "musicbingo"
+                    Layout.fillWidth: true; spacing: 4
+                    Text { text: `Songs (${(q.songsList || []).length}; music bingo needs 15–300)`; color: Theme.text; font.weight: Font.DemiBold }
+                    ListView {
+                        Layout.fillWidth: true; Layout.preferredHeight: Math.min(300, count * 40); clip: true; spacing: 2
+                        model: q.songsList || []
+                        delegate: RowLayout {
+                            required property var modelData
+                            required property int index
+                            width: ListView.view.width; spacing: 6
+                            Field { text: modelData.title; Layout.preferredWidth: 240; onEditingFinished: lib.setItem("song", index, "title", text) }
+                            Text { visible: !!modelData.media; text: modelData.media.split("/").pop(); color: Theme.muted; font.pixelSize: 12; Layout.fillWidth: true; elide: Text.ElideMiddle }
+                            Field { visible: !modelData.media; text: modelData.spotify; placeholderText: "Spotify track link"; Layout.fillWidth: true; onEditingFinished: lib.setItem("song", index, "spotify", text) }
+                            Field { text: String(modelData.start); placeholderText: "Start"; implicitWidth: 70; onEditingFinished: lib.setItem("song", index, "start", text) }
+                            Field { text: String(modelData.seconds); placeholderText: "Plays"; implicitWidth: 70; onEditingFinished: lib.setItem("song", index, "seconds", text) }
+                            Tool { text: "✕"; onClicked: lib.removeItem("song", index) }
+                        }
+                    }
+                    RowLayout {
+                        DeskButton { text: "Upload a song…"; implicitHeight: 32; onClicked: { mediaFile.target = "song"; mediaFile.open() } }
+                        DeskButton { text: "Add a Spotify song"; implicitHeight: 32; onClicked: lib.addSpotifyItem("song") }
+                    }
+                    RowLayout {
+                        Area { id: spotifyLinks; Layout.fillWidth: true; Layout.preferredHeight: 60; placeholderText: "Spotify track or playlist links, one per line (Pro, Spotify connected)" }
+                        DeskButton { text: "Add from Spotify"; implicitHeight: 32; enabled: spotifyLinks.text.trim() !== ""; onClicked: { lib.importSongs(spotifyLinks.text); spotifyLinks.text = "" } }
+                    }
+                }
+
+                // ---- this format's options ----
+                Text { visible: (q.options_ || []).length > 0; text: "Options"; color: Theme.text; font.weight: Font.DemiBold; Layout.topMargin: 6 }
+                GridLayout {
+                    Layout.fillWidth: true; columns: 2; columnSpacing: 16; rowSpacing: 4
+                    Repeater {
+                        model: q.options_ || []
+                        delegate: RowLayout {
+                            required property var modelData
+                            Layout.fillWidth: true; spacing: 8
+                            CheckBox { visible: modelData.kind === "bool"; text: modelData.label; checked: modelData.value === true; palette.windowText: Theme.text
+                                       onToggled: lib.setOption(modelData.key, checked ? "true" : "false") }
+                            Text { visible: modelData.kind !== "bool"; text: modelData.label; color: Theme.muted; font.pixelSize: 13; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                            SpinBox { visible: modelData.kind === "int"; from: modelData.range[0] || 0; to: modelData.range[1] || 100; editable: true
+                                      value: typeof modelData.value === "number" ? modelData.value : 0; onValueModified: lib.setOption(modelData.key, String(value)) }
+                            ComboBox { visible: modelData.kind === "choice"; Layout.preferredWidth: 260; textRole: "text"; valueRole: "value"; model: modelData.choices
+                                       currentIndex: Math.max(0, indexOfValue(modelData.value)); onActivated: lib.setOption(modelData.key, currentValue) }
+                            Field { visible: modelData.kind === "ints"; text: String(modelData.value || ""); placeholderText: "2, 3, 5"; implicitWidth: 120
+                                    onEditingFinished: lib.setOption(modelData.key, text) }
+                        }
                     }
                 }
             }
