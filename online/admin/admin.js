@@ -1,4 +1,4 @@
-// BeerMat Online's admin console: venues, accounts and an overview, through the admin API (online/service.js).
+// BeerMat Online's admin console: venues, accounts, reports, shared buzzers and an overview, through the admin API (online/service.js).
 // The session token is kept for this browser tab only.
 const $ = id => document.getElementById(id);
 const el = (tag, text, className) => {const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (className) e.className = className; return e;};
@@ -44,11 +44,11 @@ $('signOut').onclick = guarded(async () => {await api('DELETE', '/v1/sessions').
 
 // ---- Tabs ----
 function show(tab) {
-  if (!['overview', 'venues', 'accounts', 'reports'].includes(tab)) tab = 'overview';
+  if (!['overview', 'venues', 'accounts', 'reports', 'buzzers'].includes(tab)) tab = 'overview';
   for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   for (const s of document.querySelectorAll('.tab')) s.hidden = s.id !== tab;
   history.replaceState(null, '', '#' + tab);
-  ({overview: loadOverview, venues: loadVenues, accounts: loadAccounts, reports: loadReports})[tab]().catch(e => toast(e.message, true));
+  ({overview: loadOverview, venues: loadVenues, accounts: loadAccounts, reports: loadReports, buzzers: loadBuzzers})[tab]().catch(e => toast(e.message, true));
 }
 for (const b of document.querySelectorAll('.tabs button')) b.onclick = () => show(b.dataset.tab);
 
@@ -64,8 +64,10 @@ async function loadOverview() {
     tile(o.upcoming, 'quizzes in the next 7 days'),
     tile(o.accounts, 'accounts', `${o.newAccounts} new this week · ${o.admins} admin${o.admins === 1 ? '' : 's'}`),
     tile(o.results, 'results kept by players'),
-    tile(o.laptops, 'quiz laptops registered', `${o.venueResults} quizzes shared`));
+    tile(o.laptops, 'quiz laptops registered', `${o.venueResults} quizzes shared`),
+    tile(o.sharedBuzzers, 'shared buzzers', o.hiddenBuzzers ? `${o.hiddenBuzzers} hidden after reports` : undefined));
   $('reportCount').textContent = String(o.openReports); $('reportCount').hidden = !o.openReports;
+  $('hiddenCount').textContent = String(o.hiddenBuzzers); $('hiddenCount').hidden = !o.hiddenBuzzers;
   const backupOld = !o.lastBackup || Date.now() - o.lastBackup > 36 * 3600000;
   const facts = [['Running since', `${when(o.startedAt)} (${ago(o.startedAt)})`], ['Database', o.databaseBytes === null ? '—' : `${(o.databaseBytes / 1048576).toFixed(1)} MB`],
     ['Last backup', o.lastBackup ? `${when(o.lastBackup)} (${ago(o.lastBackup)})` : 'none found']];
@@ -203,9 +205,10 @@ async function loadReports() {
   const {reports} = await api('GET', '/v1/admin/reports' + ($('reportsAll').checked ? '?all=1' : ''));
   $('reportCount').textContent = String(reports.filter(r => !r.resolved).length); $('reportCount').hidden = !reports.some(r => !r.resolved);
   $('reportRows').replaceChildren(...reports.map(r => {
-    const tr = el('tr'), act = el('td', undefined, 'actions'), venue = el('td'), open = venues.find(v => v.id === r.target);
-    venue.append(el('strong', r.targetName));
+    const tr = el('tr'), act = el('td', undefined, 'actions'), venue = el('td'), open = r.kind === 'venue' && venues.find(v => v.id === r.target);
+    venue.append(el('strong', r.kind === 'buzzer' ? `🔊 ${r.targetName}` : r.targetName));
     if (open) {const b = el('button', 'Open', 'ghost small'); b.type = 'button'; b.onclick = () => openVenue(open); venue.append(document.createTextNode(' '), b);}
+    if (r.kind === 'buzzer' && r.targetName !== '(removed)') {const b = el('button', 'Open', 'ghost small'); b.type = 'button'; b.onclick = () => show('buzzers'); venue.append(document.createTextNode(' '), b);}
     const done = el('button', r.resolved ? 'Reopen' : 'Dealt with', 'ghost small'); done.type = 'button';
     done.onclick = guarded(async () => {await api('PATCH', `/v1/admin/reports/${r.id}`, {resolved: !r.resolved}); await loadReports();}, 'Saved');
     act.append(done);
@@ -216,5 +219,39 @@ async function loadReports() {
   if (!reports.length) {const tr = el('tr'), td = el('td', 'Nothing reported.', 'muted'); td.colSpan = 5; tr.append(td); $('reportRows').append(tr);}
 }
 $('reportsAll').onchange = () => loadReports().catch(e => toast(e.message, true));
+
+// ---- Shared buzzers ----
+let buzzers = [], playing = null;
+async function loadBuzzers() {
+  buzzers = (await api('GET', '/v1/admin/buzzers')).buzzers;
+  const hidden = buzzers.filter(b => b.hidden).length;
+  $('hiddenCount').textContent = String(hidden); $('hiddenCount').hidden = !hidden;
+  renderBuzzers();
+}
+// The clip itself, fetched with the admin's session (an <audio> can't send it).
+async function play(b) {
+  const res = await fetch(`/v1/admin/buzzers/${b.id}/audio`, {headers: {Authorization: 'Bearer ' + token}});
+  if (!res.ok) throw Error('That clip can’t be played');
+  if (playing) {playing.pause(); URL.revokeObjectURL(playing.src);}
+  playing = new Audio(URL.createObjectURL(await res.blob())); await playing.play();
+}
+function renderBuzzers() {
+  const find = $('buzzerSearch').value.trim().toLowerCase(), shown = buzzers.filter(b => !find || `${b.name} ${b.venueName}`.toLowerCase().includes(find));
+  $('buzzerTotal').textContent = `${buzzers.length} in the library`;
+  const button = (label, fn, done, cls = 'ghost small') => {const b = el('button', label, cls); b.type = 'button'; b.onclick = guarded(async () => {if (await fn() === false) return false; await loadBuzzers();}, done); return b;};
+  $('buzzerRows').replaceChildren(...shown.map(b => {
+    const tr = el('tr'), name = el('td'), actions = el('td', undefined, 'actions');
+    name.append(el('strong', b.name), el('span', ` ${b.seconds}s`, 'muted'));
+    if (b.hidden) name.append(el('span', 'hidden', 'badge warn'));
+    const listen = el('button', '▶ Play', 'ghost small'); listen.type = 'button'; listen.onclick = guarded(() => play(b));
+    actions.append(listen, button(b.hidden ? 'Show again' : 'Hide', () => api('PATCH', `/v1/admin/buzzers/${b.id}`, {hidden: !b.hidden}), b.hidden ? 'Back in the library' : 'Hidden'),
+      button('Remove', () => confirm(`Remove “${b.name}” from the library for good?`) ? api('DELETE', `/v1/admin/buzzers/${b.id}`) : false, 'Removed', 'danger small'));
+    if (b.venue) actions.append(button('Stop venue sharing…', () => prompt(`Stop ${b.venueName} sharing buzzers, and remove every clip it has shared? Type the venue’s name to confirm.`) === b.venueName ? api('POST', `/v1/admin/venues/${b.venue}/library`, {banned: true}) : false, 'Venue stopped from sharing', 'danger small'));
+    tr.append(name, el('td', b.venueName), el('td', date(b.added)), el('td', String(b.reports), b.reports ? 'warn' : 'muted'), actions);
+    return tr;
+  }));
+  if (!shown.length) {const tr = el('tr'), td = el('td', buzzers.length ? 'No buzzers match.' : 'Nothing shared yet.', 'muted'); td.colSpan = 5; tr.append(td); $('buzzerRows').append(tr);}
+}
+$('buzzerSearch').oninput = renderBuzzers;
 
 start();

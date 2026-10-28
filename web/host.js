@@ -570,6 +570,41 @@ async function addBuzzers(files) {
 }
 $('buzzerFolder').onchange = () => {const files = [...$('buzzerFolder').files]; $('buzzerFolder').value = ''; action(() => addBuzzers(files));};
 $('buzzerFiles').onchange = () => {const files = [...$('buzzerFiles').files]; $('buzzerFiles').value = ''; action(() => addBuzzers(files));};
+// The shared buzzer library (BeerMat Online): everyone sees what's in it; BeerMat Pro plays, adds and shares clips.
+let libraryClip = null;
+async function loadBuzzerLibrary() {
+  const {buzzers, pro, shared} = await request('buzzer-library', {q: $('librarySearch').value});
+  $('libraryNote').textContent = pro ? 'Buzzers other BeerMat venues have shared. Play one, then add it to this laptop’s buzzer sounds. Report anything that shouldn’t be here.'
+    : 'Buzzers BeerMat venues have shared. Playing, adding and sharing them is part of BeerMat Pro.';
+  $('libraryShare').hidden = !pro;
+  const button = (label, fn, cls = 'subtle') => {const b = element('button', label, cls); b.type = 'button'; b.onclick = fn; return b;};
+  $('libraryList').replaceChildren(...buzzers.map(b => {
+    const li = element('li', `${b.name} · ${b.seconds}s `);
+    if (pro) li.append(button('▶ Play', () => request('buzzer-library/play', {id: b.id}).then(clip => {
+      libraryClip?.pause();
+      libraryClip = new Audio(URL.createObjectURL(new Blob([Uint8Array.from(atob(clip.audio), c => c.charCodeAt(0))], {type: 'audio/mpeg'})));
+      return libraryClip.play();
+    }).catch(e => message(e.message, true))),
+    button('Add', () => action(async () => `“${(await request('buzzer-library/add', {id: b.id})).name}” added: teams can pick it in their phone menu`)),
+    button('Report', () => {const reason = prompt(`What’s wrong with “${b.name}”? (For example: it’s offensive, or it’s copied from somewhere without permission.)`); if (reason?.trim()) action(() => request('buzzer-library/report', {id: b.id, reason}), 'Reported: thanks. BeerMat will look at it.');}));
+    if (shared.includes(b.id)) li.append(button('Take it out', () => {if (confirm(`Take “${b.name}” out of the shared library?`)) action(async () => {await request('buzzer-library/remove', {id: b.id}); await loadBuzzerLibrary();}, 'Taken out of the library');}, 'subtle danger'));
+    return li;
+  }));
+  if (!buzzers.length) $('libraryList').append(element('li', $('librarySearch').value ? 'Nothing matches.' : 'Nothing shared yet.', 'muted'));
+}
+$('libraryPanel').ontoggle = () => {if ($('libraryPanel').open) loadBuzzerLibrary().catch(e => message(e.message, true));};
+$('librarySearchForm').onsubmit = e => {e.preventDefault(); loadBuzzerLibrary().catch(e2 => message(e2.message, true));};
+$('libraryFile').onchange = () => {const file = $('libraryFile').files[0]; if (file && !$('libraryName').value) $('libraryName').value = file.name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').trim().slice(0, 60);};
+$('libraryShare').onsubmit = e => {
+  e.preventDefault();
+  action(async () => {
+    const file = $('libraryFile').files[0];
+    if (file.size > 2 * 1024 * 1024) throw Error('Clips up to 2 MB can be shared: use a shorter one');
+    const added = await request('buzzer-library/share', {name: $('libraryName').value, media: await uploadMedia(file), rights: $('libraryRights').checked});
+    $('libraryShare').reset(); await loadBuzzerLibrary();
+    return `“${added.name}” shared with other BeerMat venues`;
+  });
+};
 $('clearBuzzers').onclick = () => action(async () => {if (confirm('Remove all added buzzer sounds? Teams using one go back to a built-in sound.')) await request('sounds', {buzzers: []});}, 'Buzzer sounds updated');
 // JSON ({"1": "…", …, "90": "…"}), or a plain list of 90 lines (optionally "4: …").
 function parseCalls(text) {

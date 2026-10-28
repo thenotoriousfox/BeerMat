@@ -12,7 +12,7 @@
 </main>
 
 <div id="console" hidden>
-  <nav class="tabs" role="tablist"><button data-tab="overview" aria-selected="true">Overview</button><button data-tab="venues">Venues</button><button data-tab="accounts">Accounts</button><button data-tab="reports">Reports <span id="reportCount" class="count" hidden></span></button></nav>
+  <nav class="tabs" role="tablist"><button data-tab="overview" aria-selected="true">Overview</button><button data-tab="venues">Venues</button><button data-tab="accounts">Accounts</button><button data-tab="reports">Reports <span id="reportCount" class="count" hidden></span></button><button data-tab="buzzers">Buzzers <span id="hiddenCount" class="count" hidden></span></button></nav>
 
   <section id="overview" class="tab">
     <div id="stats" class="stats"></div>
@@ -32,8 +32,14 @@
 
   <section id="reports" class="tab" hidden>
     <div class="toolbar"><label class="check"><input id="reportsAll" type="checkbox"> Show dealt-with reports too</label></div>
-    <p class="muted">Problems people reported on venue pages from the app. Fix the venue (Venues tab), then mark the report dealt with.</p>
-    <table class="list"><thead><tr><th>Venue</th><th>What’s wrong</th><th>From</th><th>When</th><th></th></tr></thead><tbody id="reportRows"></tbody></table>
+    <p class="muted">Problems people reported on venue pages from the app, and shared buzzers quiz desks reported (🔊). Fix the venue (Venues tab) or deal with the buzzer (Buzzers tab), then mark the report dealt with.</p>
+    <table class="list"><thead><tr><th>Venue or buzzer</th><th>What’s wrong</th><th>From</th><th>When</th><th></th></tr></thead><tbody id="reportRows"></tbody></table>
+  </section>
+
+  <section id="buzzers" class="tab" hidden>
+    <div class="toolbar"><input id="buzzerSearch" type="search" placeholder="Find a buzzer or venue" aria-label="Find a buzzer"><span id="buzzerTotal" class="muted"></span></div>
+    <p class="muted">The shared buzzer library: clips Pro venues shared, newest first, with hidden and reported ones at the top. A clip is hidden by itself once three venues report it. Remove anything that isn’t theirs to share (a copyright complaint to hello@ means removing it straight away). A venue that keeps sharing clips it has no right to can be stopped: that also removes every clip it shared.</p>
+    <table class="list"><thead><tr><th>Buzzer</th><th>Shared by</th><th>Added</th><th>Reports</th><th></th></tr></thead><tbody id="buzzerRows"></tbody></table>
   </section>
 </div>
 

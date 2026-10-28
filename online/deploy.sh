@@ -46,7 +46,7 @@ if [ "$(swapon --noheadings | wc -l)" = 0 ] && [ "$(awk '/MemTotal/ {print $2}' 
   grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 apt-get update -qq
-apt-get install -y -qq caddy sqlite3 curl xz-utils rsync iptables-persistent >/dev/null
+apt-get install -y -qq caddy sqlite3 curl xz-utils rsync iptables-persistent ffmpeg >/dev/null
 
 # Node.js 24 from nodejs.org, checked against its published checksums.
 arch=$(uname -m); case $arch in x86_64) arch=x64;; aarch64) arch=arm64;; esac

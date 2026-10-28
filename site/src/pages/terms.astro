@@ -2,7 +2,7 @@
 import Page from '../layouts/Page.astro';
 import {CONTACT, FREE_LIMITS} from '../consts';
 // Written for BeerMat as it is (a sole trader, payments by Stripe); worth having reviewed.
-const updated = '27 October 2026';
+const updated = '28 October 2026';
 ---
 <Page title="Terms · BeerMat" description="The terms for using BeerMat, BeerMat Pro and BeerMat Online.">
 	<article class="wrap prose max-w-3xl py-10">
@@ -32,6 +32,16 @@ const updated = '27 October 2026';
 			<li>Your questions, pictures, sounds and results are yours, and stay on your laptop unless you choose to share them.</li>
 			<li>You’re responsible for having the right to use what you put in a quiz, and for the music licences your venue needs to play music in public (in the UK, usually from PPL PRS). Spotify’s terms only allow personal listening, so don’t use BeerMat’s Spotify option for a pub audience.</li>
 			<li>Venues are responsible for the accuracy of their venue page and quiz nights.</li>
+		</ul>
+
+		<h2>The shared buzzer library</h2>
+		<ul>
+			<li>Venues on BeerMat Pro can share short sound clips with other BeerMat venues, and add clips others have shared. Anyone using BeerMat can see the names of the clips in the library.</li>
+			<li>Clips are chosen and shared by venues, not by us, and appear straight away: we don’t check them first.</li>
+			<li>By sharing a clip you confirm that you made it or have permission to share it this way, and that it isn’t offensive or unlawful. You let us store it and let other BeerMat venues copy it and play it at their quizzes; you can take it out of the library at any time (copies venues have already added stay on their laptops).</li>
+			<li>A venue that adds a clip is responsible for playing it in public, as with any sound in its quiz.</li>
+			<li>To report a clip, use Report in the quiz desk, or email <a href={`mailto:${CONTACT}`}>{CONTACT}</a>. If you own the copyright in something shared without your permission, email us the clip’s name and what it’s copied from, and we’ll remove it promptly. A clip reported by three venues is hidden until we’ve looked at it.</li>
+			<li>We may remove any clip. We stop venues that repeatedly share clips they have no right to from sharing, and remove the clips they shared.</li>
 		</ul>
 
 		<h2>Accounts</h2>

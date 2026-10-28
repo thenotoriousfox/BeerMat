@@ -91,6 +91,8 @@ Players never pay. A venue has a plan, **free** or **pro** (with an end date, or
 | Questions played per quiz | 3 | no limit |
 | Teams per quiz | 3 (a 4th is told the quiz is full) | no limit |
 | Spotify music rounds | — | ✓ |
+| Shared buzzer library: see what's in it | ✓ | ✓ |
+| Shared buzzer library: play, add, share and report clips | — | ✓ |
 | On the map, in quiz listings and with a public venue page (app and website) | — | ✓ |
 | Every round format, the TV, phones, hotspot, online quizzes, results | ✓ | ✓ |
 
@@ -113,6 +115,26 @@ Players never pay. A venue has a plan, **free** or **pro** (with an end date, or
 * The desktop app is plain JavaScript, so a determined user can edit it to skip the limits. The licence keeps honest
   venues honest; what only the service provides (listings, verified leaderboards, shared results) can't be faked.
 
+## The shared buzzer library
+
+Venues on Pro share short buzzer clips with each other from the desk (**Settings → Sounds → Shared buzzer library**).
+
+* **Seeing it is public**: `GET /v1/buzzers?q=` lists names and lengths (never who shared a clip), so a Free desk sees
+  what Pro would give it.
+* **Everything else is Pro, by laptop**: each call carries a request signed with the laptop's venue key, like a licence
+  request, so it needs no sign-in: `kind` `beermat.buzzer-upload` (`POST /v1/buzzers`, with `name`, the audio's
+  `sha256`, `rights: true` and the base64 audio beside the request), `beermat.buzzer-get` (`POST /v1/buzzers/:id/audio`),
+  `beermat.buzzer-report` (`POST /v1/buzzers/:id/report`, with `reason`) and `beermat.buzzer-remove`
+  (`POST /v1/buzzers/:id/remove`, the sharing venue only, whatever its plan now). The time must be within 10 minutes and
+  the laptop's venue on Pro. A venue shares up to 30 clips a day.
+* **Clips**: up to 2 MB in; ffmpeg on the server keeps 10 seconds at most, trims the silence, evens the loudness and
+  stores a mono MP3 in the database. A clip the desk adds is saved on the laptop, so it plays offline.
+* **Hosting, not choosing**: clips go up straight away; whoever shares one confirms they have the right to (the terms
+  say so too). BeerMat doesn't check clips first. One report per venue per clip; when three venues have reported one it
+  is hidden and `ADMIN_EMAIL` is told. In the admin console (**Buzzers**) an admin plays, hides, shows or removes a clip
+  (either deals with its reports) and can stop a venue sharing, which removes every clip it shared. A copyright
+  complaint to hello@ means removing the clip straight away.
+
 ## Data model
 
 | Table | Holds |
@@ -124,6 +146,7 @@ Players never pay. A venue has a plan, **free** or **pro** (with an end date, or
 | `results` | account, event, team reference, laptop key, the signed claim, date: one row per account/event/team |
 | `venue_results` | signed summaries shared by registered laptops, one per laptop/event |
 | `favourites` | account, venue |
+| `shared_buzzers` | name, the venue and laptop key that shared it, the MP3, its length, when, hidden, removed (a removed clip keeps its row, without the audio) |
 
 **Results are never trusted from players.** A claim is produced by the quiz laptop (`/api/team/result`) and signed
 with its Ed25519 key (`shared/claims.js`); the service checks the signature, the shape and the numbers. Statistics and

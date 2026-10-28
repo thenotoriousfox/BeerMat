@@ -34,7 +34,7 @@ const deskSecurity = {...security, 'Content-Security-Policy': security['Content-
 const DELIVERY_GRACE_MS = 2000;
 const SESSION_MS = 12 * 60 * 60 * 1000;
 // Read-only routes never notify clients of a change.
-const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token', '/api/host/drive', '/api/host/spotify/preview', '/api/host/spotify/pause', '/api/host/online/account', '/api/host/online/signin', '/api/host/online/signup', '/api/host/online/signout', '/api/host/online/call', '/api/host/online/locate', '/api/host/plan']);
+const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token', '/api/host/drive', '/api/host/spotify/preview', '/api/host/spotify/pause', '/api/host/online/account', '/api/host/online/signin', '/api/host/online/signup', '/api/host/online/signout', '/api/host/online/call', '/api/host/online/locate', '/api/host/plan', '/api/host/buzzer-library', '/api/host/buzzer-library/play', '/api/host/buzzer-library/share', '/api/host/buzzer-library/remove', '/api/host/buzzer-library/report']);
 
 // A sound pack is a folder: general/<name>.mp3 for each moment (soundnames.js), buzzers/<pack>/*.mp3, Themes/<name>/,
 // and optionally bingo-calls.json at the top. `prefix` is the URL they are served under.
@@ -603,6 +603,21 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (!response.ok) throw new QuizError(data.error || `BeerMat Online said ${response.status}`, response.status === 401 ? 401 : response.status >= 500 ? 502 : 400);
     return data;
   }
+  // The shared buzzer library on BeerMat Online: anyone can see what's in it; playing, adding, sharing and reporting
+  // are BeerMat Pro, asked for with a request signed by this laptop's venue key (like its licence).
+  async function libraryApi(route, request, extra = {}, timeout = 15000) {
+    const base = settings().onlineService;
+    requireValue(base && fetchImpl, 'Set the BeerMat Online address first');
+    let response;
+    try {
+      response = await fetchImpl(base.replace(/\/$/, '') + route, {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({request: signClaim({v: 1, at: now(), ...request}, venueKey()), ...extra}), signal: AbortSignal.timeout(timeout)});
+    } catch {throw new QuizError('BeerMat Online can’t be reached. Is this laptop on the internet?', 502);}
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new QuizError(data.error || `BeerMat Online said ${response.status}`, response.status >= 500 ? 502 : response.status === 403 ? 403 : 400);
+    return data;
+  }
+  const libraryClip = buzzer => libraryApi(`/v1/buzzers/${encodeURIComponent(buzzer)}/audio`, {kind: 'beermat.buzzer-get', buzzer});
   // Online mode: phones and the TV get the public link as the join address.
   const onlineUrl = () => laptop?.online?.()?.ready ? laptop.online().url : null;
   // A secret round (usually the last): from its first question until the quiz ends, phones and the TV get no marks, no
@@ -1000,6 +1015,54 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           // Registering this laptop always sends this laptop's own key.
           const sent = body.path.endsWith('/keys') ? {publicKey: venueKey().publicKey} : body.body;
           return send(200, await onlineApi(body.method, body.path, sent));
+        }
+        if (p === '/api/host/buzzer-library') {
+          const q = typeof body.q === 'string' ? body.q.trim().slice(0, 60) : '';
+          const {buzzers} = await onlineApi('GET', '/v1/buzzers' + (q ? '?q=' + encodeURIComponent(q) : ''));
+          return send(200, {buzzers, pro: plan().has('buzzerLibrary'), shared: getMeta('sharedBuzzers', [])});
+        }
+        if (p.startsWith('/api/host/buzzer-library/')) {
+          const buzzer = typeof body.id === 'string' && /^[\w-]{1,40}$/.test(body.id) ? body.id : null, what = p.slice('/api/host/buzzer-library/'.length);
+          // A clip this laptop shared can always be taken back out, whatever its plan now.
+          if (what === 'remove') {
+            const shared = getMeta('sharedBuzzers', []);
+            requireValue(buzzer && shared.includes(buzzer), 'Only buzzers this laptop shared can be taken out');
+            await libraryApi(`/v1/buzzers/${buzzer}/remove`, {kind: 'beermat.buzzer-remove', buzzer}).catch(e => {if (e.status !== 400 || !/any more/.test(e.message)) throw e;});
+            setMeta('sharedBuzzers', shared.filter(x => x !== buzzer)); return send(200, {removed: true});
+          }
+          requireValue(plan().has('buzzerLibrary'), 'Playing, adding and sharing buzzers is part of BeerMat Pro', 403);
+          if (what === 'play') {requireValue(buzzer, 'Choose a buzzer'); const clip = await libraryClip(buzzer); return send(200, {name: clip.name, audio: clip.audio});}
+          if (what === 'add') {
+            requireValue(buzzer, 'Choose a buzzer');
+            const clip = await libraryClip(buzzer), current = soundPack().buzzers;
+            requireValue(current.length < 200, 'That’s 200 buzzer sounds already: remove some first');
+            const taken = new Set(current.map(b => b.name.toLowerCase()));
+            let name = clip.name.slice(0, 60);
+            for (let i = 2; taken.has(name.toLowerCase()); i++) name = `${clip.name.slice(0, 55)} (${i})`;
+            mkdirSync(mediaDir, {recursive: true});
+            const file = `${token()}.mp3`; writeFileSync(path.join(mediaDir, file), Buffer.from(clip.audio, 'base64'), {flag: 'wx', mode: 0o600});
+            const saved = getMeta('soundPack', {});
+            setMeta('soundPack', {...saved, buzzers: [...current, {name, media: '/media/' + file}]});
+            return send(200, {name, sounds: soundPack()});
+          }
+          if (what === 'share') {
+            requireValue(body.rights === true, 'Tick the box to confirm you have the right to share this clip');
+            requireValue(typeof body.name === 'string' && body.name.trim() && body.name.trim().length <= 60, 'Give the buzzer a name (up to 60 characters)');
+            const file = typeof body.media === 'string' && audioPath(body.media) ? path.join(mediaDir, path.basename(body.media)) : null;
+            requireValue(file && existsSync(file), 'Choose a sound file to share');
+            const audio = readFileSync(file);
+            requireValue(audio.length <= 2 * 1024 * 1024, 'Clips up to 2 MB can be shared: use a shorter one (10 seconds at most is kept)');
+            const added = await libraryApi('/v1/buzzers', {kind: 'beermat.buzzer-upload', name: body.name.trim(), sha256: createHash('sha256').update(audio).digest('hex'), rights: true},
+              {audio: audio.toString('base64')}, 60000);
+            setMeta('sharedBuzzers', [...getMeta('sharedBuzzers', []), added.id]);
+            return send(200, added);
+          }
+          if (what === 'report') {
+            requireValue(buzzer, 'Choose a buzzer');
+            requireValue(typeof body.reason === 'string' && body.reason.trim() && body.reason.length <= 500, 'Say what’s wrong with it (up to 500 characters)');
+            return send(200, await libraryApi(`/v1/buzzers/${buzzer}/report`, {kind: 'beermat.buzzer-report', buzzer, reason: body.reason.trim()}));
+          }
+          throw new QuizError('Not found', 404);
         }
         // Where a UK postcode is, for the venue's map pin (postcodes.io, free and keyless; only when asked).
         if (p === '/api/host/online/locate') {

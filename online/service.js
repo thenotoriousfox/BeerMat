@@ -14,6 +14,7 @@
 // venue has registered counts towards statistics and achievements; one from a venue the service has verified also
 // counts on public leaderboards. Players' own submissions are never trusted for scores.
 import http from 'node:http';
+import {spawn} from 'node:child_process';
 import {DatabaseSync} from 'node:sqlite';
 import {randomBytes, scryptSync, timingSafeEqual, createHash, createHmac} from 'node:crypto';
 import {readFileSync, existsSync, statSync, readdirSync} from 'node:fs';
@@ -62,7 +63,7 @@ const venuesTable = name => `CREATE TABLE IF NOT EXISTS ${name}(id TEXT PRIMARY 
   verified INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, quiz_nights TEXT NOT NULL DEFAULT '[]', listed INTEGER NOT NULL DEFAULT 0, edited TEXT NOT NULL DEFAULT '[]',
   plan TEXT NOT NULL DEFAULT 'free', plan_until INTEGER);`;
 
-export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), adminDir = path.join(here, 'admin'), backupDir = '', trustProxy = false, licenceKey = '', publicUrl = '', mail = null, pagesDir = path.join(here, 'pages'), stripe = null, adminEmail = '', fetchImpl = globalThis.fetch} = {}) {
+export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), adminDir = path.join(here, 'admin'), backupDir = '', trustProxy = false, licenceKey = '', publicUrl = '', mail = null, pagesDir = path.join(here, 'pages'), stripe = null, adminEmail = '', fetchImpl = globalThis.fetch, ffmpeg = 'ffmpeg'} = {}) {
   const startedAt = now();
   const db = new DatabaseSync(database);
   // Before the venue list, every venue had to have an owner: rebuild that table once (foreign keys off, so nothing
@@ -89,6 +90,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     CREATE TABLE IF NOT EXISTS email_tokens(hash TEXT PRIMARY KEY, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, purpose TEXT NOT NULL, expires INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS stripe_events(id TEXT PRIMARY KEY, received INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS reports(id TEXT PRIMARY KEY, kind TEXT NOT NULL, target TEXT NOT NULL, reason TEXT NOT NULL, reporter TEXT, created INTEGER NOT NULL, resolved INTEGER);
+    CREATE TABLE IF NOT EXISTS shared_buzzers(id TEXT PRIMARY KEY, name TEXT NOT NULL, venue TEXT REFERENCES venues(id) ON DELETE SET NULL, venue_key TEXT NOT NULL, audio BLOB,
+      seconds REAL NOT NULL, created INTEGER NOT NULL, hidden INTEGER NOT NULL DEFAULT 0, removed INTEGER);
   `);
   // Email addresses are confirmed by a link. Accounts made before that existed count as confirmed.
   if (!db.prepare('PRAGMA table_info(accounts)').all().some(c => c.name === 'email_verified')) db.exec('ALTER TABLE accounts ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0; UPDATE accounts SET email_verified=1');
@@ -101,6 +104,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   // Venues bought on the website: their Stripe customer and subscription, and whether an admin has approved them for
   // the map yet (venues added any other way are approved).
   if (!db.prepare('PRAGMA table_info(venues)').all().some(c => c.name === 'approved')) db.exec("ALTER TABLE venues ADD COLUMN approved INTEGER NOT NULL DEFAULT 1; ALTER TABLE venues ADD COLUMN stripe_customer TEXT; ALTER TABLE venues ADD COLUMN stripe_subscription TEXT");
+  // A venue an admin has stopped from sharing buzzers (it shared clips it had no right to).
+  if (!db.prepare('PRAGMA table_info(venues)').all().some(c => c.name === 'library_banned')) db.exec('ALTER TABLE venues ADD COLUMN library_banned INTEGER NOT NULL DEFAULT 0');
   const one = (sql, ...a) => db.prepare(sql).get(...a), rows = (sql, ...a) => db.prepare(sql).all(...a), run = (sql, ...a) => db.prepare(sql).run(...a);
   const attempts = new Map();
   // Ten tries a minute per address (and per email for sign-in), then a pause.
@@ -291,9 +296,38 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     return {imported: venues.length, removed, errors};
   }
 
-  async function body(req) {
+  // ---- The shared buzzer library ----
+  // Quiz laptops of BeerMat Pro venues share short sound clips with each other. Anyone can see what's there (names
+  // and lengths, never who shared them); playing, adding, sharing and reporting take a request signed by a Pro
+  // venue's laptop. Clips go up straight away and come down when reported: three venues reporting one hides it until
+  // an admin looks. Whoever shares a clip confirms they have the right to.
+  function proLaptop(request, kind, {pro = true} = {}) {
+    check(request && request.kind === kind && request.v === 1 && Number.isSafeInteger(request.at) && verifyClaim(request), 'Not a request from a quiz laptop');
+    check(Math.abs(now() - request.at) < 10 * 60000, 'This laptop’s clock is wrong: set its date and time, then try again');
+    const v = venueOfKey(request.venueKey);
+    check(v, 'Register this laptop with your venue first (desk: Venue)', 403);
+    check(!pro || planOf(v) === 'pro', 'The shared buzzer library is part of BeerMat Pro', 403);
+    return v;
+  }
+  // Any audio in; out comes MP3, mono, silence trimmed from both ends, at an even loudness, ten seconds at most.
+  function transcode(audio) {
+    return new Promise((resolve, reject) => {
+      const trim = 'silenceremove=start_periods=1:start_threshold=-50dB,areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse';
+      const child = spawn(ffmpeg, ['-v', 'error', '-i', 'pipe:0', '-t', '10', '-af', `${trim},loudnorm=I=-14:TP=-1`, '-ac', '1', '-ar', '44100', '-b:a', '128k', '-f', 'mp3', 'pipe:1'], {stdio: ['pipe', 'pipe', 'ignore']});
+      const out = [], timer = setTimeout(() => child.kill('SIGKILL'), 20000);
+      child.stdout.on('data', c => out.push(c));
+      child.on('error', () => {clearTimeout(timer); reject(new ApiError(503, 'Sharing buzzers isn’t set up on this service yet'));});
+      child.on('close', code => {clearTimeout(timer); const mp3 = Buffer.concat(out); code === 0 && mp3.length > 2000 ? resolve(mp3) : reject(new ApiError(400, 'That file isn’t a sound we can use. Try an MP3, Ogg or WAV.'));});
+      child.stdin.on('error', () => {});
+      child.stdin.end(audio);
+    });
+  }
+  const buzzerOut = b => ({id: b.id, name: b.name, seconds: Math.round(b.seconds * 10) / 10, added: b.created});
+  const sharedBuzzer = buzzerId => {const b = one('SELECT * FROM shared_buzzers WHERE id=? AND removed IS NULL', buzzerId); check(b, 'That buzzer isn’t in the library any more', 404); return b;};
+
+  async function body(req, max = 400 * 1024) {
     const chunks = []; let size = 0;
-    for await (const chunk of req) {size += chunk.length; check(size <= 400 * 1024, 'Request too large', 413); chunks.push(chunk);}
+    for await (const chunk of req) {size += chunk.length; check(size <= max, 'Request too large', 413); chunks.push(chunk);}
     if (!size) return {};
     try {const value = JSON.parse(Buffer.concat(chunks)); check(value && typeof value === 'object' && !Array.isArray(value), 'Send a JSON object'); return value;}
     catch (e) {throw e instanceof ApiError ? e : new ApiError(400, 'Send valid JSON');}
@@ -341,7 +375,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         const base = path.resolve(adminDir), file = path.resolve(base, decodeURIComponent(p.slice(7)) || 'index.html');
         check(file.startsWith(base + path.sep) && existsSync(file) && statSync(file).isFile() && staticTypes[path.extname(file)], 'Not found', 404);
         res.writeHead(200, {'Content-Type': staticTypes[path.extname(file)], 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-cache',
-          'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; connect-src 'self' https://api.postcodes.io; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"});
+          'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; media-src blob:; connect-src 'self' https://api.postcodes.io; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"});
         return res.end(readFileSync(file));
       }
       // The venue list, in venues.json's format: copied nightly into the repository (.github/workflows/venues-backup.yml).
@@ -369,7 +403,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         run('INSERT OR IGNORE INTO stripe_events VALUES(?,?)', event.id, now());
         return send(200, {received: true});
       }
-      const input = ['POST', 'PATCH', 'PUT'].includes(method) ? await body(req) : {};
+      // A shared buzzer arrives as base64 audio: up to 2 MB of it.
+      const input = ['POST', 'PATCH', 'PUT'].includes(method) ? await body(req, method === 'POST' && p === '/v1/buzzers' ? 3 * 1024 * 1024 : undefined) : {};
       const parts = p.split('/').slice(2);
 
       // ---- Accounts ----
@@ -511,6 +546,51 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return send(201, {reported: true});
       }
 
+      // ---- The shared buzzer library (see proLaptop) ----
+      if (method === 'GET' && p === '/v1/buzzers') {
+        const q = (url.searchParams.get('q') || '').trim().toLowerCase().slice(0, 60), like = `%${q.replace(/[%_]/g, '')}%`;
+        return send(200, {buzzers: rows("SELECT id,name,seconds,created FROM shared_buzzers WHERE removed IS NULL AND hidden=0 AND (?='' OR lower(name) LIKE ?) ORDER BY created DESC LIMIT 500", q, like).map(buzzerOut)});
+      }
+      if (method === 'POST' && p === '/v1/buzzers') {
+        const request = input.request, v = proLaptop(request, 'beermat.buzzer-upload');
+        check(!v.library_banned, 'This venue can’t share buzzers any more. Email hello@beermatquiz.co.uk if you think that’s wrong.', 403);
+        check(request.rights === true, 'Confirm you have the right to share this clip');
+        const name = text(request.name, 60, {required: true, name: 'Buzzer name'});
+        check(typeof input.audio === 'string' && input.audio.length <= 3 * 1024 * 1024, 'Send the clip as base64 audio, up to 2 MB');
+        const audio = Buffer.from(input.audio, 'base64');
+        check(audio.length > 0 && sha(audio) === request.sha256, 'The clip doesn’t match what the laptop signed');
+        check(one('SELECT COUNT(*) n FROM shared_buzzers WHERE venue=? AND created>?', v.id, now() - 86400000).n < 30, 'That’s 30 buzzers shared today: share more tomorrow', 429);
+        const mp3 = await transcode(audio), buzzerId = id();
+        run('INSERT INTO shared_buzzers(id,name,venue,venue_key,audio,seconds,created) VALUES(?,?,?,?,?,?,?)', buzzerId, name, v.id, request.venueKey, mp3, mp3.length * 8 / 128000, now());
+        return send(201, buzzerOut(one('SELECT * FROM shared_buzzers WHERE id=?', buzzerId)));
+      }
+      if (method === 'POST' && parts[0] === 'buzzers' && parts.length === 3 && parts[2] === 'audio') {
+        const request = input.request; proLaptop(request, 'beermat.buzzer-get'); check(request.buzzer === parts[1], 'Not a request for this buzzer');
+        const b = sharedBuzzer(parts[1]); check(!b.hidden, 'That buzzer has been reported and is waiting for a check', 404);
+        return send(200, {...buzzerOut(b), audio: Buffer.from(b.audio).toString('base64')});
+      }
+      // A venue takes back a clip it shared (whatever its plan now).
+      if (method === 'POST' && parts[0] === 'buzzers' && parts.length === 3 && parts[2] === 'remove') {
+        const request = input.request, v = proLaptop(request, 'beermat.buzzer-remove', {pro: false}); check(request.buzzer === parts[1], 'Not a request for this buzzer');
+        const b = sharedBuzzer(parts[1]); check(b.venue === v.id, 'Only the venue that shared a buzzer can take it out', 403);
+        run('UPDATE shared_buzzers SET removed=?,audio=NULL WHERE id=?', now(), b.id);
+        return send(200, {removed: true});
+      }
+      // One report per venue per clip; the third venue's report hides it, and BeerMat is told.
+      if (method === 'POST' && parts[0] === 'buzzers' && parts.length === 3 && parts[2] === 'report') {
+        const request = input.request, v = proLaptop(request, 'beermat.buzzer-report'); check(request.buzzer === parts[1], 'Not a request for this buzzer');
+        const b = sharedBuzzer(parts[1]), reporter = 'venue:' + v.id, reason = text(request.reason, 500, {required: true, name: 'What’s wrong'});
+        if (!one("SELECT 1 FROM reports WHERE kind='buzzer' AND target=? AND reporter=? AND resolved IS NULL", b.id, reporter))
+          run('INSERT INTO reports(id,kind,target,reason,reporter,created) VALUES(?,?,?,?,?,?)', id(), 'buzzer', b.id, reason, reporter, now());
+        const reports = one("SELECT COUNT(DISTINCT reporter) n FROM reports WHERE kind='buzzer' AND target=? AND resolved IS NULL", b.id).n;
+        if (reports >= 3 && !b.hidden) {
+          run('UPDATE shared_buzzers SET hidden=1 WHERE id=?', b.id);
+          if (mail && adminEmail) mail({to: adminEmail, subject: `Shared buzzer hidden after ${reports} reports: ${b.name}`,
+            text: `“${b.name}” was reported by ${reports} venues and is hidden from the library until you look at it.\n\nLatest report: ${reason}\n\nCheck it: ${publicUrl.replace(/\/$/, '')}/admin/#buzzers\n`}).catch(e => console.error('Email not sent:', e.message));
+        }
+        return send(201, {reported: true});
+      }
+
       // ---- Admin console ----
       const admin = () => {const a = me(); check(a.admin, 'Admins only', 403); return a;};
       if (method === 'GET' && p === '/v1/admin/overview') {
@@ -522,12 +602,13 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
           mappedVenues: n('SELECT COUNT(*) n FROM venues WHERE lat IS NOT NULL'), proVenues: n("SELECT COUNT(*) n FROM venues WHERE plan='pro' AND (plan_until IS NULL OR plan_until>?)", now()), accounts: n('SELECT COUNT(*) n FROM accounts'), admins: n('SELECT COUNT(*) n FROM accounts WHERE admin=1'),
           newAccounts: n('SELECT COUNT(*) n FROM accounts WHERE created>?', now() - 7 * 86400000), results: n('SELECT COUNT(*) n FROM results'), laptops: n('SELECT COUNT(*) n FROM venue_keys'),
           venueResults: n('SELECT COUNT(*) n FROM venue_results'), upcoming: n('SELECT COUNT(*) n FROM events WHERE cancelled=0 AND starts>? AND starts<?', now(), now() + 7 * 86400000),
-          openReports: n('SELECT COUNT(*) n FROM reports WHERE resolved IS NULL'), awaitingApproval: n('SELECT COUNT(*) n FROM venues WHERE approved=0'), databaseBytes: (() => {try {return statSync(database).size;} catch {return null;}})(), lastBackup, startedAt, now: now()});
+          openReports: n('SELECT COUNT(*) n FROM reports WHERE resolved IS NULL'), awaitingApproval: n('SELECT COUNT(*) n FROM venues WHERE approved=0'),
+          sharedBuzzers: n('SELECT COUNT(*) n FROM shared_buzzers WHERE removed IS NULL'), hiddenBuzzers: n('SELECT COUNT(*) n FROM shared_buzzers WHERE removed IS NULL AND hidden=1'), databaseBytes: (() => {try {return statSync(database).size;} catch {return null;}})(), lastBackup, startedAt, now: now()});
       }
       if (method === 'GET' && p === '/v1/admin/venues') {
         admin();
         return send(200, {venues: rows('SELECT v.*, a.email operator_email, a.display_name operator_name FROM venues v LEFT JOIN accounts a ON a.id=v.owner ORDER BY v.name COLLATE NOCASE').map(v => ({
-          ...venueOut(v), operator: v.owner ? {email: v.operator_email, name: v.operator_name} : null, plan: planOf(v), planSet: v.plan, planUntil: v.plan_until, approved: !!v.approved, stripeCustomer: v.stripe_customer, stripeSubscription: v.stripe_subscription,
+          ...venueOut(v), operator: v.owner ? {email: v.operator_email, name: v.operator_name} : null, plan: planOf(v), planSet: v.plan, planUntil: v.plan_until, approved: !!v.approved, libraryBanned: !!v.library_banned, stripeCustomer: v.stripe_customer, stripeSubscription: v.stripe_subscription,
           laptops: rows('SELECT key_id id, added FROM venue_keys WHERE venue=? ORDER BY added', v.id),
           upcoming: rows('SELECT * FROM events WHERE venue=? AND cancelled=0 AND starts>? ORDER BY starts LIMIT 20', v.id, now()).map(e => ({id: e.id, title: e.title, startsAt: e.starts, regular: !!e.regular})),
           sharedResults: rows('SELECT r.summary, r.received FROM venue_results r JOIN venue_keys k ON k.public_key=r.venue_key WHERE k.venue=? ORDER BY r.received DESC LIMIT 10', v.id)
@@ -536,9 +617,10 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       }
       if (method === 'GET' && p === '/v1/admin/reports') {
         admin();
-        const list = rows(`SELECT r.*, v.name venue_name, a.email reporter_email FROM reports r LEFT JOIN venues v ON r.kind='venue' AND v.id=r.target LEFT JOIN accounts a ON a.id=r.reporter
+        const list = rows(`SELECT r.*, v.name venue_name, b.name buzzer_name, a.email reporter_email, rv.name reporter_venue FROM reports r LEFT JOIN venues v ON r.kind='venue' AND v.id=r.target
+          LEFT JOIN shared_buzzers b ON r.kind='buzzer' AND b.id=r.target AND b.removed IS NULL LEFT JOIN accounts a ON a.id=r.reporter LEFT JOIN venues rv ON r.reporter='venue:' || rv.id
           WHERE ?=1 OR r.resolved IS NULL ORDER BY r.created DESC LIMIT 200`, Number(url.searchParams.get('all') === '1'));
-        return send(200, {reports: list.map(r => ({id: r.id, kind: r.kind, target: r.target, targetName: r.venue_name || '(removed)', reason: r.reason, reporter: r.reporter_email || null, created: r.created, resolved: r.resolved}))});
+        return send(200, {reports: list.map(r => ({id: r.id, kind: r.kind, target: r.target, targetName: r.venue_name || r.buzzer_name || '(removed)', reason: r.reason, reporter: r.reporter_email || r.reporter_venue || null, created: r.created, resolved: r.resolved}))});
       }
       if (method === 'PATCH' && parts[0] === 'admin' && parts[1] === 'reports' && parts.length === 3) {
         admin(); check(one('SELECT 1 FROM reports WHERE id=?', parts[2]), 'Report not found', 404);
@@ -560,6 +642,32 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return send(200, {ok: true});
       }
 
+      // Shared buzzers: every clip with who shared it and its open reports; an admin plays, hides, shows or removes one,
+      // and can stop a venue sharing any more.
+      if (method === 'GET' && p === '/v1/admin/buzzers') {
+        admin();
+        return send(200, {buzzers: rows(`SELECT b.id,b.name,b.seconds,b.created,b.hidden,b.venue,v.name venue_name,(SELECT COUNT(*) FROM reports r WHERE r.kind='buzzer' AND r.target=b.id AND r.resolved IS NULL) reports
+          FROM shared_buzzers b LEFT JOIN venues v ON v.id=b.venue WHERE b.removed IS NULL ORDER BY b.hidden DESC, reports DESC, b.created DESC LIMIT 1000`)
+          .map(b => ({...buzzerOut(b), hidden: !!b.hidden, venue: b.venue, venueName: b.venue_name || '(venue removed)', reports: b.reports}))});
+      }
+      if (method === 'GET' && parts[0] === 'admin' && parts[1] === 'buzzers' && parts.length === 4 && parts[3] === 'audio') {
+        admin(); const b = sharedBuzzer(parts[2]);
+        res.writeHead(200, {'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}); return res.end(Buffer.from(b.audio));
+      }
+      if (parts[0] === 'admin' && parts[1] === 'buzzers' && parts.length === 3 && (method === 'PATCH' || method === 'DELETE')) {
+        admin(); const b = sharedBuzzer(parts[2]);
+        if (method === 'DELETE') run('UPDATE shared_buzzers SET removed=?,audio=NULL WHERE id=?', now(), b.id);
+        else {check(typeof input.hidden === 'boolean', 'Invalid setting'); run('UPDATE shared_buzzers SET hidden=? WHERE id=?', Number(input.hidden), b.id);}
+        // Its reports are dealt with either way.
+        run("UPDATE reports SET resolved=? WHERE kind='buzzer' AND target=? AND resolved IS NULL", now(), b.id);
+        return send(200, {ok: true});
+      }
+      if (method === 'POST' && parts[0] === 'admin' && parts[1] === 'venues' && parts.length === 4 && parts[3] === 'library') {
+        admin(); check(one('SELECT 1 FROM venues WHERE id=?', parts[2]), 'Venue not found', 404); check(typeof input.banned === 'boolean', 'Invalid setting');
+        run('UPDATE venues SET library_banned=? WHERE id=?', Number(input.banned), parts[2]);
+        if (input.banned) run('UPDATE shared_buzzers SET removed=?,audio=NULL WHERE venue=? AND removed IS NULL', now(), parts[2]);
+        return send(200, {ok: true});
+      }
       // An admin sets a venue's plan by hand (free, or pro with or without an end date).
       if (method === 'PATCH' && parts[0] === 'admin' && parts[1] === 'venues' && parts.length === 3) {
         admin();
