@@ -155,23 +155,25 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
    XWayland (`QT_QPA_PLATFORM=xcb`) as Electron does, with a guided "drag the TV window to the TV and press F11"
    fallback.
 
-## 6. Stages and status
+## 6. Stages and status (updated 28 Oct 2026, evening)
 
 | Stage | Status |
 |---|---|
-| 1. Audit and shared contracts | **done**: this file, `CLIENT-PROTOCOL.md`, protocol version + discovery + tests |
-| 2. Native Qt foundation | **done**: server lifecycle, workspace shell, single instance, rotating logs, XWayland preference; todo: keyring for the key, first-run welcome |
-| 3. Native desk workspaces | Live, Rehearsal, Teams & marking, Venue & network **built**; Settings partly (plan, data, key, screens); Quizzes **built** for common fields (per-format options in the web desk meanwhile); BeerMat Online venue sign-in: todo |
-| 4. Native TV | **built** for the main views (see §2.2); sounds, word snake, looks: todo |
-| 5. Rehearsal and licensing UI | **built**: options, simulated teams and actions, test phones apart, log, go live; plan display and check |
-| 6. Android | **built**: `native/android`, debug APK builds, 7 JVM tests pass (2 against the real server); UI unverified on a device; Online screens todo |
-| 7. iOS | **written, not compiled**: `native/ios` (SwiftUI app + `BeerMatKit` package with unit and server tests); no Xcode or Swift toolchain here |
-| 8. Packaging | Linux **built and run**: `native/packaging/build.py` → 150 MB `.tar.gz`, started with an empty `PATH` (bundled Node served the quiz); AppImage needs `appimagetool` (not installed); Windows `.zip` + Inno Setup installer written, **not built** (needs a Windows machine); Android debug APK built; iOS not built |
-| 9. Legacy retirement | not before 3–8 are verified and you approve |
+| 1. Audit and shared contracts | **done** |
+| 2. Native Qt foundation | **done**: server lifecycle and restart, single instance, logs, first-run welcome, backup and restore, XWayland + EGL on Wayland |
+| 3. Native desk workspaces | **built, near parity**: Live (with every format's controls, Tools: TV mode, wheel, countdown, tie-breaker, room switches), Rehearsal, Quizzes (every format's options, media upload, pinpoint target, clips and songs, Drive, save with media), Teams & marking (past questions, notes, photos, returning teams, past quizzes, blocked names, results), Venue & network (quiz Wi-Fi, venue LAN, online link, checks, BeerMat Online for the venue), Settings (plan, quiz room, sounds and buzzers, bingo calls, looks and sound themes, Spotify Connect, screens and TV sound, data, key). 10 desk tests |
+| 4. Native TV | **built, near parity**: every view and format, reveal tallies and scorers, spotlight, confetti, look colours, the TV's sounds (soundCues), screen choice and blank; real two-screen check passed under XWayland |
+| 5. Rehearsal and licensing | **done**: server-enforced; desk shows test phones apart; all three player clients tested as test devices |
+| 6. Android | **built and UI-tested on an emulator**: all 18 formats native, team sound and photo, rotation, backgrounding, network drop, Online (profile, keep result, find, map, reminders). 8 JVM tests, 4 instrumented UI tests |
+| 7. iOS | **written, not compiled** (no macOS/Xcode): same features as Android; BeerMatKit tests ready for `swift test` |
+| 8. Packaging | Linux `.tar.gz` **built and run** (167 MB, bundled Node, Python, Qt incl. Multimedia); AppImage needs `appimagetool`; Windows installer script written, **not built**; Android debug APK built; iOS not built |
+| 9. Legacy retirement | **not started**, as agreed: Electron, Capacitor and the browser player all still pass their tests |
 
-Realistic size, from the prototype's measured pace (`NATIVE-DESK.md` §4): desk to parity 6–7 weeks; native TV
-2–3 weeks; each phone app 3–5 weeks (formats, Online screens); packaging 1 week. Electron and Capacitor keep shipping
-meanwhile.
+### Still to do
+
+* **Languages** (French, Spanish) in the native apps and the native TV: the browser player and web TV have them. Plan: export the dictionary from `web/i18n.js` as the single source, add the apps' own phrases to it, generate it into the apps.
+* Desk: swap desk and TV screens, the quizmaster key in the system keychain, wheel tick sounds, the Halloween look's animated scenery, printing blank answer sheets.
+* Hardware: unplugging and replugging a TV (`native/tests/display_check.py --wait 60`), a real Android phone on a quiz Wi-Fi, any iPhone build at all, a Windows build and install.
 
 ## Real display check (28 Oct 2026, this development machine)
 
