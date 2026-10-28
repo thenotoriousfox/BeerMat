@@ -20,7 +20,7 @@ ApplicationWindow {
     property int workspace: 0
     readonly property var workspaces: [
         {name: "Live", icon: "●", key: "Ctrl+1"}, {name: "Rehearsal", icon: "◎", key: "Ctrl+2"}, {name: "Quizzes", icon: "▤", key: "Ctrl+3"},
-        {name: "Teams", icon: "♟", key: "Ctrl+4"}, {name: "Venue & network", icon: "⌁", key: "Ctrl+5"}, {name: "Settings", icon: "⚙", key: "Ctrl+6"}]
+        {name: "Teams & marking", icon: "♟", key: "Ctrl+4"}, {name: "Venue & network", icon: "⌁", key: "Ctrl+5"}, {name: "Settings", icon: "⚙", key: "Ctrl+6"}]
 
     background: Rectangle {
         gradient: Gradient {
@@ -61,6 +61,7 @@ ApplicationWindow {
         buttons: MessageDialog.Yes | MessageDialog.Cancel
         onButtonClicked: (button) => { if (button === MessageDialog.Yes && onYes) onYes() }
     }
+    MessageDialog { id: transferNote; title: "Move a team to another phone"; buttons: MessageDialog.Ok }
     function ask(title, text, yes) { confirm.title = title; confirm.text = text; confirm.onYes = yes; confirm.open() }
     Connections {
         target: desk
@@ -71,6 +72,10 @@ ApplicationWindow {
         }
         function onConfirmFinish(text) { window.ask("Finish the quiz?", text, () => desk.finishConfirmed()) }
         function onQuitRequested() { Qt.quit() }
+        function onTransferCode(code) {
+            transferNote.text = `On the team's new phone: open the quiz, then under “Get it back” (or “Already playing?” in the app) type ${code}. The code works for 5 minutes.`
+            transferNote.open()
+        }
     }
 
     RowLayout {
@@ -167,7 +172,7 @@ ApplicationWindow {
                                                  () => desk.startRehearsalWith(Object.assign(chosen(), {endLive: true})))
                 }
                 PendingWorkspace { heading: "Quizzes"; summary: "Browse, create, duplicate, import, export and edit quizzes: every format, scoring rule, media type and round."; onOpenWebDesk: window.openWebDesk() }
-                PendingWorkspace { heading: "Teams & marking"; summary: "Recovery codes, renaming, moving phones, returning teams, blocked names, marking and score corrections."; onOpenWebDesk: window.openWebDesk() }
+                TeamsWorkspace { view: window.view }
                 PendingWorkspace { heading: "Venue & network"; summary: "The quiz Wi-Fi, venue LAN and online link, joining codes, diagnostics, BeerMat Online and this laptop's registration."; onOpenWebDesk: window.openWebDesk() }
                 SettingsWorkspace { view: window.view; onOpenWebDesk: window.openWebDesk() }
             }

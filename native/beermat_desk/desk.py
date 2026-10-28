@@ -4,6 +4,7 @@ beyond choosing the label for Next, which mirrors web/host.js."""
 import base64
 import json
 import re
+import secrets
 import time
 from pathlib import Path
 
@@ -33,6 +34,7 @@ class Desk(QObject):
     confirmLoad = Signal(str)       # the quiz has been played: ask before replacing it (file path)
     confirmFinish = Signal(str)     # ask before finishing (what's at stake)
     quitRequested = Signal()        # Close BeerMat, pressed on a desk (also in a browser)
+    transferCode = Signal(str)      # a team's 4-digit code to move to another phone
 
     def __init__(self, data_dir, host_key, port=3000, laptop=True, parent=None):
         super().__init__(parent)
@@ -220,10 +222,41 @@ class Desk(QObject):
                      'venue': plan.get('venue') or '', 'expires': plan.get('expires') or 0, 'paidUntil': plan.get('paidUntil') or 0},
             'devices': [{'name': d['name'], 'connected': bool(d.get('connected'))} for d in rehearsal.get('devices', [])],
             'sims': [{'name': t['name'], 'connected': bool(t.get('connected')), 'manual': bool(t.get('manual'))} for t in rehearsal.get('sims', [])],
+            # Teams & marking: every team (disabled and waiting ones too), and the answers to the current question.
+            'allTeams': [{'id': t['id'], 'name': t['name'], 'score': t.get('score', 0), 'rank': t.get('rank', 0), 'enabled': bool(t.get('enabled')),
+                          'waiting': bool(t.get('waiting')), 'connected': bool(t.get('connected')), 'note': t.get('note') or '',
+                          'answered': (t.get('stats') or {}).get('answered', 0)} for t in sorted(s.get('teams', []), key=lambda t: t['name'].lower())],
+            'waitingCount': sum(1 for t in s.get('teams', []) if t.get('waiting') and t.get('enabled')),
+            'answerRows': self._answer_rows(s, q),
+            'canMark': bool(q and not q.get('open') and not q.get('live')),
+            'isSheet': bool(q and q.get('type') == 'sheet'), 'sheetItems': (q or {}).get('items') or [],
             'progress': f'{len(played & {item.get("id") for _, item in questions})} of {len(questions)} questions played' if questions else '',
             'upcoming': upcoming,
         }
         self.viewChanged.emit()
+
+    @staticmethod
+    def _answer_rows(s, q):
+        """Each team's answer to the current question, as the web desk's marking cards: value, points, sheet marks."""
+        if not q:
+            return []
+        names = {t['id']: t['name'] for t in s.get('teams', [])}
+        rows = []
+        for a in s.get('answers', []):
+            if a.get('team') not in names:
+                continue
+            try:
+                value = json.loads(a['value']) if isinstance(a.get('value'), str) and a['value'][:1] in '[{"' else a.get('value')
+            except ValueError:
+                value = a.get('value')
+            shown = ', '.join(map(str, value)) if isinstance(value, list) else '' if value is None else str(value)
+            try:
+                marks = json.loads(a['marks']) if isinstance(a.get('marks'), str) else (a.get('marks') or [])
+            except ValueError:
+                marks = []
+            rows.append({'teamId': a['team'], 'team': names[a['team']], 'value': shown, 'items': value if isinstance(value, list) else [],
+                         'points': a.get('points') or 0, 'marks': marks, 'submitted': a.get('submitted') is not None})
+        return sorted(rows, key=lambda r: r['team'].lower())
 
     @staticmethod
     def _next_step(s, library):
@@ -343,6 +376,35 @@ class Desk(QObject):
             self.toast.emit(f'{name}: {action} ' + ('accepted' if result.get('ok') else f'refused: {result.get("detail") or "no reason given"}'), not result.get('ok'))
             self.refresh()
         self.api.host('rehearsal/team', {'name': name, 'action': action}, done, lambda e: self.toast.emit(e, True))
+
+    # ---- teams and marking (the server checks every value) ----
+    @Slot(str, int)
+    def mark(self, team, points):
+        self._act('mark', {'team': team, 'question': self._expected(), 'points': points}, 'Marked')
+
+    @Slot(str, 'QVariantList')
+    def markSheet(self, team, marks):
+        self._act('mark', {'team': team, 'question': self._expected(), 'marks': [1 if m else 0 for m in marks]}, 'Sheet marked')
+
+    @Slot(str, int, str)
+    def adjust(self, team, points, reason):
+        """A score correction with its reason; the request id makes a double press count once."""
+        self._act('adjust', {'team': team, 'points': points, 'reason': reason, 'requestId': secrets.token_hex(8)}, f'Score corrected by {points:+d}')
+
+    @Slot(str, str, str)
+    def teamAction(self, team, action, name=''):
+        """rename, disable, restore, admit or transfer (the server answers a 4-digit code for the team's new phone)."""
+        def done(reply):
+            if reply.get('code'):
+                self.transferCode.emit(reply['code'])
+            else:
+                self.toast.emit({'rename': 'Team renamed', 'disable': 'Team disabled', 'restore': 'Team restored', 'admit': 'Team let in'}.get(action, 'Done'), False)
+            self.refresh()
+        self.api.host('team', {'id': team, 'action': action, **({'name': name} if action == 'rename' else {})}, done, lambda e: self.toast.emit(e, True))
+
+    @Slot()
+    def admitAll(self):
+        self._act('admit', {}, 'Waiting teams let in')
 
     @Slot()
     def goLive(self):

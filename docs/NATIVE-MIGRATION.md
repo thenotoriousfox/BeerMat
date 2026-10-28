@@ -69,11 +69,11 @@ Rows are features; columns are the existing client and its native replacement.
 | Session mode, simulated teams, test devices listed apart | yes | **done** | view fields + test; panel UI: todo |
 | Rehearsal start/stop | yes | **done** (slots) | options UI, manual actions, log, go live: todo |
 | Plan display / refresh | yes | todo | |
-| Answers & marking | yes | todo | |
+| Answers & marking: current question, points or sheet items, score corrections | yes | **done** (hand mark + correction tested) | question history and paper answers: todo |
 | Buzzer, bingo, clips, wheel, countdown, tie-breaker controls | yes | todo | |
 | Waiting room, photos, away warnings | yes | todo | |
 | Quiz editor (18 formats) | yes | todo | largest single item |
-| Teams tab | yes | todo | |
+| Teams: let in (one or all), rename, move to another phone, disable/restore | yes | **built** | notes, returning teams/PINs, blocked names, photos, results download: todo |
 | Venue / Online | yes | todo | |
 | Settings: joining, hotspot, LAN, tunnel, sounds, bingo calls | yes | todo | server routes exist (`/api/host/laptop*`, `/network*`) |
 | Backup / restore / key / logs / data folder | yes | todo | backup message exists in `server-host.js` |
@@ -160,7 +160,7 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 |---|---|
 | 1. Audit and shared contracts | **done**: this file, `CLIENT-PROTOCOL.md`, protocol version + discovery + tests |
 | 2. Native Qt foundation | **done**: server lifecycle, workspace shell, single instance, rotating logs, XWayland preference; todo: keyring for the key, first-run welcome |
-| 3. Native desk workspaces | Live **built**; Settings partly (plan, data, key, screens); Quizzes, Teams, Venue: todo (open the web desk meanwhile) |
+| 3. Native desk workspaces | Live **built**; Teams & marking **built**; Settings partly (plan, data, key, screens); Quizzes (editor) and Venue & network: todo (open the web desk meanwhile) |
 | 4. Native TV | **built** for the main views (see §2.2); sounds, word snake, looks: todo |
 | 5. Rehearsal and licensing UI | **built**: options, simulated teams and actions, test phones apart, log, go live; plan display and check |
 | 6. Android | **built**: `native/android`, debug APK builds, 7 JVM tests pass (2 against the real server); UI unverified on a device; Online screens todo |
