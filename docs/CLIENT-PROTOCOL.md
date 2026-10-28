@@ -111,6 +111,12 @@ sees it), `/api/team/sound`, `/api/team/photo` (JPEG body), `/api/team/result` (
 
 The server checks every answer against the question and its timing; clients only shape the value.
 
+## Handing a team to the browser
+
+A native app that doesn't draw a round format opens the server's player page as `<server>/#team=<recovery code>`.
+The page stores the code as its team, removes the fragment from the address, and plays on. The fragment never reaches
+the server or its logs. Only a 48-character hex code is accepted (`tests/handover.browser.mjs`).
+
 ## Rehearsals and plans
 
 The server decides whether the session is **live** (BeerMat Pro) or a **rehearsal** (always on Free, optional on

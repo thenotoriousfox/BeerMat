@@ -103,13 +103,23 @@ the system browser on the TV screen.
 
 | Feature | Capacitor (both) | Android native | iOS native |
 |---|---|---|---|
-| QR scan (incl. Wi-Fi QR), typed address, recent quizzes | yes | todo | todo |
-| Join, recovery code kept, reconnect, transfer | yes (player page) | todo | todo |
-| All 18 formats, buzz, bingo, clips, pinpoint, word snake | yes (player page) | todo | todo |
-| Rehearsal connection screen | yes (player page) | todo | todo |
-| Haptics on new question / buzz turn | Android | todo | todo |
+| QR scan (incl. Wi-Fi QR), typed address, recent quizzes | yes | **built** (parsing unit-tested; scanner needs a device) | todo |
+| Discovery check (`/api/hello`, protocol version) | n/a | **done** | todo |
+| Join, recovery code kept (Keystore-encrypted), transfer code, reconnect | yes (player page) | **done** against the real server (join, state, stream); Keystore needs a device | todo |
+| Text, number, nearest, choice, vote, multi, letter, sequence, tiles, sheet | yes (player page) | **built**; choice and sequence answered against the real server | todo |
+| Buzzer: buzz, queue position, agree | yes | **built** (buzz refused for test devices: tested) | todo |
+| Pinpoint, word snake, bingo, music bingo, clips | yes | hand over to the browser player as the same team (**done**, browser side tested) | todo |
+| Scrambled keypads/tiles identical to the browser | yes | **done** (`seededOrder` checked against the JS output) | todo |
+| Rehearsal connection screen; server refuses play | yes (player page) | **done** (server refusals tested from the app's client) | todo |
+| Drafts, one final answer, points after marking | yes | **built** (second answer refused: tested) | todo |
+| Away reporting, haptics | Android | **built** | todo |
+| Picture and audio questions | yes | **built** | todo |
 | Profile, results, statistics, badges (Online) | yes | todo | todo |
 | Find a quiz, map, reminders (Online) | yes | todo | todo |
+| Team photo, buzzer sound, languages | yes | todo | todo |
+
+The native Android UI has not been run on a device or emulator yet (none here); it compiles, and its client code is
+tested against the real server.
 
 **Drift risk.** The Capacitor app shows the server's own player page, so it can't drift from the browser. A native
 player re-implements every format's input and display three times (browser, Kotlin, Swift). Mitigations: the server
@@ -130,6 +140,7 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 | `server-host.js` stdio channel (`BEERMAT_CHANNEL=stdio`) | yes: Electron channels unchanged | `native/tests/test_desk.py` |
 | `protocol: 1` on every state; `GET /api/hello` discovery | yes: new fields and route only | `tests/protocol.test.js` |
 | `web/qr.js` works without `TextEncoder`/`flatMap` (for QML's engine) | yes: same output | `tests/qr.test.js`, native test |
+| Player page accepts `#team=<code>` (handover from the native apps) | yes: client-only, fragment never sent | `tests/handover.browser.mjs` |
 
 ## 5. Decisions needing approval
 
@@ -152,7 +163,7 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 | 3. Native desk workspaces | Live **built**; Settings partly (plan, data, key, screens); Quizzes, Teams, Venue: todo (open the web desk meanwhile) |
 | 4. Native TV | **built** for the main views (see §2.2); sounds, word snake, looks: todo |
 | 5. Rehearsal and licensing UI | **built**: options, simulated teams and actions, test phones apart, log, go live; plan display and check |
-| 6. Android | todo |
+| 6. Android | **built**: `native/android`, debug APK builds, 7 JVM tests pass (2 against the real server); UI unverified on a device; Online screens todo |
 | 7. iOS | todo (unverifiable here) |
 | 8. Packaging | todo |
 | 9. Legacy retirement | not before 3–8 are verified and you approve |

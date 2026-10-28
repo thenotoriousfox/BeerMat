@@ -3,6 +3,10 @@ import {t, setLanguage, language, languages, translatePage} from './i18n.js';
 import {$, element, api, message, readStorage, writeStorage, renderMedia, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('beermat-team'), current = null, renderedQuestion = 'unset', offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
+// The native apps hand their team to this page, for a round format they don't draw themselves, as #team=<code>: the
+// fragment never reaches the server or its logs, and is removed at once.
+const handedOver = role === 'player' && /^#team=([0-9a-f]{48})$/.exec(location.hash);
+if (handedOver) {secret = handedOver[1]; writeStorage('beermat-team', secret); history.replaceState(null, '', location.pathname + location.search);}
 let build = null, reloading = false, firstArmed = null, firstTimer, localDraft = null, inputRevision = 0, inFlight = false, lastBuzzer = '', wheelId = null, wheelTurn = 0, winnerShown = '';
 const inputs = () => [...$('inputs').querySelectorAll('input,select')];
 const draftKey = id => `beermat-draft:${secret}:${id}`;
