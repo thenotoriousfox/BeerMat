@@ -274,10 +274,13 @@ function run() {
   }
 
   // First run: how players join; the TV screen is automatic.
+  // Windows asks whether BeerMat may use the network as its quiz server starts, just before this welcome; turning it
+  // down stops phones connecting, so the welcome says what to choose and how to put it right.
+  const firewallNote = process.platform === 'win32' ? '\n\nWindows Firewall: if Windows asked whether to allow BeerMat on networks, choose Allow (with Private networks ticked), or phones can’t connect. Said no? Open Windows Security → Firewall & network protection → Allow an app through firewall, and tick BeerMat for Private.' : '';
   async function welcome() {
     if (prefs.get().welcomed || test) return;
     const {response} = await dialog.showMessageBox(desk, {type: 'question', title: 'Welcome to BeerMat', message: 'How will players join your quizzes?',
-      detail: 'Venue Wi-Fi: phones on the venue’s own Wi-Fi open this laptop’s address.\nBeerMat Wi-Fi: this laptop makes its own quiz Wi-Fi, no internet needed.\n\nYou can change this any time under “How players join”. A TV or projector plugged in as a second screen shows the quiz by itself.',
+      detail: 'Venue Wi-Fi: phones on the venue’s own Wi-Fi open this laptop’s address.\nBeerMat Wi-Fi: this laptop makes its own quiz Wi-Fi, no internet needed.\n\nYou can change this any time under “How players join”. A TV or projector plugged in as a second screen shows the quiz by itself.' + firewallNote,
       buttons: ['Venue Wi-Fi or network', 'BeerMat Wi-Fi from this laptop', 'Decide later'], defaultId: 0, cancelId: 2});
     try {
       if (response === 0) {
