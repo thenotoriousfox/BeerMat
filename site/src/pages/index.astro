@@ -1,117 +1,194 @@
 ---
 import Page from '../layouts/Page.astro';
+import Shot from '../components/Shot.astro';
 import {PRICE, FREE_LIMITS} from '../consts';
 
-const steps = [
-	['1', 'Open BeerMat on the laptop', 'Write your quiz on the desk, or load one you made earlier. Windows or Linux.'],
-	['2', 'Put the quiz on the TV', 'A second screen, a projector or the pub’s big telly. It shows the questions, a QR code to join and the scores.'],
-	['3', 'Teams play on their phones', 'They scan the code and play in their browser: no app, no account, no sign-up. Answers land on your desk as they come in.'],
+// Screenshots are of the real app running a demo quiz (scripts/site-screenshots.mjs makes them again).
+const TV = {width: 1600, height: 900}, DESK = {width: 1600, height: 1000}, PHONE = {width: 780, height: 1688};
+const screens = [
+	{n: '1', where: 'On the telly', title: 'The quiz on the big screen', text: 'The question, the clock and a QR code to join, big enough for the back of the room. A second screen, a projector or the pub’s TV.',
+		shot: {src: '/shots/tv-question.webp', alt: 'The TV during a question: four coloured answers and the time left', ...TV}},
+	{n: '2', where: 'On every table', title: 'Teams play on a phone', text: 'Heads together round one phone, then a tap to answer. They play in the browser: no app, no account, no sign-up.',
+		shot: {src: '/shots/phone-choice.webp', alt: 'A team’s phone during a question, with four answers to tap', ...PHONE}, tall: true},
+	{n: '3', where: 'Behind the bar', title: 'You run it from the desk', text: 'The next question is one big button. Answers are marked as they arrive, and you see which teams are in.',
+		shot: {src: '/shots/desk.webp', alt: 'The quizmaster’s desk: the live question, which teams have answered, and what’s up next', ...DESK}},
 ];
-const formats = [
-	['Multiple choice', 'and multi-tap, with speed bonuses'], ['Buzz-in', 'first to buzz answers out loud'], ['Nearest wins', 'for the “how many…” questions'],
-	['Picture & audio', 'pictures, clips and intros'], ['Pinpoint', 'tap the spot on the picture'], ['Number & music bingo', 'tickets on every phone'],
-	['Word snake', 'trace the answer through a grid'], ['Letter tiles', 'unscramble the answer'], ['Sequence', 'put them in order'],
-	['Sound clips', 'tap THIS ONE! on the right clip'], ['Answer sheets', 'several answers, one question'], ['Votes', 'let the room decide'],
+const formatShots = [
+	['phone-wordsnake', 'Word snake', 'Trace the answer through a grid of letters'],
+	['phone-pinpoint', 'Pinpoint', 'Tap the spot on the picture'],
+	['phone-tiles', 'Letter tiles', 'Rebuild the answer from the tiles'],
+	['phone-sequence', 'Sequence', 'Put them in the right order'],
+	['phone-buzzer', 'Buzz-in', 'First to buzz answers out loud'],
+	['phone-bingo', 'Bingo', 'A ticket on every phone; shout BINGO!'],
 ];
-const features = [
-	['No internet needed', 'The laptop makes its own quiz Wi-Fi, or uses the pub’s. If the internet goes down, the quiz doesn’t.'],
-	['The desk does the marking', 'Typed answers are marked as they arrive, with alternative spellings. Overrule anything with one tap.'],
-	['Built for the room', 'A big Next button, a checklist before you start, buzzers with silly sounds, and a leaderboard reveal.'],
-	['Nothing lost', 'Everything saves as you go. If the laptop restarts, the quiz carries on where it was, and teams keep their place.'],
-	['Your pub on the map', 'With BeerMat Pro, your pub and its quiz nights are on the BeerMat map, in the app and on this website, so players can find you.'],
-	['A library of buzzers', 'Every team picks a buzzer sound. With BeerMat Pro, add more from a library other BeerMat pubs share, and share your own.'],
-];
+const formats = ['Multiple choice', 'Tick all that apply', 'Letter keypad', 'Numbers', 'Nearest wins', 'Typed answers', 'Picture rounds', 'Audio rounds',
+	'Votes', 'Sequence', 'Pinpoint', 'Word snake', 'Letter tiles', 'Buzz-in', 'Number bingo', 'Music bingo', 'Sound clips', 'Answer sheets'];
+// Small line icons for the reasons list.
+const icons = {
+	offline: 'M3 8.5a13 13 0 0 1 18 0M6.5 12a8 8 0 0 1 11 0M10 15.5a3 3 0 0 1 4 0M12 19h.01',
+	marking: 'M4 12.5l5 5L20 6.5',
+	room: 'M4 5h16v11H4zM9 20h6M12 16v4',
+	saved: 'M5 4h11l3 3v13H5zM8 4v5h8V4M8 20v-6h8v6',
+	map: 'M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+	buzzer: 'M7 15a5 5 0 0 1 10 0M5 15h14v3H5zM12 5v3M7.5 6.5l1.5 2.5M16.5 6.5 15 9',
+};
+const reasons = [
+	['offline', 'No internet needed', 'The laptop makes its own quiz Wi-Fi, or uses the pub’s. If the internet goes down, the quiz doesn’t.'],
+	['marking', 'The desk does the marking', 'Typed answers are marked as they arrive, with alternative spellings. Overrule anything with one tap.'],
+	['room', 'Built for the room', 'A big Next button, a checklist before you start, buzzers with silly sounds, and a leaderboard reveal.'],
+	['saved', 'Nothing lost', 'Everything saves as you go. If the laptop restarts, the quiz carries on where it was, and teams keep their place.'],
+	['map', 'Your pub on the map', 'With BeerMat Pro, your pub and its quiz nights are on the BeerMat map, in the app and on this website, so players can find you.'],
+	['buzzer', 'A library of buzzers', 'Every team picks a buzzer sound. With BeerMat Pro, add more from a library other BeerMat pubs share, and share your own.'],
+] as const;
 ---
 <Page>
-	<section class="wrap grid items-center gap-10 pt-6 pb-16 lg:grid-cols-[1.05fr_1fr] lg:pt-14">
+	<!-- Hosting first: what BeerMat is, and trying it. Players have their own route, set apart. -->
+	<section class="wrap grid items-center gap-12 pt-6 pb-20 lg:grid-cols-[1fr_1.1fr] lg:pt-12">
 		<div>
-			<p class="eyebrow">Pub quiz software</p>
-			<h1 class="text-4xl sm:text-5xl lg:text-6xl">Run the whole pub quiz from <span class="text-amber neon">one laptop</span></h1>
+			<p class="eyebrow">Pub quiz software for hosts</p>
+			<h1 class="text-4xl text-balance sm:text-5xl lg:text-6xl">Run the whole pub quiz from <span class="text-amber neon">one laptop</span></h1>
 			<p class="mt-5 max-w-xl text-lg text-muted">The desk for the quizmaster, the quiz on the TV, and every team playing on their phones. No paper, no marking by hand, and it works with or without internet.</p>
 			<div class="mt-8 flex flex-wrap gap-3">
 				<a href="/download" class="btn btn-primary">Try it free</a>
-				<a href="/find" class="btn btn-ghost">Find a quiz near you</a>
+				<a href="#how" class="btn btn-ghost">See how it works</a>
 			</div>
-			<p class="mt-4 text-sm text-muted">Free to try: {FREE_LIMITS.questions} questions and {FREE_LIMITS.teams} teams. Players never pay.</p>
+			<p class="mt-4 text-sm text-muted">Free to try with {FREE_LIMITS.questions} questions and {FREE_LIMITS.teams} teams. Players never pay.</p>
+			<p class="mt-6 text-sm text-muted">Playing, not hosting? <a href="/find" class="font-semibold">Find a quiz near you →</a></p>
 		</div>
-		<div class="relative">
-			<img src="/shots/tv.png" alt="The quiz on the TV: a question, a timer and the QR code to join" width="1280" height="720" class="rounded-2xl border border-white/15 shadow-2xl shadow-pink/20" />
-			<img src="/shots/phone.png" alt="A team answering on a phone" width="390" height="844" class="absolute -right-2 -bottom-16 w-24 rounded-2xl border border-white/20 shadow-2xl sm:w-32 lg:-right-6" />
+		<div class="relative pb-10 sm:pb-14 lg:pb-0">
+			<Shot src="/shots/tv-question.webp" alt="The quiz on the TV: the question, four coloured answers and the time left" {...TV} loading="eager" class="shadow-2xl shadow-pink/20" />
+			<div class="absolute -bottom-4 right-3 w-[20%] max-w-[8rem] sm:right-6 lg:-bottom-16 lg:-right-6">
+				<Shot src="/shots/phone-choice.webp" alt="A team answering the same question on a phone" {...PHONE} loading="eager" class="!rounded-2xl border-white/30 shadow-2xl" />
+			</div>
 		</div>
 	</section>
 
-	<section id="how" class="wrap scroll-mt-8 py-16">
-		<p class="eyebrow">How it works</p>
-		<h2 class="text-3xl sm:text-4xl">Three screens, one laptop</h2>
-		<ol class="mt-8 grid gap-5 md:grid-cols-3">
-			{steps.map(([n, title, text]) => (
-				<li class="card list-none">
-					<span class="font-display mb-3 grid h-11 w-11 place-items-center rounded-full bg-amber text-xl font-bold text-night">{n}</span>
-					<h3 class="text-xl">{title}</h3>
-					<p class="text-muted">{text}</p>
+	<!-- The night itself: what the room sees, what teams do, what you do. -->
+	<section id="how" class="scroll-mt-6 border-y border-white/10 bg-white/[.025] py-20">
+		<div class="wrap">
+			<p class="eyebrow">How it works</p>
+			<h2 class="max-w-3xl text-3xl text-balance sm:text-4xl">A quiz night on three screens, from one laptop</h2>
+			<p class="max-w-2xl text-muted">Open BeerMat on the laptop, put the quiz on the TV, and teams join by scanning the code. Everyone’s looking at something different.</p>
+			<ol class="mt-10 grid gap-10 lg:grid-cols-[1fr_.5fr_1fr] lg:grid-rows-[auto_auto] lg:gap-x-8 lg:gap-y-0">
+				{screens.map(s => (
+					<li class="list-none lg:row-span-2 lg:grid lg:grid-rows-subgrid">
+						<div class:list={['lg:self-end', s.tall && 'mx-auto max-w-[13rem] lg:max-w-none']}>
+							<Shot {...s.shot} />
+						</div>
+						<div>
+							<p class="eyebrow mt-5 flex items-center gap-2"><span class="grid h-6 w-6 place-items-center rounded-full bg-amber text-xs text-night">{s.n}</span>{s.where}</p>
+							<h3 class="text-xl">{s.title}</h3>
+							<p class="mb-0 text-muted">{s.text}</p>
+						</div>
+					</li>
+				))}
+			</ol>
+		</div>
+	</section>
+
+	<!-- The reveal: the moment the room is waiting for. -->
+	<section class="wrap grid items-center gap-12 py-20 lg:grid-cols-[.9fr_1.1fr]">
+		<div>
+			<p class="eyebrow">The big reveal</p>
+			<h2 class="text-3xl text-balance sm:text-4xl">The groan, the cheer, the leaderboard</h2>
+			<ul class="mt-6 space-y-4">
+				<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg><span>The answer goes up on the TV after a drum roll, with how the room voted.</span></li>
+				<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg><span>The fastest right answers get a shout-out, and a speed bonus if you want one.</span></li>
+				<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg><span>At the end of a round, the scores go up one place at a time, from the bottom.</span></li>
+			</ul>
+		</div>
+		<div class="grid grid-cols-6 items-end gap-4">
+			<div class="col-span-6 sm:col-span-4"><Shot src="/shots/tv-reveal.webp" alt="The answer revealed on the TV, with how many teams picked each answer and the fastest teams" {...TV} /></div>
+			<div class="col-span-6 sm:col-span-4 sm:col-start-3 sm:-mt-10"><Shot src="/shots/tv-leaderboard.webp" alt="The leaderboard on the TV" {...TV} /></div>
+		</div>
+	</section>
+
+	<!-- Round formats: real phone screens, then the full list. -->
+	<section id="formats" class="scroll-mt-6 border-y border-white/10 bg-white/[.025] py-20">
+		<div class="wrap">
+			<p class="eyebrow">Round formats</p>
+			<h2 class="text-3xl text-balance sm:text-4xl">More than questions and answers</h2>
+			<p class="max-w-2xl text-muted">Every format plays on the phones teams already have. Here are a few, as teams see them.</p>
+			<ul class="phone-strip mt-10 lg:grid-flow-row lg:grid-cols-6">
+				{formatShots.map(([file, name, text]) => (
+					<li class="list-none">
+						<Shot src={`/shots/${file}.webp`} alt={`${name} on a team’s phone: ${text.toLowerCase()}`} {...PHONE} />
+						<h3 class="mt-3 text-base">{name}</h3>
+						<p class="mb-0 text-sm text-muted">{text}</p>
+					</li>
+				))}
+			</ul>
+			<h3 class="mt-12 text-lg">All {formats.length} formats</h3>
+			<ul class="mt-3 flex flex-wrap gap-2">
+				{formats.map(f => <li class="chip list-none">{f}</li>)}
+			</ul>
+			<p class="mt-4 text-sm text-muted">Plus Evil Mode, fastest-finger bonuses, secret rounds and tie-breakers.</p>
+		</div>
+	</section>
+
+	<!-- Why BeerMat: a list rather than another grid of cards. -->
+	<section class="wrap grid gap-12 py-20 lg:grid-cols-[.8fr_1.2fr]">
+		<div>
+			<p class="eyebrow">Why BeerMat</p>
+			<h2 class="text-3xl text-balance sm:text-4xl">Made for a Tuesday night in a busy pub</h2>
+			<p class="text-muted">For the things that go wrong on the night: patchy Wi-Fi, a laptop that restarts, a room that can’t hear the question.</p>
+		</div>
+		<ul class="grid gap-x-10 gap-y-8 sm:grid-cols-2">
+			{reasons.map(([icon, title, text]) => (
+				<li class="flex list-none gap-4">
+					<span class="grid h-11 w-11 flex-none place-items-center rounded-xl border border-amber/30 bg-amber/10 text-amber">
+						<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons[icon]} /></svg>
+					</span>
+					<div><h3 class="text-lg">{title}</h3><p class="mb-0 text-muted">{text}</p></div>
 				</li>
 			))}
-		</ol>
-		<img src="/shots/desk.png" alt="The quizmaster’s desk: the next question, teams in the room and their answers" width="1280" height="720" class="mt-10 rounded-2xl border border-white/15 shadow-2xl" />
-	</section>
-
-	<section class="wrap py-16">
-		<p class="eyebrow">Round formats</p>
-		<h2 class="text-3xl sm:text-4xl">More than questions and answers</h2>
-		<ul class="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-			{formats.map(([name, text]) => <li class="card list-none !p-4"><strong class="text-gold">{name}</strong> <span class="text-muted">{text}</span></li>)}
 		</ul>
 	</section>
 
-	<section class="wrap py-16">
-		<p class="eyebrow">Why BeerMat</p>
-		<h2 class="text-3xl sm:text-4xl">Made for a Tuesday night in a busy pub</h2>
-		<div class="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-			{features.map(([title, text]) => <div class="card"><h3 class="text-lg">{title}</h3><p class="mb-0 text-muted">{text}</p></div>)}
-		</div>
-	</section>
-
-	<section id="pricing" class="wrap scroll-mt-8 py-16">
-		<p class="eyebrow">Pricing</p>
-		<h2 class="text-3xl sm:text-4xl">One simple price for your venue</h2>
-		<p class="max-w-2xl text-muted">No per-night credits and no per-player charges. Players always play free.</p>
-		<div class="mt-8 grid gap-5 md:grid-cols-2">
-			<div class="card">
-				<h3 class="text-2xl">BeerMat Free</h3>
-				<p class="font-display text-4xl font-bold text-white">£0</p>
-				<p class="text-muted">To try everything out.</p>
-				<ul class="mb-6 space-y-2 text-muted">
-					<li>✓ Every round format, the TV and phones</li>
-					<li>✓ Quiz Wi-Fi from the laptop, or the pub’s Wi-Fi</li>
-					<li>• {FREE_LIMITS.questions} questions and {FREE_LIMITS.teams} teams per quiz</li>
-				</ul>
-				<a href="/download" class="btn btn-ghost w-full">Download free</a>
-			</div>
-			<div class="card relative border-amber/60 shadow-2xl shadow-amber/10">
-				<span class="absolute -top-3 right-6 rounded-full bg-pink px-3 py-1 text-xs font-bold text-white">For quiz nights</span>
-				<h3 class="text-2xl">BeerMat Pro</h3>
-				<p class="font-display text-4xl font-bold text-amber">{PRICE.monthly}<span class="text-lg text-muted"> a month</span></p>
-				<p class="text-muted">or {PRICE.yearly} a year (two months free)</p>
-				<ul class="mb-6 space-y-2 text-muted">
-					<li>✓ Everything in Free</li>
-					<li>✓ As many questions and teams as you like</li>
-					<li>✓ Your pub and quiz nights on the BeerMat map</li>
-					<li>✓ The shared buzzer library</li>
-					<li>✓ Help by email when you need it</li>
-					<li>✓ Works offline once activated; cancel any time from the desk</li>
-				</ul>
-				<a href="/pro" class="btn btn-primary w-full">Get BeerMat Pro</a>
+	<section id="pricing" class="scroll-mt-6 border-t border-white/10 py-20">
+		<div class="wrap">
+			<p class="eyebrow">Pricing</p>
+			<h2 class="text-3xl sm:text-4xl">One simple price for your venue</h2>
+			<p class="max-w-2xl text-muted">No per-night credits and no per-player charges. Players always play free.</p>
+			<div class="mt-10 grid gap-6 md:grid-cols-2">
+				<div class="card flex flex-col !p-7">
+					<h3 class="text-2xl">BeerMat Free</h3>
+					<p class="mb-1 font-display text-4xl font-bold text-white">£0</p>
+					<p class="text-muted">Try every format before your first quiz night.</p>
+					<p class="mb-5 rounded-xl border border-white/15 bg-white/[.04] px-4 py-3 text-sm"><strong class="text-cream">Trial limit:</strong> {FREE_LIMITS.questions} questions and {FREE_LIMITS.teams} teams per quiz.</p>
+					<ul class="mb-8 space-y-3">
+						<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg>Every round format, the TV and phones</li>
+						<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg>Quiz Wi-Fi from the laptop, or the pub’s Wi-Fi</li>
+					</ul>
+					<a href="/download" class="btn btn-ghost mt-auto w-full">Download free</a>
+				</div>
+				<div class="card relative flex flex-col border-amber/60 !p-7 shadow-2xl shadow-amber/10">
+					<span class="absolute -top-3 right-6 rounded-full bg-pink px-3 py-1 text-xs font-bold text-white">For quiz nights</span>
+					<h3 class="text-2xl">BeerMat Pro</h3>
+					<p class="mb-1 font-display text-4xl font-bold text-amber">{PRICE.monthly}<span class="text-lg text-muted"> a month</span></p>
+					<p class="text-muted">or {PRICE.yearly} a year (two months free)</p>
+					<ul class="mb-8 space-y-3">
+						{['Everything in Free', 'As many questions and teams as you like', 'Your pub and quiz nights on the BeerMat map', 'The shared buzzer library', 'Help by email when you need it', 'Works offline once activated; cancel any time from the desk'].map(item => (
+							<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg>{item}</li>
+						))}
+					</ul>
+					<a href="/pro" class="btn btn-primary mt-auto w-full">Get BeerMat Pro</a>
+				</div>
 			</div>
 		</div>
 	</section>
 
-	<section class="wrap py-16">
+	<section class="wrap pb-8">
 		<div class="card flex flex-col items-start gap-6 !p-8 md:flex-row md:items-center md:justify-between">
 			<div>
+				<p class="eyebrow">For players</p>
 				<h2 class="text-2xl sm:text-3xl">Playing, not hosting?</h2>
 				<p class="mb-0 text-muted">Find a quiz near you on the map, or get the BeerMat app to keep your results and earn badges.</p>
 			</div>
-			<a href="/players" class="btn btn-primary shrink-0">For players</a>
+			<div class="flex shrink-0 flex-wrap gap-3">
+				<a href="/find" class="btn btn-ghost">Find a quiz</a>
+				<a href="/players" class="btn btn-primary">For players</a>
+			</div>
 		</div>
 	</section>
 </Page>

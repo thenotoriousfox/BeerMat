@@ -2,6 +2,7 @@
 import BaseHead from '../components/BaseHead.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import Lightbox from '../components/Lightbox.astro';
 import {SITE_TITLE, SITE_DESCRIPTION} from '../consts';
 interface Props {title?: string; description?: string;}
 const {title = SITE_TITLE, description = SITE_DESCRIPTION} = Astro.props;
@@ -10,8 +11,10 @@ const {title = SITE_TITLE, description = SITE_DESCRIPTION} = Astro.props;
 <html lang="en-GB">
 	<head><BaseHead title={title} description={description} /></head>
 	<body>
+		<a href="#main" class="skip-link">Skip to content</a>
 		<Header />
-		<main><slot /></main>
+		<main id="main" tabindex="-1"><slot /></main>
 		<Footer />
+		<Lightbox />
 	</body>
 </html>
