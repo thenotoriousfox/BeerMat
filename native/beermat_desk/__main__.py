@@ -22,6 +22,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 
 from .desk import Desk
+from .screens import Screens
 from .server import ROOT
 
 HERE = Path(__file__).resolve().parent
@@ -77,6 +78,10 @@ def main(argv=None):
     parser.add_argument('--no-laptop', action='store_true')
     args, qt_args = parser.parse_known_args(argv)
 
+    # Wayland doesn't let a window choose its screen, which the TV window must; XWayland does. As the Electron app,
+    # prefer X11 on a Wayland desktop (BEERMAT_WAYLAND=1 opts out; Qt falls back to Wayland without XWayland).
+    if os.environ.get('WAYLAND_DISPLAY') and os.environ.get('BEERMAT_WAYLAND') != '1' and 'QT_QPA_PLATFORM' not in os.environ:
+        os.environ['QT_QPA_PLATFORM'] = 'xcb;wayland'
     QGuiApplication.setApplicationName('BeerMat Desk')
     QGuiApplication.setOrganizationName('BeerMat')
     QGuiApplication.setDesktopFileName('beermat-desk')
@@ -96,7 +101,9 @@ def main(argv=None):
     desk = Desk(data_dir, host_key(data_dir), port=args.port, laptop=not args.no_laptop)
 
     engine = QQmlApplicationEngine()
+    screens = Screens(app)
     engine.rootContext().setContextProperty('desk', desk)
+    engine.rootContext().setContextProperty('screens', screens)
     engine.rootContext().setContextProperty('brand', QUrl.fromLocalFile(str(ROOT / 'brand') + '/'))
     engine.addImportPath(str(HERE / 'qml'))
     engine.load(QUrl.fromLocalFile(str(HERE / 'qml' / 'Main.qml')))

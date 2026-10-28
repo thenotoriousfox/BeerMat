@@ -50,6 +50,26 @@ class DeskApi(QObject):
         reply.finished.connect(finished)
         return reply
 
+    def get(self, route, done=None, failed=None, timeout_ms=10000):
+        """GET /api/<route> (no session needed: the TV's public state)."""
+        request = QNetworkRequest(QUrl(f'{self.base}/api/{route}'))
+        request.setTransferTimeout(timeout_ms)
+        reply = self._net.get(request)
+
+        def finished():
+            try:
+                data = json.loads(bytes(reply.readAll()) or b'{}')
+            except ValueError:
+                data = {}
+            if reply.error() == QNetworkReply.NetworkError.NoError:
+                if done:
+                    done(data)
+            elif failed:
+                failed(data.get('error') or reply.errorString())
+            reply.deleteLater()
+        reply.finished.connect(finished)
+        return reply
+
     def upload(self, data, name, done, failed):
         """A picture or sound for the quiz (/api/host/media): done('/media/<file>')."""
         request = QNetworkRequest(QUrl(f'{self.base}/api/host/media?name={name}'))

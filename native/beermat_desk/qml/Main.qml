@@ -35,6 +35,10 @@ ApplicationWindow {
     Shortcut { sequence: "R"; onActivated: desk.reveal() }
     Shortcut { sequence: "P"; onActivated: window.view.canResume ? desk.resume() : desk.pause() }
     Shortcut { sequences: [StandardKey.Open]; onActivated: openQuiz.open() }
+    Shortcut { sequence: "F7"; onActivated: screens.toggle() }
+    Shortcut { sequence: "F8"; onActivated: screens.setBlank(!screens.blanked) }
+
+    TvWindow { id: tvWindow; objectName: "tv" }
     Repeater {
         model: window.workspaces.length
         delegate: Item { required property int index; Shortcut { sequence: `Ctrl+${index + 1}`; onActivated: window.workspace = index } }

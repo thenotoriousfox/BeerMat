@@ -16,12 +16,13 @@ from pathlib import Path
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
-from PySide6.QtCore import QUrl                                    # noqa: E402
+from PySide6.QtCore import QObject, QUrl                           # noqa: E402
 from PySide6.QtGui import QFontDatabase, QGuiApplication           # noqa: E402
 from PySide6.QtQml import QQmlApplicationEngine                    # noqa: E402
 from PySide6.QtQuickControls2 import QQuickStyle                   # noqa: E402
 
 from beermat_desk.desk import Desk                                 # noqa: E402
+from beermat_desk.screens import Screens                           # noqa: E402
 from beermat_desk.server import ROOT                               # noqa: E402
 
 HERE = Path(__file__).resolve().parents[1] / 'beermat_desk'
@@ -54,7 +55,9 @@ class DeskTest(unittest.TestCase):
         subprocess.run(['node', str(ROOT / 'scripts' / 'load-test-quiz.mjs'), '--json', str(self.quiz_file)], check=True, capture_output=True)
         self.desk = Desk(Path(self.dir.name) / 'data', 'native-test-key-0123456789', port=0, laptop=False)
         self.engine = QQmlApplicationEngine()
+        self.screens = Screens()
         self.engine.rootContext().setContextProperty('desk', self.desk)
+        self.engine.rootContext().setContextProperty('screens', self.screens)
         self.engine.rootContext().setContextProperty('brand', QUrl.fromLocalFile(str(ROOT / 'brand') + '/'))
         self.engine.addImportPath(str(HERE / 'qml'))
         self.engine.load(QUrl.fromLocalFile(str(HERE / 'qml' / 'Main.qml')))
@@ -70,12 +73,12 @@ class DeskTest(unittest.TestCase):
         app.processEvents()
         self.dir.cleanup()
 
-    def shot(self, name):
+    def shot(self, name, window=None):
         if self.shots:
             for _ in range(10):
                 app.processEvents()
                 time.sleep(0.03)
-            self.window.grabWindow().save(str(Path(self.shots) / f'native-{name}.png'))
+            (window or self.window).grabWindow().save(str(Path(self.shots) / f'native-{name}.png'))
 
     def test_runs_a_question_and_survives_a_server_crash(self):
         desk = self.desk
@@ -101,6 +104,13 @@ class DeskTest(unittest.TestCase):
         self.assertTrue(phone.get('rehearsal'))
         wait(lambda: [d['name'] for d in desk.view.get('devices', [])] == ["Dave's phone"], what='the test phone, listed apart')
         self.assertNotIn("Dave's phone", [t['name'] for t in desk.view['teams']])
+        # The native TV reads the same public state as the web TV: the join screen until the first question.
+        wait(lambda: desk.tv.get('view') == 'join' and desk.tv.get('protocol') == 1 and desk.tv.get('rehearsal') is True, what='the TV state')
+        tv = self.window.findChild(QObject, 'tv')
+        self.assertIsNotNone(tv, 'the TV window exists')
+        self.screens.setOpen(True)
+        wait(lambda: tv.isVisible(), what='the TV window to open')
+        self.shot('tv-join', tv)
         self.shot('2-loaded')
         self.window.setProperty('workspace', 1)
         self.shot('2-rehearsal')
@@ -120,6 +130,9 @@ class DeskTest(unittest.TestCase):
         result = http(port, 'host/rehearsal/team', {'name': player, 'action': 'right'}, session)
         self.assertTrue(result['result']['ok'], result)
         wait(lambda: desk.view.get('answers', 0) >= 1, what='the answer to arrive')
+        self.assertEqual(desk.tv['view'], 'question')
+        self.assertNotIn('answer', desk.tv['question'], 'the TV never gets the answer before the reveal')
+        self.shot('tv-question', tv)
         self.shot('3-live')
 
         desk.closeAnswers()
@@ -127,6 +140,12 @@ class DeskTest(unittest.TestCase):
         desk.reveal()
         wait(lambda: desk.view['question']['revealed'], timeout=20, what='the reveal (after the drum roll)', log=lambda: (self.toasts, desk.view['phase'], {k: desk._state['question'].get(k) for k in ('open', 'live', 'revealing', 'revealed')}))
         self.assertEqual(next(t for t in desk.view['teams'] if t['name'] == player)['score'], 1)
+        wait(lambda: desk.tv['question'].get('revealed') and desk.tv['question'].get('answer') == 'Mars', what='the TV to get the revealed answer')
+        self.shot('tv-revealed', tv)
+        self.screens.setBlank(True)
+        self.assertTrue(self.screens.blanked)
+        self.screens.setOpen(False)
+        wait(lambda: not tv.isVisible() and not self.screens.blanked, what='the TV to close (and unblank)')
         self.shot('4-revealed')
 
         # The server dies mid-quiz: the desk starts it again and the quiz is exactly where it was.

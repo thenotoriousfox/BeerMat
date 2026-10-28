@@ -42,7 +42,7 @@ ColumnLayout {
             ColumnLayout {
                 anchors.fill: parent; spacing: 8
                 Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
-                       text: `Quizzes, teams and settings live in ${desk.dataFolder}. A backup is taken automatically before each update; take your own before a big night.` }
+                       text: `Quizzes, teams and settings live in ${desk.dataFolder}. A checked copy is kept each time the desk starts (the last 10, in backups); take your own before a big night.` }
                 Item { Layout.fillHeight: true }
                 Flow {
                     Layout.fillWidth: true; spacing: 8
@@ -50,6 +50,32 @@ ColumnLayout {
                     DeskButton { text: "Open data folder"; onClicked: Qt.openUrlExternally("file://" + desk.dataFolder) }
                     DeskButton { text: "Open logs"; onClicked: Qt.openUrlExternally("file://" + desk.dataFolder + "/logs") }
                 }
+            }
+        }
+    }
+
+    Panel {
+        Layout.fillWidth: true; implicitHeight: 190
+        title: "Screens"
+        ColumnLayout {
+            anchors.fill: parent; spacing: 8
+            RowLayout {
+                spacing: 10
+                Label { text: "TV screen"; color: Theme.muted }
+                ComboBox {
+                    id: tvScreen
+                    Layout.preferredWidth: 380
+                    textRole: "text"; valueRole: "value"
+                    model: [{text: "Automatic (the screen that isn't the desk's)", value: ""}].concat(screens.displays.map(d => ({text: `${d.label} (${d.width}×${d.height})${d.primary ? " — main screen" : ""}`, value: d.name})))
+                    Component.onCompleted: currentIndex = Math.max(0, indexOfValue(screens.chosenName))
+                    onActivated: screens.choose(currentValue)
+                }
+                CheckBox { text: "Open the TV by itself when a screen is connected"; checked: screens.autoOpen; palette.windowText: Theme.text; onToggled: screens.setAutoOpen(checked) }
+            }
+            Text {
+                Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 12
+                text: (screens.displays.length > 1 ? `${screens.displays.length} screens connected. ` : "One screen: the TV opens in a window you can drag to a projector. ")
+                      + (screens.canPlace ? "F7 shows or closes the TV, F8 blanks it." : "This desktop (Wayland) doesn't let apps choose a screen: drag the TV window to the TV and press F11.")
             }
         }
     }
@@ -78,7 +104,7 @@ ColumnLayout {
             anchors.fill: parent; columns: 4; columnSpacing: 24; rowSpacing: 6
             Repeater {
                 model: [["N", "Next (question, round, leaderboard step, finish)"], ["C", "Close answers"], ["P", "Pause / resume the timer"], ["R", "Reveal the answer"],
-                        ["Ctrl+O", "Load a quiz file"], ["Ctrl+1…7", "Switch workspace"]]
+                        ["Ctrl+O", "Load a quiz file"], ["F7", "Show or close the TV"], ["F8", "Blank the TV"], ["Ctrl+1…6", "Switch workspace"]]
                 delegate: RowLayout {
                     required property var modelData
                     Layout.fillWidth: true

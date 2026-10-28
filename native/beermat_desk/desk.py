@@ -27,6 +27,7 @@ TYPE_NAMES = {'text': 'Typed answer', 'choice': 'Multiple choice', 'multi': 'Tic
 
 class Desk(QObject):
     viewChanged = Signal()
+    tvChanged = Signal()
     statusChanged = Signal()
     toast = Signal(str, bool)       # message, is it an error
     confirmLoad = Signal(str)       # the quiz has been played: ask before replacing it (file path)
@@ -37,7 +38,7 @@ class Desk(QObject):
         super().__init__(parent)
         self.server = QuizServer(data_dir, host_key, port, laptop, self)
         self.api = DeskApi(self)
-        self._state, self._library, self._view = None, None, {}
+        self._state, self._library, self._view, self._tv = None, None, {}, {}
         self._status, self._connected, self._busy = 'Starting the quiz server…', False, False
         self._crashes = []
         self._refreshing = self._again = False
@@ -54,6 +55,16 @@ class Desk(QObject):
     @Property('QVariantMap', notify=viewChanged)
     def view(self):
         return self._view
+
+    @Property('QVariantMap', notify=tvChanged)
+    def tv(self):
+        """What the TV shows: the server's public state (/api/leaderboard, the same the web TV reads), plus the offset
+        between this computer's clock and the server's so countdowns run locally between updates."""
+        return self._tv
+
+    @Property(str, notify=statusChanged)
+    def serverUrl(self):
+        return f'http://127.0.0.1:{self.server.info["port"]}' if self.server.info else ''
 
     @Property(str, notify=statusChanged)
     def status(self):
@@ -151,6 +162,14 @@ class Desk(QObject):
                 self._again = False
                 self.refresh()
         self.api.host('state', {}, got, settle)
+        self.refresh_tv()
+
+    def refresh_tv(self):
+        def got(state):
+            state['offset'] = state.get('serverTime', time.time() * 1000) - time.time() * 1000
+            self._tv = state
+            self.tvChanged.emit()
+        self.api.get('leaderboard', got)
 
     def load_library(self):
         def got(library):

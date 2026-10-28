@@ -1,0 +1,458 @@
+// The TV picture, drawn natively from the server's public state (the same /api/leaderboard the web TV reads): join
+// screen with its QR code, the question and its reveal, buzzers, bingo, sound clips, the leaderboard with its stepped
+// reveal, the winner, the wheel, the countdown and the rehearsal badge. It's laid out once at 1920×1080 and scaled to
+// fit, so the desk's preview is exactly what the room sees.
+import QtQuick
+import QtQuick.Layouts
+import Desk
+
+Item {
+    id: root
+    property var tv: ({})
+    property string serverUrl: ""
+    property bool blanked: false
+    readonly property var settings: tv.settings || {}
+    readonly property var q: tv.question || null
+    readonly property var teams: tv.teams || []
+    readonly property string view: blanked ? "blank" : (tv.view || "")
+    readonly property real offset: tv.offset || 0
+    property real now: Date.now()
+    Timer { interval: 100; running: root.visible && (!!root.q || !!root.tv.timer); repeat: true; onTriggered: root.now = Date.now() }
+    readonly property real serverNow: now + offset
+    clip: true
+
+    Rectangle { anchors.fill: parent; color: "black" }
+
+    Item {
+        id: stage
+        width: 1920; height: 1080
+        anchors.centerIn: parent
+        scale: Math.min(root.width / width, root.height / height)
+        visible: root.view !== "blank"
+
+        Rectangle {
+            anchors.fill: parent
+            gradient: Gradient {
+                GradientStop { position: 0; color: "#241046" }
+                GradientStop { position: 0.55; color: Theme.bg2 }
+                GradientStop { position: 1; color: Theme.bg }
+            }
+        }
+        // Soft lights in the corners, as the web TV's decor.
+        Repeater {
+            model: [[160, 140, Theme.gold], [1760, 220, Theme.pink], [300, 960, Theme.violet], [1650, 930, Theme.teal]]
+            delegate: Rectangle {
+                required property var modelData
+                x: modelData[0] - 260; y: modelData[1] - 260; width: 520; height: 520; radius: 260
+                color: Qt.rgba(modelData[2].r, modelData[2].g, modelData[2].b, 0.07)
+            }
+        }
+
+        // ---- header ----
+        RowLayout {
+            id: header
+            x: 64; y: 40; width: parent.width - 128; height: 110
+            spacing: 24
+            Image { source: brand + "mark.svg"; sourceSize: Qt.size(88, 88); Layout.preferredWidth: 88; Layout.preferredHeight: 88 }
+            ColumnLayout {
+                spacing: 0; Layout.fillWidth: true
+                Text { text: "QUIZ NIGHT"; color: Theme.gold; font.family: Theme.display; font.pixelSize: 22; font.weight: Font.Bold; font.letterSpacing: 6 }
+                Text { text: root.settings.title || "BeerMat"; color: Theme.text; font.family: Theme.display; font.pixelSize: 56; font.weight: Font.Bold; elide: Text.ElideRight; Layout.fillWidth: true }
+            }
+            // The TV countdown the quizmaster set (Tools).
+            Rectangle {
+                readonly property var timer: root.tv.timer || null
+                readonly property real msLeft: !timer ? 0 : timer.endsAt === null ? timer.remaining : Math.max(0, timer.endsAt - root.serverNow)
+                visible: !!timer
+                Layout.preferredWidth: 300; Layout.preferredHeight: 110; radius: 22
+                color: msLeft <= 10000 && msLeft > 0 ? Qt.rgba(Theme.bad.r, Theme.bad.g, Theme.bad.b, 0.25) : Qt.rgba(1, 1, 1, 0.06)
+                border.color: msLeft <= 0 ? Theme.gold : Theme.lineStrong
+                Column {
+                    anchors.centerIn: parent
+                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: parent.parent.timer ? parent.parent.timer.label : ""; color: Theme.muted; font.pixelSize: 22 }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        readonly property int secs: Math.ceil(parent.parent.msLeft / 1000)
+                        text: parent.parent.msLeft > 0 ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}` : "Time’s up!"
+                        color: Theme.text; font.family: Theme.display; font.pixelSize: 52; font.weight: Font.Bold
+                    }
+                }
+            }
+        }
+
+        // ---- the views; each fades in and out ----
+        Item {
+            id: body
+            x: 64; y: 180; width: parent.width - 128; height: parent.height - 240
+
+            // Join screen
+            Item {
+                id: joinView
+                anchors.fill: parent
+                opacity: root.view === "join" ? 1 : 0; visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 300 } }
+                readonly property string url: root.settings.joinUrl || ""
+                readonly property bool online: !!root.settings.online
+                readonly property bool lan: !online && root.settings.joinMode === "lan"
+                readonly property bool locked: !online && !lan && !!root.settings.joinPassword
+                readonly property bool joining: !!root.settings.registrationOpen && !root.settings.ended
+                Text { id: joinTitle; anchors.horizontalCenter: parent.horizontalCenter; text: "Join the quiz on your phone"; color: Theme.text; font.family: Theme.display; font.pixelSize: 72; font.weight: Font.Bold }
+                RowLayout {
+                    anchors.top: joinTitle.bottom; anchors.topMargin: 50; anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: 80
+                    Rectangle {
+                        Layout.preferredWidth: 520; Layout.preferredHeight: 520; radius: 28; color: "white"
+                        QrCode { anchors.fill: parent; anchors.margins: 26; text: joinView.url }
+                    }
+                    ColumnLayout {
+                        spacing: 28; Layout.maximumWidth: 900
+                        Repeater {
+                            model: [
+                                joinView.online ? "" : joinView.locked ? `Join the “${root.settings.joinSsid}” Wi-Fi (password: ${root.settings.joinPassword})` : `Join the “${root.settings.joinSsid}” Wi-Fi first`,
+                                "Scan with your phone camera",
+                                `Or go to ${joinView.url.replace(/^https?:\/\//, "")}`,
+                                "Pick a team name and keep the page open"].filter(s => s)
+                            delegate: RowLayout {
+                                required property string modelData
+                                required property int index
+                                spacing: 22
+                                Rectangle { width: 64; height: 64; radius: 32; color: Theme.gold
+                                            Text { anchors.centerIn: parent; text: index + 1; color: Theme.onAccent; font.family: Theme.display; font.pixelSize: 34; font.weight: Font.Bold } }
+                                Text { text: modelData; color: Theme.text; font.pixelSize: 40; font.weight: Font.DemiBold; wrapMode: Text.WordWrap; Layout.maximumWidth: 800 }
+                            }
+                        }
+                        Text { visible: !joinView.online && !joinView.lan; text: "If your phone warns about “no internet”, choose “Use network as is” or “Stay connected”."
+                               color: Theme.muted; font.pixelSize: 26; wrapMode: Text.WordWrap; Layout.maximumWidth: 860 }
+                        Text {
+                            text: !joinView.joining ? "Registration is closed — ask the quizmaster to join" : root.teams.length === 1 ? "1 team has joined" : root.teams.length ? `${root.teams.length} teams have joined` : "Be the first team to join!"
+                            color: Theme.goldHi; font.family: Theme.display; font.pixelSize: 40; font.weight: Font.Bold
+                        }
+                    }
+                }
+            }
+
+            // Question
+            Item {
+                id: questionView
+                anchors.fill: parent
+                opacity: root.view === "question" ? 1 : 0; visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 300 } }
+                readonly property var q: root.q
+                readonly property real msLeft: !q ? 0 : q.paused ? q.remaining : Math.max(0, q.deadline - root.serverNow)
+                readonly property bool bingo: !!q && (q.type === "bingo" || q.type === "musicbingo")
+                readonly property var items: !q ? [] : ["choice", "vote", "multi"].includes(q.type) ? q.options
+                                           : q.type === "sequence" && q.order ? q.order.map(i => q.items[i]) : q.type === "sheet" ? (q.items || []) : []
+                readonly property bool isImage: !!q && !!q.media && !/\.(mp3|ogg|wav)$/i.test(q.media)
+                readonly property bool isAudio: !!q && !!q.media && /\.(mp3|ogg|wav)$/i.test(q.media)
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 22
+                    Text { text: questionView.q ? (questionView.q.round || "").toUpperCase() : ""; color: Theme.gold; font.pixelSize: 30; font.weight: Font.Bold; font.letterSpacing: 4 }
+                    Text {
+                        Layout.fillWidth: true
+                        text: questionView.q ? questionView.q.text : "Waiting for the quizmaster"
+                        color: Theme.text; font.family: Theme.display; font.weight: Font.Bold; wrapMode: Text.WordWrap
+                        font.pixelSize: text.length > 140 ? 54 : text.length > 80 ? 66 : 78
+                    }
+                    // Time left, from the server's deadline.
+                    RowLayout {
+                        visible: !!questionView.q
+                        spacing: 24
+                        Text {
+                            text: !questionView.q ? "" : questionView.bingo ? (questionView.q.paused ? "Paused" : questionView.q.live ? "Eyes down — game in progress" : "Game over")
+                                : questionView.q.paused ? `Paused · ${Math.ceil(questionView.q.remaining / 1000)}s remaining`
+                                : !questionView.q.open || questionView.msLeft <= 0 ? "Answers closed" : `${Math.ceil(questionView.msLeft / 1000)}s remaining`
+                            color: questionView.q && questionView.q.open ? Theme.goldHi : Theme.muted; font.family: Theme.display; font.pixelSize: 40; font.weight: Font.DemiBold
+                        }
+                        Rectangle {
+                            visible: !!questionView.q && questionView.q.open && !questionView.bingo && questionView.q.seconds > 0
+                            Layout.fillWidth: true; Layout.preferredHeight: 14; radius: 7; color: Qt.rgba(1, 1, 1, 0.1)
+                            Rectangle {
+                                height: parent.height; radius: 7
+                                width: parent.width * (questionView.q && questionView.q.seconds ? Math.min(1, questionView.msLeft / (questionView.q.seconds * 1000)) : 0)
+                                gradient: Gradient { orientation: Gradient.Horizontal; GradientStop { position: 0; color: Theme.gold } GradientStop { position: 1; color: Theme.pink } }
+                            }
+                        }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true; Layout.fillHeight: true
+                        spacing: 40
+                        // Picture (or a sound playing on the desk)
+                        Image {
+                            visible: questionView.isImage
+                            source: questionView.isImage ? (questionView.q.media.startsWith("http") ? questionView.q.media : root.serverUrl + questionView.q.media) : ""
+                            Layout.fillHeight: true; Layout.preferredWidth: visible ? 760 : 0
+                            fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true
+                            // Pinpoint: the target appears on the picture once revealed.
+                            Rectangle {
+                                readonly property var target: questionView.q && questionView.q.revealed ? questionView.q.target : null
+                                visible: !!target && parent.status === Image.Ready
+                                width: 44; height: 44; radius: 22; color: "transparent"; border.color: Theme.good; border.width: 6
+                                x: !target ? 0 : (parent.width - parent.paintedWidth) / 2 + target.x * parent.paintedWidth - 22
+                                y: !target ? 0 : (parent.height - parent.paintedHeight) / 2 + target.y * parent.paintedHeight - 22
+                            }
+                        }
+                        Text { visible: questionView.isAudio; text: "♪  Listen"; color: Theme.teal; font.family: Theme.display; font.pixelSize: 64; font.weight: Font.Bold }
+                        ColumnLayout {
+                            Layout.fillWidth: true; Layout.fillHeight: true
+                            spacing: 18
+                            // Options as coloured tiles matching the phone keypad; items in a list.
+                            GridLayout {
+                                visible: questionView.items.length > 0
+                                Layout.fillWidth: true
+                                columns: questionView.isImage || questionView.items.length > 6 || !questionView.q || !["choice", "vote", "multi"].includes(questionView.q.type) ? 1 : 2
+                                columnSpacing: 18; rowSpacing: 16
+                                Repeater {
+                                    model: questionView.items
+                                    delegate: Rectangle {
+                                        required property string modelData
+                                        required property int index
+                                        readonly property var tones: [Theme.bad, "#3b82f6", Theme.good, Theme.gold, Theme.violet, Theme.teal]
+                                        readonly property bool options: !!questionView.q && ["choice", "vote", "multi"].includes(questionView.q.type)
+                                        readonly property color tone: options ? tones[index % 6] : Theme.violet
+                                        readonly property bool correct: !!questionView.q && questionView.q.revealed && (questionView.q.answer === modelData || (questionView.q.correct || []).includes(modelData))
+                                        Layout.fillWidth: true; implicitHeight: 92; radius: 20
+                                        color: Qt.rgba(tone.r, tone.g, tone.b, questionView.q && questionView.q.revealed && options && !correct ? 0.1 : 0.28)
+                                        border.color: correct ? Theme.good : Qt.rgba(tone.r, tone.g, tone.b, 0.7); border.width: correct ? 5 : 2
+                                        Behavior on color { ColorAnimation { duration: 400 } }
+                                        Text {
+                                            anchors.fill: parent; anchors.leftMargin: 28; anchors.rightMargin: 28; verticalAlignment: Text.AlignVCenter
+                                            text: `${parent.options ? String.fromCharCode(65 + index) + ".  " : questionView.q && questionView.q.type === "sheet" ? (index + 1) + ".  " : "•  "}${modelData}`
+                                            color: Theme.text; font.pixelSize: 42; font.weight: Font.Bold; elide: Text.ElideRight
+                                        }
+                                    }
+                                }
+                            }
+                            // Buzzers: who's on, who's queued, agreeing.
+                            Column {
+                                readonly property var b: questionView.q ? questionView.q.buzz : null
+                                visible: !!b
+                                spacing: 12
+                                Text { text: parent.b && parent.b.active ? `🔔 ${parent.b.active.name}` : questionView.q && questionView.q.open ? "Buzzers open" : ""
+                                       color: Theme.goldHi; font.family: Theme.display; font.pixelSize: 96; font.weight: Font.Bold }
+                                Text { text: !parent.b ? "" : parent.b.agreeOpen ? `“${parent.b.announced}” — agree now! ${parent.b.agreeCount} agreed` : (parent.b.queue || []).filter(x => x.status === "queued").map(x => x.name).join(" · ")
+                                       color: Theme.text; font.pixelSize: 40 }
+                            }
+                            // Bingo: the last ball and the board.
+                            Column {
+                                readonly property var g: questionView.q ? questionView.q.bingo : null
+                                visible: !!g
+                                spacing: 16
+                                Text { text: !parent.g ? "" : parent.g.music ? (parent.g.played ? `🎵 Song ${parent.g.played}` : "🎵") : (parent.g.last !== null && parent.g.last !== undefined ? parent.g.last : "–")
+                                       color: Theme.goldHi; font.family: Theme.display; font.pixelSize: 160; font.weight: Font.Bold }
+                                Text { text: !parent.g ? "" : parent.g.music ? (parent.g.titles && parent.g.titles.length ? `Last revealed: ${parent.g.titles[parent.g.titles.length - 1]}` : "") : (root.settings.bingoPhrases && parent.g.phrase ? parent.g.phrase : "")
+                                       color: Theme.text; font.pixelSize: 40 }
+                                Text { text: parent.g && parent.g.winners && parent.g.winners.length ? `Winner: ${parent.g.winners.map(w => w.name || w).join(", ")}` : parent.g ? `${parent.g.count || 0} called` : ""
+                                       color: Theme.muted; font.pixelSize: 34 }
+                                Grid {
+                                    visible: !!parent.g && !parent.g.music && !!parent.g.board
+                                    columns: 15; spacing: 6
+                                    Repeater {
+                                        model: 90
+                                        delegate: Rectangle {
+                                            required property int index
+                                            readonly property bool called: !!questionView.q && !!questionView.q.bingo && (questionView.q.bingo.called || []).includes(index + 1)
+                                            width: 54; height: 42; radius: 8
+                                            color: called ? Theme.gold : Qt.rgba(1, 1, 1, 0.06)
+                                            Text { anchors.centerIn: parent; text: index + 1; color: parent.called ? Theme.onAccent : Theme.faint; font.pixelSize: 20; font.weight: Font.Bold }
+                                        }
+                                    }
+                                }
+                            }
+                            // Sound clips game
+                            Column {
+                                readonly property var c: questionView.q ? questionView.q.clipGame : null
+                                visible: !!c
+                                Text { text: !parent.c ? "" : parent.c.playing ? `🎵 Clip ${parent.c.playing} of ${parent.c.count}` : questionView.q.live ? "Listen carefully…" : "Clips finished"
+                                       color: Theme.goldHi; font.family: Theme.display; font.pixelSize: 84; font.weight: Font.Bold }
+                                Text { text: parent.c ? `${parent.c.taps} teams have tapped` : ""; color: Theme.text; font.pixelSize: 40 }
+                            }
+                            Item { Layout.fillHeight: true }
+                        }
+                    }
+                }
+
+                // The reveal slides up over the bottom of the question.
+                Rectangle {
+                    id: reveal
+                    readonly property var q: questionView.q
+                    readonly property bool shown: !!q && !!q.revealed && !["choice", "vote", "multi"].includes(q.type)
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: parent.width; height: 230; radius: 28
+                    y: shown ? parent.height - height : parent.height + 40
+                    opacity: shown ? 1 : 0
+                    Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+                    Behavior on opacity { NumberAnimation { duration: 300 } }
+                    color: Qt.rgba(Theme.good.r, Theme.good.g, Theme.good.b, 0.16); border.color: Theme.good; border.width: 3
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 30; spacing: 8
+                        Text { text: reveal.q && reveal.q.type === "vote" ? "VOTES" : "ANSWER"; color: Theme.good; font.pixelSize: 26; font.weight: Font.Bold; font.letterSpacing: 4 }
+                        Text {
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight
+                            text: !reveal.q ? "" : reveal.q.type === "sheet" ? (reveal.q.itemAnswers || []).map((a, i) => `${i + 1}. ${a || "Marked by quizmaster"}`).join("   ")
+                                : reveal.q.type === "sequence" ? (reveal.q.items || []).join("  →  ") : (reveal.q.answer || "Marked by quizmaster")
+                            color: Theme.text; font.family: Theme.display; font.pixelSize: 58; font.weight: Font.Bold
+                        }
+                        Text { visible: !!reveal.q && !!reveal.q.answerNote; text: reveal.q ? reveal.q.answerNote || "" : ""; color: Theme.muted; font.pixelSize: 30; Layout.fillWidth: true; elide: Text.ElideRight }
+                        Text {
+                            readonly property var scorers: reveal.q ? reveal.q.scorers : null
+                            visible: !!scorers
+                            text: !scorers ? "" : !scorers.length ? "Nobody scored this time" : scorers.length === 1 ? `1 team scored: ${scorers[0].name}` : `${scorers.length} teams scored — ${scorers.slice(0, 5).map(s => s.name).join(", ")}${scorers.length > 5 ? "…" : ""}`
+                            color: Theme.goldHi; font.pixelSize: 30; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight
+                        }
+                    }
+                }
+            }
+
+            // Leaderboard, revealed from the bottom when the quizmaster steps through it.
+            Item {
+                anchors.fill: parent
+                opacity: root.view === "leaderboard" ? 1 : 0; visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 300 } }
+                readonly property var reveal: root.tv.reveal || null
+                readonly property int shownFromBottom: reveal && !reveal.done ? reveal.shown : 100000
+                Text { id: boardTitle; text: "Leaderboard"; color: Theme.text; font.family: Theme.display; font.pixelSize: 72; font.weight: Font.Bold }
+                Text {
+                    anchors.left: boardTitle.right; anchors.leftMargin: 30; anchors.baseline: boardTitle.baseline
+                    text: root.settings.secretRound ? "Secret round: the scores stay hidden until the end of the quiz." : !root.settings.leaderboardVisible ? "The quizmaster has hidden scores for now." : root.settings.ended ? "Final scores" : ""
+                    color: Theme.muted; font.pixelSize: 32
+                }
+                GridView {
+                    id: board
+                    anchors.top: boardTitle.bottom; anchors.topMargin: 30; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+                    readonly property bool twoColumns: root.teams.length > 10
+                    cellWidth: twoColumns ? width / 2 : width; cellHeight: 84
+                    flow: GridView.FlowTopToBottom
+                    interactive: false
+                    model: root.settings.leaderboardVisible === false ? [] : root.teams
+                    delegate: Item {
+                        required property var modelData
+                        required property int index
+                        readonly property bool shown: root.teams.length - index <= parent.parent.shownFromBottom
+                        width: board.cellWidth; height: board.cellHeight
+                        Rectangle {
+                            anchors.fill: parent; anchors.margins: 6; anchors.rightMargin: board.twoColumns ? 18 : 6
+                            radius: 18
+                            opacity: parent.shown ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: 450 } }
+                            color: modelData.rank === 1 ? Qt.rgba(Theme.gold.r, Theme.gold.g, Theme.gold.b, 0.24) : Qt.rgba(1, 1, 1, 0.06)
+                            border.color: modelData.rank === 1 ? Theme.gold : Theme.line
+                            RowLayout {
+                                anchors.fill: parent; anchors.leftMargin: 26; anchors.rightMargin: 26; spacing: 22
+                                Text { text: modelData.rank; color: modelData.rank === 1 ? Theme.gold : Theme.muted; font.family: Theme.display; font.pixelSize: 40; font.weight: Font.Bold; Layout.preferredWidth: 60 }
+                                Text { text: modelData.name; color: Theme.text; font.pixelSize: 40; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
+                                Text { text: modelData.score === null || modelData.score === undefined ? "" : modelData.score; color: Theme.goldHi; font.family: Theme.display; font.pixelSize: 44; font.weight: Font.Bold }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Winner
+            Item {
+                anchors.fill: parent
+                opacity: root.view === "winner" ? 1 : 0; visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 500 } }
+                readonly property var leaders: root.teams.filter(t => t.rank === 1)
+                Column {
+                    anchors.centerIn: parent; spacing: 26
+                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: "AND THE WINNER IS…"; color: Theme.gold; font.pixelSize: 44; font.weight: Font.Bold; font.letterSpacing: 8 }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: root.settings.leaderboardVisible === false ? "Scores are hidden for now" : parent.parent.leaders.map(t => t.name).join(" & ") || "No teams yet"
+                        color: Theme.text; font.family: Theme.display; font.pixelSize: 130; font.weight: Font.Bold
+                        scale: root.view === "winner" ? 1 : 0.6
+                        Behavior on scale { NumberAnimation { duration: 900; easing.type: Easing.OutBack } }
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        readonly property var leaders: parent.parent.leaders
+                        text: leaders.length && root.settings.leaderboardVisible !== false && leaders[0].score !== null ? `${leaders[0].score} points${leaders.length > 1 ? " — a tie!" : ""}` : ""
+                        color: Theme.goldHi; font.family: Theme.display; font.pixelSize: 56; font.weight: Font.Bold
+                    }
+                    Row {
+                        anchors.horizontalCenter: parent.horizontalCenter; spacing: 60
+                        Repeater {
+                            model: root.settings.leaderboardVisible === false ? [] : root.teams.filter(t => t.rank > 1 && t.rank <= 3)
+                            delegate: Text { required property var modelData; text: `${modelData.rank === 2 ? "🥈" : "🥉"} ${modelData.name}${modelData.score === null ? "" : "  " + modelData.score}`; color: Theme.text; font.pixelSize: 44 }
+                        }
+                    }
+                }
+            }
+
+            // Wheel: turns forwards and stops with the server's chosen segment under the pointer.
+            Item {
+                id: wheelView
+                anchors.fill: parent
+                opacity: root.view === "wheel" ? 1 : 0; visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 300 } }
+                readonly property var wheel: root.tv.wheel || null
+                property string shownId: ""
+                property real turn: 0
+                property bool done: false
+                onWheelChanged: {
+                    if (!wheel || wheel.id === shownId) return
+                    const fresh = shownId !== "" && root.serverNow - wheel.spun < 3000, slice = 360 / wheel.items.length
+                    const target = 360 - (wheel.result + 0.5) * slice
+                    shownId = wheel.id; wheelCanvas.requestPaint()
+                    spin.stop()
+                    if (!fresh) { wheelCanvas.rotation = target; done = true; return }
+                    done = false
+                    spin.from = wheelCanvas.rotation; spin.to = wheelCanvas.rotation - (wheelCanvas.rotation % 360) + 360 * 6 + target
+                    spin.start()
+                }
+                NumberAnimation { id: spin; target: wheelCanvas; property: "rotation"; duration: 6000; easing.type: Easing.OutCubic; onFinished: wheelView.done = true }
+                Canvas {
+                    id: wheelCanvas
+                    width: 760; height: 760; anchors.centerIn: parent; anchors.verticalCenterOffset: -30
+                    onPaint: {
+                        const ctx = getContext("2d"), w = wheelView.wheel; ctx.reset()
+                        if (!w) return
+                        const n = w.items.length, r = width / 2, colours = [Theme.pink, Theme.gold, Theme.teal, Theme.violet, "#3b82f6", Theme.good]
+                        ctx.translate(r, r)
+                        for (let i = 0; i < n; i++) {
+                            const a = (i * 360 / n - 90) * Math.PI / 180, b = ((i + 1) * 360 / n - 90) * Math.PI / 180
+                            ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, r - 4, a, b); ctx.closePath()
+                            ctx.fillStyle = colours[i % 6]; ctx.fill(); ctx.strokeStyle = "#140b2e"; ctx.lineWidth = 4; ctx.stroke()
+                            ctx.save(); ctx.rotate((a + b) / 2); ctx.fillStyle = "#140b2e"; ctx.font = "bold 30px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"
+                            const label = w.items[i].length > 14 ? w.items[i].slice(0, 13) + "…" : w.items[i]
+                            ctx.fillText(label, r * 0.58, 0); ctx.restore()
+                        }
+                    }
+                }
+                Canvas {
+                    width: 56; height: 50; anchors.horizontalCenter: wheelCanvas.horizontalCenter; anchors.top: wheelCanvas.top; anchors.topMargin: -12
+                    onPaint: { const c = getContext("2d"); c.fillStyle = "#fff8ec"; c.beginPath(); c.moveTo(0, 0); c.lineTo(56, 0); c.lineTo(28, 50); c.closePath(); c.fill() }
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom
+                    text: wheelView.done && wheelView.wheel ? `🎉 ${wheelView.wheel.items[wheelView.wheel.result]}` : ""
+                    color: Theme.goldHi; font.family: Theme.display; font.pixelSize: 72; font.weight: Font.Bold
+                }
+            }
+        }
+
+        // A rehearsal says so, small and out of the way of what's being tested.
+        Rectangle {
+            visible: !!root.tv.rehearsal
+            anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 28
+            width: rehearsalLabel.implicitWidth + 40; height: 52; radius: 26
+            color: Qt.rgba(Theme.teal.r, Theme.teal.g, Theme.teal.b, 0.2); border.color: Theme.teal; border.width: 2
+            Text { id: rehearsalLabel; anchors.centerIn: parent; text: "REHEARSAL"; color: Theme.teal; font.pixelSize: 26; font.weight: Font.Bold; font.letterSpacing: 4 }
+        }
+        // Joining, under the leaderboard and the question.
+        Text {
+            visible: (root.view === "leaderboard") && !!root.settings.registrationOpen && !root.settings.ended
+            anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.margins: 36
+            text: root.settings.online ? `Join: ${(root.settings.joinUrl || "").replace(/^https?:\/\//, "")}` : `Join: Wi-Fi “${root.settings.joinSsid}” → ${(root.settings.joinUrl || "").replace(/^https?:\/\//, "")}`
+            color: Theme.muted; font.pixelSize: 28
+        }
+        // Nothing yet from the server
+        Text {
+            visible: !root.tv.settings
+            anchors.centerIn: parent
+            text: "Connecting to the quiz…"; color: Theme.muted; font.family: Theme.display; font.pixelSize: 56
+        }
+    }
+}

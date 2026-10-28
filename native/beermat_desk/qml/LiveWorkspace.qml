@@ -137,6 +137,28 @@ ColumnLayout {
             Layout.fillHeight: true
             spacing: Theme.gap
 
+            // What the room sees, drawn by the same stage as the TV window.
+            Panel {
+                title: "On the TV"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 300
+                headerExtra: Text { text: !screens.open ? "closed" : screens.blanked ? "blanked" : screens.fullScreen ? "on the TV screen" : "in a window"
+                                    color: screens.open && !screens.blanked ? Theme.good : Theme.muted; font.pixelSize: 12; font.weight: Font.Bold }
+                ColumnLayout {
+                    anchors.fill: parent; spacing: 8
+                    Rectangle {
+                        Layout.fillWidth: true; Layout.fillHeight: true; radius: 8; color: "black"; clip: true
+                        border.color: screens.open && !screens.blanked ? Qt.rgba(Theme.good.r, Theme.good.g, Theme.good.b, 0.6) : Theme.line
+                        TvStage { anchors.fill: parent; anchors.margins: 2; tv: desk.tv; serverUrl: desk.serverUrl; blanked: screens.blanked }
+                    }
+                    RowLayout {
+                        spacing: 6
+                        DeskButton { text: screens.open ? "Close TV" : "Show TV"; shortcutHint: "F7"; implicitHeight: 34; onClicked: screens.toggle() }
+                        DeskButton { text: screens.blanked ? "Unblank" : "Blank"; shortcutHint: "F8"; implicitHeight: 34; enabled: screens.open; onClicked: screens.setBlank(!screens.blanked) }
+                    }
+                }
+            }
+
             Panel {
                 title: "Teams in the room"
                 Layout.fillWidth: true

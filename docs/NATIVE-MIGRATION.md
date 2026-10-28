@@ -77,7 +77,7 @@ Rows are features; columns are the existing client and its native replacement.
 | Venue / Online | yes | todo | |
 | Settings: joining, hotspot, LAN, tunnel, sounds, bingo calls | yes | todo | server routes exist (`/api/host/laptop*`, `/network*`) |
 | Backup / restore / key / logs / data folder | yes | todo | backup message exists in `server-host.js` |
-| Screens: choose, swap, blank, hot-plug | yes | todo | `QGuiApplication.screens()`, `screenAdded/Removed` |
+| Screens: choose, blank, hot-plug, auto-open | yes | **built** (open/blank tested; choose and hot-plug need real screens) | `screens.py`; swap: todo |
 | Spotify web player on the desk | castlabs Widevine | **no equivalent** | proposal: Spotify Connect (server already supports choosing a device); needs your approval, see §5 |
 | Single instance, first run, Wayland handling | yes | todo | |
 
@@ -85,12 +85,16 @@ Rows are features; columns are the existing client and its native replacement.
 
 | Feature | Web TV | Native | Notes |
 |---|---|---|---|
-| Question + all formats, media | yes | todo | reads `/api/state` like the web TV (publicState) |
-| Join screen with QR (Wi-Fi + URL) | yes | todo | QR generation in Python (`qrcode`/`segno`) or port `web/qr.js` |
-| Leaderboard, stepped reveal, winner, confetti | yes | todo | |
-| Wheel, countdown, buzzer leader, bingo board, clips | yes | todo | |
-| Blank, look/themes, sounds, rehearsal badge | yes | todo | `QtMultimedia` for sound/video; output device via `QMediaDevices` |
-| Full screen on chosen display, preview on desk | Electron | todo | |
+| Question text, options, sequence/sheet items, timer, pictures, pinpoint target | yes | **done** (choice tested) | `TvStage.qml` reads `/api/leaderboard`, as the web TV |
+| Reveal: answer, note, scorers; correct option highlighted | yes | **built** | tally bars and fastest-first list: todo |
+| Join screen with QR | yes | **done** | QR from the same `web/qr.js` (made engine-neutral) |
+| Leaderboard with stepped reveal, winner | yes | **built** | first-place spotlight, confetti, row slide: todo |
+| Wheel, countdown, buzzer leader/queue/agree, bingo ball + board, clips | yes | **built** | untested against those formats yet |
+| Word snake grid, tiles, team photos | yes | todo | |
+| Sounds (timer music, countdown, reveal, buzzers), audio questions | yes | todo | `QtMultimedia`; output device via `QMediaDevices` |
+| Looks/themes (per-question colours) | yes | todo | |
+| Blank, rehearsal badge | yes | **done** | |
+| Full screen on chosen display, preview on desk | Electron | **built** (window + live preview tested offscreen) | needs a real second screen to verify |
 
 Until this is done the web TV stays the fallback: the native desk can open `http://127.0.0.1:<port>/display` in
 the system browser on the TV screen.
@@ -125,6 +129,7 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 |---|---|---|
 | `server-host.js` stdio channel (`BEERMAT_CHANNEL=stdio`) | yes: Electron channels unchanged | `native/tests/test_desk.py` |
 | `protocol: 1` on every state; `GET /api/hello` discovery | yes: new fields and route only | `tests/protocol.test.js` |
+| `web/qr.js` works without `TextEncoder`/`flatMap` (for QML's engine) | yes: same output | `tests/qr.test.js`, native test |
 
 ## 5. Decisions needing approval
 
@@ -143,10 +148,10 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 | Stage | Status |
 |---|---|
 | 1. Audit and shared contracts | **done**: this file, `CLIENT-PROTOCOL.md`, protocol version + discovery + tests |
-| 2. Native Qt foundation | **built** (prototype from `native-desk`, rebased, rehearsal-aware, test passing); still todo: settings store, keyring, single instance, logging, navigation shell |
-| 3. Native desk workspaces | todo |
-| 4. Native TV | todo |
-| 5. Rehearsal and licensing UI | partly (view data + test) |
+| 2. Native Qt foundation | **done**: server lifecycle, workspace shell, single instance, rotating logs, XWayland preference; todo: keyring for the key, first-run welcome |
+| 3. Native desk workspaces | Live **built**; Settings partly (plan, data, key, screens); Quizzes, Teams, Venue: todo (open the web desk meanwhile) |
+| 4. Native TV | **built** for the main views (see §2.2); sounds, word snake, looks: todo |
+| 5. Rehearsal and licensing UI | **built**: options, simulated teams and actions, test phones apart, log, go live; plan display and check |
 | 6. Android | todo |
 | 7. iOS | todo (unverifiable here) |
 | 8. Packaging | todo |
