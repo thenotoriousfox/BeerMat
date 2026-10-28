@@ -52,5 +52,8 @@ fun BeerMatTheme(content: @Composable () -> Unit) {
         titleLarge = TextStyle(fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 21.sp),
         labelLarge = TextStyle(fontWeight = FontWeight.Bold, fontSize = 16.sp, letterSpacing = 0.3.sp),
     )
-    MaterialTheme(colorScheme = colours, typography = type, content = content)
+    // Text outside a Surface takes the content colour: BeerMat's cream on the night background, not Material's black.
+    MaterialTheme(colorScheme = colours, typography = type) {
+        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides Brand.text, content = content)
+    }
 }

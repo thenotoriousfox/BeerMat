@@ -21,7 +21,8 @@ import uk.beermat.player.net.QuizServer
 import uk.beermat.player.net.Scanned
 
 /** Round formats the app draws itself; any other opens the quiz's own player page in the browser (same team). */
-val NATIVE_TYPES = setOf("text", "picture", "audio", "choice", "vote", "multi", "letter", "number", "nearest", "sequence", "tiles", "sheet", "buzzer")
+val NATIVE_TYPES = setOf("text", "picture", "audio", "choice", "vote", "multi", "letter", "number", "nearest", "sequence", "tiles", "sheet", "buzzer",
+    "pinpoint", "wordsnake", "bingo", "musicbingo", "clips")
 
 enum class Stage { Connect, Join, Play }
 
@@ -158,7 +159,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun submit(value: Any) {
         val q = _ui.value.game?.question ?: return
-        work(quiet = true) { server!!.answer(_ui.value.secret, q.id, QuizServer.jsonValue(value)); say("Final answer received"); refresh() }
+        work(quiet = true) { server!!.answer(_ui.value.secret, q.id, QuizServer.jsonValue(value)); refresh() }
     }
 
     fun saveDraft(value: Any) {
@@ -167,6 +168,16 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun buzz() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.buzz(_ui.value.secret, q.id); refresh() } }
+
+    fun claimBingo() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.bingo(_ui.value.secret, q.id); say("BINGO called — the quizmaster is checking"); refresh() } }
+
+    fun tap() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.tap(_ui.value.secret, q.id); say("Tap recorded"); refresh() } }
+
+    fun goWide() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.goWide(_ui.value.secret, q.id); refresh() } }
+
+    /** Bingo dabs stay on the phone, as on paper (the server checks the ticket against the calls). */
+    val dabs = androidx.compose.runtime.mutableStateMapOf<Long, Set<String>>()
+    fun dab(question: Long, cell: String) { val now = dabs[question] ?: emptySet(); dabs[question] = if (cell in now) now - cell else now + cell }
 
     fun agree() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.agree(_ui.value.secret, q.id); refresh() } }
 

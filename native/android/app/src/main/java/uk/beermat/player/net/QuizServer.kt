@@ -50,6 +50,15 @@ class QuizServer(base: String) {
 
     suspend fun buzz(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/buzz", JSONObject().put("question", question), secret) }
 
+    /** Bingo: the team shouts; the quizmaster checks the ticket and says yes or no. */
+    suspend fun bingo(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/bingo", JSONObject().put("question", question), secret) }
+
+    /** Sound clips: a tap during the clip the team thinks is the one. */
+    suspend fun tap(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/tap", JSONObject().put("question", question), secret) }
+
+    /** Word snake (and pinpoint) help: the decoys go, for fewer points. */
+    suspend fun goWide(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/gowide", JSONObject().put("question", question), secret) }
+
     suspend fun agree(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/agree", JSONObject().put("question", question), secret) }
 
     /** Leaving the app during an open question is reported to the quizmaster, as the web page does. */

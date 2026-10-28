@@ -54,6 +54,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -173,8 +174,10 @@ private fun Countdown(q: Question, offset: Long) {
 private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
     val game = ui.game!!
     QuestionHead(q, ui.offset)
-    Media(ui.server, q)
+    if (q.type != "pinpoint") Media(ui.server, q)
     if (q.type == "buzzer") return Buzzer(vm, ui, q)
+    if (q.type == "bingo" || q.type == "musicbingo") return Bingo(vm, ui, q)
+    if (q.type == "clips") return Clips(vm, ui, q)
 
     // What the team has put: the submitted answer, else the draft saved on the server.
     val submitted = game.answer
@@ -204,10 +207,18 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
         "tiles" -> {
             Text("Tap the tiles in order to build the answer", color = Brand.muted)
             @Suppress("UNCHECKED_CAST") val picked = value as List<Int>
-            Text(picked.joinToString("") { q.pieces[it] }.ifEmpty { "…" }, fontFamily = Display, fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp))
+            Text(tileWord(picked.joinToString("") { q.pieces[it] }, q.wordLengths), fontFamily = Display, fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp))
             // Tiles are always in a different order on each team's phone.
             LetterTiles(seededOrder(q.pieces.size, "$teamId:${q.id}"), q.pieces, picked, enabled = !locked) { value = picked + it }
             if (!locked && picked.isNotEmpty()) TextButton({ value = picked.dropLast(1) }) { Text("Undo last") }
+        }
+        "pinpoint" -> {
+            @Suppress("UNCHECKED_CAST") val taps = value as List<List<Double>>
+            Pinpoint(ui.server, q, taps, enabled = !locked) { value = it }
+        }
+        "wordsnake" -> {
+            @Suppress("UNCHECKED_CAST") val path = value as List<Int>
+            WordSnake(vm, q, path, enabled = !locked) { value = it }
         }
         "sheet" -> {
             @Suppress("UNCHECKED_CAST") val answers = value as List<String>
@@ -220,7 +231,7 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
             value as String, { value = it.take(300) }, enabled = !locked, singleLine = true,
             label = { Text(when (q.type) { "nearest" -> "Your number (closest wins)"; "number" -> "Your number"; else -> "Your answer" }) },
             keyboardOptions = KeyboardOptions(keyboardType = if (q.type == "number" || q.type == "nearest") KeyboardType.Decimal else KeyboardType.Text),
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("answer"),
         )
     }
 
@@ -247,11 +258,20 @@ private fun Result(q: Question, points: Double?) {
     Text(text, color = colour, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.scale(pop).fillMaxWidth(), textAlign = TextAlign.Center)
 }
 
+/** The answer's shape with the letters so far (tileWord in web/app.js): "BIG BEN" as "BIG B__". */
+fun tileWord(letters: String, lengths: List<Int>): String {
+    if (lengths.isEmpty()) return letters.ifEmpty { "…" }
+    val padded = letters.padEnd(lengths.sum(), '_')
+    var at = 0
+    return lengths.joinToString(" ") { n -> padded.substring(at, at + n).also { at += n } }
+}
+
 private fun fmt(n: Double) = if (n % 1.0 == 0.0) n.toLong().toString() else "%.1f".format(n)
 
 private fun initial(q: Question, saved: Any?): Any = when (q.type) {
     "multi" -> (saved as? JSONArray)?.let { a -> List(a.length()) { a.optString(it) } } ?: emptyList<String>()
-    "sequence", "tiles" -> (saved as? JSONArray)?.let { a -> List(a.length()) { a.optInt(it) } } ?: emptyList<Int>()
+    "pinpoint" -> (saved as? JSONArray)?.let { a -> List(a.length()) { i -> a.optJSONArray(i)?.let { p -> listOf(p.optDouble(0), p.optDouble(1)) } ?: emptyList() } } ?: emptyList<List<Double>>()
+    "sequence", "tiles", "wordsnake" -> (saved as? JSONArray)?.let { a -> List(a.length()) { a.optInt(it) } } ?: emptyList<Int>()
     "sheet" -> (saved as? JSONArray)?.let { a -> List(q.items.size) { a.optString(it, "") } } ?: List(q.items.size) { "" }
     else -> (saved as? String) ?: ""
 }
@@ -299,7 +319,7 @@ private fun LetterTiles(order: List<Int>, pieces: List<String>, picked: List<Int
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         order.forEach { i ->
             val used = i in picked
-            Box(Modifier.size(60.dp).clip(RoundedCornerShape(12.dp)).background(if (used) Brand.raised.copy(alpha = .4f) else Brand.goldHi)
+            Box(Modifier.size(60.dp).testTag("tile-$i").clip(RoundedCornerShape(12.dp)).background(if (used) Brand.raised.copy(alpha = .4f) else Brand.goldHi)
                 .clickable(enabled = enabled && !used) { tap(i) }, contentAlignment = Alignment.Center) {
                 Text(pieces[i], fontFamily = Display, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = if (used) Brand.faint else Brand.onAccent)
             }

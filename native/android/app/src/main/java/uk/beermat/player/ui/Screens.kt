@@ -50,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -113,6 +114,8 @@ private fun Header(title: String, subtitle: String = "") {
 @Composable
 fun ConnectScreen(vm: PlayerViewModel, ui: UiState, scan: () -> Unit) {
     var address by rememberSaveable { mutableStateOf("") }
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    val connect = { focus.clearFocus(); vm.connect(address) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
         Header("BeerMat", "Play the quiz")
         Text("Scan the code on the TV", style = MaterialTheme.typography.displaySmall)
@@ -123,10 +126,10 @@ fun ConnectScreen(vm: PlayerViewModel, ui: UiState, scan: () -> Unit) {
         OutlinedTextField(
             address, { address = it }, singleLine = true, placeholder = { Text("10.42.0.1") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
-            keyboardActions = KeyboardActions(onGo = { vm.connect(address) }),
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            keyboardActions = KeyboardActions(onGo = { connect() }),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("address"),
         )
-        OutlinedButton({ vm.connect(address) }, enabled = address.isNotBlank() && !ui.busy, modifier = Modifier.fillMaxWidth()) { Text("Connect") }
+        OutlinedButton({ connect() }, enabled = address.isNotBlank() && !ui.busy, modifier = Modifier.fillMaxWidth()) { Text("Connect") }
         Message(ui)
         if (ui.recent.isNotEmpty()) {
             Text("Recent quizzes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
@@ -150,6 +153,9 @@ fun ConnectScreen(vm: PlayerViewModel, ui: UiState, scan: () -> Unit) {
 @Composable
 fun JoinScreen(vm: PlayerViewModel, ui: UiState) {
     var name by rememberSaveable { mutableStateOf("") }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    val join = { focus.clearFocus(); keyboard?.hide(); vm.join(name) }
     var code by rememberSaveable { mutableStateOf("") }
     val hello = ui.hello
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
@@ -158,10 +164,10 @@ fun JoinScreen(vm: PlayerViewModel, ui: UiState) {
         Text("Pick a team name", style = MaterialTheme.typography.displaySmall, modifier = Modifier.padding(top = 12.dp))
         OutlinedTextField(
             name, { if (it.length <= 40) name = it }, singleLine = true, label = { Text("Team name") },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (name.trim().length >= 2) vm.join(name) }),
-            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (name.trim().length >= 2) join() }),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).testTag("teamName"),
         )
-        BigButton("Join the quiz", enabled = name.trim().length >= 2 && !ui.busy && hello?.registrationOpen != false) { vm.join(name) }
+        BigButton("Join the quiz", enabled = name.trim().length >= 2 && !ui.busy && hello?.registrationOpen != false) { join() }
         if (hello?.registrationOpen == false) Text("Registration is closed. Ask the quizmaster.", color = Brand.muted, modifier = Modifier.padding(top = 8.dp))
         Message(ui)
         Text("Already playing?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 28.dp))

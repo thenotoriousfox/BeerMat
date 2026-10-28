@@ -15,8 +15,10 @@ everything, so the app never decides a score, a deadline or who may play.
   tick-all, letter keypad, put-in-order, letter tiles, answer sheets, and the buzzer (buzz, queue, agree). Scrambled
   keypads and tiles use the browser's exact shuffle (`seededOrder`), so a team sees the same layout in either.
   Drafts save to the server as in the browser; one final answer; points shown once marking is final.
-* **Other formats** (pinpoint, word snake, bingo, music bingo, sound clips): the round opens in the phone's browser,
-  already signed in as the team (`/#team=<code>`, which the player page picks up and removes). Nothing is unplayable.
+* **Every format is native**, also pinpoint (tap the picture, a second tap when going wide), word snake (trace the
+  path; go wide), bingo and music bingo (the team's ticket, dabbed on the phone, and the BINGO shout) and sound clips
+  (tap during the clip). If a future server adds a format this app doesn't know, the round opens in the phone's
+  browser as the same team (`/#team=<code>`).
 * **Rehearsals**: a phone that joins a rehearsal sees a branded "You're connected" screen; the server refuses it every
   gameplay route.
 * Live updates over the server's event stream with automatic reconnection and a 15 s safety poll; leaving the app
@@ -35,6 +37,7 @@ cd native/android
 echo "sdk.dir=$HOME/Android/Sdk" > local.properties
 ./gradlew :app:assembleDebug        # app/build/outputs/apk/debug/app-debug.apk (installs as uk.beermat.app.next)
 ./gradlew :app:testDebugUnitTest    # shared rules + the real quiz server (needs Node.js 22.13+)
+./scripts/ui-test.sh                # the real app on an emulator or phone against real quiz servers (screenshots in build/ui-shots)
 ./gradlew :app:assembleRelease      # signed when keystore.properties exists (below)
 ```
 

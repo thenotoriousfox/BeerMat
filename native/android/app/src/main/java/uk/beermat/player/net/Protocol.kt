@@ -35,6 +35,9 @@ data class Question(
     val media: String, val points: Double, val seconds: Int,
     val deadline: Long, val remaining: Long, val open: Boolean, val live: Boolean, val paused: Boolean, val revealed: Boolean,
     val answer: String?, val answerNote: String, val buzz: Buzz?,
+    val wordLengths: List<Int> = emptyList(),
+    /** The whole question as the server sent it, for the formats with more to draw (bingo, word snake, clips…). */
+    val raw: JSONObject = JSONObject(),
 ) {
     val isTimed get() = type != "bingo" && type != "musicbingo"
 }
@@ -87,5 +90,7 @@ object Parse {
             val queue = b.optJSONArray("queue")?.let { a -> List(a.length()) { a.getJSONObject(it) }.map { BuzzEntry(it.str("team"), it.str("name"), it.str("status")) } } ?: emptyList()
             Buzz(b.strOrNull("buzzed"), b.optJSONObject("active")?.str("name"), queue, b.optBoolean("lockedOut"), b.optBoolean("agreeOpen"), b.optBoolean("agreed"), b.str("announced"))
         },
+        wordLengths = q.optJSONArray("wordLengths").ints(),
+        raw = q,
     )
 }
