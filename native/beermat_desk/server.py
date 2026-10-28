@@ -5,11 +5,14 @@ outlives the desk."""
 import json
 import os
 import shutil
+import sys
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 
-ROOT = Path(__file__).resolve().parents[2]
+# The repository (or, in a packaged build, the bundle's data folder, laid out the same way: server/, web/, desktop/,
+# native/beermat_desk/qml/, runtime/ for Node).
+ROOT = Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[2]
 
 
 def node_binary():

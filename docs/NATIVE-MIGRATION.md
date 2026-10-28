@@ -165,7 +165,7 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 | 5. Rehearsal and licensing UI | **built**: options, simulated teams and actions, test phones apart, log, go live; plan display and check |
 | 6. Android | **built**: `native/android`, debug APK builds, 7 JVM tests pass (2 against the real server); UI unverified on a device; Online screens todo |
 | 7. iOS | **written, not compiled**: `native/ios` (SwiftUI app + `BeerMatKit` package with unit and server tests); no Xcode or Swift toolchain here |
-| 8. Packaging | todo |
+| 8. Packaging | Linux **built and run**: `native/packaging/build.py` → 150 MB `.tar.gz`, started with an empty `PATH` (bundled Node served the quiz); AppImage needs `appimagetool` (not installed); Windows `.zip` + Inno Setup installer written, **not built** (needs a Windows machine); Android debug APK built; iOS not built |
 | 9. Legacy retirement | not before 3–8 are verified and you approve |
 
 Realistic size, from the prototype's measured pace (`NATIVE-DESK.md` §4): desk to parity 6–7 weeks; native TV

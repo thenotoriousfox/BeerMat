@@ -25,7 +25,8 @@ from .desk import Desk
 from .screens import Screens
 from .server import ROOT
 
-HERE = Path(__file__).resolve().parent
+# The QML sits at native/beermat_desk/qml in the repository and in packaged builds (qr.mjs reaches ../../../web).
+HERE = ROOT / 'native' / 'beermat_desk'
 
 
 def host_key(data_dir):

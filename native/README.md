@@ -30,3 +30,10 @@ One desk runs per data folder (a second start brings the first to the front). Lo
 | `beermat_desk/qml/PendingWorkspace.qml` | Workspaces not yet native: says so and opens the web desk |
 | `beermat_desk/qml/Desk/` | Design-system components (theme tokens, panel, pill, button) |
 | `tests/test_desk.py` | The real server and window, offscreen: load, join, answer, open, close, reveal, crash, close |
+
+## Packaged builds
+
+`native/packaging/build.py` bundles Python, Qt (PySide6 Essentials) and Node.js (official build, SHA-256 checked) with
+PyInstaller, so users install nothing. Run it on the system you build for; see the script's header. Linux gives a
+portable `.tar.gz` (and an AppImage when `appimagetool` is installed); Windows gives a `.zip` and, with Inno Setup, a
+per-user installer (`beermat-desk.iss`: Start menu, optional desktop shortcut, clean uninstall that keeps quizzes).
