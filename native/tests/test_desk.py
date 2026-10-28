@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -88,11 +89,18 @@ class DeskTest(unittest.TestCase):
         self.assertGreater(len(desk.view['upcoming']), 15)
         self.assertEqual(desk.view['next']['label'], 'Start next question')
 
+        # A Free laptop rehearses: simulated teams play, and real phones join only as test devices.
+        self.assertEqual(desk.view['mode'], 'rehearsal')
+        self.assertFalse(desk.view['canGoLive'])
         port, session = desk.server.info['port'], desk.api.session
-        http(port, 'host/settings', {'waitingRoom': False}, session)
-        bears = http(port, 'join', {'name': 'The Quizzly Bears'})
-        http(port, 'join', {'name': 'Les Quizerables'})
-        wait(lambda: len(desk.view.get('teams', [])) == 2, what='two teams in the room')
+        desk.startRehearsal(2)
+        wait(lambda: len(desk.view.get('teams', [])) == 2 and all(t['connected'] for t in desk.view['sims']), timeout=20, what='two simulated teams', log=self.toasts)
+        player = desk.view['sims'][0]['name']
+        http(port, 'host/rehearsal/team', {'name': player, 'manual': True}, session)
+        phone = http(port, 'join', {'name': 'Dave\'s phone'})
+        self.assertTrue(phone.get('rehearsal'))
+        wait(lambda: [d['name'] for d in desk.view.get('devices', [])] == ["Dave's phone"], what='the test phone, listed apart')
+        self.assertNotIn("Dave's phone", [t['name'] for t in desk.view['teams']])
         self.shot('2-loaded')
 
         desk.next()
@@ -100,16 +108,20 @@ class DeskTest(unittest.TestCase):
         q = desk.view['question']
         self.assertEqual((q['text'], q['type'], len(q['options']), q['answer']), ('Which planet is known as the Red Planet?', 'Multiple choice', 4, 'Mars'))
         self.assertTrue(desk.view['canClose'] and not desk.view['canReveal'] and not desk.view['next']['enabled'])
-        secret = bears.get('secret') or bears.get('code') or bears.get('key')
-        http(port, 'answer', {'question': 1, 'value': 'Mars'}, secret)
-        wait(lambda: desk.view.get('answers') == 1, what='the answer to arrive')
+        # The server, not the desk, keeps the test phone out of the game.
+        with self.assertRaises(urllib.error.HTTPError) as refused:
+            http(port, 'answer', {'question': 1, 'value': 'Mars'}, phone['secret'])
+        self.assertEqual(refused.exception.code, 403)
+        result = http(port, 'host/rehearsal/team', {'name': player, 'action': 'right'}, session)
+        self.assertTrue(result['result']['ok'], result)
+        wait(lambda: desk.view.get('answers', 0) >= 1, what='the answer to arrive')
         self.shot('3-live')
 
         desk.closeAnswers()
         wait(lambda: desk.view['phase'] == 'Answers closed' and desk.view['canReveal'], what='answers to close')
         desk.reveal()
         wait(lambda: desk.view['question']['revealed'], timeout=20, what='the reveal (after the drum roll)', log=lambda: (self.toasts, desk.view['phase'], {k: desk._state['question'].get(k) for k in ('open', 'live', 'revealing', 'revealed')}))
-        self.assertEqual(next(t for t in desk.view['teams'] if t['name'] == 'The Quizzly Bears')['score'], 1)
+        self.assertEqual(next(t for t in desk.view['teams'] if t['name'] == player)['score'], 1)
         self.shot('4-revealed')
 
         # The server dies mid-quiz: the desk starts it again and the quiz is exactly where it was.
@@ -117,7 +129,7 @@ class DeskTest(unittest.TestCase):
         wait(lambda: not desk.connected, what='the desk to notice')
         wait(lambda: desk.connected and desk.view.get('question'), timeout=20, what='the server to come back')
         self.assertEqual(desk.view['question']['text'], 'Which planet is known as the Red Planet?')
-        self.assertEqual(next(t for t in desk.view['teams'] if t['name'] == 'The Quizzly Bears')['score'], 1)
+        self.assertEqual(next(t for t in desk.view['teams'] if t['name'] == player)['score'], 1)
 
         desk.next()
         wait(lambda: desk.view['question']['text'] == 'Tick every prime number', what='the next question')

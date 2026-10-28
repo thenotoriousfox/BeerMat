@@ -183,6 +183,12 @@ class Desk(QObject):
             'canClose': bool(q and (q.get('open') or q.get('live')) and not q.get('revealed')),
             'canReveal': bool(q and not q.get('open') and not q.get('live') and not q.get('revealed') and not q.get('revealing')),
             'canPause': bool(q and q.get('open') and not q.get('paused')), 'canResume': bool(q and q.get('paused')),
+            # Live or rehearsal is the server's decision (plan and session mode); the desk only shows it. Real phones that
+            # joined a rehearsal are test devices, listed apart from the simulated teams that play it.
+            'mode': (s.get('rehearsal') or {}).get('mode', 'live'), 'plan': (s.get('plan') or {}).get('name') or (s.get('plan') or {}).get('plan', ''),
+            'canGoLive': bool((s.get('rehearsal') or {}).get('canGoLive')), 'rehearsing': bool((s.get('rehearsal') or {}).get('options')),
+            'devices': [{'name': d['name'], 'connected': bool(d.get('connected'))} for d in (s.get('rehearsal') or {}).get('devices', [])],
+            'sims': [{'name': t['name'], 'connected': bool(t.get('connected')), 'manual': bool(t.get('manual'))} for t in (s.get('rehearsal') or {}).get('sims', [])],
             'progress': f'{len(played & {item.get("id") for _, item in questions})} of {len(questions)} questions played' if questions else '',
             'upcoming': upcoming,
         }
@@ -275,6 +281,15 @@ class Desk(QObject):
     def resume(self):
         if self._view.get('canResume'):
             self._act('resume', {'expectedQuestion': self._expected()}, 'Timer resumed')
+
+    @Slot(int)
+    def startRehearsal(self, teams):
+        """A rehearsal with simulated teams (options as the web desk's Rehearse panel; the server cleans them)."""
+        self._act('rehearsal/start', {'options': {'teams': teams}}, f'Rehearsal started with {teams} simulated teams')
+
+    @Slot()
+    def stopRehearsal(self):
+        self._act('rehearsal/stop', {}, 'Rehearsal stopped')
 
     @Slot(QUrl)
     def loadQuiz(self, url):
