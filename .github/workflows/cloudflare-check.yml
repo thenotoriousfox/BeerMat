@@ -1,0 +1,31 @@
+name: Check Cloudflare
+# Run by hand (Actions → Check Cloudflare) to check the CLOUDFLARE_API_TOKEN secret can do what a release needs:
+# write to the beermat-downloads R2 bucket (a small file, deleted straight away) and see the website's Worker.
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Cloudflare is set up
+        run: test -n "$CLOUDFLARE_API_TOKEN" && test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "The CLOUDFLARE_API_TOKEN secret or the CLOUDFLARE_ACCOUNT_ID variable is missing"; exit 1; }
+      - name: Website tools
+        working-directory: site
+        run: npm ci
+      - name: The downloads bucket takes a file
+        working-directory: site
+        run: |
+          echo "Written by the Check Cloudflare workflow" > "$RUNNER_TEMP/check.txt"
+          npx wrangler r2 object put beermat-downloads/checks/github.txt --file "$RUNNER_TEMP/check.txt" --remote
+          npx wrangler r2 object delete beermat-downloads/checks/github.txt --remote
+      - name: The website's Worker is reachable
+        working-directory: site
+        run: npx wrangler deployments list | head -20
