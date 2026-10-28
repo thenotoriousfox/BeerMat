@@ -92,6 +92,28 @@ class DeskTest(unittest.TestCase):
         self.assertGreater(len(desk.view['upcoming']), 15)
         self.assertEqual(desk.view['next']['label'], 'Start next question')
 
+        # Quizzes: edit a question and save it through the server, which checks it; a bad edit is refused, not saved.
+        lib = desk.quizzes
+        wait(lambda: lib.outline, what='the quiz outline')
+        first = next(r for r in lib.outline if r['kind'] == 'question')
+        lib.select(first['round'], first['question'])
+        self.assertEqual(lib.question['type'], 'choice')
+        lib.setField('answerNote', 'Rust, mostly.')
+        self.assertTrue(lib.dirty)
+        lib.save()
+        wait(lambda: not lib.dirty, what='the quiz to save', log=self.toasts)
+        saved = http(desk.server.info['port'], 'host/library', {}, desk.api.session)
+        self.assertEqual(saved['rounds'][first['round']]['questions'][first['question']]['answerNote'], 'Rust, mostly.')
+        lib.setField('options', 'Only one')
+        lib.save()
+        wait(lambda: any(e and m.startswith('Not saved') for m, e in self.toasts), what='the server to refuse a bad question')
+        self.assertTrue(lib.dirty)
+        lib.revert()
+        self.window.setProperty('workspace', 2)
+        lib.select(first['round'], first['question'])
+        self.shot('2-quizzes')
+        self.window.setProperty('workspace', 0)
+
         # A Free laptop rehearses: simulated teams play, and real phones join only as test devices.
         self.assertEqual(desk.view['mode'], 'rehearsal')
         self.assertFalse(desk.view['canGoLive'])

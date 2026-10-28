@@ -11,6 +11,7 @@ from pathlib import Path
 from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal, Slot
 
 from .api import DeskApi
+from .library import Library
 from .server import QuizServer
 
 STEP_LABELS = {'reveal': 'Reveal next position', 'revealFirst': 'Reveal first place', 'show': 'Show leaderboard',
@@ -41,6 +42,8 @@ class Desk(QObject):
         super().__init__(parent)
         self.server = QuizServer(data_dir, host_key, port, laptop, self)
         self.api = DeskApi(self)
+        self.library = Library(self.api, self)
+        self.library.toast.connect(self.toast)
         self._state, self._library, self._view, self._tv = None, None, {}, {}
         self._laptop, self._network, self._checks = {}, {}, []
         self._status, self._connected, self._busy = 'Starting the quiz server…', False, False
@@ -59,6 +62,10 @@ class Desk(QObject):
     @Property('QVariantMap', notify=viewChanged)
     def view(self):
         return self._view
+
+    @Property(QObject, constant=True)
+    def quizzes(self):
+        return self.library
 
     @Property('QVariantMap', notify=tvChanged)
     def tv(self):
@@ -238,6 +245,7 @@ class Desk(QObject):
     def load_library(self):
         def got(library):
             self._library = library
+            self.library.received(library)
             self._rebuild()
         self.api.host('library', {}, got)
 

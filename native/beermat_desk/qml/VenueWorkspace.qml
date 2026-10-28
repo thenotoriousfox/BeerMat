@@ -49,8 +49,8 @@ RowLayout {
                         model: [{text: `Automatic — ${wifi.pick ? wifi.pick.interface + (wifi.pick.keepWifi ? ", beside your home Wi-Fi" : "") : "no card can host"}`, value: "auto"}]
                                .concat((wifi.cards || []).filter(c => c.ap).map(c => ({text: c.name, value: c.name})))
                     }
-                    TextField { id: ssid; placeholderText: "Wi-Fi name"; text: net.joinSsid || "BeerMat"; maximumLength: 32; Layout.preferredWidth: 180 }
-                    TextField { id: password; visible: !!wifi.needsPassword; placeholderText: "Password (8–63)"; text: net.joinPassword || ""; Layout.preferredWidth: 180 }
+                    Field { id: ssid; placeholderText: "Wi-Fi name"; text: net.joinSsid || "BeerMat"; maximumLength: 32; Layout.preferredWidth: 180 }
+                    Field { id: password; visible: !!wifi.needsPassword; placeholderText: "Password (8–63)"; text: net.joinPassword || ""; Layout.preferredWidth: 180 }
                 }
                 Item { Layout.fillHeight: true }
                 RowLayout {
@@ -83,7 +83,7 @@ RowLayout {
                         model: usable.length ? usable.map(a => ({text: `${a.address} — ${a.name}${a.kind === "virtual" ? " (virtual: phones can't reach it)" : ""}`, value: a.address}))
                                              : [{text: "Not on a network", value: ""}]
                     }
-                    TextField { id: lanSsid; placeholderText: "Venue Wi-Fi name (for the TV)"; Layout.preferredWidth: 220 }
+                    Field { id: lanSsid; placeholderText: "Venue Wi-Fi name (for the TV)"; Layout.preferredWidth: 220 }
                 }
                 Item { Layout.fillHeight: true }
                 RowLayout {

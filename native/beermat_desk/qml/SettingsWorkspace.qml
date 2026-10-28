@@ -89,7 +89,7 @@ ColumnLayout {
                    text: "The key opens this quiz's desk in a browser, on this laptop or another device on the quiz network. Keep it to yourself." }
             RowLayout {
                 spacing: 8
-                TextField { id: keyField; text: shown.checked ? desk.hostKey : "••••••••••••••••••••••••"; readOnly: true; Layout.preferredWidth: 300; font.family: "monospace" }
+                Field { id: keyField; text: shown.checked ? desk.hostKey : "••••••••••••••••••••••••"; readOnly: true; Layout.preferredWidth: 300; font.family: "monospace" }
                 CheckBox { id: shown; text: "Show"; palette.windowText: Theme.muted }
                 DeskButton { text: "Copy"; onClicked: { keyField.text = desk.hostKey; keyField.selectAll(); keyField.copy(); keyField.deselect(); keyField.text = Qt.binding(() => shown.checked ? desk.hostKey : "••••••••••••••••••••••••") } }
                 DeskButton { text: "Open the desk in a browser"; onClicked: settings.openWebDesk() }

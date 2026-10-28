@@ -72,7 +72,7 @@ Rows are features; columns are the existing client and its native replacement.
 | Answers & marking: current question, points or sheet items, score corrections | yes | **done** (hand mark + correction tested) | question history and paper answers: todo |
 | Buzzer, bingo, clips, wheel, countdown, tie-breaker controls | yes | todo | |
 | Waiting room, photos, away warnings | yes | todo | |
-| Quiz editor (18 formats) | yes | todo | largest single item |
+| Quiz library and editor: rounds and questions (add, duplicate, reorder, delete), format, wording, answer, aliases, choices, right choices, items, sheet answers, media path, points, time, note; save with server validation; save as file | yes | **built** (edit, save, server refusal tested) | per-format options (Evil Mode, speed bonus, go wide, buzzer/bingo, clips and songs, pinpoint target, word snake grid), media upload, Google Drive, print: todo, kept untouched meanwhile |
 | Teams: let in (one or all), rename, move to another phone, disable/restore | yes | **built** | notes, returning teams/PINs, blocked names, photos, results download: todo |
 | Venue / Online | yes | todo | |
 | Venue & network: quiz Wi-Fi start/stop (card, name, password), venue LAN address, online link, connection check, joining QR | yes | **built** (LAN join mode tested; Wi-Fi and tunnel need the real laptop) | |
@@ -161,7 +161,7 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 |---|---|
 | 1. Audit and shared contracts | **done**: this file, `CLIENT-PROTOCOL.md`, protocol version + discovery + tests |
 | 2. Native Qt foundation | **done**: server lifecycle, workspace shell, single instance, rotating logs, XWayland preference; todo: keyring for the key, first-run welcome |
-| 3. Native desk workspaces | Live, Rehearsal, Teams & marking, Venue & network **built**; Settings partly (plan, data, key, screens); Quizzes (library and editor): todo (open the web desk meanwhile); BeerMat Online venue sign-in: todo |
+| 3. Native desk workspaces | Live, Rehearsal, Teams & marking, Venue & network **built**; Settings partly (plan, data, key, screens); Quizzes **built** for common fields (per-format options in the web desk meanwhile); BeerMat Online venue sign-in: todo |
 | 4. Native TV | **built** for the main views (see §2.2); sounds, word snake, looks: todo |
 | 5. Rehearsal and licensing UI | **built**: options, simulated teams and actions, test phones apart, log, go live; plan display and check |
 | 6. Android | **built**: `native/android`, debug APK builds, 7 JVM tests pass (2 against the real server); UI unverified on a device; Online screens todo |

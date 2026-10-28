@@ -171,7 +171,7 @@ ApplicationWindow {
                     onConfirmEndLive: window.ask("End the live quiz and rehearse?", "The live quiz's results are saved first, then all teams and scores are cleared for the rehearsal.",
                                                  () => desk.startRehearsalWith(Object.assign(chosen(), {endLive: true})))
                 }
-                PendingWorkspace { heading: "Quizzes"; summary: "Browse, create, duplicate, import, export and edit quizzes: every format, scoring rule, media type and round."; onOpenWebDesk: window.openWebDesk() }
+                QuizzesWorkspace { onOpenQuiz: openQuiz.open(); onOpenWebDesk: window.openWebDesk() }
                 TeamsWorkspace { view: window.view }
                 VenueWorkspace {}
                 SettingsWorkspace { view: window.view; onOpenWebDesk: window.openWebDesk() }

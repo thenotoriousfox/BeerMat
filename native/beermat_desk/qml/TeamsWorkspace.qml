@@ -124,12 +124,12 @@ RowLayout {
                         x: 12; y: 48; width: parent.width - 24
                         spacing: 6
                         RowLayout {
-                            TextField { id: newName; placeholderText: "New name"; Layout.fillWidth: true; maximumLength: 40 }
+                            Field { id: newName; placeholderText: "New name"; Layout.fillWidth: true; maximumLength: 40 }
                             DeskButton { text: "Rename"; implicitHeight: 32; enabled: newName.text.trim().length >= 2; onClicked: desk.teamAction(teamRow.modelData.id, "rename", newName.text) }
                         }
                         RowLayout {
                             SpinBox { id: correction; from: -100; to: 100; value: 0; editable: true }
-                            TextField { id: reason; placeholderText: "Reason (shown in the results)"; Layout.fillWidth: true; maximumLength: 200 }
+                            Field { id: reason; placeholderText: "Reason (shown in the results)"; Layout.fillWidth: true; maximumLength: 200 }
                             DeskButton { text: "Correct score"; implicitHeight: 32; enabled: correction.value !== 0 && reason.text.trim() !== ""
                                          onClicked: { desk.adjust(teamRow.modelData.id, correction.value, reason.text); correction.value = 0; reason.text = "" } }
                         }
