@@ -39,6 +39,8 @@ ApplicationWindow {
     Shortcut { sequence: "F8"; onActivated: screens.setBlank(!screens.blanked) }
 
     TvWindow { id: tvWindow; objectName: "tv" }
+    // The TV's sounds play while the TV is showing, as Electron's TV window does.
+    Binding { target: desk.sound; property: "on"; value: screens.open && !screens.blanked }
     Repeater {
         model: window.workspaces.length
         delegate: Item { required property int index; Shortcut { sequence: `Ctrl+${index + 1}`; onActivated: window.workspace = index } }

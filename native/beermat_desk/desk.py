@@ -13,6 +13,8 @@ from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal, Slot
 from .api import DeskApi
 from .library import Library
 from .server import QuizServer
+from .tvsound import TvSound
+from .live import LiveTools
 
 STEP_LABELS = {'reveal': 'Reveal next position', 'revealFirst': 'Reveal first place', 'show': 'Show leaderboard',
                'finish': 'Finish quiz', 'round': 'Start next round', 'question': 'Start next question'}
@@ -44,6 +46,9 @@ class Desk(QObject):
         self.api = DeskApi(self)
         self.library = Library(self.api, self)
         self.library.toast.connect(self.toast)
+        self.tvSound = TvSound(self)
+        self.liveTools = LiveTools(self)
+        self.liveTools.clipsChanged.connect(self._rebuild)
         self._state, self._library, self._view, self._tv = None, None, {}, {}
         self._laptop, self._network, self._checks = {}, {}, []
         self._status, self._connected, self._busy = 'Starting the quiz server…', False, False
@@ -62,6 +67,14 @@ class Desk(QObject):
     @Property('QVariantMap', notify=viewChanged)
     def view(self):
         return self._view
+
+    @Property(QObject, constant=True)
+    def live(self):
+        return self.liveTools
+
+    @Property(QObject, constant=True)
+    def sound(self):
+        return self.tvSound
 
     @Property(QObject, constant=True)
     def quizzes(self):
@@ -240,6 +253,8 @@ class Desk(QObject):
             state['offset'] = state.get('serverTime', time.time() * 1000) - time.time() * 1000
             self._tv = state
             self.tvChanged.emit()
+            self.tvSound.base = self.serverUrl
+            self.tvSound.follow(state)
         self.api.get('leaderboard', got)
 
     def load_library(self):
@@ -300,6 +315,9 @@ class Desk(QObject):
             'answerRows': self._answer_rows(s, q),
             'canMark': bool(q and not q.get('open') and not q.get('live')),
             'isSheet': bool(q and q.get('type') == 'sheet'), 'sheetItems': (q or {}).get('items') or [],
+            # The live controls read the server's own question (host view), settings, tie and countdown as they are.
+            'raw': q or {}, 'settings': settings, 'tie': s.get('tie') or {}, 'timer': s.get('timer') or {},
+            'typeCode': (q or {}).get('type', ''), 'clipsRunning': (self.liveTools.clipsRunning() or {}).get('index', -1),
             'progress': f'{len(played & {item.get("id") for _, item in questions})} of {len(questions)} questions played' if questions else '',
             'upcoming': upcoming,
         }
@@ -404,8 +422,12 @@ class Desk(QObject):
     @Slot()
     def reveal(self):
         if self._view.get('canReveal'):
-            # The web desk waits for the drum roll (delay = the reveal sound's length); measuring it natively is still to do.
-            self._act('reveal', {'question': self._expected(), 'revealed': True, 'delay': 0}, 'Answer revealed on the TV')
+            # The TV plays the drum roll and the answer appears as it ends (as the web desk: up to 10 s; none in a fast
+            # rehearsal).
+            fast = ((self._state or {}).get('rehearsal') or {}).get('options', {}) or {}
+            delay = 0 if fast.get('speed') == 'fast' else min(10000, self.tvSound.duration_ms('reveal'))
+            self._act('reveal', {'question': self._expected(), 'revealed': True, 'delay': delay},
+                      f'Drum roll… the answer appears in {-(-delay // 1000)}s' if delay else 'Answer revealed on the TV')
 
     @Slot()
     def pause(self):

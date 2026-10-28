@@ -48,7 +48,8 @@ def http(port, route, body, key=''):
         return json.loads(reply.read())
 
 
-class DeskTest(unittest.TestCase):
+class DeskCase(unittest.TestCase):
+    """The real server and the QML desk, offscreen; shared by the desk tests."""
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
         self.quiz_file = Path(self.dir.name) / 'test-quiz.json'
@@ -80,6 +81,8 @@ class DeskTest(unittest.TestCase):
                 time.sleep(0.03)
             (window or self.window).grabWindow().save(str(Path(self.shots) / f'native-{name}.png'))
 
+
+class DeskTest(DeskCase):
     def test_runs_a_question_and_survives_a_server_crash(self):
         desk = self.desk
         desk.start()

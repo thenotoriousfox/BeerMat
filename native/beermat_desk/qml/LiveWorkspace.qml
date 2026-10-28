@@ -80,6 +80,8 @@ ColumnLayout {
                     }
                 }
 
+                RoundControls { view: live.view; Layout.fillWidth: true }
+
                 Item { Layout.fillHeight: true }
 
                 // The answer: on this desk only, never on the TV until it is revealed there.
@@ -240,8 +242,13 @@ ColumnLayout {
             DeskButton { text: view.canResume ? "Resume timer" : "Pause timer"; shortcutHint: "P"; enabled: (!!view.canPause || !!view.canResume) && !desk.busy
                          onClicked: view.canResume ? desk.resume() : desk.pause() }
             DeskButton { text: "Reveal answer"; shortcutHint: "R"; enabled: !!view.canReveal && !desk.busy; onClicked: desk.reveal() }
+            DeskButton { text: "Tools"; onClicked: toolsPopup.open() }
+            DeskButton { visible: !!live.view.timer && live.view.timer.endsAt !== undefined; text: live.view.timer && live.view.timer.endsAt === null ? "Resume countdown" : "Pause countdown"; shortcutHint: "T"; onClicked: desk.live.toggleTimer() }
             Item { Layout.fillWidth: true }
             Text { text: desk.status; color: Theme.faint; font.pixelSize: 12; horizontalAlignment: Text.AlignRight; elide: Text.ElideLeft; Layout.maximumWidth: 360 }
         }
     }
+
+    ToolsPopup { id: toolsPopup; view: live.view; parent: Overlay.overlay }
+    Shortcut { sequence: "T"; enabled: live.visible; onActivated: desk.live.toggleTimer() }
 }
