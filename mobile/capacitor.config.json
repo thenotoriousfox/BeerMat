@@ -7,10 +7,10 @@
     "allowNavigation": ["*"]
   },
   "android": {
-    "appendUserAgent": "BeerMatApp/0.5.1 (android)"
+    "appendUserAgent": "BeerMatApp/0.5.2 (android)"
   },
   "ios": {
-    "appendUserAgent": "BeerMatApp/0.5.1 (ios)",
+    "appendUserAgent": "BeerMatApp/0.5.2 (ios)",
     "contentInset": "never"
   }
 }
