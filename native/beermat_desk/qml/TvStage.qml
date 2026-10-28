@@ -62,6 +62,9 @@ Item {
             }
         }
 
+        // The Halloween look's scenery, behind everything.
+        Loader { anchors.fill: parent; active: root.tv.look === "halloween"; sourceComponent: HalloweenScene {} }
+
         // ---- header ----
         RowLayout {
             id: header
