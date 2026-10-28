@@ -161,10 +161,20 @@ class Desk(QObject):
         """The online link (a Cloudflare quick tunnel): needs internet on the laptop and cloudflared."""
         self.api.host('laptop/online', {'action': 'start' if on else 'stop'}, lambda _: self.loadNetwork(), lambda e: self.toast.emit(e, True))
 
+    @staticmethod
+    def hotspot_url(laptop, port):
+        """Where phones on the quiz Wi-Fi open the quiz, as the web desk works it out: Linux's hotspot sends
+        http://10.42.0.1 to the quiz; Windows' Mobile Hotspot is 192.168.137.1 and needs the quiz's port."""
+        wifi = (laptop or {}).get('wifi') or {}
+        windows = (laptop or {}).get('platform') == 'windows' or wifi.get('platform') == 'windows'
+        address = wifi.get('address') or ('192.168.137.1' if windows else '10.42.0.1')
+        return f'http://{address}' + (f':{port or 3000}' if windows else '')
+
     @Slot()
     def useHotspot(self):
         """As the web desk's join mode: players join on the quiz Wi-Fi."""
-        self._act('settings', {'joinMode': 'hotspot', 'joinUrl': 'http://10.42.0.1'}, 'Players join on the quiz Wi-Fi')
+        url = self.hotspot_url(self._laptop, (self.server.info or {}).get('port'))
+        self._act('settings', {'joinMode': 'hotspot', 'joinUrl': url}, 'Players join on the quiz Wi-Fi')
 
     @Slot(str, str)
     def useLan(self, address, ssid):
@@ -687,7 +697,10 @@ class Desk(QObject):
                 self.api.host('settings', {'joinMode': 'lan', **({'joinUrl': f'http://{address["address"]}:{n["port"]}'} if address else {})}, lambda _: self.refresh())
             self.api.host('network', {}, network)
         elif choice == 'hotspot':
-            self.api.host('settings', {'joinMode': 'hotspot', 'joinUrl': 'http://10.42.0.1'}, lambda _: self.refresh())
+            # The laptop's status says which hotspot it has (Windows or Linux), so the address is right first time.
+            port = (self.server.info or {}).get('port')
+            set_url = lambda laptop: self.api.host('settings', {'joinMode': 'hotspot', 'joinUrl': self.hotspot_url(laptop, port)}, lambda _: self.refresh())
+            self.api.host('laptop', {}, set_url, lambda _: set_url({}), timeout_ms=30000)
 
     @Slot(QUrl)
     def backup(self, folder):

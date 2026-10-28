@@ -11,7 +11,8 @@ RowLayout {
     readonly property var net: desk.network
     readonly property var laptop: net.laptop || {}
     readonly property var wifi: laptop.wifi || {}
-    readonly property var running: wifi.running || null
+    // Running, with its name known (Windows can report a hotspot that's on before it has one).
+    readonly property var running: wifi.running && wifi.running.ssid ? wifi.running : null
     readonly property bool working: !!(laptop.jobs && laptop.jobs.wifi && laptop.jobs.wifi.running)
     spacing: Theme.gap
     onVisibleChanged: if (visible) desk.loadNetwork()
@@ -35,7 +36,7 @@ RowLayout {
                     text: laptop.unavailable ? "This desk doesn't control the laptop's Wi-Fi (started with --no-laptop, or not Windows or Linux). Use the venue's network below."
                         : !laptop.wifi ? "Checking this laptop's Wi-Fi…"
                         : !wifi.available ? "This laptop can't host a quiz Wi-Fi. Use the venue's network below."
-                        : running ? `Phones join “${running.ssid}” and open http://10.42.0.1. Hosted on ${running.interface === "bm0" ? "the Wi-Fi card beside your home Wi-Fi" : running.interface}.`
+                        : running ? `Phones join “${running.ssid}” and open ${(wifi.address || "10.42.0.1") + (wifi.platform === "windows" ? ":" + (net.port || 3000) : "")}. Hosted on ${running.interface === "bm0" ? "the Wi-Fi card beside your home Wi-Fi" : running.interface}.`
                         : !wifi.wifiOn ? "Wi-Fi is switched off on this laptop."
                         : (wifi.cards || []).length ? "Wi-Fi cards: " + wifi.cards.map(c => `${c.name} (${c.ap ? (c.connected ? "on " + c.network + ", shares it" : c.hosting ? "hosting" : "free") : "can't host"})`).join(" · ")
                         : "No Wi-Fi card found."
