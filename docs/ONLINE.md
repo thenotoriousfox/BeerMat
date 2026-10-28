@@ -18,6 +18,7 @@ only for the app (`capacitor://localhost`, `http(s)://localhost`) and origins li
 | `POST /v1/verify` `{token}` · `POST /v1/me/verify` | anyone with the link · signed in | confirm the email address from the emailed link (a week, once) · send the link again |
 | `POST /v1/password-reset` `{email}` · `POST /v1/password-reset/confirm` `{token, password}` | anyone | email a reset link (the same answer for unknown addresses) · set the new password (an hour, once; every device is signed out) |
 | `POST /v1/reports` `{kind: "venue", target, reason}` | anyone | report a problem with a venue page (app: venue page → Report a problem) |
+| `POST /v1/reports` `{kind: "profile", target, reason}` | anyone | report a player's name or picture on a leaderboard; `target` is the player's `ref` from `/v1/leaderboards` |
 | `GET /v1/admin/reports[?all=1]` · `PATCH /v1/admin/reports/:id` `{resolved}` | admin | the admin console's Reports tab |
 | `GET/PATCH /v1/me` | signed in | profile: display name, usual team name, picture (≤ 200 KB JPEG/PNG/WebP), privacy |
 | `GET /v1/me/export` · `DELETE /v1/me` | signed in | everything held (access request) · erase the account and everything linked to it |
@@ -34,7 +35,7 @@ only for the app (`capacitor://localhost`, `http(s)://localhost`) and origins li
 | `POST /v1/venues/:id/events` · `PATCH/DELETE /v1/events/:id` | operator | publish, change, cancel a quiz night |
 | `GET /v1/venues/:id` · `GET /v1/events?q=…|lat=…&lon=…&radiusKm=…` | anyone | venue page · upcoming quizzes by town, postcode area or location |
 | `POST /v1/venue-results` (signed summary) | a registered laptop | results shared by the quizmaster (off by default) |
-| `GET /v1/leaderboards[?venue=]` | anyone | players who opted in, from verified venues |
+| `GET /v1/leaderboards[?venue=]` | anyone | players who opted in, from verified venues; each has a `ref` for reporting them, which doesn't reveal their account |
 | `POST /v1/venues/:id/verify` | admin | mark a venue as checked |
 | `GET /v1/admin/overview` · `GET /v1/admin/venues` · `GET /v1/admin/accounts?q=` | admin | the admin console's pages |
 | `PATCH /v1/admin/accounts/:id` `{admin, removePhoto}` · `DELETE /v1/admin/accounts/:id` | admin | admin rights, remove a picture, delete an account |

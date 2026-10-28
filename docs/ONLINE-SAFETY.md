@@ -86,19 +86,18 @@ What Ofcom's codes ask of a small, low-risk user-to-user service, and how BeerMa
 |---|---|
 | A named person accountable for online safety | Daniel Weatherall (table above) |
 | A way to review and take down illegal content quickly | The admin console: remove a venue, cancel a quiz night, remove a profile picture, delete an account, hide or remove a buzzer clip, stop a venue sharing clips |
-| Users can report content easily | Report on a venue page (app); Report on a buzzer clip (quiz desk); email hello@beermatquiz.co.uk for anything. Reports appear in the admin console's Reports tab |
+| Users can report content easily | Report on a venue page (app); Report on a buzzer clip (quiz desk); players on leaderboards through `POST /v1/reports {kind: 'profile'}`; email hello@beermatquiz.co.uk for anything. Reports appear in the admin console's Reports tab |
 | Swift action | A buzzer clip three venues report is hidden by itself and BeerMat is emailed; reports are checked at least weekly (the console's overview shows how many are waiting) |
 | Terms say how users are protected | `beermatquiz.co.uk/terms`: what's not allowed, reporting, removal of content and accounts |
-| Complaints, including appeals against removals | By email to hello@beermatquiz.co.uk |
+| Complaints, including appeals against removals | The terms' "Reports, complaints and appeals" section: reports looked at within days, appeals within 28 days answered within 14, complaints answered within 14 days, and Ofcom named |
 | No proactive scanning | Not needed for a small, low-risk service |
 
 ## 5. Gaps to close
 
-1. **No report button for players' names and pictures on leaderboards.** Add one in the app (a `profile` kind of
-   report), so it isn't only by email.
-2. **No written complaints procedure.** Add a short section to the terms: how to report, what happens next and how
-   quickly, and how to appeal a removal.
-3. **Report checking.** Commit to looking at the admin console's Reports tab at least weekly, and soon after the
+1. **Leaderboards aren't shown anywhere yet** (only the public `GET /v1/leaderboards` feed). Reporting is ready:
+   each player there has a `ref`, and `client.reportPlayer(ref, reason)` reports them. A screen that shows a
+   leaderboard must have a Report button on each player. Until then, players are reported by email.
+2. **Report checking.** Commit to looking at the admin console's Reports tab at least weekly, and soon after the
    email that a clip has been hidden.
 
 ## 6. Children's access assessment

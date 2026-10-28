@@ -111,6 +111,8 @@ export function createOnlineClient({baseUrl, venueListUrl = '', fetch = globalTh
     },
     venue: venueId => api('GET', '/v1/venues/' + encodeURIComponent(venueId)),
     report: (venueId, reason) => api('POST', '/v1/reports', {kind: 'venue', target: venueId, reason}),
+    // A player on a leaderboard, by the `ref` the leaderboard gives them.
+    reportPlayer: (ref, reason) => api('POST', '/v1/reports', {kind: 'profile', target: ref, reason}),
     favourites: () => api('GET', '/v1/me/favourites'),
     favourite: (venueId, on) => api(on ? 'PUT' : 'DELETE', '/v1/me/favourites/' + encodeURIComponent(venueId)),
     leaderboard: venueId => api('GET', '/v1/leaderboards' + (venueId ? '?venue=' + encodeURIComponent(venueId) : '')),

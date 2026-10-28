@@ -206,8 +206,9 @@ async function loadReports() {
   $('reportCount').textContent = String(reports.filter(r => !r.resolved).length); $('reportCount').hidden = !reports.some(r => !r.resolved);
   $('reportRows').replaceChildren(...reports.map(r => {
     const tr = el('tr'), act = el('td', undefined, 'actions'), venue = el('td'), open = r.kind === 'venue' && venues.find(v => v.id === r.target);
-    venue.append(el('strong', r.kind === 'buzzer' ? `🔊 ${r.targetName}` : r.targetName));
+    venue.append(el('strong', r.kind === 'buzzer' ? `🔊 ${r.targetName}` : r.kind === 'profile' ? `👤 ${r.targetName}` : r.targetName));
     if (open) {const b = el('button', 'Open', 'ghost small'); b.type = 'button'; b.onclick = () => openVenue(open); venue.append(document.createTextNode(' '), b);}
+    if (r.email) {const b = el('button', 'Open', 'ghost small'); b.type = 'button'; b.onclick = () => {$('accountSearch').value = r.email; show('accounts');}; venue.append(document.createTextNode(' '), b);}
     if (r.kind === 'buzzer' && r.targetName !== '(removed)') {const b = el('button', 'Open', 'ghost small'); b.type = 'button'; b.onclick = () => show('buzzers'); venue.append(document.createTextNode(' '), b);}
     const done = el('button', r.resolved ? 'Reopen' : 'Dealt with', 'ghost small'); done.type = 'button';
     done.onclick = guarded(async () => {await api('PATCH', `/v1/admin/reports/${r.id}`, {resolved: !r.resolved}); await loadReports();}, 'Saved');

@@ -322,6 +322,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       child.stdin.end(audio);
     });
   }
+  // A player on a public leaderboard is reported by a reference that doesn't reveal their account.
+  const profileRef = accountId => sha('profile:' + accountId).slice(0, 20);
   const buzzerOut = b => ({id: b.id, name: b.name, seconds: Math.round(b.seconds * 10) / 10, added: b.created});
   const sharedBuzzer = buzzerId => {const b = one('SELECT * FROM shared_buzzers WHERE id=? AND removed IS NULL', buzzerId); check(b, 'That buzzer isn’t in the library any more', 404); return b;};
 
@@ -538,6 +540,15 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       }
 
       // ---- Reports: anyone can flag a venue page that looks wrong or abusive; admins see them in the console ----
+      // A player's name or picture on a public leaderboard (only players who chose to appear there can be reported).
+      if (method === 'POST' && p === '/v1/reports' && input.kind === 'profile') {
+        limit('report:' + ip);
+        const target = typeof input.target === 'string' ? rows('SELECT id, privacy FROM accounts').find(a => privacy(a).leaderboards && profileRef(a.id) === input.target) : null;
+        check(target, 'Player not found', 404);
+        const reason = text(input.reason, 500, {required: true, name: 'What’s wrong'});
+        run('INSERT INTO reports(id,kind,target,reason,reporter,created) VALUES(?,?,?,?,?,?)', id(), 'profile', target.id, reason, account?.id ?? null, now());
+        return send(201, {reported: true});
+      }
       if (method === 'POST' && p === '/v1/reports') {
         limit('report:' + ip);
         check(input.kind === 'venue' && typeof input.target === 'string' && one('SELECT 1 FROM venues WHERE id=?', input.target), 'Venue not found', 404);
@@ -617,10 +628,10 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       }
       if (method === 'GET' && p === '/v1/admin/reports') {
         admin();
-        const list = rows(`SELECT r.*, v.name venue_name, b.name buzzer_name, a.email reporter_email, rv.name reporter_venue FROM reports r LEFT JOIN venues v ON r.kind='venue' AND v.id=r.target
-          LEFT JOIN shared_buzzers b ON r.kind='buzzer' AND b.id=r.target AND b.removed IS NULL LEFT JOIN accounts a ON a.id=r.reporter LEFT JOIN venues rv ON r.reporter='venue:' || rv.id
+        const list = rows(`SELECT r.*, v.name venue_name, b.name buzzer_name, pa.display_name profile_name, pa.email profile_email, a.email reporter_email, rv.name reporter_venue FROM reports r LEFT JOIN venues v ON r.kind='venue' AND v.id=r.target
+          LEFT JOIN shared_buzzers b ON r.kind='buzzer' AND b.id=r.target AND b.removed IS NULL LEFT JOIN accounts pa ON r.kind='profile' AND pa.id=r.target LEFT JOIN accounts a ON a.id=r.reporter LEFT JOIN venues rv ON r.reporter='venue:' || rv.id
           WHERE ?=1 OR r.resolved IS NULL ORDER BY r.created DESC LIMIT 200`, Number(url.searchParams.get('all') === '1'));
-        return send(200, {reports: list.map(r => ({id: r.id, kind: r.kind, target: r.target, targetName: r.venue_name || r.buzzer_name || '(removed)', reason: r.reason, reporter: r.reporter_email || r.reporter_venue || null, created: r.created, resolved: r.resolved}))});
+        return send(200, {reports: list.map(r => ({id: r.id, kind: r.kind, target: r.target, targetName: r.venue_name || r.buzzer_name || (r.profile_name ? `${r.profile_name} (${r.profile_email})` : '') || '(removed)', ...(r.profile_email && {email: r.profile_email}), reason: r.reason, reporter: r.reporter_email || r.reporter_venue || null, created: r.created, resolved: r.resolved}))});
       }
       if (method === 'PATCH' && parts[0] === 'admin' && parts[1] === 'reports' && parts.length === 3) {
         admin(); check(one('SELECT 1 FROM reports WHERE id=?', parts[2]), 'Report not found', 404);
@@ -818,7 +829,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
           const mine = history(a.id).filter(h => h.verifiedVenue && (!venue || h.venue === venue));
           if (!mine.length) continue;
           const s = summarize(mine);
-          board.set(a.id, {name: a.display_name, avatar: p2.photo ? a.avatar : null, quizzes: s.quizzes, wins: s.wins, points: s.points, accuracy: s.accuracy});
+          board.set(a.id, {ref: profileRef(a.id), name: a.display_name, avatar: p2.photo ? a.avatar : null, quizzes: s.quizzes, wins: s.wins, points: s.points, accuracy: s.accuracy});
         }
         return send(200, {players: [...board.values()].sort((x, y) => y.wins - x.wins || y.points - x.points).slice(0, 100)});
       }
