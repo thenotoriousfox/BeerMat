@@ -450,10 +450,13 @@ details.menu[open] > summary { color: var(--text); background: var(--surface-2);
 .checklist li.ok .tick { background: var(--good); color: #052e1f; }
 .checklist li button { margin: 0 0 0 auto; padding: 6px 14px; font-size: .85rem; }
 /* The question and its answers on the left; the room, what's next and the TV on the right. */
-.tonight-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
-.tonight-side { display: grid; gap: 0; position: sticky; top: 260px; max-height: calc(100vh - 280px); overflow: auto; padding-right: 4px; }
-.tonight-side section { padding: 16px 18px; }
-.tonight-side h2 { font-size: 1.05rem; }
+/* Tonight: the question and marking, then the teams in the room, then what's next, the TV and tools. Everything
+   scrolls with the page. Three columns on a wide screen; on a laptop the teams sit above the rest on the right. */
+.tonight-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: auto 1fr; grid-template-areas: "main room" "main side"; column-gap: 18px; align-items: start; }
+.tonight-main { grid-area: main; } .tonight-room { grid-area: room; } .tonight-side { grid-area: side; }
+.tonight-room section, .tonight-side section { padding: 16px 18px; }
+.tonight-room h2, .tonight-side h2 { font-size: 1.05rem; }
+@media (min-width: 1600px) { .tonight-grid { grid-template-columns: minmax(0, 1fr) 380px 360px; grid-template-rows: auto; grid-template-areas: "main room side"; } }
 .room-teams { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
 .room-teams li { display: grid; grid-template-columns: 30px 1fr auto auto; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
 .room-teams .avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; display: grid; place-items: center; font-weight: 800; background: var(--surface-2); }
@@ -487,7 +490,8 @@ details.tools > summary { cursor: pointer; font-weight: 700; }
 .outline-round ol button.played::after { content: " ✓"; color: var(--good); }
 @media (max-width: 1100px) {
   .tonight-grid, .editor-layout { grid-template-columns: 1fr; }
-  .tonight-side, .outline-col { position: static; max-height: none; }
+  .tonight-grid { grid-template-areas: "main" "room" "side"; }
+  .outline-col { position: static; max-height: none; }
   .control-bar { position: static; }
 }
 .stage { min-height: 230px; border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); box-shadow: var(--shadow), 0 0 40px color-mix(in srgb, var(--gold) 12%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--gold) 10%, transparent), var(--surface)); }
