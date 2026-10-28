@@ -1,7 +1,7 @@
 import http from 'node:http';
 import {DatabaseSync} from 'node:sqlite';
 import {randomBytes, randomInt, timingSafeEqual, createHash} from 'node:crypto';
-import {existsSync, mkdirSync, writeFileSync, statSync, createReadStream, unlinkSync, readdirSync, readFileSync} from 'node:fs';
+import {existsSync, mkdirSync, writeFileSync, statSync, statfsSync, createReadStream, unlinkSync, readdirSync, readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {offensive} from './names.js';
@@ -16,6 +16,7 @@ import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from '../web
 import {typeGroups} from './looks.js';
 import {loadThemes} from './themes.js';
 import {fetchDriveQuiz} from './drive.js';
+import {createSimulator, cleanOptions, fastSeconds} from './rehearsal.js';
 import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern, sheetPoints, spotifyTrack} from './model.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..'), web = path.join(root, 'web');
@@ -34,7 +35,7 @@ const deskSecurity = {...security, 'Content-Security-Policy': security['Content-
 const DELIVERY_GRACE_MS = 2000;
 const SESSION_MS = 12 * 60 * 60 * 1000;
 // Read-only routes never notify clients of a change.
-const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token', '/api/host/drive', '/api/host/spotify/preview', '/api/host/spotify/pause', '/api/host/online/account', '/api/host/online/signin', '/api/host/online/signup', '/api/host/online/signout', '/api/host/online/call', '/api/host/online/locate', '/api/host/plan', '/api/host/buzzer-library', '/api/host/buzzer-library/play', '/api/host/buzzer-library/share', '/api/host/buzzer-library/remove', '/api/host/buzzer-library/report']);
+const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token', '/api/host/drive', '/api/host/spotify/preview', '/api/host/spotify/pause', '/api/host/online/account', '/api/host/online/signin', '/api/host/online/signup', '/api/host/online/signout', '/api/host/online/call', '/api/host/online/locate', '/api/host/plan', '/api/host/buzzer-library', '/api/host/buzzer-library/play', '/api/host/buzzer-library/share', '/api/host/buzzer-library/remove', '/api/host/buzzer-library/report', '/api/host/preflight']);
 
 // A sound pack is a folder: general/<name>.mp3 for each moment (soundnames.js), buzzers/<pack>/*.mp3, Themes/<name>/,
 // and optionally bingo-calls.json at the top. `prefix` is the URL they are served under.
@@ -107,6 +108,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   column('teams', 'transfer_expires', 'INTEGER');
   column('teams', 'waiting', 'INTEGER NOT NULL DEFAULT 0');
   column('teams', 'regular', 'TEXT');
+  // What a team is: a real team ('player'), a rehearsal's simulated team ('sim'), or a real phone that joined a rehearsal
+  // to test its connection ('device'), which may never play. Teams from before rehearsals existed are players.
+  column('teams', 'kind', "TEXT NOT NULL DEFAULT 'player'");
   column('questions', 'paused_ms', 'INTEGER');
   column('questions', 'revealed', 'INTEGER NOT NULL DEFAULT 0');
   column('questions', 'settled', 'INTEGER NOT NULL DEFAULT 0');
@@ -246,6 +250,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     notifyTimer = setTimeout(() => {
       notifyTimer = null; version++;
       for (const stream of streams) stream.send(version);
+      rehearsalTick();
     }, 20);
   }
   const liveTeams = () => new Set([...streams].map(s => s.team).filter(Boolean));
@@ -388,7 +393,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const live = liveTeams();
     const teams = rows(`SELECT id,name,seen,enabled,waiting,sound,photo,photo_status,note,
       COALESCE((SELECT SUM(a.points) FROM answers a JOIN questions q ON a.question=q.id WHERE a.team=teams.id AND (q.closed=1 OR q.settled=1)),0)
-      +COALESCE((SELECT SUM(points) FROM adjustments WHERE team=teams.id),0) score FROM teams ${includeDisabled ? '' : 'WHERE enabled=1 AND waiting=0'} ORDER BY score DESC,name`);
+      +COALESCE((SELECT SUM(points) FROM adjustments WHERE team=teams.id),0) score FROM teams WHERE kind<>'device' ${includeDisabled ? '' : 'AND enabled=1 AND waiting=0'} ORDER BY score DESC,name`);
     // Teams level on points are split by the latest tie-breaker once it has closed: closest first, then the quicker
     // answer; teams that didn't answer it stay level with each other, behind those that did.
     const tie = tieOrder();
@@ -492,6 +497,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const venueKey = () => {let k = getMeta('venueKey', null); if (!k) {k = newVenueKey(); setMeta('venueKey', k);} return k;};
   const teamRef = (event, teamId) => hash(`${event}:${teamId}`).slice(0, 24);
   function recordResults() {
+    // A rehearsal's results stay on the desk: no results history, returning teams, online sharing or signed results.
+    if (!liveNow()) return;
     const event = getMeta('event', ''), results = eventResults();
     if (!results.length) return;
     rememberTeams();
@@ -529,13 +536,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     requireValue(!one('SELECT id FROM teams WHERE name=?', regular.name), 'A team with your name has already joined. Ask the quizmaster.', 409);
     requireValue(one('SELECT COUNT(*) n FROM teams').n < 250, 'Team limit reached. Ask the quizmaster.', 409);
     const {maxTeams} = settings();
-    requireValue(!maxTeams || one('SELECT COUNT(*) n FROM teams WHERE enabled=1').n < maxTeams, 'The quiz is full. Ask the quizmaster.', 409);
-    requireValue(!fullFor(plan().limits), 'The quiz is full. Ask the quizmaster.', 409);
+    requireValue(!maxTeams || one("SELECT COUNT(*) n FROM teams WHERE enabled=1 AND kind<>'device'").n < maxTeams, 'The quiz is full. Ask the quizmaster.', 409);
     const sound = regular.sound !== null && regular.sound < SOUNDS + soundPack().buzzers.length ? regular.sound : null;
     const photo = regular.photo && existsSync(path.join(mediaDir, path.basename(regular.photo))) ? regular.photo : null;
     // The PIN came from the quizmaster, so a returning team skips the waiting room.
     const id = token(), secret = token();
-    run('INSERT INTO teams(id,name,secret,seen,waiting,sound,photo,photo_status,regular) VALUES(?,?,?,?,0,?,?,?,?)', id, regular.name, secret, now(), sound, photo, photo && 'approved', regular.id);
+    run('INSERT INTO teams(id,name,secret,seen,waiting,sound,photo,photo_status,regular,kind) VALUES(?,?,?,?,0,?,?,?,?,?)', id, regular.name, secret, now(), sound, photo, photo && 'approved', regular.id, liveNow() ? 'player' : 'device');
     rememberDevice(req, id); return secret;
   }
   // Sends queued results when the online service can be reached; until then they wait, however long that takes.
@@ -565,6 +571,110 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return {...edition(l?.plan), venue: l?.venueName || '', expires: l?.expires || null, paidUntil: l?.paidUntil || null};
   };
   const planOut = () => {const {has, ...out} = plan(); return out;};
+  // ---- Live or rehearsal ----
+  // A live quiz has real teams playing; it needs BeerMat Pro. A rehearsal runs the same quiz with simulated teams, and
+  // real phones can join only to test their connection. Without a choice made, a Pro laptop is live and a Free one
+  // rehearses. Once a live quiz has started under Pro it carries on for up to a day if the licence lapses meanwhile,
+  // so a quiz in progress is never cut off; new live quizzes need a valid licence.
+  const LIVE_GRACE_MS = 24 * 60 * 60 * 1000;
+  const sessionMode = () => getMeta('mode', null) ?? (plan().has('live') ? 'live' : 'rehearsal');
+  const liveNow = () => sessionMode() === 'live' && (plan().has('live') || (getMeta('liveEvent', null) === getMeta('event', '') && now() - getMeta('liveSince', 0) < LIVE_GRACE_MS));
+  const rehearsalOptions = () => liveNow() ? null : getMeta('rehearsal', null);
+  // Simulated teams join with a token that only this process hands out, one per join.
+  const simTokens = new Set();
+  const simToken = () => {const t = token(); simTokens.add(t); return t;};
+  let simulator = null, rehearsalLog = [];
+  function rehearsalTick() {
+    if (closing) return;
+    const options = rehearsalOptions();
+    if (!options) {if (simulator) {simulator.stop(); simulator = null;} return;}
+    if (!simulator && server.listening) {
+      simulator = createSimulator({port: server.address().port, joinToken: simToken, options,
+        privateQuestion: () => {const q = latest(); return q ? {...dataOf(q), id: q.id, deadline: q.deadline, open: accepting(q)} : null;},
+        log: entry => {rehearsalLog = [entry, ...rehearsalLog].slice(0, 200); notify();}});
+      simulator.adopt(rows("SELECT name,secret FROM teams WHERE kind='sim'"));
+    }
+    simulator?.update();
+  }
+  function rehearsalState() {
+    const options = rehearsalOptions(), mode = liveNow() ? 'live' : 'rehearsal';
+    const sims = simulator ? new Map(simulator.teams().map(t => [t.name, t])) : new Map();
+    return {mode, canGoLive: plan().has('live'), options,
+      sims: rows("SELECT name FROM teams WHERE kind='sim' ORDER BY name").map(t => ({name: t.name, connected: !!sims.get(t.name)?.connected, manual: !!sims.get(t.name)?.manual})),
+      devices: scoresOfDevices(), log: rehearsalLog.slice(0, 50)};
+  }
+  const scoresOfDevices = () => {const live = liveTeams(); return rows("SELECT id,name,seen FROM teams WHERE kind='device' ORDER BY seen DESC").map(d => ({name: d.name, connected: live.has(d.id) || now() - d.seen < 15000, seen: d.seen}));};
+  // Clears the quiz room for the next quiz: teams, answers and questions go; the quiz's questions stay. A live quiz's
+  // results are saved (and downloaded by the desk) first; a rehearsal's are not kept.
+  function resetEvent({nextLibrary = null, title} = {}) {
+    let saved = null, results = null;
+    if (liveNow()) {
+      recordResults();
+      results = exportResults(); const folder = path.join(path.dirname(path.resolve(database)), 'results');
+      const file = `${new Date(now()).toISOString().replace(/[:.]/g, '-').slice(0, 19)}-${settings().title.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'quiz'}.json`;
+      mkdirSync(folder, {recursive: true}); writeFileSync(path.join(folder, file), JSON.stringify(results, null, 2), {mode: 0o600});
+      saved = path.join('results', file);
+    }
+    simulator?.stop(); simulator = null; rehearsalLog = [];
+    const photos = rows('SELECT photo FROM teams WHERE photo IS NOT NULL AND photo NOT IN (SELECT photo FROM regulars WHERE photo IS NOT NULL)').map(t => t.photo);
+    transaction(() => {
+      for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'marking_log', 'adjustments', 'device_ips', 'actions', 'questions', 'teams']) run(`DELETE FROM ${table}`);
+      if (nextLibrary) setMeta('library', {...nextLibrary, revision: library().revision + 1});
+      setMeta('timer', null); setMeta('wheel', null); setMeta('board', null); setMeta('event', token().slice(0, 12));
+      setMeta('settings', {...settings(), title: title || nextLibrary?.title || library().title, ended: false, registrationOpen: true, displayMode: 'auto'});
+    });
+    for (const photo of photos) try {unlinkSync(path.join(mediaDir, path.basename(photo)));} catch {}
+    return {saved, results};
+  }
+  async function startRehearsalTeams() {
+    simulator?.stop(); simulator = null;
+    rehearsalTick();
+    if (simulator) await simulator.start(rehearsalOptions().teams);
+    notify();
+  }
+  // ---- Preflight: what can be checked before a quiz night, in plain words. Each check passed, warned, failed, or
+  // couldn't be checked from here ('unknown'); nothing is reported as passed without being checked. The desk adds the
+  // screen and sound checks, which only the desktop app can see.
+  async function preflight() {
+    const checks = [], add = (id, label, status, text) => checks.push({id, label, status, text});
+    add('server', 'Quiz server', 'pass', `Running on port ${server.address()?.port}.`);
+    try {
+      const ok = one('PRAGMA quick_check')?.quick_check === 'ok';
+      add('database', 'Quiz database', ok ? 'pass' : 'fail', ok ? 'Saved and readable.' : 'The database reports damage. Back up the quiz and restart BeerMat; it restores the last good copy.');
+    } catch (e) {add('database', 'Quiz database', 'fail', `It can’t be read: ${e.message}`);}
+    const quiz = library(), all = quiz.rounds.flatMap(r => r.questions);
+    if (!all.length) add('quiz', 'The quiz', 'fail', 'There are no questions yet. Build the quiz under Quizzes, or load a quiz file.');
+    else {
+      const problems = [];
+      for (const r of quiz.rounds) for (const q of r.questions) try {validateQuestion(q, mediaDir);} catch (e) {problems.push(`“${(q.text || '').slice(0, 40)}”: ${e.message}`);}
+      const empty = quiz.rounds.filter(r => !r.questions.length).map(r => r.title);
+      add('quiz', 'The quiz', problems.length ? 'fail' : empty.length ? 'warn' : 'pass', problems.length ? `${problems.length} question${problems.length === 1 ? ' needs' : 's need'} fixing: ${problems.slice(0, 3).join('; ')}`
+        : empty.length ? `${all.length} questions in ${quiz.rounds.length} rounds; ${empty.join(', ')} ha${empty.length === 1 ? 's' : 've'} no questions.` : `${all.length} questions in ${quiz.rounds.length} rounds.`);
+    }
+    // Every picture and sound the quiz uses, on this laptop.
+    const media = new Set(all.flatMap(q => [q.media, ...(q.clips || []).map(c => c.media), ...(q.songs || []).map(c => c.media)]).filter(m => typeof m === 'string' && m.startsWith('/')));
+    const missing = [...media].filter(m => /^\/(pack|sounds)\//.test(m) ? !packFile(m) : !existsSync(path.join(mediaDir, path.basename(m))));
+    add('media', 'Pictures and sounds', missing.length ? 'fail' : 'pass', missing.length ? `${missing.length} of ${media.size} can’t be found on this laptop. Open those questions under Quizzes and add the files again.` : media.size ? `All ${media.size} are on this laptop.` : 'This quiz uses none.');
+    try {
+      const fs = statfsSync(path.dirname(path.resolve(database))), free = fs.bavail * fs.bsize, mb = Math.round(free / 1048576);
+      add('disk', 'Disk space', mb < 100 ? 'fail' : mb < 500 ? 'warn' : 'pass', mb < 500 ? `Only ${mb} MB free. Free some space so the quiz can keep saving.` : `${(free / 1073741824).toFixed(1)} GB free.`);
+    } catch {add('disk', 'Disk space', 'unknown', 'Couldn’t be checked on this system.');}
+    try {
+      const found = await networkCheck({port: server.address().port, addresses: lanAddresses(interfaces)});
+      const warn = found.filter(c => c.status === 'warn');
+      add('network', 'Network', warn.length ? 'warn' : 'pass', warn.length ? warn.map(c => c.text).join(' ') : found.filter(c => c.status === 'ok').map(c => c.text).join(' ') || 'Phones can reach this laptop.');
+    } catch {add('network', 'Network', 'unknown', 'The network couldn’t be checked.');}
+    if (settings().joinMode === 'hotspot') {
+      if (!laptop) add('hotspot', 'Quiz Wi-Fi', 'unknown', 'Quiz Wi-Fi is managed outside BeerMat here, so it couldn’t be checked.');
+      else try {
+        const w = await laptop.wifi();
+        add('hotspot', 'Quiz Wi-Fi', w.running ? 'pass' : w.available && w.wifiOn ? 'warn' : 'fail', w.running ? `On, as “${w.running.ssid}”.` : w.available && w.wifiOn ? 'Ready, but not on yet: start it on Tonight before teams arrive.' : w.available ? 'Wi-Fi is switched off on this laptop.' : 'This laptop can’t run a quiz Wi-Fi. Use the venue’s Wi-Fi instead (Settings → Joining).');
+      } catch {add('hotspot', 'Quiz Wi-Fi', 'unknown', 'The Wi-Fi couldn’t be checked.');}
+    }
+    return checks;
+  }
+  // A quiz that has started (questions played or teams in) and would be lost by switching.
+  const quizStarted = () => !!one('SELECT 1 FROM questions LIMIT 1') || !!one("SELECT 1 FROM teams WHERE kind='player' LIMIT 1");
   // Asks BeerMat Online for a fresh licence: a request signed with this laptop's venue key, so no sign-in is needed.
   async function refreshLicence() {
     const base = onlineBase();
@@ -584,7 +694,6 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const renew = () => {if (getMeta('licence', null) && !fixedPlan) refreshLicence().catch(() => {});};
   const licenceTimer = setInterval(renew, 6 * 3600 * 1000); licenceTimer.unref?.();
   const firstRenew = setTimeout(renew, 5000); firstRenew.unref?.();
-  const fullFor = limits => limits && one('SELECT COUNT(*) n FROM teams').n >= limits.teams;
   // The desk's Venue section: this laptop signs in to BeerMat Online for the venue's operator and passes on the few
   // calls that run a venue. The session stays on the laptop; the desk page never talks to the internet itself.
   const onlineCalls = [
@@ -630,7 +739,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const url = onlineUrl(), secret = secretRound(), s = {...settings(), ...secret && {leaderboardVisible: false, secretRound: true}};
     return url ? {...s, joinUrl: url, joinPassword: '', online: true} : s;
   };
-  function publicState() { return {serverTime: now(), build, settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), reveal: publicScores().length ? boardReveal() : null, wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
+  function publicState() { return {serverTime: now(), build, rehearsal: !liveNow(), settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), reveal: publicScores().length ? boardReveal() : null, wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
 
   // Final scoring once answers stop: nearest-wins needs every answer before it can rank them.
   function settle(q) {
@@ -659,8 +768,6 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     requireValue(!settings().ended, 'Quiz has finished. Resume it first.', 409);
     const current = latest();
     requireValue(!pending(current), 'Close current question first', 409);
-    const {limits} = plan();
-    requireValue(!limits || one('SELECT COUNT(*) n FROM questions').n < limits.questions, `BeerMat Free plays ${limits?.questions} questions in a quiz. BeerMat Pro plays the rest: see Settings → Plan.`, 403);
     settle(current);
     const q = validateQuestion(data, mediaDir), random = () => randomInt(2 ** 32) / 2 ** 32;
     if (sourceId) q.sourceId = sourceId;
@@ -669,6 +776,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     // Each play gets a fresh word-snake grid and tile shuffle.
     if (q.type === 'wordsnake') q.snake = snakeGrid(q.answer, random);
     if (q.type === 'tiles') q.pieces = shuffleTiles(q.tiles, random);
+    // A rehearsal with fast timers gives each question a third of its time; the server's clock and checks are unchanged.
+    if (!liveNow() && rehearsalOptions()?.speed === 'fast' && q.type !== 'buzzer') q.seconds = fastSeconds(q.seconds);
     const result = run('INSERT INTO questions(data,opened,deadline) VALUES(?,?,?)', JSON.stringify(q), now(), now() + q.seconds * 1000);
     return {ok: true, id: Number(result.lastInsertRowid)};
   }
@@ -938,7 +1047,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/plan/refresh') return send(200, await refreshLicence());
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats();
-          return send(200, {serverTime: now(), plan: planOut(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board: boardStep(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {serverTime: now(), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board: boardStep(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -1339,20 +1448,42 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           requireValue(['keep', 'empty', 'load'].includes(body.questions), 'Choose which questions the next quiz uses');
           const nextLibrary = body.questions === 'load' ? validateLibrary(body.quiz, mediaDir) : body.questions === 'empty' ? {title: 'My quiz', rounds: []} : null;
           requireValue(body.title === undefined || (typeof body.title === 'string' && body.title.trim() && body.title.length <= 100), 'Event name must be 1–100 characters');
-          recordResults();
-          const results = exportResults(), folder = path.join(path.dirname(path.resolve(database)), 'results');
-          const file = `${new Date(now()).toISOString().replace(/[:.]/g, '-').slice(0, 19)}-${settings().title.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'quiz'}.json`;
-          mkdirSync(folder, {recursive: true}); writeFileSync(path.join(folder, file), JSON.stringify(results, null, 2), {mode: 0o600});
-          const photos = rows('SELECT photo FROM teams WHERE photo IS NOT NULL AND photo NOT IN (SELECT photo FROM regulars WHERE photo IS NOT NULL)').map(t => t.photo);
-          transaction(() => {
-            for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'marking_log', 'adjustments', 'device_ips', 'actions', 'questions', 'teams']) run(`DELETE FROM ${table}`);
-            if (nextLibrary) setMeta('library', {...nextLibrary, revision: library().revision + 1});
-            setMeta('timer', null); setMeta('wheel', null); setMeta('board', null); setMeta('event', token().slice(0, 12));
-            setMeta('settings', {...settings(), title: body.title?.trim() || nextLibrary?.title || library().title, ended: false, registrationOpen: true, displayMode: 'auto'});
-          });
-          for (const photo of photos) try {unlinkSync(path.join(mediaDir, path.basename(photo)));} catch {}
-          return send(200, {saved: path.join('results', file), results});
+          const reset = resetEvent({nextLibrary, title: body.title?.trim()});
+          // A rehearsal starts again with its simulated teams.
+          if (!liveNow() && rehearsalOptions()) await startRehearsalTeams();
+          return send(200, reset);
         }
+        // ---- Rehearsal and live (see sessionMode) ----
+        if (p === '/api/host/rehearsal/start') {
+          const options = cleanOptions(body.options);
+          // Rehearsing replaces a live quiz in progress only when the quizmaster says so (its results are saved first).
+          requireValue(!liveNow() || !quizStarted() || body.endLive === true, 'A live quiz is in progress. End it first, or confirm to save its results and rehearse.', 409);
+          const reset = resetEvent({});
+          setMeta('mode', 'rehearsal'); setMeta('rehearsal', options);
+          await startRehearsalTeams();
+          return send(200, {...reset, rehearsal: rehearsalState()});
+        }
+        if (p === '/api/host/rehearsal/stop') {
+          requireValue(!liveNow(), 'This is a live quiz, not a rehearsal', 409);
+          resetEvent({}); setMeta('rehearsal', null);
+          return send(200, {rehearsal: rehearsalState()});
+        }
+        if (p === '/api/host/rehearsal/team') {
+          requireValue(!liveNow() && simulator, 'Simulated teams only take part in a rehearsal', 409);
+          requireValue(typeof body.name === 'string', 'Choose a rehearsal team');
+          if (typeof body.manual === 'boolean') {simulator.setManual(body.name, body.manual); return send(200, {rehearsal: rehearsalState()});}
+          requireValue(['right', 'wrong', 'duplicate', 'invalid', 'stale', 'buzz', 'agree', 'disconnect', 'reconnect'].includes(body.action), 'Unknown rehearsal action');
+          const result = await simulator.act(body.name, body.action);
+          return send(200, {result: {ok: result.status >= 200 && result.status < 300, detail: result.error || ''}, rehearsal: rehearsalState()});
+        }
+        if (p === '/api/host/live') {
+          requireValue(plan().has('live'), 'Hosting a live quiz with real teams is part of BeerMat Pro: see Settings → Plan.', 403);
+          // Going live clears a rehearsal (nothing from it is kept).
+          if (!liveNow()) resetEvent({});
+          transaction(() => {setMeta('mode', 'live'); setMeta('rehearsal', null); setMeta('liveEvent', getMeta('event', '')); setMeta('liveSince', now());});
+          return send(200, {rehearsal: rehearsalState()});
+        }
+        if (p === '/api/host/preflight') return send(200, {checks: await preflight()});
         throw new QuizError('Unknown host action', 404);
       }
       if (p === '/api/transfer') {
@@ -1371,13 +1502,19 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         requireValue(typeof body.name === 'string' && body.name.trim().length >= 2 && body.name.trim().length <= 40, 'Team name must be 2–40 characters');
         requireValue(!offensive(body.name, getMeta('blockedWords', [])), 'Please choose a different team name', 400);
         requireValue(!one('SELECT id FROM teams WHERE name=? COLLATE NOCASE', body.name.trim()), 'Name taken. Use your recovery code to reconnect.', 409);
+        // 250 teams is the technical ceiling for one laptop, whatever the plan.
         requireValue(one('SELECT COUNT(*) n FROM teams').n < 250, 'Team limit reached. Ask the quizmaster.', 409);
-        const {maxTeams, waitingRoom} = settings();
-        requireValue(!maxTeams || one('SELECT COUNT(*) n FROM teams WHERE enabled=1').n < maxTeams, 'The quiz is full. Ask the quizmaster.', 409);
-        requireValue(!fullFor(plan().limits), 'The quiz is full. Ask the quizmaster.', 409);
+        // Who is joining: in a live quiz, a team; in a rehearsal, a simulated team (it carries a token only this server
+        // hands out) or else a real phone testing its connection, which can never play.
+        const sim = typeof body.simToken === 'string' && simTokens.delete(body.simToken);
+        requireValue(!sim || !liveNow(), 'Simulated teams only take part in a rehearsal', 403);
+        const kind = sim ? 'sim' : liveNow() ? 'player' : 'device';
+        const {maxTeams} = settings(), waitingRoom = kind === 'player' && settings().waitingRoom;
+        requireValue(kind === 'device' || !maxTeams || one("SELECT COUNT(*) n FROM teams WHERE enabled=1 AND kind<>'device'").n < maxTeams, 'The quiz is full. Ask the quizmaster.', 409);
         // With the waiting room on, a new team waits until the quizmaster lets it in.
-        const id = token(), secret = token(); run('INSERT INTO teams(id,name,secret,seen,waiting) VALUES(?,?,?,?,?)', id, body.name.trim(), secret, now(), Number(waitingRoom));
-        rememberDevice(req, id); return send(200, {id, secret, waiting: waitingRoom});
+        const id = token(), secret = token(); run('INSERT INTO teams(id,name,secret,seen,waiting,kind) VALUES(?,?,?,?,?,?)', id, body.name.trim(), secret, now(), Number(waitingRoom), kind);
+        if (!sim) rememberDevice(req, id);
+        return send(200, {id, secret, waiting: waitingRoom, ...(kind === 'device' && {rehearsal: true})});
       }
       // A phone that already played (e.g. in the Wi-Fi sign-in window) can carry on in its normal browser.
       if (p === '/api/device') {const team = deviceTeam(req); return send(200, {team: team ? {name: team.name} : null});}
@@ -1387,7 +1524,15 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       }
       const team = one('SELECT * FROM teams WHERE secret=?', auth || ''); requireValue(team, 'Team recovery code required', 401);
       requireValue(team.enabled, 'This team is disabled. Ask the quizmaster.', 403);
-      run('UPDATE teams SET seen=? WHERE id=?', now(), team.id); rememberDevice(req, team.id);
+      run('UPDATE teams SET seen=? WHERE id=?', now(), team.id); if (team.kind !== 'sim') rememberDevice(req, team.id);
+      // Who may play is decided here, for every player route: real teams only in a live quiz, simulated ones only in a
+      // rehearsal, and a phone that joined a rehearsal never. Such a phone sees a connection screen and nothing else.
+      if (team.kind === 'device') {
+        requireValue(p === '/api/state', 'This is a rehearsal: your phone is connected, but playing is switched off.', 403);
+        return send(200, {serverTime: now(), build, settings: shownSettings(), look: lookFor(null), event: getMeta('event', ''), question: null, teams: [],
+          team: {id: team.id, name: team.name, waiting: false}, answer: null, draft: null, rehearsal: {device: true, connected: true, title: settings().title}});
+      }
+      requireValue(team.kind === 'sim' ? !liveNow() : liveNow(), team.kind === 'sim' ? 'Simulated teams only take part in a rehearsal' : 'This quiz isn’t live yet. Ask the quizmaster.', 403);
       const teamInfo = {id: team.id, name: team.name, sound: team.sound, photo: team.photo, photoStatus: team.photo_status, waiting: !!team.waiting};
       if (team.waiting) {
         requireValue(p === '/api/state' || p === '/api/team/sound', 'Waiting for the quizmaster to let you in', 403);
@@ -1404,6 +1549,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       }
       // A team's signed result once the quiz is finished, for players who choose to keep it in an online profile.
       if (p === '/api/team/result') {
+        requireValue(liveNow() && team.kind === 'player', 'A rehearsal has no results to keep', 409);
         requireValue(settings().ended, 'Results are ready once the quizmaster finishes the quiz', 409);
         const event = getMeta('event', ''), saved = one('SELECT finished,data FROM event_results WHERE event=?', event);
         const mine = saved && JSON.parse(saved.data).find(r => r.team === team.id); requireValue(mine, 'No result for this team', 404);
@@ -1493,6 +1639,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   for (const s of [server, publicServer]) {s.requestTimeout = 15000; s.headersTimeout = 10000;}
   let closing = null;
   function close() {
+    simulator?.stop(); simulator = null;
     clearInterval(ticker); clearInterval(keepAlive); clearInterval(syncTimer); clearInterval(licenceTimer); clearTimeout(firstRenew); clearTimeout(notifyTimer);
     for (const stream of streams) stream.end();
     laptop?.goOffline?.();

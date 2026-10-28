@@ -1,14 +1,14 @@
-// What each plan can do. Free BeerMat runs every round format, the TV and the phones, but a quiz stops at three
-// questions and three teams, and Spotify and the shared buzzer library (beyond seeing what's in it) are Pro only: enough to try it out. BeerMat Pro (a venue's subscription,
-// proved by a signed licence: shared/licence.js) lifts the limits. Players never pay and never see a plan.
-// Code that differs by plan asks has(feature) or reads limits instead of deciding for itself.
+// What each plan can do. BeerMat Free makes and rehearses quizzes without limits: every round format, the TV, simulated
+// teams, and real phones joining to test their connection. Hosting a live quiz with real teams is BeerMat Pro (a
+// venue's subscription, proved by a signed licence: shared/licence.js), as are Spotify and adding from the shared
+// buzzer library. Players never pay and never see a plan. Code that differs by plan asks has(feature).
 
 export const editions = {
-  free: {name: 'BeerMat Free', limits: {questions: 3, teams: 3}, features: []},
-  pro: {name: 'BeerMat Pro', limits: null, features: ['spotify', 'buzzerLibrary']},
+  free: {name: 'BeerMat Free', features: []},
+  pro: {name: 'BeerMat Pro', features: ['live', 'spotify', 'buzzerLibrary']},
 };
 
 export function edition(plan = 'free') {
-  const chosen = editions[plan] ? plan : 'free', {name, limits, features} = editions[chosen];
-  return {plan: chosen, name, limits, has: feature => features.includes(feature)};
+  const chosen = editions[plan] ? plan : 'free', {name, features} = editions[chosen];
+  return {plan: chosen, name, live: features.includes('live'), has: feature => features.includes(feature)};
 }

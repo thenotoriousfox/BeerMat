@@ -1,5 +1,5 @@
-// BeerMat Free and Pro: the limits on a free laptop, and a Pro licence from a real BeerMat Online (on a temporary
-// database, with its own signing key) that lifts them.
+// BeerMat Free and Pro: a Free laptop makes and rehearses quizzes without limits but can't host real teams, and a Pro
+// licence from a real BeerMat Online (on a temporary database, with its own signing key) lets it go live.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync, rmSync} from 'node:fs';
@@ -18,9 +18,9 @@ const keys = () => {
 };
 const day = 86400000;
 
-test('plans: Free has three questions, three teams and no Spotify; Pro has no limits', () => {
-  assert.deepEqual([edition().plan, edition().limits, edition().has('spotify')], ['free', {questions: 3, teams: 3}, false]);
-  assert.deepEqual([edition('pro').limits, edition('pro').has('spotify')], [null, true]);
+test('plans: Free rehearses with no limits; Pro also hosts live, with Spotify and the buzzer library', () => {
+  assert.deepEqual([edition().plan, edition().live, edition().has('spotify'), 'limits' in edition()], ['free', false, false, false]);
+  assert.deepEqual([edition('pro').live, edition('pro').has('live'), edition('pro').has('spotify'), edition('pro').has('buzzerLibrary')], [true, true, true, true]);
   assert.equal(edition('gold').plan, 'free', 'an unknown plan is Free');
 });
 
@@ -61,12 +61,14 @@ test('a free laptop stops at three questions and three teams, and gets Pro from 
     const ask = async n => {await call('close'); return call('open', question(n));};
     assert.equal((await call('state')).plan.plan, 'free', 'Free until a licence says otherwise');
 
-    for (const n of [1, 2, 3]) assert.equal((await ask(n)).status, 200);
-    const fourth = await ask(4);
-    assert.equal(fourth.status, 403); assert.match(fourth.error, /BeerMat Free plays 3 questions/);
-    for (const name of ['Team One', 'Team Two', 'Team Three']) assert.equal((await post('/api/join', {name})).status, 200);
-    const fourthTeam = await post('/api/join', {name: 'Team Four'});
-    assert.deepEqual([fourthTeam.status, fourthTeam.error], [409, 'The quiz is full. Ask the quizmaster.'], 'players just see a full quiz');
+    // Free: as many questions as the quiz has, in a rehearsal; real phones join only to test their connection.
+    assert.equal((await call('state')).rehearsal.mode, 'rehearsal');
+    for (const n of [1, 2, 3, 4, 5, 6]) assert.equal((await ask(n)).status, 200, `question ${n} opens`);
+    for (const name of ['Team One', 'Team Two', 'Team Three', 'Team Four']) assert.equal((await post('/api/join', {name})).status, 200, 'no team limit');
+    const phone = await post('/api/join', {name: 'Test phone'});
+    assert.equal(phone.rehearsal, true, 'a real phone joins a rehearsal as a test device');
+    assert.equal((await post('/api/answer', {question: 6, value: 'x'}, phone.secret)).status, 403, 'and can’t play');
+    assert.equal((await call('live')).status, 403, 'hosting live is Pro');
     assert.equal((await call('spotify/status')).locked, true);
     assert.equal((await call('spotify/connect', {clientId: 'a'.repeat(32)})).status, 403, 'Spotify is Pro');
 
@@ -87,14 +89,24 @@ test('a free laptop stops at three questions and three teams, and gets Pro from 
     assert.deepEqual([listed.plan, listed.planUntil], ['pro', time + 30 * day]);
     assert.equal((await api('GET', '/v1/admin/overview', undefined, admin.token)).proVenues, 1);
     const pro = await call('plan/refresh');
-    assert.deepEqual([pro.plan, pro.name, pro.limits, pro.paidUntil, pro.expires], ['pro', 'BeerMat Pro', null, time + 30 * day, time + 44 * day]);
-    assert.equal((await ask(4)).status, 200, 'the rest of the quiz plays');
-    assert.equal((await post('/api/join', {name: 'Team Four'})).status, 200);
+    assert.deepEqual([pro.plan, pro.name, pro.live, pro.paidUntil, pro.expires], ['pro', 'BeerMat Pro', true, time + 30 * day, time + 44 * day]);
+    // Pro hosts live: the rehearsal is cleared and real teams play.
+    assert.equal((await call('live')).rehearsal.mode, 'live');
+    await call('settings', {waitingRoom: false});
+    const team = await post('/api/join', {name: 'Real Team'});
+    assert.equal(team.rehearsal, undefined);
+    assert.equal((await ask(1)).status, 200);
+    assert.equal((await post('/api/answer', {question: (await call('state')).question.id, value: 'x'}, team.secret)).status, 200, 'a real team plays');
     assert.notEqual((await call('spotify/connect', {clientId: 'a'.repeat(32)})).status, 403);
 
     // Offline after the subscription ends: Pro lasts two weeks more, then the laptop is Free again.
     await later(40 * day); assert.equal((await call('plan')).plan, 'pro');
     await later(5 * day); assert.equal((await call('plan')).plan, 'free');
+    // Lapsed: the quiz, its questions and the team stay; it can't go live again, and real phones are test devices again.
+    const after = await call('state');
+    assert.deepEqual([after.rehearsal.mode, after.rehearsal.canGoLive], ['rehearsal', false]);
+    assert.ok(after.teams.some(t => t.name === 'Real Team'), 'nothing is deleted');
+    assert.equal((await call('live')).status, 403);
     assert.equal((await call('plan/refresh')).plan, 'free', 'the plan ended');
 
     // A request that isn't signed by a laptop, or is stale, gets nothing.
