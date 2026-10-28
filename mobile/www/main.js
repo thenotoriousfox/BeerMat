@@ -11,6 +11,14 @@ const native = !!window.Capacitor?.isNativePlatform?.();
 const platform = window.Capacitor?.getPlatform?.() || 'web';
 // Native plugins when the app has them; null in the web app.
 const plugin = name => native ? window.Capacitor.Plugins?.[name] || window.Capacitor.registerPlugin?.(name) || null : null;
+// In the app, links meant for a new tab (directions, venue websites) go to the phone, so Google Maps opens in its own
+// app; the app's web view would otherwise load them itself, as it must for a quiz laptop's player page.
+if (native) document.addEventListener('click', e => {
+  const a = e.target.closest?.('a[target="_blank"]');
+  if (!a || !/^https?:/.test(a.href)) return;
+  e.preventDefault();
+  plugin('AppLauncher')?.openUrl({url: a.href}).catch(() => {});
+});
 const store = {get: (k, d) => {try {return JSON.parse(localStorage.getItem(k)) ?? d;} catch {return d;}}, set: (k, v) => {try {localStorage.setItem(k, JSON.stringify(v));} catch {}}};
 // As the web app (served by BeerMat Online at /app/), the service is wherever the page came from.
 const client = createOnlineClient({baseUrl: location.protocol.startsWith('http') && location.pathname.startsWith('/app/') ? location.origin : onlineService, venueListUrl, storage: localStorage});
