@@ -182,6 +182,16 @@ class DeskTest(DeskCase):
         wait(lambda: next(t for t in desk.view['allTeams'] if t['id'] == other)['score'] == 2, what='a hand mark', log=self.toasts)
         desk.adjust(other, -2, 'Marked by mistake')
         wait(lambda: next(t for t in desk.view['allTeams'] if t['id'] == other)['score'] == 0, what='a score correction', log=self.toasts)
+        desk.teamNote(other, 'Table 4')
+        wait(lambda: next(t for t in desk.view['allTeams'] if t['id'] == other)['note'] == 'Table 4', what='a team note', log=self.toasts)
+        desk.setBlockedWords('rude\nworse')
+        wait(lambda: desk.view['blockedWords'] == 'rude\nworse', what='blocked names', log=self.toasts)
+        with self.assertRaises(urllib.error.HTTPError):
+            http(port, 'join', {'name': 'Rude Dudes'})
+        # Reviewing the question on now is the same as marking it (a past one is reviewed in test_live).
+        desk.review(desk.view['history'][0]['id'])
+        wait(lambda: desk.view['marking']['id'] == desk.view['history'][0]['id'], what='the review')
+        desk.review(0)
         self.window.setProperty('workspace', 3)
         self.shot('2-teams')
         self.window.setProperty('workspace', 0)

@@ -51,6 +51,7 @@ class Desk(QObject):
         self.liveTools.clipsChanged.connect(self._rebuild)
         self._state, self._library, self._view, self._tv = None, None, {}, {}
         self._laptop, self._network, self._checks = {}, {}, []
+        self._review, self._results = None, {}
         self._status, self._connected, self._busy = 'Starting the quiz server…', False, False
         self._crashes = []
         self._refreshing = self._again = False
@@ -97,6 +98,8 @@ class Desk(QObject):
 
     @Slot()
     def loadNetwork(self):
+        if not self.api.session:
+            return
         def laptop(status):
             self._laptop = status
             self.networkChanged.emit()
@@ -203,6 +206,7 @@ class Desk(QObject):
         self._poll.start()
         self.refresh()
         self.load_library()
+        self.loadResults()
 
     def _server_stopped(self, code):
         """It crashed: start it again (up to three times a minute), as the Electron app does. The quiz is saved."""
@@ -271,6 +275,10 @@ class Desk(QObject):
         q = s.get('question')
         settings = s.get('settings', {})
         rehearsal, plan = s.get('rehearsal') or {}, s.get('plan') or {}
+        # The question being marked: the current one, or a past one chosen in Teams & marking.
+        if self._review and self._review['question'].get('id') == (q or {}).get('id'):
+            self._review = None
+        marking = self._review['question'] if self._review else q
         history = s.get('history', [])
         teams = [t for t in s.get('teams', []) if t.get('enabled')]
         answered = {a['team'] for a in s.get('answers', []) if a.get('submitted')}
@@ -310,11 +318,16 @@ class Desk(QObject):
             # Teams & marking: every team (disabled and waiting ones too), and the answers to the current question.
             'allTeams': [{'id': t['id'], 'name': t['name'], 'score': t.get('score', 0), 'rank': t.get('rank', 0), 'enabled': bool(t.get('enabled')),
                           'waiting': bool(t.get('waiting')), 'connected': bool(t.get('connected')), 'note': t.get('note') or '',
-                          'answered': (t.get('stats') or {}).get('answered', 0)} for t in sorted(s.get('teams', []), key=lambda t: t['name'].lower())],
+                          'answered': (t.get('stats') or {}).get('answered', 0), 'photo': t.get('photo') or '', 'photoStatus': t.get('photo_status') or ''} for t in sorted(s.get('teams', []), key=lambda t: t['name'].lower())],
             'waitingCount': sum(1 for t in s.get('teams', []) if t.get('waiting') and t.get('enabled')),
-            'answerRows': self._answer_rows(s, q),
-            'canMark': bool(q and not q.get('open') and not q.get('live')),
-            'isSheet': bool(q and q.get('type') == 'sheet'), 'sheetItems': (q or {}).get('items') or [],
+            'answerRows': self._answer_rows({**s, 'answers': self._review['answers']} if self._review else s, marking),
+            'canMark': bool(marking and not marking.get('open') and not marking.get('live')),
+            'isSheet': bool(marking and marking.get('type') == 'sheet'), 'sheetItems': (marking or {}).get('items') or [],
+            'marking': {'id': (marking or {}).get('id'), 'text': (marking or {}).get('text', ''), 'points': (marking or {}).get('points', 1), 'past': bool(self._review)},
+            # Questions played so far, newest first (the desk can mark any closed one).
+            'history': [{'id': h.get('id'), 'text': h.get('text') or '', 'round': h.get('round', ''), 'type': TYPE_NAMES.get(h.get('type'), h.get('type', ''))}
+                        for h in s.get('history', [])],
+            'blockedWords': '\n'.join(s.get('blockedWords') or []),
             # The live controls read the server's own question (host view), settings, tie and countdown as they are.
             'raw': q or {}, 'settings': settings, 'tie': s.get('tie') or {}, 'timer': s.get('timer') or {},
             'typeCode': (q or {}).get('type', ''), 'clipsRunning': (self.liveTools.clipsRunning() or {}).get('index', -1),
@@ -473,11 +486,77 @@ class Desk(QObject):
     # ---- teams and marking (the server checks every value) ----
     @Slot(str, int)
     def mark(self, team, points):
-        self._act('mark', {'team': team, 'question': self._expected(), 'points': points}, 'Marked')
+        self._act('mark', {'team': team, 'question': self._marking_id(), 'points': points}, 'Marked', then=self._reload_review)
 
     @Slot(str, 'QVariantList')
     def markSheet(self, team, marks):
-        self._act('mark', {'team': team, 'question': self._expected(), 'marks': [1 if m else 0 for m in marks]}, 'Sheet marked')
+        self._act('mark', {'team': team, 'question': self._marking_id(), 'marks': [1 if m else 0 for m in marks]}, 'Sheet marked', then=self._reload_review)
+
+    def _marking_id(self):
+        return self._review['question']['id'] if self._review else self._expected()
+
+    @Slot(int)
+    def review(self, question):
+        """Mark a past question: its answers come from /api/host/review. 0 goes back to the current question."""
+        if not question:
+            self._review = None
+            self._rebuild()
+            return
+        def got(reply):
+            self._review = reply
+            self._rebuild()
+        self.api.host('review', {'question': question}, got, lambda e: self.toast.emit(e, True))
+
+    def _reload_review(self):
+        if self._review:
+            self.review(self._review['question']['id'])
+
+    @Slot(str, str)
+    def teamNote(self, team, note):
+        self.api.host('team', {'id': team, 'action': 'note', 'note': note}, lambda _: (self.toast.emit('Note saved', False), self.refresh()), lambda e: self.toast.emit(e, True))
+
+    @Slot(str)
+    def setBlockedWords(self, text):
+        self._act('settings', {'blockedWords': text}, 'Blocked names saved')
+
+    # ---- past quizzes and returning teams (/api/host/results) ----
+    resultsChanged = Signal()
+
+    @Property('QVariantMap', notify=resultsChanged)
+    def results(self):
+        return self._results
+
+    @Slot()
+    def loadResults(self):
+        if not self.api.session:
+            return
+        self.api.host('results', {}, lambda r: (setattr(self, '_results', r), self.resultsChanged.emit()), lambda e: self.toast.emit(e, True))
+
+    @Slot(str)
+    def deleteResult(self, event):
+        body = {'all': True} if event == '*' else {'event': event}
+        self.api.host('results/delete', body, lambda _: (self.toast.emit('Deleted', False), self.loadResults()), lambda e: self.toast.emit(e, True))
+
+    @Slot()
+    def syncResults(self):
+        self.api.host('results/sync', {}, lambda r: (self.toast.emit(f'{r.get("pending", 0)} waiting to send' if r.get('pending') else 'Results sent', False), self.loadResults()),
+                      lambda e: self.toast.emit(e, True), timeout_ms=30000)
+
+    @Slot(str)
+    def forgetRegular(self, regular):
+        self.api.host('regulars/forget', {'id': regular}, lambda _: (self.toast.emit('Returning team forgotten', False), self.loadResults()), lambda e: self.toast.emit(e, True))
+
+    @Slot(QUrl)
+    def saveResults(self, url):
+        """This quiz's full results (as the web desk's Download results): every team, question, answer and mark."""
+        path = Path(url.toLocalFile() if isinstance(url, QUrl) else str(url))
+        def got(results):
+            try:
+                path.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding='utf-8')
+                self.toast.emit(f'Results saved to {path.name}', False)
+            except OSError as e:
+                self.toast.emit(f'Could not write {path.name}: {e}', True)
+        self.api.host('export', {}, got, lambda e: self.toast.emit(e, True))
 
     @Slot(str, int, str)
     def adjust(self, team, points, reason):

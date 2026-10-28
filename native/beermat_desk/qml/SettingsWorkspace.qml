@@ -55,7 +55,7 @@ ColumnLayout {
     }
 
     Panel {
-        Layout.fillWidth: true; implicitHeight: 190
+        Layout.fillWidth: true; implicitHeight: 230
         title: "Screens"
         ColumnLayout {
             anchors.fill: parent; spacing: 8
@@ -71,6 +71,18 @@ ColumnLayout {
                     onActivated: screens.choose(currentValue)
                 }
                 CheckBox { text: "Open the TV by itself when a screen is connected"; checked: screens.autoOpen; palette.windowText: Theme.text; onToggled: screens.setAutoOpen(checked) }
+            }
+            RowLayout {
+                spacing: 10
+                Label { text: "TV sound"; color: Theme.muted }
+                ComboBox {
+                    Layout.preferredWidth: 380
+                    textRole: "name"; valueRole: "id"
+                    model: [{id: "", name: "The system's default output"}].concat(desk.sound.outputs)
+                    currentIndex: Math.max(0, indexOfValue(desk.sound.output))
+                    onActivated: desk.sound.chooseOutput(currentValue)
+                }
+                Text { text: "Sound effects, music, clips and songs play here while the TV is open."; color: Theme.faint; font.pixelSize: 12 }
             }
             Text {
                 Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 12

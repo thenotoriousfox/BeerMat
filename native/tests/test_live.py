@@ -36,6 +36,9 @@ class LiveControlsTest(DeskCase):
         desk.live.buzz('correct', 'Oasis')
         wait(lambda: any(b['status'] == 'correct' for b in desk.view['raw']['buzz']['queue']), what='the verdict', log=self.toasts)
 
+        # Marking a past question: the buzzer question, reviewed after the next one opened.
+        buzzer_id = desk.view['raw']['id']
+
         # Bingo: the desk calls numbers.
         self.start('bingo')
         desk.live.callNumber()
@@ -43,6 +46,12 @@ class LiveControlsTest(DeskCase):
         desk.live.callNumber()
         wait(lambda: desk.view['raw']['bingo']['count'] == 2, what='a second number', log=self.toasts)
         self.shot('live-bingo')
+        desk.review(buzzer_id)
+        wait(lambda: desk.view['marking']['past'] and desk.view['marking']['id'] == buzzer_id and desk.view['canMark'], what='the past buzzer question')
+        other = next(t['id'] for t in desk.view['allTeams'] if t['name'] != bears)
+        desk.mark(other, 2)
+        wait(lambda: next(t for t in desk.view['allTeams'] if t['id'] == other)['score'] == 2, what='a mark on a past question', log=self.toasts)
+        desk.review(0)
 
         # Sound clips: played in order through the TV's sound; the server hears when each starts.
         self.screens.setOpen(True)
