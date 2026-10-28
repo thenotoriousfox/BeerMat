@@ -172,3 +172,13 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 Realistic size, from the prototype's measured pace (`NATIVE-DESK.md` §4): desk to parity 6–7 weeks; native TV
 2–3 weeks; each phone app 3–5 weeks (formats, Online screens); packaging 1 week. Electron and Capacitor keep shipping
 meanwhile.
+
+## Real display check (28 Oct 2026, this development machine)
+
+KDE Plasma on Wayland, DP-4 2560×1440 (primary) and HDMI-A-5 1920×1080, NVIDIA, `native/tests/display_check.py`:
+
+| Platform | Result |
+|---|---|
+| XWayland (the desk's default on Wayland) | TV full screen on HDMI-A-5 at its exact geometry, desk on DP-4; blank and close work. Two bugs found and fixed: the TV filled the desk's screen (now placed on its screen before going full screen), and OpenGL through GLX failed under XWayland (the desk now uses EGL there) |
+| Pure Wayland (`BEERMAT_WAYLAND=1`) | TV opens as a window with the "drag to the TV, press F11" hint, as designed |
+| Hot-plug | **Not tested on hardware**: display changes made from the development shell (kscreen-doctor) don't take effect. Needs a cable unplugged and replugged with `display_check.py --wait 60` |

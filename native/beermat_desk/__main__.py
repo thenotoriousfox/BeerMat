@@ -83,6 +83,8 @@ def main(argv=None):
     # prefer X11 on a Wayland desktop (BEERMAT_WAYLAND=1 opts out; Qt falls back to Wayland without XWayland).
     if os.environ.get('WAYLAND_DISPLAY') and os.environ.get('BEERMAT_WAYLAND') != '1' and 'QT_QPA_PLATFORM' not in os.environ:
         os.environ['QT_QPA_PLATFORM'] = 'xcb;wayland'
+        # OpenGL through GLX can fail under XWayland (seen with NVIDIA); EGL works there.
+        os.environ.setdefault('QT_XCB_GL_INTEGRATION', 'xcb_egl')
     QGuiApplication.setApplicationName('BeerMat Desk')
     QGuiApplication.setOrganizationName('BeerMat')
     QGuiApplication.setDesktopFileName('beermat-desk')

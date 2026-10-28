@@ -13,7 +13,12 @@ Window {
     minimumWidth: 480; minimumHeight: 270
     property bool manualFull: false
     readonly property bool full: screens.canPlace ? screens.fullScreen : manualFull
-    screen: screens.target >= 0 ? Qt.application.screens[screens.target] : Qt.application.screens[0]
+    readonly property var tvScreen: screens.target >= 0 ? Qt.application.screens[screens.target] : Qt.application.screens[0]
+    screen: tvScreen
+    // X11 puts a full-screen window on the screen it's on, so it's placed there first (setting `screen` alone doesn't
+    // move it). Found on a real two-screen desk: without this the TV filled the desk's screen.
+    x: tvScreen ? tvScreen.virtualX + (full ? 0 : 60) : 0
+    y: tvScreen ? tvScreen.virtualY + (full ? 0 : 60) : 0
     visibility: !screens.open ? Window.Hidden : full ? Window.FullScreen : Window.Windowed
     onClosing: (close) => { close.accepted = false; screens.setOpen(false) }
 
