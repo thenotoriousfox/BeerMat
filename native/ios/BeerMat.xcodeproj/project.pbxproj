@@ -1,0 +1,278 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		FF5E16F046D4BF0E71C5EFEB /* BeerMatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57EAF66B708E34FCF15A44F8 /* BeerMatApp.swift */; };
+		C93F62896D53691F8004AB66 /* PlayerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17CC5B5DE8DAB935D7DE4DA3 /* PlayerModel.swift */; };
+		C97D075D8CAAA1412B8FD8FA /* Identity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 880272B1232EBE55D66D0866 /* Identity.swift */; };
+		89CD861F5179090A91C9E590 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 715544AB5BEE1710D2D24CCD /* Theme.swift */; };
+		C6193F0B53662AE07838EDB3 /* ConnectViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 983FB6B68D71B84AF357938B /* ConnectViews.swift */; };
+		C4E43E716504E214F82F11D3 /* PlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4054DD82EBE1A0B50BE9288 /* PlayView.swift */; };
+		824B1EFAECB440714C6D85B0 /* Protocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA82F1400160E8D1E89D553 /* Protocol.swift */; };
+		DCA9A29548AD00DD58319A60 /* QuizServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723B713B67C2EFF1B15DBFF3 /* QuizServer.swift */; };
+		AB449958B668108CE226ABBF /* SeededOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 045DB452985247F4E616213E /* SeededOrder.swift */; };
+		C1CA00203A886769CDCB1800 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D4DCD33D451C33EE27B1FBEE /* Assets.xcassets */; };
+		1BC78985E0E9CAB836A5C41D /* Fredoka.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3B50F7CF233B3E0A87753B66 /* Fredoka.ttf */; };
+		221AA84B12270184964716B0 /* Fredoka-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = AEF4CAACD9DAA77FD4E5CF6D /* Fredoka-OFL.txt */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F5BF48AA40CAD7891EB709FC /* BeerMat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BeerMat.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9C06A4676F6928C0F2B0C4D4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		57EAF66B708E34FCF15A44F8 /* BeerMatApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerMatApp.swift; sourceTree = "<group>"; };
+		17CC5B5DE8DAB935D7DE4DA3 /* PlayerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerModel.swift; sourceTree = "<group>"; };
+		880272B1232EBE55D66D0866 /* Identity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Identity.swift; sourceTree = "<group>"; };
+		715544AB5BEE1710D2D24CCD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		983FB6B68D71B84AF357938B /* ConnectViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectViews.swift; sourceTree = "<group>"; };
+		E4054DD82EBE1A0B50BE9288 /* PlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayView.swift; sourceTree = "<group>"; };
+		0AA82F1400160E8D1E89D553 /* Protocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Protocol.swift; sourceTree = "<group>"; };
+		723B713B67C2EFF1B15DBFF3 /* QuizServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizServer.swift; sourceTree = "<group>"; };
+		045DB452985247F4E616213E /* SeededOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeededOrder.swift; sourceTree = "<group>"; };
+		D4DCD33D451C33EE27B1FBEE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		3B50F7CF233B3E0A87753B66 /* Fredoka.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Fredoka.ttf; sourceTree = "<group>"; };
+		AEF4CAACD9DAA77FD4E5CF6D /* Fredoka-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Fredoka-OFL.txt; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		FAD58DE7366495DB4650CFEF /* Main */ = {
+			isa = PBXGroup;
+			children = (
+				82CF2A43A7100F086D7FCFDD /* BeerMat */,
+				2C8482DCC488C2776CB797FA /* BeerMatKit */,
+				547D009064F7C3F13BEF3460 /* Products */,
+			);
+			name = Main;
+			sourceTree = "<group>";
+		};
+		82CF2A43A7100F086D7FCFDD /* BeerMat */ = {
+			isa = PBXGroup;
+			children = (
+				57EAF66B708E34FCF15A44F8 /* BeerMatApp.swift */,
+				17CC5B5DE8DAB935D7DE4DA3 /* PlayerModel.swift */,
+				880272B1232EBE55D66D0866 /* Identity.swift */,
+				715544AB5BEE1710D2D24CCD /* Theme.swift */,
+				983FB6B68D71B84AF357938B /* ConnectViews.swift */,
+				E4054DD82EBE1A0B50BE9288 /* PlayView.swift */,
+				D4DCD33D451C33EE27B1FBEE /* Assets.xcassets */,
+				3B50F7CF233B3E0A87753B66 /* Fredoka.ttf */,
+				AEF4CAACD9DAA77FD4E5CF6D /* Fredoka-OFL.txt */,
+				9C06A4676F6928C0F2B0C4D4 /* Info.plist */,
+			);
+			path = BeerMat;
+			sourceTree = "<group>";
+		};
+		2C8482DCC488C2776CB797FA /* BeerMatKit */ = {
+			isa = PBXGroup;
+			children = (
+				0AA82F1400160E8D1E89D553 /* Protocol.swift */,
+				723B713B67C2EFF1B15DBFF3 /* QuizServer.swift */,
+				045DB452985247F4E616213E /* SeededOrder.swift */,
+			);
+			path = BeerMatKit/Sources/BeerMatKit;
+			sourceTree = "<group>";
+		};
+		547D009064F7C3F13BEF3460 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F5BF48AA40CAD7891EB709FC /* BeerMat.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		42AEFBAE01D2DFD981F7DA7D /* BeerMat */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7DA8F99CEAD30FAF9D20FF29 /* Build configuration list for PBXNativeTarget "BeerMat" */;
+			buildPhases = (
+				F2AB5FB218DA8B84623F4557 /* Sources */,
+				4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */,
+				55B558C7EF820E6E00E5993B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BeerMat;
+			productName = BeerMat;
+			productReference = F5BF48AA40CAD7891EB709FC /* BeerMat.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		46F86FAA6BBF9AC94A7E4595 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+			};
+			buildConfigurationList = 8CB014CF6CC51EFAF0098F2A /* Build configuration list for PBXProject "BeerMat" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = FAD58DE7366495DB4650CFEF;
+			productRefGroup = 547D009064F7C3F13BEF3460 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				42AEFBAE01D2DFD981F7DA7D /* BeerMat */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		55B558C7EF820E6E00E5993B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C1CA00203A886769CDCB1800 /* Assets.xcassets in Resources */,
+				1BC78985E0E9CAB836A5C41D /* Fredoka.ttf in Resources */,
+				221AA84B12270184964716B0 /* Fredoka-OFL.txt in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F2AB5FB218DA8B84623F4557 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FF5E16F046D4BF0E71C5EFEB /* BeerMatApp.swift in Sources */,
+				C93F62896D53691F8004AB66 /* PlayerModel.swift in Sources */,
+				C97D075D8CAAA1412B8FD8FA /* Identity.swift in Sources */,
+				89CD861F5179090A91C9E590 /* Theme.swift in Sources */,
+				C6193F0B53662AE07838EDB3 /* ConnectViews.swift in Sources */,
+				C4E43E716504E214F82F11D3 /* PlayView.swift in Sources */,
+				824B1EFAECB440714C6D85B0 /* Protocol.swift in Sources */,
+				DCA9A29548AD00DD58319A60 /* QuizServer.swift in Sources */,
+				AB449958B668108CE226ABBF /* SeededOrder.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1111C37EEA4B87C075400680 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				ENABLE_TESTABILITY = YES;
+			};
+			name = Debug;
+		};
+		F4E1C140ED171DFD0B2EFB6C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 600;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BeerMat/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.6.0;
+				PRODUCT_BUNDLE_IDENTIFIER = uk.beermat.app.next;
+				PRODUCT_NAME = BeerMat;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		2CB43CBD5F7F427DF6A9929E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		512C48A2401EC47C772F6572 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 600;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BeerMat/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.6.0;
+				PRODUCT_BUNDLE_IDENTIFIER = uk.beermat.app;
+				PRODUCT_NAME = BeerMat;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		8CB014CF6CC51EFAF0098F2A /* Build configuration list for PBXProject "BeerMat" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1111C37EEA4B87C075400680 /* Debug */,
+				2CB43CBD5F7F427DF6A9929E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7DA8F99CEAD30FAF9D20FF29 /* Build configuration list for PBXNativeTarget "BeerMat" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F4E1C140ED171DFD0B2EFB6C /* Debug */,
+				512C48A2401EC47C772F6572 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+}

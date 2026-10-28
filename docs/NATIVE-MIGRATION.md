@@ -103,17 +103,17 @@ the system browser on the TV screen.
 
 | Feature | Capacitor (both) | Android native | iOS native |
 |---|---|---|---|
-| QR scan (incl. Wi-Fi QR), typed address, recent quizzes | yes | **built** (parsing unit-tested; scanner needs a device) | todo |
-| Discovery check (`/api/hello`, protocol version) | n/a | **done** | todo |
-| Join, recovery code kept (Keystore-encrypted), transfer code, reconnect | yes (player page) | **done** against the real server (join, state, stream); Keystore needs a device | todo |
-| Text, number, nearest, choice, vote, multi, letter, sequence, tiles, sheet | yes (player page) | **built**; choice and sequence answered against the real server | todo |
-| Buzzer: buzz, queue position, agree | yes | **built** (buzz refused for test devices: tested) | todo |
-| Pinpoint, word snake, bingo, music bingo, clips | yes | hand over to the browser player as the same team (**done**, browser side tested) | todo |
-| Scrambled keypads/tiles identical to the browser | yes | **done** (`seededOrder` checked against the JS output) | todo |
-| Rehearsal connection screen; server refuses play | yes (player page) | **done** (server refusals tested from the app's client) | todo |
-| Drafts, one final answer, points after marking | yes | **built** (second answer refused: tested) | todo |
-| Away reporting, haptics | Android | **built** | todo |
-| Picture and audio questions | yes | **built** | todo |
+| QR scan (incl. Wi-Fi QR), typed address, recent quizzes | yes | **built** (parsing unit-tested; scanner needs a device) | written, **not compiled** |
+| Discovery check (`/api/hello`, protocol version) | n/a | **done** | written, **not compiled** |
+| Join, recovery code kept (Keystore-encrypted), transfer code, reconnect | yes (player page) | **done** against the real server (join, state, stream); Keystore needs a device | written, **not compiled** |
+| Text, number, nearest, choice, vote, multi, letter, sequence, tiles, sheet | yes (player page) | **built**; choice and sequence answered against the real server | written, **not compiled** |
+| Buzzer: buzz, queue position, agree | yes | **built** (buzz refused for test devices: tested) | written, **not compiled** |
+| Pinpoint, word snake, bingo, music bingo, clips | yes | hand over to the browser player as the same team (**done**, browser side tested) | written, **not compiled** |
+| Scrambled keypads/tiles identical to the browser | yes | **done** (`seededOrder` checked against the JS output) | written, **not compiled** |
+| Rehearsal connection screen; server refuses play | yes (player page) | **done** (server refusals tested from the app's client) | written, **not compiled** |
+| Drafts, one final answer, points after marking | yes | **built** (second answer refused: tested) | written, **not compiled** |
+| Away reporting, haptics | Android | **built** | written, **not compiled** |
+| Picture and audio questions | yes | **built** | written, **not compiled** |
 | Profile, results, statistics, badges (Online) | yes | todo | todo |
 | Find a quiz, map, reminders (Online) | yes | todo | todo |
 | Team photo, buzzer sound, languages | yes | todo | todo |
@@ -164,7 +164,7 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 | 4. Native TV | **built** for the main views (see §2.2); sounds, word snake, looks: todo |
 | 5. Rehearsal and licensing UI | **built**: options, simulated teams and actions, test phones apart, log, go live; plan display and check |
 | 6. Android | **built**: `native/android`, debug APK builds, 7 JVM tests pass (2 against the real server); UI unverified on a device; Online screens todo |
-| 7. iOS | todo (unverifiable here) |
+| 7. iOS | **written, not compiled**: `native/ios` (SwiftUI app + `BeerMatKit` package with unit and server tests); no Xcode or Swift toolchain here |
 | 8. Packaging | todo |
 | 9. Legacy retirement | not before 3–8 are verified and you approve |
 
