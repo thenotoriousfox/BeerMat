@@ -19,3 +19,4 @@ mobile/android/keystore.properties
 *.jks
 *.keystore
 mobile/www/brand/
+__pycache__/

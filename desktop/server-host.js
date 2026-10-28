@@ -4,6 +4,7 @@
 //   to the app:   {type: 'ready', port, publicPort, database}  {type: 'failed', message}  {type: 'ticket', id, ticket}
 //                 {type: 'quit'} (Close BeerMat on the desk)  {type: 'backup', id, file | error}
 //   from the app: {type: 'ticket', id}  {type: 'backup', id, folder}  {type: 'shutdown', stopWifi}
+// The native desk sends the same messages (see the channel below).
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createQuiz} from '../server/server.js';
@@ -11,8 +12,19 @@ import {createLaptop} from '../server/laptop.js';
 import {prepareDatabase, backupDatabase} from './database.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Three ways in: Electron's utilityProcess, a Node child (tests), or plain lines (BEERMAT_CHANNEL=stdio) for the native
+// desk (native/), which works the same on Windows and Linux: each message is one line, "@beermat <json>", on stdout
+// (anything else there is the log), and commands come in on stdin. When stdin closes, the desk has gone, so the
+// server shuts down rather than be left running on its own.
+const stdio = process.env.BEERMAT_CHANNEL === 'stdio';
 const channel = process.parentPort
   ? {send: m => process.parentPort.postMessage(m), on: f => process.parentPort.on('message', e => f(e.data))}
+  : stdio ? {send: m => process.stdout.write(`@beermat ${JSON.stringify(m)}\n`), on: f => {
+    let buffer = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', text => {buffer += text; let i; while ((i = buffer.indexOf('\n')) >= 0) {const line = buffer.slice(0, i); buffer = buffer.slice(i + 1); try {f(JSON.parse(line));} catch {}}});
+    process.stdin.on('end', () => f({type: 'shutdown', stopWifi: false}));
+  }}
   : {send: m => process.send?.(m), on: f => process.on('message', f)};
 const env = process.env, data = env.BEERMAT_DATA;
 const database = path.join(data, 'quiz.sqlite'), backups = path.join(data, 'backups');
