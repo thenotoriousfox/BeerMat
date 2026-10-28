@@ -707,8 +707,12 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         check(licenceKey, 'Licences aren’t set up on this service yet', 503);
         check(input.kind === 'beermat.licence-request' && input.v === 1 && Number.isSafeInteger(input.at) && verifyClaim(input), 'Not a licence request from a quiz laptop');
         check(Math.abs(now() - input.at) < 10 * 60000, 'This laptop’s clock is wrong: set its date and time, then try again');
-        const v = venueOfKey(input.venueKey);
+        const v = venueOfKey(input.venueKey), month0 = 31 * 86400000, grace0 = 14 * 86400000;
+        // A desk signed in with a BeerMat admin account gets Pro on that laptop, venue or not (for BeerMat's own testing
+        // and demos). Like any licence it lasts a month plus the grace period and renews while the admin stays signed in.
+        if (account?.admin && !v) return send(200, {licence: signLicence({plan: 'pro', venue: 'admin', venueName: 'BeerMat (admin)', venueKey: input.venueKey, issued: now(), expires: now() + month0 + grace0, paidUntil: null}, licenceKey)});
         check(v, 'Register this laptop with your venue first (desk: Venue)', 403);
+        if (account?.admin && planOf(v) !== 'pro') return send(200, {licence: signLicence({plan: 'pro', venue: v.id, venueName: v.name, venueKey: input.venueKey, issued: now(), expires: now() + month0 + grace0, paidUntil: null}, licenceKey)});
         const plan = planOf(v), month = 31 * 86400000, grace = 14 * 86400000;
         const expires = (plan === 'pro' ? Math.min(v.plan_until ?? Infinity, now() + month) : now() + month) + grace;
         return send(200, {licence: signLicence({plan, venue: v.id, venueName: v.name, venueKey: input.venueKey, issued: now(), expires, paidUntil: plan === 'pro' ? v.plan_until : null}, licenceKey)});

@@ -860,7 +860,7 @@ function renderVenue() {
   }));
   if (!venue.events.length) $('venueEvents').append(element('li', 'No quiz nights published yet.', 'muted'));
 }
-$('venueSignIn').onsubmit = e => {e.preventDefault(); action(async () => {venueAccount = await request('online/signin', {email: $('venueEmail').value, password: $('venuePassword').value}); $('venuePassword').value = ''; await loadVenue();}, 'Signed in to BeerMat Online');};
+$('venueSignIn').onsubmit = e => {e.preventDefault(); action(async () => {venueAccount = await request('online/signin', {email: $('venueEmail').value, password: $('venuePassword').value}); $('venuePassword').value = ''; await loadVenue(); await fetchPlan();}, 'Signed in to BeerMat Online');};
 $('venueSignUp').onsubmit = e => {e.preventDefault(); if (!$('venueSignIn').reportValidity()) return; action(async () => {venueAccount = await request('online/signup', {email: $('venueEmail').value, password: $('venuePassword').value, displayName: $('venueName').value}); $('venuePassword').value = ''; await loadVenue();}, 'Account created');};
 $('venueSignOut').onclick = () => action(async () => {await request('online/signout'); await loadVenue();}, 'Signed out');
 $('venuePick').onchange = () => loadVenue();
@@ -876,7 +876,14 @@ $('venueForm').onsubmit = e => {
     await loadVenue();
   }, 'Venue saved');
 };
-$('venueRegister').onclick = () => action(async () => {await onlineCall('POST', `/v1/venues/${encodeURIComponent(venue.id)}/keys`); await loadVenue();}, 'This laptop is registered');
+// The plan comes with the laptop's registration: fetch it straight away rather than wait for Check my plan. A laptop
+// that isn't registered yet simply stays as it is.
+async function fetchPlan() {try {const plan = await request('plan/refresh'); renderPlan(plan); return plan;} catch {return null;}}
+$('venueRegister').onclick = () => action(async () => {
+  await onlineCall('POST', `/v1/venues/${encodeURIComponent(venue.id)}/keys`); await loadVenue();
+  const plan = await fetchPlan();
+  return plan ? `This laptop is registered: ${plan.name}` : 'This laptop is registered';
+});
 $('eventForm').onsubmit = e => {
   e.preventDefault();
   const startsAt = new Date($('eStart').value).getTime();

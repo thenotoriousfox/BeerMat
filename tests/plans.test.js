@@ -109,6 +109,25 @@ test('a free laptop stops at three questions and three teams, and gets Pro from 
     assert.equal((await call('live')).status, 403);
     assert.equal((await call('plan/refresh')).plan, 'free', 'the plan ended');
 
+    // An admin account signed in on a desk gives that laptop Pro, with no venue of its own.
+    const other = createQuiz({hostKey: 'a-secure-quiz-test-key', database: path.join(dir, 'admin.sqlite'), mediaDir: dir, packDir: dir, soundsDir: dir, licenceKey: signer.publicKey, now: () => time});
+    await new Promise(r => other.server.listen(0, '127.0.0.1', r));
+    try {
+      const deskBase = `http://127.0.0.1:${other.server.address().port}`;
+      const deskPost = async (route, body = {}, auth) => {const r = await fetch(deskBase + route, {method: 'POST', headers: {'Content-Type': 'application/json', ...(auth && {Authorization: 'Bearer ' + auth})}, body: JSON.stringify(body)}); return {status: r.status, ...await r.json()};};
+      const key = (await deskPost('/api/login', {key: 'a-secure-quiz-test-key'})).key, desk = (route, body) => deskPost('/api/host/' + route, body, key);
+      await desk('settings', {onlineService: online});
+      assert.match((await desk('plan/refresh')).error, /Register this laptop/, 'signed out, no venue: no licence');
+      await api('POST', '/v1/accounts', {email: 'helper@example.com', password: 'correct horse battery', displayName: 'Helper'});
+      await desk('online/signin', {email: 'helper@example.com', password: 'correct horse battery'});
+      assert.match((await desk('plan/refresh')).error, /Register this laptop/, 'an ordinary account doesn’t unlock Pro');
+      await desk('online/signout');
+      await desk('online/signin', {email: 'admin@example.com', password: 'correct horse battery'});
+      const adminPlan = await desk('plan/refresh');
+      assert.deepEqual([adminPlan.plan, adminPlan.venue], ['pro', 'BeerMat (admin)'], 'an admin account does');
+      assert.equal((await desk('live')).status, 200, 'and that laptop can host live');
+    } finally {await other.close();}
+
     // A request that isn't signed by a laptop, or is stale, gets nothing.
     assert.equal((await api('POST', '/v1/licence', {v: 1, kind: 'beermat.licence-request', at: time, venueKey: publicKey, sig: 'x'})).status, 400);
     const unset = createService({database: path.join(dir, 'other.sqlite')});

@@ -681,7 +681,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     requireValue(base && fetchImpl, 'Set the BeerMat Online address first');
     let response;
     try {
-      response = await fetchImpl(base.replace(/\/$/, '') + '/v1/licence', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      // The desk's BeerMat Online sign-in goes along: an admin account's laptop gets Pro (online/service.js).
+      const session = getMeta('onlineSession', null);
+      response = await fetchImpl(base.replace(/\/$/, '') + '/v1/licence', {method: 'POST', headers: {'Content-Type': 'application/json', ...(session && {Authorization: 'Bearer ' + session.token})},
         body: JSON.stringify(signClaim({v: 1, kind: 'beermat.licence-request', at: now()}, venueKey())), signal: AbortSignal.timeout(10000)});
     } catch {throw new QuizError('BeerMat Online can’t be reached. Is this laptop on the internet?', 502);}
     const data = await response.json().catch(() => ({}));
