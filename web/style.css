@@ -91,6 +91,11 @@ header { display: flex; align-items: center; justify-content: space-between; gap
 /* The BeerMat logo: the full logo on the desk, the neon mat beside the title on the TV and phones. */
 .brand-head { display: flex; align-items: center; gap: 18px; }
 .brand-head .logo { height: 64px; width: auto; display: block; }
+/* The desk's header: the BeerMat badge, then the name with what this page is underneath. */
+.brand-head .mark { height: 60px; width: 60px; display: block; margin: 0; }
+.brand-text { display: grid; gap: 2px; }
+.brand-text .wordmark { height: 32px; width: auto; display: block; margin: 0; }
+.desk-label { margin: 0; font-family: var(--display); font-size: 1rem; letter-spacing: .02em; color: var(--muted); }
 .title-block { display: flex; align-items: center; gap: clamp(10px, 1.5vw, 24px); min-width: 0; }
 .title-block .mark { height: clamp(48px, 9vh, 110px); width: auto; flex: none; }
 .topbar .mark { height: 40px; width: 40px; flex: none; }
@@ -396,7 +401,7 @@ button.buzzer.clip { font-size: 1.8rem; background: radial-gradient(circle at 35
 .sound-slot input, .sound-slot button { margin: 0; }
 
 /* ---------- Quiz desk ---------- */
-body[data-role=host] header { padding: 14px 20px; border-radius: 20px; background: linear-gradient(90deg, color-mix(in srgb, var(--violet) 22%, transparent), color-mix(in srgb, var(--pink) 12%, transparent)); border: 1px solid var(--line); }
+body[data-role=host] header { margin: 6px 0 18px; padding: 10px 22px 10px 14px; border-radius: 20px; background: linear-gradient(90deg, color-mix(in srgb, var(--violet) 22%, transparent), color-mix(in srgb, var(--pink) 12%, transparent)); border: 1px solid var(--line); }
 nav { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 18px 0; padding: 6px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); position: sticky; top: 8px; z-index: 10; backdrop-filter: blur(10px); }
 nav button { background: transparent; color: var(--muted); box-shadow: none; margin: 0; }
 nav button.selected { background: linear-gradient(180deg, var(--gold-hi), var(--gold-2)); color: var(--on-accent); box-shadow: var(--glow-gold); }
