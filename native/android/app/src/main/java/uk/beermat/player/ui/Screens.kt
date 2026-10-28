@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -67,18 +68,39 @@ import uk.beermat.player.game.Stage
 import uk.beermat.player.game.UiState
 
 @Composable
-fun BeerMatApp(vm: PlayerViewModel, ui: UiState, scan: () -> Unit) {
+fun BeerMatApp(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.online.OnlineViewModel, scan: () -> Unit) {
+    val o = online.ui.collectAsStateWithLifecycle().value
+    var tab by rememberSaveable { mutableStateOf(0) }
     Box(
         Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF241046), Brand.bg, Brand.bg2)))
             .safeDrawingPadding().imePadding()
     ) {
-        AnimatedContent(ui.stage, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "stage") { stage ->
-            when (stage) {
-                Stage.Connect -> ConnectScreen(vm, ui, scan)
-                Stage.Join -> JoinScreen(vm, ui)
-                Stage.Play -> if (ui.game?.testDevice == true) RehearsalScreen(vm, ui) else PlayScreen(vm, ui)
+        Column(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f)) {
+                AnimatedContent(ui.stage to tab, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "stage") { (stage, shown) ->
+                    when (stage) {
+                        Stage.Connect -> when (shown) {
+                            1 -> FindScreen(online, o)
+                            2 -> MapScreen(online, o)
+                            3 -> ProfileScreen(online, o)
+                            else -> ConnectScreen(vm, ui, scan)
+                        }
+                        Stage.Join -> JoinScreen(vm, ui)
+                        Stage.Play -> if (ui.game?.testDevice == true) RehearsalScreen(vm, ui) else PlayScreen(vm, ui, online)
+                    }
+                }
+            }
+            // The app's own screens around the quiz; a quiz in play has the whole screen (Team → Other quizzes leads back).
+            if (ui.stage == Stage.Connect) Row(Modifier.fillMaxWidth().background(Brand.panel).padding(vertical = 6.dp)) {
+                listOf("🍺" to "Play", "🔎" to "Find a quiz", "🗺" to "Map", "👤" to "Profile").forEachIndexed { i, (icon, label) ->
+                    Column(Modifier.weight(1f).clickable { tab = i }.padding(vertical = 4.dp).testTag("tab-$label"), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(icon, fontSize = 20.sp)
+                        Text(label, fontSize = 12.sp, color = if (tab == i) Brand.gold else Brand.muted, fontWeight = if (tab == i) FontWeight.Bold else FontWeight.Normal)
+                    }
+                }
             }
         }
+        if (ui.stage == Stage.Connect) VenueSheet(online, o)
         ui.wifi?.let { WifiSheet(it.ssid, it.password, onDone = vm::dismissWifi) }
     }
 }
@@ -93,8 +115,10 @@ fun Message(ui: UiState) {
 
 @Composable
 fun BigButton(text: String, enabled: Boolean = true, colour: Color = Brand.gold, onClick: () -> Unit) {
+    // Acting on what was typed puts the keyboard away.
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
     Button(
-        onClick, enabled = enabled, shape = RoundedCornerShape(18.dp),
+        { focus.clearFocus(); onClick() }, enabled = enabled, shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(containerColor = colour, contentColor = Brand.onAccent, disabledContainerColor = Brand.raised),
         modifier = Modifier.fillMaxWidth().height(60.dp),
     ) { Text(text, style = MaterialTheme.typography.titleLarge) }

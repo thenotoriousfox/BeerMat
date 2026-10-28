@@ -50,6 +50,10 @@ class Identity(context: Context) {
         get() = prefs.getBoolean("haptics", true)
         set(on) = prefs.edit().putBoolean("haptics", on).apply()
 
+    /** A secret (e.g. the BeerMat Online sign-in token) kept encrypted, as recovery codes are. */
+    fun secure(name: String): String? = prefs.getString("secure:$name", null)?.let { try { decrypt(it) } catch (_: Exception) { null } }
+    fun secure(name: String, value: String?) { prefs.edit().apply { if (value == null) remove("secure:$name") else putString("secure:$name", encrypt(value)) }.apply() }
+
     // ---- Keystore ----
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }

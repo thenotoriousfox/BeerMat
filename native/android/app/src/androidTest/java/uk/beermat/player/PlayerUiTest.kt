@@ -37,7 +37,9 @@ import java.net.URL
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class PlayerUiTest {
-    @get:Rule val rule = createAndroidComposeRule<MainActivity>()
+    private val composeRule = createAndroidComposeRule<MainActivity>()
+    @get:Rule val chain: org.junit.rules.RuleChain = org.junit.rules.RuleChain.outerRule(FreshApp()).around(composeRule)
+    private val rule get() = composeRule
     private val args = InstrumentationRegistry.getArguments()
     private val server = args.getString("server") ?: ""
     private val host = args.getString("hostKey") ?: ""

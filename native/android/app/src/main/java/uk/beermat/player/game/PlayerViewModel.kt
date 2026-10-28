@@ -169,6 +169,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun buzz() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.buzz(_ui.value.secret, q.id); refresh() } }
 
+    /** The signed result to keep (after the quiz ends); null with a message when there's none. */
+    suspend fun result(): org.json.JSONObject? = try { server?.result(_ui.value.secret) } catch (e: QuizError) { say(e.message ?: "", true); null } catch (_: Exception) { say("Can't reach the quiz", true); null }
+
     fun claimBingo() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.bingo(_ui.value.secret, q.id); say("BINGO called — the quizmaster is checking"); refresh() } }
 
     fun tap() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.tap(_ui.value.secret, q.id); say("Tap recorded"); refresh() } }

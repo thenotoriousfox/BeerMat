@@ -65,6 +65,8 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.json.JSONArray
 import uk.beermat.player.game.NATIVE_TYPES
 import uk.beermat.player.game.PlayerViewModel
@@ -76,7 +78,7 @@ import java.net.URL
 private const val LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 @Composable
-fun PlayScreen(vm: PlayerViewModel, ui: UiState) {
+fun PlayScreen(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.online.OnlineViewModel) {
     val game = ui.game ?: return
     val q = game.question
     val haptics = LocalHapticFeedback.current
@@ -98,7 +100,14 @@ fun PlayScreen(vm: PlayerViewModel, ui: UiState) {
             if (menu) TeamMenu(vm, ui)
             else when {
                 game.team?.waiting == true -> Lobby("You're in the waiting room", "The quizmaster will let you in shortly.")
-                game.settings.ended -> Lobby("That's the quiz!", "Thanks for playing. Final scores are on the TV.")
+                game.settings.ended -> {
+                    Lobby("That's the quiz!", "Thanks for playing. Final scores are on the TV.")
+                    // A live quiz's result, signed by the quiz laptop, can be kept in a BeerMat Online profile.
+                    val scope = androidx.compose.runtime.rememberCoroutineScope()
+                    if (online.client.baseUrl.isNotBlank()) BigButton("Keep this result", enabled = !ui.busy) { scope.launch { vm.result()?.let(online::keepResult) } }
+                    val o = online.ui.collectAsStateWithLifecycle().value
+                    if (o.message.isNotEmpty()) Text(o.message, color = if (o.error) Brand.bad else Brand.goldHi, modifier = Modifier.padding(top = 8.dp))
+                }
                 q == null -> Lobby("You're in!", "Waiting for the quiz to start. Keep this app open.")
                 q.type !in NATIVE_TYPES -> BrowserRound(vm, q)
                 else -> Question(vm, ui, q)

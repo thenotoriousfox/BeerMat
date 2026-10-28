@@ -50,6 +50,9 @@ class QuizServer(base: String) {
 
     suspend fun buzz(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/buzz", JSONObject().put("question", question), secret) }
 
+    /** The team's result after a live quiz, signed by the quiz laptop, for the player to keep in a profile. */
+    suspend fun result(secret: String): JSONObject = withContext(Dispatchers.IO) { request("POST", "/api/team/result", JSONObject(), secret).getJSONObject("claim") }
+
     /** Bingo: the team shouts; the quizmaster checks the ticket and says yes or no. */
     suspend fun bingo(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/bingo", JSONObject().put("question", question), secret) }
 

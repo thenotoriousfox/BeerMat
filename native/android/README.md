@@ -25,8 +25,15 @@ everything, so the app never decides a score, a deadline or who may play.
   during an open question is reported to the quizmaster (as a browser tab is); haptics for a new question and for
   the team's buzzer turn (switchable).
 
-Not yet in the native app (the Capacitor app has them): BeerMat Online profiles and results, Find a quiz, the map and
-reminders; team photos and buzzer sounds; languages other than English.
+* **BeerMat Online** (optional, as in the Capacitor app): Profile (sign in or create an account, statistics and badges,
+  privacy switches, download or delete your data, the service address under Advanced), **Keep this result** at the end
+  of a live quiz (the laptop's signed result, kept in an outbox until it can be sent), **Find a quiz** (by town or
+  postcode, or near you: approximate location asked only when tapped, rounded before it's sent; offline, the last
+  results marked out of date), **reminders** (a notification two hours before, asked when first used, or the phone's
+  calendar), saved venues, venue pages with directions, and the **map** (OpenStreetMap, with day filters; offline,
+  the last venues seen or BeerMat's venue list).
+
+Not yet in the native app: team photos and buzzer sounds; languages other than English.
 
 ## Building
 

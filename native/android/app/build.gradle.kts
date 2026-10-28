@@ -25,6 +25,9 @@ android {
         versionCode = 600
         versionName = "0.6.0-native"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // BeerMat Online and the venue list, as mobile/www/config.js (a player can change the service under Profile).
+        buildConfigField("String", "ONLINE_SERVICE", "\"${project.findProperty("onlineService") ?: "https://online.beermatquiz.co.uk"}\"")
+        buildConfigField("String", "VENUE_LIST", "\"https://raw.githubusercontent.com/DTJW92/BeerMat/main/venues.json\"")
     }
 
     signingConfigs {
@@ -51,7 +54,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     testOptions { unitTests.isReturnDefaultValues = true }
 }
 
@@ -71,6 +74,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     // Google's code scanner: the camera runs in Play services, so the app needs no camera permission.
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    // The map of venues: OpenStreetMap tiles, loaded only while the map is open.
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")

@@ -13,11 +13,13 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import uk.beermat.player.game.PlayerViewModel
+import uk.beermat.player.online.OnlineViewModel
 import uk.beermat.player.ui.BeerMatApp
 import uk.beermat.player.ui.BeerMatTheme
 
 class MainActivity : ComponentActivity() {
     private val vm: PlayerViewModel by viewModels()
+    private val online: OnlineViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,7 +32,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             BeerMatTheme {
                 val ui = vm.ui.collectAsStateWithLifecycle().value
-                BeerMatApp(vm, ui, scan = ::scan)
+                BeerMatApp(vm, ui, online, scan = ::scan)
             }
         }
     }

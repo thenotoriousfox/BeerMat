@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Permissions: the network only. The QR scanner runs in Google Play services (no camera permission), haptics use the
-     view's own feedback (no vibrate permission), and the Wi-Fi is joined by the player in system settings. -->
+<!-- Permissions: the network; notifications and an approximate location only when the player asks for a reminder or
+     for quizzes near them (each asked at that moment). The QR scanner runs in Google Play services (no camera
+     permission), haptics use the view's own feedback, and the Wi-Fi is joined by the player in system settings. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:allowBackup="false"
@@ -23,6 +26,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <receiver android:name=".online.ReminderReceiver" android:exported="false" />
         <!-- Downloads the scanner module with the app rather than on first use (offline venues). -->
         <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode_ui" />
     </application>

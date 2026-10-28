@@ -1,0 +1,42 @@
+[
+ {
+  "id": "first-quiz",
+  "name": "First Quiz",
+  "description": "Played a quiz"
+ },
+ {
+  "id": "first-win",
+  "name": "First Win",
+  "description": "Won a quiz"
+ },
+ {
+  "id": "podium",
+  "name": "On the Podium",
+  "description": "Finished in the top three"
+ },
+ {
+  "id": "perfect-round",
+  "name": "Perfect Round",
+  "description": "Every answer right in a round of three or more"
+ },
+ {
+  "id": "fastest-finger",
+  "name": "Fastest Finger",
+  "description": "A right answer within 3 seconds"
+ },
+ {
+  "id": "ten-quizzes",
+  "name": "Ten Quizzes Played",
+  "description": "Played ten quizzes"
+ },
+ {
+  "id": "fifty-correct",
+  "name": "Fifty Correct Answers",
+  "description": "Fifty right answers in total"
+ },
+ {
+  "id": "quiz-regular",
+  "name": "Quiz Regular",
+  "description": "Four quizzes at the same venue"
+ }
+]
