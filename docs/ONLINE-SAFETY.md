@@ -106,13 +106,17 @@ The Act also requires a separate assessment of whether children are likely to us
 children's risk assessment and the children's safety duties follow.
 
 - **Can children use BeerMat Online?** Yes. Nothing checks age, and the phone app is free to download.
-- **Are a significant number of its users children, or is it likely to attract them?** Probably not: BeerMat is a
-  pub quiz system, and quizzes are mostly in pubs. But family quizzes and private events happen, and players can
-  make accounts.
-- **Decision needed:** either (a) record that the "child user condition" isn't met, with the reasons above, and keep
-  the evidence (for example, venues are pubs; no child-directed content); or (b) state in the terms that accounts are
-  for people aged 13 or over, or 18 or over, and say so at sign-up. Option (a) needs re-checking at each review.
-  Check this against Ofcom's children's access assessment guidance before deciding.
+- **Are a significant number of its users children, or is it likely to attract them?** No. The reasons:
+  - BeerMat is a pub quiz system. Its venues are pubs, its customers are the businesses running them, and only
+    venues on Pro are listed, after an admin has checked them.
+  - Nothing in it is aimed at children: no child-directed content, design or marketing, and it's sold to pubs.
+  - Playing a quiz needs no account; an account is an optional extra, mostly for saving results from pub quizzes.
+  - What players can show others is limited, and off by default (leaderboards, pictures, history).
+- **Decision (28 October 2026):** the child user condition is **not met**, so BeerMat Online is not likely to be
+  accessed by children, and the children's risk assessment and safety duties don't apply.
+- **Re-check** at each review, and straight away if any of these changes: BeerMat is offered to schools, youth groups
+  or family events; marketing reaches children; or there's evidence of many child users (for example, reports or
+  accounts that look like children's). Keep any such evidence with this assessment.
 
 ## 7. Records and review
 
