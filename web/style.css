@@ -484,8 +484,8 @@ details.menu[open] > summary { color: var(--text); background: var(--surface-2);
 .up-next { margin: 0; padding-left: 22px; display: grid; gap: 4px; color: var(--muted); }
 .up-next li.played { text-decoration: line-through; opacity: .55; }
 .up-next li.now { color: var(--gold-hi); font-weight: 800; }
-details.tools { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; background: var(--surface); margin: 14px 0; }
-details.tools > summary { cursor: pointer; font-weight: 700; }
+details.tools, details.sim-tools { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; background: var(--surface); margin: 14px 0; }
+details.tools > summary, details.sim-tools > summary { cursor: pointer; font-weight: 700; }
 /* Quizzes: the outline beside the editor. */
 .quiz-head .title-row { align-items: flex-end; } .quiz-head details.menu { margin-left: 0; }
 .quiz-head .title-row label { flex: 1; min-width: 260px; }
@@ -662,3 +662,32 @@ body.idle .screen-controls button { opacity: 0; pointer-events: none; }
 /* The Venue tab: its plan, with Manage subscription or Get BeerMat Pro. */
 .venue-plan { align-items: center; } .venue-plan #venuePlan { font-weight: 700; }
 .button-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 999px; background: var(--gold); color: #140b2e; font-weight: 700; text-decoration: none; }
+
+/* Rehearsals: a phone that joined to test its connection, and the label on the TV. */
+.rehearsal-card { margin: 18px 0; padding: 26px 22px; border-radius: 22px; text-align: center; background: linear-gradient(180deg, color-mix(in srgb, var(--good) 14%, var(--surface-solid)), var(--surface-solid)); border: 1px solid color-mix(in srgb, var(--good) 50%, transparent); }
+.rehearsal-card h2 { margin: 4px 0 10px; font-size: 1.6rem; }
+.rehearsal-tag { display: inline-block; margin: 0; padding: 4px 12px; border-radius: 999px; background: var(--gold); color: var(--on-accent); font-weight: 800; font-size: .78rem; letter-spacing: .14em; text-transform: uppercase; }
+.rehearsal-tick { margin: 14px auto 0; width: 64px; height: 64px; line-height: 64px; border-radius: 50%; background: var(--good); color: #052e1f; font-size: 2.2rem; font-weight: 900; }
+.rehearsal-facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 18px auto; max-width: 320px; text-align: left; }
+.rehearsal-facts dt { color: var(--muted); } .rehearsal-facts dd { margin: 0; font-weight: 700; }
+.rehearsal-badge { position: fixed; top: 14px; left: 50%; translate: -50% 0; z-index: 40; padding: 6px 16px; border-radius: 999px; background: var(--gold); color: var(--on-accent); font-weight: 800; font-size: .9rem; letter-spacing: .16em; text-transform: uppercase; box-shadow: var(--glow-gold); pointer-events: none; }
+
+/* Desk: live or rehearsal, and the rehearsal tools. */
+.mode-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 12px 0 0; padding: 10px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.mode-bar p { margin: 0; flex: 1; min-width: 200px; color: var(--muted); }
+.mode-bar.rehearsal { border-color: color-mix(in srgb, var(--gold) 60%, transparent); background: color-mix(in srgb, var(--gold) 9%, transparent); }
+.mode-pill { padding: 4px 12px; border-radius: 999px; font-weight: 800; font-size: .78rem; letter-spacing: .14em; background: var(--good); color: #052e1f; }
+.mode-bar.rehearsal .mode-pill { background: var(--gold); color: var(--on-accent); }
+.mode-actions { display: flex; gap: 8px; flex-wrap: wrap; } .mode-actions button { margin: 0; }
+.sim-teams { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 4px; }
+.sim-teams li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: .9rem; }
+.sim-teams .off { color: var(--bad); } .sim-teams .on { color: var(--good); }
+.sim-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; } .sim-actions button { margin: 0; padding: 6px 12px; font-size: .85rem; }
+.rehearsal-log { margin: 6px 0 0; padding-left: 1.2em; font-size: .82rem; max-height: 240px; overflow: auto; }
+.rehearsal-log .bad { color: var(--bad); }
+.rehearse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#rehearseDialog, #preflightDialog { width: min(640px, 92vw); }
+.preflight { list-style: none; padding: 0; margin: 14px 0; display: grid; gap: 8px; }
+.preflight li { display: grid; grid-template-columns: 26px 1fr; gap: 4px 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.preflight .mark { font-weight: 900; } .preflight .pass .mark { color: var(--good); } .preflight .warn .mark { color: var(--gold); } .preflight .fail .mark { color: var(--bad); } .preflight .unknown .mark { color: var(--muted); }
+.preflight strong { display: block; } .preflight span.text { grid-column: 2; color: var(--muted); font-size: .9rem; }

@@ -370,9 +370,9 @@ async function loadQuiz(read) {
   const played = state.history.length || state.teams.length;
   if (played && !confirm('Start a fresh quiz with this file? The current quiz ends: its results are saved and downloaded, and all teams and scores are cleared.')) return;
   const result = await request('new-event', {questions: 'load', quiz: await read()});
-  if (played) download(`beermat-results-${result.saved.replace(/^results\//, '')}`, result.results);
+  if (played && result.saved) download(`beermat-results-${result.saved.replace(/^results\//, '')}`, result.results);
   await loadLibrary(); reviewId = '';
-  return `New quiz loaded: ${library.title}${played ? ` — last quiz's results saved in ${result.saved}` : ''}`;
+  return `New quiz loaded: ${library.title}${played && result.saved ? ` — last quiz's results saved in ${result.saved}` : ''}`;
 }
 $('importQuiz').onchange = () => {const file = $('importQuiz').files[0]; $('importQuiz').value = ''; if (file) action(() => loadQuiz(() => readQuizFile(file)));};
 // A share link from Google Drive: the laptop downloads the file (it must be shared as "Anyone with the link").
@@ -683,7 +683,8 @@ function soundLength(src) {
   return soundLengths.get(src);
 }
 $('reveal').onclick = () => {const q = state.question, hide = q.revealed || q.revealing; action(async () => {
-  const delay = hide ? 0 : Math.min(10000, Math.round(await soundLength(state.sounds.slots.reveal) * 1000));
+  // A rehearsal with fast timers skips the drum roll.
+  const delay = hide || state.rehearsal?.options?.speed === 'fast' ? 0 : Math.min(10000, Math.round(await soundLength(state.sounds.slots.reveal) * 1000));
   await request('reveal', {question: q.id, revealed: !hide, delay});
   return hide ? 'Answer hidden' : delay ? `Drum roll… the answer appears in ${Math.ceil(delay / 1000)}s` : 'Answer revealed';
 });};
@@ -1002,8 +1003,8 @@ $('newEventDialog').onclose = () => {
       body.quiz = await readQuizFile(file);
     }
     const result = await request('new-event', body);
-    download(`beermat-results-${result.saved.replace(/^results\//, '')}`, result.results);
-    await loadLibrary(); await loadHistory(); reviewId = ''; return `New quiz ready. Last quiz's results downloaded and saved in ${result.saved}`;
+    if (result.saved) download(`beermat-results-${result.saved.replace(/^results\//, '')}`, result.results);
+    await loadLibrary(); await loadHistory(); reviewId = ''; return result.saved ? `New quiz ready. Last quiz's results downloaded and saved in ${result.saved}` : 'Rehearsal started again';
   });
 };
 $('exportResults').onclick = () => action(async () => download('beermat-results.json', await request('export')), 'Results downloaded');
@@ -1153,17 +1154,17 @@ function renderState(s) {
   selectOptions($('adjustTeam'), s.teams.filter(t => t.enabled).map(t => [t.id, t.name]), $('adjustTeam').value);
   renderTonight(s);
   renderPlan(s.plan);
+  renderRehearsal(s);
   showSettings();
 }
-// ---- Plan: Free (3 questions, 3 teams, no Spotify) or Pro, from the venue's licence ----
-const longDate = t => new Date(t).toLocaleDateString(undefined, {day: 'numeric', month: 'long', year: 'numeric'});
+// ---- Plan: Free (make and rehearse quizzes) or Pro (host live, Spotify, the buzzer library), from the venue's licence ----
 function renderPlan(plan) {
-  const free = !!plan.limits;
+  const free = !plan.live;
   $('planNote').hidden = !free;
-  if (free) $('planNote').firstChild.textContent = `BeerMat Free: quizzes stop after ${plan.limits.questions} questions and ${plan.limits.teams} teams.`;
+  if (free) $('planNote').firstChild.textContent = 'BeerMat Free: make and rehearse quizzes as much as you like. Hosting a live quiz with real teams is BeerMat Pro.';
   $('planBadge').textContent = plan.name; $('planBadge').classList.toggle('pro', !free);
   $('planInfo').textContent = !free ? `${plan.venue ? plan.venue + ' has BeerMat Pro' : 'BeerMat Pro'}${plan.paidUntil ? `, paid until ${longDate(plan.paidUntil)}` : ''}.${plan.expires ? ` This laptop holds it offline until ${longDate(plan.expires)}.` : ''}`
-    : plan.venue ? `${plan.venue} is on BeerMat Free.` : 'This laptop is on BeerMat Free.';
+    : `${plan.venue ? plan.venue + ' is' : 'This laptop is'} on BeerMat Free: every format, rehearsals with simulated teams, and real phones joining to test the connection. Hosting live needs Pro.`;
 }
 $('planSee').onclick = () => chooseTab('settings:general');
 $('venueBilling').onclick = () => action(async () => {
@@ -1297,3 +1298,75 @@ if (ticket) {
   history.replaceState(null, '', location.pathname);
   api('login', {ticket}).then(r => {key = r.key; writeStorage('beermat-host', key, true); updates.reconnect(); refresh();}).catch(e => {if (!key) message(e.message, true);});
 }
+
+// ---- Rehearsals (server/rehearsal.js): simulated teams play through the real engine; real phones only test their connection ----
+function renderRehearsal(s) {
+  const r = s.rehearsal, rehearsing = r.mode === 'rehearsal';
+  $('modeBar').classList.toggle('rehearsal', rehearsing);
+  $('modePill').textContent = rehearsing ? 'REHEARSAL' : 'LIVE';
+  $('modeText').textContent = !rehearsing ? 'Live quiz: real teams play and results are kept.'
+    : r.options ? `Rehearsal with ${r.sims.length} simulated ${r.sims.length === 1 ? 'team' : 'teams'}${r.options.speed === 'fast' ? ', fast timers' : ''}. Real phones can join to test the connection, but can’t play. Nothing is kept.`
+    : `Not live${r.canGoLive ? '' : ' (hosting live is BeerMat Pro)'}: real phones that join only test the connection. Rehearse the quiz to play it with simulated teams.`;
+  $('rehearseStop').hidden = !rehearsing || !r.options;
+  $('goLive').hidden = !rehearsing; $('goLive').disabled = !r.canGoLive;
+  $('goLive').title = r.canGoLive ? '' : 'Hosting a live quiz with real teams is part of BeerMat Pro';
+  $('goLive').textContent = r.canGoLive ? 'Host live quiz' : 'Host live quiz (Pro)';
+  $('rehearsalPanel').hidden = !rehearsing;
+  if (!rehearsing) return;
+  $('rehearsalSummary').textContent = `${r.sims.filter(t => t.connected).length}/${r.sims.length} connected · ${r.devices.length} test ${r.devices.length === 1 ? 'phone' : 'phones'}`;
+  const line = (name, on, extra = '') => {const li = element('li'); li.append(element('span', name + extra), element('span', on ? '● connected' : '○ dropped', on ? 'on' : 'off')); return li;};
+  $('simTeams').replaceChildren(...r.sims.map(t => line(t.name, t.connected, t.manual ? ' · by hand' : '')));
+  if (!r.sims.length) $('simTeams').append(element('li', r.options ? 'No simulated teams.' : 'Start a rehearsal to add simulated teams.', 'muted'));
+  $('testPhones').replaceChildren(...r.devices.map(d => line(d.name, d.connected)));
+  if (!r.devices.length) $('testPhones').append(element('li', 'None yet: scan the code on the TV with a phone.', 'muted'));
+  const picked = $('simPick').value;
+  selectOptions($('simPick'), r.sims.map(t => [t.name, t.name]), r.sims.some(t => t.name === picked) ? picked : r.sims[0]?.name);
+  $('simManual').checked = !!r.sims.find(t => t.name === $('simPick').value)?.manual;
+  $('rehearsalLog').replaceChildren(...r.log.map(e => element('li', `${new Date(e.at).toLocaleTimeString()} · ${e.team}: ${e.action}${e.ok ? '' : ` — refused: ${e.detail}`}`, e.ok ? '' : 'bad')));
+}
+function openRehearse() {
+  const r = state?.rehearsal, played = r?.mode === 'live' && (state.history.length || state.teams.length);
+  $('rehearseWarning').hidden = !played;
+  $('rehearseWarning').textContent = played ? 'A live quiz is in progress. Rehearsing ends it: its results are saved and downloaded first, and its teams will need to join again.' : '';
+  $('rehearseDialog').showModal();
+}
+$('rehearseOpen').onclick = openRehearse;
+$('rehearseQuiz').onclick = openRehearse;
+$('rehearseForm').onsubmit = e => {
+  if (e.submitter?.value !== 'start') return;
+  const options = {teams: Number($('rTeams').value), accuracy: Number($('rAccuracy').value), auto: $('rAuto').value === 'auto', speed: $('rSpeed').value, buzzers: $('rBuzzers').checked, disconnects: $('rDisconnects').checked};
+  const endLive = !$('rehearseWarning').hidden;
+  action(async () => {
+    const result = await request('rehearsal/start', {options, endLive});
+    if (result.saved) download(`beermat-results-${result.saved.replace(/^results\//, '')}`, result.results);
+    await loadLibrary(); chooseTab('live');
+    return `Rehearsal started with ${options.teams} simulated teams`;
+  });
+};
+$('rehearseStop').onclick = () => {if (confirm('End the rehearsal? Its teams and scores are cleared; the quiz itself stays.')) action(() => request('rehearsal/stop'), 'Rehearsal ended');};
+$('goLive').onclick = () => {
+  if (!state.rehearsal.canGoLive) return chooseTab('settings:general');
+  if (confirm('Host this quiz live? The rehearsal is cleared, and teams join on their phones to play for real.')) action(() => request('live'), 'Live: teams can join and play');
+};
+document.querySelectorAll('[data-sim]').forEach(b => b.onclick = () => {
+  const name = $('simPick').value; if (!name) return;
+  action(async () => {const {result} = await request('rehearsal/team', {name, action: b.dataset.sim}); return result.ok ? `${name}: ${b.textContent.toLowerCase()} — accepted` : `${name}: ${b.textContent.toLowerCase()} — refused by the quiz server: ${result.detail}`;});
+});
+$('simPick').onchange = () => renderRehearsal(state);
+$('simManual').onchange = () => action(() => request('rehearsal/team', {name: $('simPick').value, manual: $('simManual').checked}), 'Saved');
+// Preflight: the quiz server's checks, plus the screens and sound the desktop app can see.
+async function runPreflight() {
+  $('preflightList').replaceChildren(element('li', 'Checking…', 'muted'));
+  const {checks} = await request('preflight');
+  if (window.beermatDesktop) {
+    const info = await window.beermatDesktop.screens();
+    checks.push({id: 'tv', label: 'TV or projector', status: info.windowed ? 'warn' : 'pass', text: info.windowed ? 'Only one screen is connected: the TV shows as a preview window. Plug in the TV or projector.' : `${info.displays.length} screens; the TV ${info.open ? 'is open' : 'opens'} on ${info.displays.find(d => d.audience)?.label || 'the second screen'}.`});
+    const outputs = info.sound?.outputs || [];
+    checks.push({id: 'audio', label: 'Sound', status: outputs.length ? 'pass' : 'warn', text: outputs.length ? `${outputs.length} sound output${outputs.length === 1 ? '' : 's'}; playing through ${info.sound.active || 'the laptop'}.` : 'No sound output found. Check the speakers or the TV’s sound.'});
+  } else checks.push({id: 'tv', label: 'TV and sound', status: 'unknown', text: 'Only the BeerMat app can check screens and sound. Open the TV page and play a sound to check them.'});
+  const marks = {pass: '✓', warn: '!', fail: '✗', unknown: '?'}, words = {pass: 'Passed', warn: 'Warning', fail: 'Failed', unknown: 'Not checked'};
+  $('preflightList').replaceChildren(...checks.map(c => {const li = element('li', undefined, c.status); li.append(element('span', marks[c.status], 'mark'), element('strong', `${c.label} · ${words[c.status]}`), element('span', c.text, 'text')); return li;}));
+}
+$('preflightRun').onclick = () => {$('preflightDialog').showModal(); runPreflight().catch(e => message(e.message, true));};
+$('preflightAgain').onclick = () => runPreflight().catch(e => message(e.message, true));
+$('preflightClose').onclick = () => $('preflightDialog').close();

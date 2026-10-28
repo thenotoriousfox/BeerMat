@@ -221,7 +221,16 @@ function renderBingo(q) {
   $('claimBingo').disabled = !(online && q.live && !q.paused && !b.claimed && !b.over && !current.settings.ended && !checking && !turnedDown);
   $('bingoStatus').textContent = b.claimed ? t('✓ Bingo! The quizmaster says yes.') : checking ? t('Your BINGO call is being checked…') : turnedDown ? t('Not a bingo this time — keep playing') : shoutText(b) || (b.winners.length ? winText(b) : '');
 }
+// A phone that joined a rehearsal: a connection test, never the quiz (the server sends no question to it).
+function rehearsalState(s) {
+  current = null; $('join').hidden = true; $('game').hidden = false; $('rehearsalCard').hidden = false;
+  for (const el of document.querySelectorAll('#game > :not(#rehearsalCard):not(#storageWarning)')) el.hidden = true;
+  $('submit').hidden = true; $('timerBar').hidden = true; $('menuButton').hidden = true; $('myScore').textContent = '';
+  $('team').textContent = s.team.name; $('rehearsalName').textContent = s.team.name;
+  $('rehearsalState').textContent = t('Connected'); $('rehearsalChecked').textContent = new Date().toLocaleTimeString();
+}
 function playerState(s) {
+  $('rehearsalCard').hidden = true;
   current = s; writeStorage('beermat-event', s.event || ''); offset = s.serverTime - Date.now(); $('join').hidden = true; $('game').hidden = false;
   $('team').textContent = s.team.name; $('code').textContent = secret; const q = s.question;
   // Once the quiz is finished, a player may keep the team's result (signed by the quiz laptop) in an online profile.
@@ -299,6 +308,8 @@ function renderQr(container, text) {
   svg.append(path); container.replaceChildren(svg);
 }
 function displayState(s) {
+  // A rehearsal says so, small and out of the way of what is being tested.
+  $('rehearsalBadge').hidden = !s.rehearsal;
   current = s; offset = s.serverTime - Date.now();
   const {joinSsid, joinUrl, joinPassword, registrationOpen, ended, online} = s.settings, joining = registrationOpen && !ended, address = joinUrl.replace(/^https?:\/\//, '');
   // The code always opens the quiz page; on the quiz Wi-Fi or the venue's network, phones join that Wi-Fi first.
@@ -569,6 +580,7 @@ async function refresh() {
     // Online there is no quiz Wi-Fi to warn about.
     for (const tip of document.querySelectorAll('.wifi-tip')) tip.hidden = !!s.settings.online || s.settings.joinMode === 'lan';
     if (role === 'display') displayState(s);
+    else if (secret && s.rehearsal?.device) rehearsalState(s);
     else if (secret) playerState(s);
     else {
       $('boardSection').hidden = true;
@@ -579,6 +591,7 @@ async function refresh() {
     // A bug while drawing the page would otherwise look like a lost connection; log it for the browser console.
     if (!e.status && !(e instanceof TypeError && /fetch|network/i.test(e.message))) console.error(e);
     online = false; $('connection').textContent = t('● Connection lost — retrying'); $('connection').classList.add('offline');
+    if (!$('rehearsalCard').hidden) $('rehearsalState').textContent = t('Reconnecting…');
     if (role === 'player') {
       if (e.status === 401) {secret = ''; writeStorage('beermat-team', ''); current = null; $('join').hidden = false; $('game').hidden = true; $('menuButton').hidden = true; $('myScore').textContent = ''; updates.reconnect();
         // After the quizmaster starts the next quiz, every team joins afresh.
@@ -615,7 +628,8 @@ if (role === 'player') {
     e.preventDefault(); $('joinButton').disabled = true;
     try {
       const team = await api('join', {name: $('name').value}); saveIdentity(team.secret);
-      message(team.waiting ? t('Nearly there! The quizmaster will let you in shortly. Keep this window open.') : t('You’re in! Keep this window open to play. If it closes, open {url} in your browser to carry on.', {url: (lastSettings?.joinUrl || 'http://10.42.0.1').replace(/^https?:\/\//, '')}));
+      if (team.rehearsal) message(t('Connected: this is a rehearsal, so this phone only tests the connection.'));
+      else message(team.waiting ? t('Nearly there! The quizmaster will let you in shortly. Keep this window open.') : t('You’re in! Keep this window open to play. If it closes, open {url} in your browser to carry on.', {url: (lastSettings?.joinUrl || 'http://10.42.0.1').replace(/^https?:\/\//, '')}));
       await refresh();
     } catch (e) {message(e.message, true);} finally {if (!secret) $('joinButton').disabled = false;}
   };
