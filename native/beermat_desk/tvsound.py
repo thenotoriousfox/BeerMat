@@ -49,7 +49,7 @@ class TvSound(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._prefs = QSettings('BeerMat', 'BeerMat Desk')
+        self._prefs = QSettings()
         self._devices = QMediaDevices(self)
         self._devices.audioOutputsChanged.connect(self._apply_output)
         self._devices.audioOutputsChanged.connect(self.outputsChanged)

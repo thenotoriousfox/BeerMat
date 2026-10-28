@@ -14,7 +14,7 @@ class Screens(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._prefs = QSettings('BeerMat', 'BeerMat Desk')
+        self._prefs = QSettings()
         self._open = False
         self._blanked = False
         app = QGuiApplication.instance()

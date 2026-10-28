@@ -5,14 +5,16 @@ import base64
 import json
 import re
 import secrets
+import subprocess
+import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import Property, QObject, QSettings, QTimer, QUrl, Signal, Slot
 
 from .api import DeskApi
 from .library import Library
-from .server import QuizServer
+from .server import ROOT, QuizServer, node_binary
 from .tvsound import TvSound
 from .live import LiveTools
 from .online import OnlineVenue
@@ -619,6 +621,56 @@ class Desk(QObject):
     @Property(str, constant=True)
     def dataFolder(self):
         return str(self.server.data_dir)
+
+    @Slot(QUrl)
+    def restore(self, url):
+        """Replaces the quiz with a backup (desktop/database.js restoreDatabase: the backup is checked first, and the
+        current quiz backed up). The server stops for it and starts again; if the backup is bad, nothing changes."""
+        source = url.toLocalFile() if isinstance(url, QUrl) else str(url)
+        data = self.server.data_dir
+        self._set_status('Restoring the backup…')
+        self.api.close()
+        self.server.stop()
+        script = ("const [s, f, b] = process.argv.slice(1); import('" + (ROOT / 'desktop' / 'database.js').as_uri()
+                  + "').then(m => m.restoreDatabase(s, f, b)).catch(e => {console.error(e.message); process.exit(1);});")
+        result = subprocess.run([node_binary(), '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', script, source, str(data / 'quiz.sqlite'), str(data / 'backups')],
+                                capture_output=True, text=True, timeout=60)
+        if result.returncode:
+            self.toast.emit(f'That backup could not be restored: {result.stderr.strip() or "unknown problem"}. The current quiz is unchanged.', True)
+        else:
+            self.toast.emit('Backup restored', False)
+        self._crashes = []
+        self.server.start()
+
+    @Slot(str)
+    def importDrive(self, link):
+        """A quiz file shared on Google Drive (the server fetches it), loaded as a fresh quiz."""
+        def got(reply):
+            quiz = reply.get('quiz')
+            if not quiz:
+                return self.toast.emit('No quiz found at that link', True)
+            path = self.server.data_dir / 'drive-import.json'
+            path.write_text(json.dumps(quiz), encoding='utf-8')
+            self.loadQuiz(QUrl.fromLocalFile(str(path)))
+        self.api.host('drive', {'url': link}, got, lambda e: self.toast.emit(e, True), timeout_ms=60000)
+
+    # ---- first run ----
+    @Property(bool, constant=True)
+    def firstRun(self):
+        return not QSettings().value('welcomed', False, bool)
+
+    @Slot(str)
+    def welcomed(self, choice):
+        """How players join, chosen on the first run (as the Electron app's welcome): the venue's network or this
+        laptop's quiz Wi-Fi; or decided later."""
+        QSettings().setValue('welcomed', True)
+        if choice == 'lan':
+            def network(n):
+                address = next((a for a in n.get('addresses', []) if a.get('kind') == 'lan'), None)
+                self.api.host('settings', {'joinMode': 'lan', **({'joinUrl': f'http://{address["address"]}:{n["port"]}'} if address else {})}, lambda _: self.refresh())
+            self.api.host('network', {}, network)
+        elif choice == 'hotspot':
+            self.api.host('settings', {'joinMode': 'hotspot', 'joinUrl': 'http://10.42.0.1'}, lambda _: self.refresh())
 
     @Slot(QUrl)
     def backup(self, folder):

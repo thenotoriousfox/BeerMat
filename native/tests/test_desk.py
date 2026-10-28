@@ -16,7 +16,7 @@ from pathlib import Path
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
-from PySide6.QtCore import QObject, QUrl                           # noqa: E402
+from PySide6.QtCore import QObject, QSettings, QUrl                           # noqa: E402
 from PySide6.QtGui import QFontDatabase, QGuiApplication           # noqa: E402
 from PySide6.QtQml import QQmlApplicationEngine                    # noqa: E402
 from PySide6.QtQuickControls2 import QQuickStyle                   # noqa: E402
@@ -27,6 +27,8 @@ from beermat_desk.server import ROOT                               # noqa: E402
 
 HERE = Path(__file__).resolve().parents[1] / 'beermat_desk'
 app = QGuiApplication.instance() or QGuiApplication(['test'])
+# Tests keep their own preferences (screens, sound output, first run), away from the real desk's.
+app.setOrganizationName('BeerMat-test')
 QQuickStyle.setStyle('Basic')
 QFontDatabase.addApplicationFont(str(ROOT / 'brand' / 'fredoka.woff2'))
 
@@ -50,7 +52,10 @@ def http(port, route, body, key=''):
 
 class DeskCase(unittest.TestCase):
     """The real server and the QML desk, offscreen; shared by the desk tests."""
+    first_run = False
+
     def setUp(self):
+        QSettings().setValue('welcomed', not self.first_run)
         self.dir = tempfile.TemporaryDirectory()
         self.quiz_file = Path(self.dir.name) / 'test-quiz.json'
         subprocess.run(['node', str(ROOT / 'scripts' / 'load-test-quiz.mjs'), '--json', str(self.quiz_file)], check=True, capture_output=True)
@@ -266,6 +271,38 @@ class DeskTest(DeskCase):
         process = desk.server._process
         desk.stop()
         self.assertEqual(process.state().name, 'NotRunning', 'closing the desk stops the quiz server')
+
+
+class FirstRunAndRestoreTest(DeskCase):
+    first_run = True
+
+    def test_welcome_then_restore(self):
+        desk = self.desk
+        desk.start()
+        wait(lambda: desk.connected and desk.view.get('phase'), what='the desk')
+        welcome = self.window.findChild(QObject, 'welcome')
+        wait(lambda: welcome.property('visible'), what='the first-run welcome')
+        self.shot('welcome')
+        desk.welcomed('lan')
+        wait(lambda: desk.view['settings'].get('joinMode') == 'lan', what='players joining on the venue network', log=self.toasts)
+        self.assertTrue(QSettings().value('welcomed', False, bool))
+
+        # A backup of this quiz, a change, then the backup restored: the change is gone and the server is back.
+        backups = Path(self.dir.name) / 'mine'
+        backups.mkdir()
+        desk.backup(QUrl.fromLocalFile(str(backups)))
+        wait(lambda: list(backups.glob('*.sqlite')), what='the backup', log=self.toasts)
+        port, session = desk.server.info['port'], desk.api.session
+        http(port, 'host/settings', {'title': 'Changed after the backup'}, session)
+        wait(lambda: desk.view['settings'].get('title') == 'Changed after the backup', what='the change')
+        desk.restore(QUrl.fromLocalFile(str(next(backups.glob('*.sqlite')))))
+        wait(lambda: desk.connected and desk.view.get('settings', {}).get('title') not in (None, 'Changed after the backup'), timeout=30, what='the restored quiz', log=self.toasts)
+        # A file that isn't a backup is refused, and the quiz carries on.
+        bad = Path(self.dir.name) / 'bad.sqlite'
+        bad.write_text('not a database')
+        desk.restore(QUrl.fromLocalFile(str(bad)))
+        wait(lambda: any(e and 'could not be restored' in m for m, e in self.toasts), what='a bad backup refused')
+        wait(lambda: desk.connected, timeout=30, what='the server back after a refused restore')
 
 
 if __name__ == '__main__':

@@ -39,6 +39,30 @@ ApplicationWindow {
     Shortcut { sequence: "F8"; onActivated: screens.setBlank(!screens.blanked) }
 
     TvWindow { id: tvWindow; objectName: "tv" }
+
+    // First run: how players join (as the Electron app's welcome); the TV screen is automatic.
+    Dialog {
+        id: welcome
+        objectName: "welcome"
+        anchors.centerIn: parent; modal: true; width: 640
+        title: "Welcome to BeerMat"
+        visible: desk.firstRun && desk.connected
+        closePolicy: Popup.NoAutoClose
+        background: Rectangle { radius: Theme.radius; color: Theme.panel; border.color: Theme.gold }
+        header: Text { text: "How will players join your quizzes?"; color: Theme.text; font.family: Theme.display; font.pixelSize: 24; font.weight: Font.Bold; padding: 20 }
+        ColumnLayout {
+            width: parent.width; spacing: 10
+            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
+                   text: "Venue Wi-Fi: phones on the venue's own Wi-Fi open this laptop's address.\nBeerMat Wi-Fi: this laptop makes its own quiz Wi-Fi, no internet needed.\n\nYou can change this any time under Venue & network. The TV shows the joining code either way."
+                         + (Qt.platform.os === "windows" ? "\n\nWindows Firewall: if Windows asked whether to allow BeerMat on networks, choose Allow (with Private networks ticked), or phones can't connect." : "") }
+            RowLayout {
+                spacing: 8
+                DeskButton { text: "Venue Wi-Fi or network"; kind: "primary"; onClicked: { desk.welcomed("lan"); welcome.close() } }
+                DeskButton { text: "BeerMat Wi-Fi from this laptop"; onClicked: { desk.welcomed("hotspot"); welcome.close() } }
+                DeskButton { text: "Decide later"; onClicked: { desk.welcomed(""); welcome.close() } }
+            }
+        }
+    }
     // The TV's sounds play while the TV is showing, as Electron's TV window does.
     Binding { target: desk.sound; property: "on"; value: screens.open && !screens.blanked }
     Repeater {

@@ -14,6 +14,7 @@ from PySide6.QtGui import QGuiApplication              # noqa: E402
 from beermat_desk.tvsound import TvSound, synth        # noqa: E402
 
 app = QGuiApplication.instance() or QGuiApplication(sys.argv)
+app.setOrganizationName('BeerMat-test')
 SLOTS = ['startRound', 'questionStart', 'timerMusic', 'countdown', 'timeUp', 'endRound', 'correct', 'wrong', 'reveal', 'bingoCall', 'bingo', 'applause']
 
 

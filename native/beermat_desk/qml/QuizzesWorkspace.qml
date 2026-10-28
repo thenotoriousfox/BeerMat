@@ -73,6 +73,11 @@ RowLayout {
                 DeskButton { text: "Load quiz file…"; implicitHeight: 34; onClicked: quizzes.openQuiz() }
                 DeskButton { text: "Save as file…"; implicitHeight: 34; onClicked: exportFile.open() }
             }
+            RowLayout {
+                Layout.fillWidth: true
+                Field { id: driveLink; placeholderText: "Google Drive link to a quiz file"; Layout.fillWidth: true }
+                DeskButton { text: "Load"; implicitHeight: 34; enabled: driveLink.text.trim() !== ""; onClicked: { desk.importDrive(driveLink.text.trim()); driveLink.text = "" } }
+            }
         }
     }
 

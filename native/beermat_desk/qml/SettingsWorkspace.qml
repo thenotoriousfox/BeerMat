@@ -25,6 +25,11 @@ ScrollView {
     width: settings.availableWidth
     spacing: Theme.gap
 
+    FileDialog { id: restoreFile; title: "Restore a quiz backup"; nameFilters: ["BeerMat backup (*.sqlite)"]; currentFolder: "file://" + desk.dataFolder + "/backups"
+                 onAccepted: { restoreConfirm.file = selectedFile; restoreConfirm.open() } }
+    MessageDialog { id: restoreConfirm; property url file; title: "Replace the current quiz with this backup?"
+                    text: "The current quiz is backed up first. The quiz server restarts; phones reconnect by themselves."
+                    buttons: MessageDialog.Yes | MessageDialog.Cancel; onButtonClicked: (b) => { if (b === MessageDialog.Yes) desk.restore(file) } }
     FolderDialog { id: backupFolder; title: "Choose a folder for the backup"; onAccepted: desk.backup(selectedFolder) }
 
     RowLayout {
@@ -59,6 +64,7 @@ ScrollView {
                 Flow {
                     Layout.fillWidth: true; spacing: 8
                     DeskButton { text: "Back up the quiz…"; onClicked: backupFolder.open() }
+                    DeskButton { text: "Restore a backup…"; onClicked: restoreFile.open() }
                     DeskButton { text: "Open data folder"; onClicked: Qt.openUrlExternally("file://" + desk.dataFolder) }
                     DeskButton { text: "Open logs"; onClicked: Qt.openUrlExternally("file://" + desk.dataFolder + "/logs") }
                 }
