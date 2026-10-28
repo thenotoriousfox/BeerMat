@@ -102,6 +102,11 @@ class DeskTest(unittest.TestCase):
         wait(lambda: [d['name'] for d in desk.view.get('devices', [])] == ["Dave's phone"], what='the test phone, listed apart')
         self.assertNotIn("Dave's phone", [t['name'] for t in desk.view['teams']])
         self.shot('2-loaded')
+        self.window.setProperty('workspace', 1)
+        self.shot('2-rehearsal')
+        self.window.setProperty('workspace', 5)
+        self.shot('2-settings')
+        self.window.setProperty('workspace', 0)
 
         desk.next()
         wait(lambda: desk.view.get('question') and desk.view['phase'] == 'Live', what='the first question to open')

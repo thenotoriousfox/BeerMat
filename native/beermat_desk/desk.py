@@ -31,6 +31,7 @@ class Desk(QObject):
     toast = Signal(str, bool)       # message, is it an error
     confirmLoad = Signal(str)       # the quiz has been played: ask before replacing it (file path)
     confirmFinish = Signal(str)     # ask before finishing (what's at stake)
+    quitRequested = Signal()        # Close BeerMat, pressed on a desk (also in a browser)
 
     def __init__(self, data_dir, host_key, port=3000, laptop=True, parent=None):
         super().__init__(parent)
@@ -92,6 +93,14 @@ class Desk(QObject):
         self.server.send({'type': 'ticket', 'id': 'login'})
 
     def _server_message(self, message):
+        if message.get('type') == 'backup':
+            if message.get('error'):
+                self.toast.emit(f'The backup failed: {message["error"]}', True)
+            else:
+                self.toast.emit(f'Backup saved: {message.get("file")}', False)
+            self._set_status('Quiz server running')
+        elif message.get('type') == 'quit':
+            self.quitRequested.emit()
         if message.get('type') == 'ticket':
             self.api.login_with_ticket(message['ticket'], self._logged_in, lambda error: self._set_status(f'Could not unlock the desk: {error}'))
 
@@ -155,6 +164,7 @@ class Desk(QObject):
             return
         q = s.get('question')
         settings = s.get('settings', {})
+        rehearsal, plan = s.get('rehearsal') or {}, s.get('plan') or {}
         history = s.get('history', [])
         teams = [t for t in s.get('teams', []) if t.get('enabled')]
         answered = {a['team'] for a in s.get('answers', []) if a.get('submitted')}
@@ -185,10 +195,12 @@ class Desk(QObject):
             'canPause': bool(q and q.get('open') and not q.get('paused')), 'canResume': bool(q and q.get('paused')),
             # Live or rehearsal is the server's decision (plan and session mode); the desk only shows it. Real phones that
             # joined a rehearsal are test devices, listed apart from the simulated teams that play it.
-            'mode': (s.get('rehearsal') or {}).get('mode', 'live'), 'plan': (s.get('plan') or {}).get('name') or (s.get('plan') or {}).get('plan', ''),
-            'canGoLive': bool((s.get('rehearsal') or {}).get('canGoLive')), 'rehearsing': bool((s.get('rehearsal') or {}).get('options')),
-            'devices': [{'name': d['name'], 'connected': bool(d.get('connected'))} for d in (s.get('rehearsal') or {}).get('devices', [])],
-            'sims': [{'name': t['name'], 'connected': bool(t.get('connected')), 'manual': bool(t.get('manual'))} for t in (s.get('rehearsal') or {}).get('sims', [])],
+            'mode': rehearsal.get('mode', 'live'), 'canGoLive': bool(rehearsal.get('canGoLive')), 'rehearsing': bool(rehearsal.get('options')),
+            'rehearsalOptions': rehearsal.get('options') or {}, 'rehearsalLog': rehearsal.get('log') or [],
+            'plan': {'code': plan.get('plan', 'free'), 'name': plan.get('name', 'BeerMat Free'), 'live': bool(plan.get('live')),
+                     'venue': plan.get('venue') or '', 'expires': plan.get('expires') or 0, 'paidUntil': plan.get('paidUntil') or 0},
+            'devices': [{'name': d['name'], 'connected': bool(d.get('connected'))} for d in rehearsal.get('devices', [])],
+            'sims': [{'name': t['name'], 'connected': bool(t.get('connected')), 'manual': bool(t.get('manual'))} for t in rehearsal.get('sims', [])],
             'progress': f'{len(played & {item.get("id") for _, item in questions})} of {len(questions)} questions played' if questions else '',
             'upcoming': upcoming,
         }
@@ -284,12 +296,66 @@ class Desk(QObject):
 
     @Slot(int)
     def startRehearsal(self, teams):
-        """A rehearsal with simulated teams (options as the web desk's Rehearse panel; the server cleans them)."""
-        self._act('rehearsal/start', {'options': {'teams': teams}}, f'Rehearsal started with {teams} simulated teams')
+        self.startRehearsalWith({'teams': teams})
+
+    @Slot('QVariantMap')
+    def startRehearsalWith(self, options):
+        """A rehearsal with simulated teams. Options as the web desk's Rehearsal panel (teams, auto, accuracy, speed,
+        disconnects, buzzers); the server cleans them and ends a live quiz only when told to (endLive)."""
+        options = dict(options)
+        end_live = bool(options.pop('endLive', False))
+        teams = int(options.get('teams', 6))
+        self._act('rehearsal/start', {'options': options, **({'endLive': True} if end_live else {})}, f'Rehearsal started with {teams} simulated teams')
 
     @Slot()
     def stopRehearsal(self):
         self._act('rehearsal/stop', {}, 'Rehearsal stopped')
+
+    @Slot(str, bool)
+    def simManual(self, name, manual):
+        """A simulated team waits for the quizmaster's actions (manual) or plays by itself."""
+        self.api.host('rehearsal/team', {'name': name, 'manual': manual}, lambda _: self.refresh(), lambda e: self.toast.emit(e, True))
+
+    @Slot(str, str)
+    def simAct(self, name, action):
+        """Make a simulated team do something; the server judges it exactly as it would a phone."""
+        def done(reply):
+            result = reply.get('result') or {}
+            self.toast.emit(f'{name}: {action} ' + ('accepted' if result.get('ok') else f'refused: {result.get("detail") or "no reason given"}'), not result.get('ok'))
+            self.refresh()
+        self.api.host('rehearsal/team', {'name': name, 'action': action}, done, lambda e: self.toast.emit(e, True))
+
+    @Slot()
+    def goLive(self):
+        """Pro only; the server refuses it on Free with a sentence the desk shows."""
+        self._act('live', {}, 'Live: real teams can join and play')
+
+    @Slot()
+    def refreshPlan(self):
+        def done(plan):
+            self.toast.emit(f'Plan: {plan.get("name", "BeerMat Free")}', False)
+            self.refresh()
+        self.api.host('plan/refresh', {}, done, lambda e: self.toast.emit(f'Could not check the plan: {e}', True), timeout_ms=30000)
+
+    # ---- the laptop: backups, key, folders ----
+    @Property(str, constant=True)
+    def hostKey(self):
+        return self.server.host_key
+
+    @Property(str, notify=statusChanged)
+    def deskUrl(self):
+        return f'http://127.0.0.1:{self.server.info["port"]}/host' if self.server.info else ''
+
+    @Property(str, constant=True)
+    def dataFolder(self):
+        return str(self.server.data_dir)
+
+    @Slot(QUrl)
+    def backup(self, folder):
+        path = folder.toLocalFile() if isinstance(folder, QUrl) else str(folder)
+        self._pending_backup = path
+        self.server.send({'type': 'backup', 'id': 'backup', 'folder': path})
+        self._set_status('Backing up the quiz…')
 
     @Slot(QUrl)
     def loadQuiz(self, url):

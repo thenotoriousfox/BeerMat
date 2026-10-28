@@ -14,12 +14,19 @@ cd native
 ../.venv/bin/python -m unittest discover -s tests   # end to end, no screen needed (BEERMAT_SHOTS=<dir> saves screenshots)
 ```
 
-Keys: **N** next, **C** close answers, **P** pause/resume, **R** reveal, **Ctrl+O** load a quiz file.
+Keys: **N** next, **C** close answers, **P** pause/resume, **R** reveal, **Ctrl+O** load a quiz file, **Ctrl+1…6** workspaces.
+
+One desk runs per data folder (a second start brings the first to the front). Logs: `<data>/logs/desk.log`.
 
 | File | What it does |
 |---|---|
 | `beermat_desk/server.py` | Starts and watches the quiz server; messages as `@beermat <json>` lines |
 | `beermat_desk/api.py` | The desk API over `QNetworkAccessManager`, and live updates from `/api/events` |
 | `beermat_desk/desk.py` | Turns the server's state into what the screen shows, and the buttons into API calls |
-| `beermat_desk/qml/` | The interface: `Main.qml` and the `Desk` components (theme, panel, pill, button) |
+| `beermat_desk/qml/Main.qml` | The shell: workspace rail, status bar, dialogs, keys |
+| `beermat_desk/qml/LiveWorkspace.qml` | Live control: question, teams, up next, live buttons |
+| `beermat_desk/qml/RehearsalWorkspace.qml` | Rehearsal: options, simulated teams and their actions, test phones, log, go live |
+| `beermat_desk/qml/SettingsWorkspace.qml` | Plan, backups, data and logs folders, quizmaster key, shortcuts |
+| `beermat_desk/qml/PendingWorkspace.qml` | Workspaces not yet native: says so and opens the web desk |
+| `beermat_desk/qml/Desk/` | Design-system components (theme tokens, panel, pill, button) |
 | `tests/test_desk.py` | The real server and window, offscreen: load, join, answer, open, close, reveal, crash, close |

@@ -6,6 +6,9 @@
   --no-laptop       leave the laptop's Wi-Fi alone (tests, or another machine runs the quiz Wi-Fi)
 """
 import argparse
+import hashlib
+import logging
+import logging.handlers
 import os
 import secrets
 import signal
@@ -13,6 +16,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QStandardPaths, QUrl
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
@@ -40,6 +44,32 @@ def host_key(data_dir):
     return key
 
 
+def start_logging(data_dir):
+    """The desk's and the quiz server's lines, in <data>/logs/desk.log (5 × 1 MB), and on the terminal."""
+    folder = Path(data_dir) / 'logs'
+    folder.mkdir(parents=True, exist_ok=True)
+    handler = logging.handlers.RotatingFileHandler(folder / 'desk.log', maxBytes=1_000_000, backupCount=5, encoding='utf-8')
+    handler.setFormatter(logging.Formatter('%(asctime)s %(name)s %(levelname)s %(message)s'))
+    logging.basicConfig(level=logging.INFO, handlers=[handler, logging.StreamHandler()])
+    return logging.getLogger('beermat')
+
+
+def single_instance(data_dir, raise_window):
+    """One desk per data folder: a second start asks the first to come to the front, then exits."""
+    name = 'beermat-desk-' + hashlib.sha256(str(Path(data_dir).resolve()).encode()).hexdigest()[:16]
+    probe = QLocalSocket()
+    probe.connectToServer(name)
+    if probe.waitForConnected(300):
+        probe.write(b'raise\n')
+        probe.waitForBytesWritten(300)
+        return None
+    QLocalServer.removeServer(name)
+    server = QLocalServer()
+    server.newConnection.connect(lambda: (server.nextPendingConnection(), raise_window()))
+    server.listen(name)
+    return server
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='beermat_desk', description='BeerMat Desk')
     parser.add_argument('--data')
@@ -57,6 +87,12 @@ def main(argv=None):
         QFontDatabase.addApplicationFont(str(ROOT / 'brand' / font))
 
     data_dir = Path(args.data) if args.data else Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
+    log = start_logging(data_dir)
+    windows = []
+    instance = single_instance(data_dir, lambda: [w.raise_() or w.requestActivate() for w in windows])
+    if instance is None:
+        log.info('BeerMat Desk is already running for %s; brought it to the front', data_dir)
+        return 0
     desk = Desk(data_dir, host_key(data_dir), port=args.port, laptop=not args.no_laptop)
 
     engine = QQmlApplicationEngine()
@@ -65,7 +101,12 @@ def main(argv=None):
     engine.addImportPath(str(HERE / 'qml'))
     engine.load(QUrl.fromLocalFile(str(HERE / 'qml' / 'Main.qml')))
     if not engine.rootObjects():
+        log.error('The desk interface failed to load')
         return 1
+    windows.extend(engine.rootObjects())
+    desk.server.log.connect(lambda line: logging.getLogger('beermat.server').info(line))
+    desk.toast.connect(lambda message, error: log.warning(message) if error else None)
+    log.info('BeerMat Desk started; data in %s', data_dir)
     app.aboutToQuit.connect(desk.stop)
     # Ctrl+C in a terminal closes it properly, server and all.
     signal.signal(signal.SIGINT, lambda *_: app.quit())
