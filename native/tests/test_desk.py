@@ -145,6 +145,12 @@ class DeskTest(DeskCase):
         lib.export(QUrl.fromLocalFile(str(packed)), True)
         quiz_file = json.loads(packed.read_text())
         self.assertTrue(quiz_file['rounds'][first['round']]['questions'][first['question']]['media'].startswith('data:image/png;base64,'))
+        # Blank answer sheets, as a PDF: questions with answer lines; formats needing a phone or the TV left out.
+        from unittest import mock
+        with mock.patch('PySide6.QtGui.QDesktopServices.openUrl'):
+            sheets = Path(lib.printSheets(QUrl.fromLocalFile(str(Path(self.dir.name) / 'sheets.pdf'))))
+        data = sheets.read_bytes()
+        self.assertTrue(data.startswith(b'%PDF') and len(data) > 2000)
         self.window.setProperty('workspace', 2)
         lib.select(first['round'], first['question'])
         self.shot('2-quizzes')

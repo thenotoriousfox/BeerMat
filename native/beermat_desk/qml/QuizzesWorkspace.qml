@@ -22,6 +22,8 @@ RowLayout {
     FileDialog { id: mediaFile; property string target: "media"; title: "Choose a picture or sound"
                  nameFilters: ["Pictures and sounds (*.png *.jpg *.jpeg *.webp *.mp3 *.ogg *.wav)"]
                  onAccepted: { lib.uploadMedia(target, selectedFile); target = "media" } }
+    FileDialog { id: sheetsFile; title: "Save the answer sheets (PDF), then print them"; fileMode: FileDialog.SaveFile; defaultSuffix: "pdf"
+                 nameFilters: ["PDF (*.pdf)"]; onAccepted: lib.printSheets(selectedFile) }
     FileDialog { id: exportFile; title: "Save the quiz as a file"; fileMode: FileDialog.SaveFile; defaultSuffix: "json"
                  nameFilters: ["BeerMat quiz (*.json)"]; onAccepted: lib.export(selectedFile, true) }
 
@@ -72,6 +74,7 @@ RowLayout {
                 DeskButton { text: "Add round"; implicitHeight: 34; onClicked: lib.addRound() }
                 DeskButton { text: "Load quiz file…"; implicitHeight: 34; onClicked: quizzes.openQuiz() }
                 DeskButton { text: "Save as file…"; implicitHeight: 34; onClicked: exportFile.open() }
+                DeskButton { text: "Print blank sheets…"; implicitHeight: 34; onClicked: sheetsFile.open() }
             }
             RowLayout {
                 Layout.fillWidth: true

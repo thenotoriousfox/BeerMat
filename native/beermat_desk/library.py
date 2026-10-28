@@ -401,6 +401,52 @@ class Library(QObject):
         self._selected = (-1, -1)
         self.changed.emit()
 
+    @Slot(QUrl)
+    def printSheets(self, url):
+        """Blank answer sheets for a paper round or a team without phones, as the web desk's Print blank sheets: the
+        quiz's questions with a line for each answer (choices listed, order items shuffled; formats that need a phone or
+        the TV are left out), as a PDF that opens in the system's viewer for printing."""
+        import html
+        import random
+        from PySide6.QtCore import QMarginsF
+        from PySide6.QtGui import QDesktopServices, QPageLayout, QPageSize, QPdfWriter, QTextDocument
+        quiz = self._server or {}
+        line = '<p>Answer: __________________________________________________</p>'
+        parts = [f'<h1>{html.escape(quiz.get("title", "Quiz"))}</h1>', '<p>Team name: __________________________________</p>']
+        letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        for rnd in quiz.get('rounds', []):
+            parts.append(f'<h2>{html.escape(rnd.get("title", ""))}</h2>')
+            for i, q in enumerate(rnd.get('questions', [])):
+                kind = q.get('type')
+                if kind == 'sheet':
+                    parts.append(f'<h3>{html.escape(q.get("text", ""))}</h3>')
+                    for n, item in enumerate(q.get('items') or []):
+                        parts += [f'<p>{n + 1}. {html.escape(item)}</p>', line]
+                elif kind in ('buzzer', 'bingo', 'musicbingo', 'pinpoint', 'clips', 'wordsnake', 'tiles'):
+                    continue
+                else:
+                    parts.append(f'<p>{i + 1}. {html.escape(q.get("text", ""))}</p>')
+                    if kind in ('choice', 'vote', 'multi'):
+                        parts.append('<p>' + '&nbsp;&nbsp;&nbsp;&nbsp;'.join(f'{letters[n]}. {html.escape(o)}' for n, o in enumerate(q.get('options') or [])) + '</p>')
+                    if kind == 'sequence':
+                        items = list(q.get('items') or [])
+                        random.shuffle(items)
+                        parts.append('<p>Put in order: ' + ' · '.join(map(html.escape, items)) + '</p>')
+                    parts.append(line)
+        path = Path(url.toLocalFile() if isinstance(url, QUrl) else str(url))
+        writer = QPdfWriter(str(path))
+        writer.setResolution(96)   # the text is laid out at screen resolution; the PDF's default (1200 dpi) shrinks it
+        writer.setPageLayout(QPageLayout(QPageSize(QPageSize.PageSizeId.A4), QPageLayout.Orientation.Portrait, QMarginsF(15, 15, 15, 15), QPageLayout.Unit.Millimeter))
+        writer.setTitle(f'{quiz.get("title", "Quiz")} — answer sheet')
+        doc = QTextDocument()
+        doc.setDefaultStyleSheet('h1 { font-size: 20pt; } h2 { font-size: 15pt; margin-top: 14pt; } p { font-size: 11pt; }')
+        doc.setHtml('\n'.join(parts))
+        doc.setPageSize(writer.pageLayout().paintRectPixels(writer.resolution()).size().toSizeF())
+        doc.print_(writer)
+        self.toast.emit(f'Answer sheets saved to {path.name}: print them from the viewer', False)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+        return str(path)
+
     @Slot(QUrl, bool)
     def export(self, url, with_media=True):
         """The quiz as a BeerMat quiz file, as the web desk's Download quiz. With its media, every picture and sound is
