@@ -805,7 +805,7 @@ $('regularsFilter').oninput = renderRegulars;
 $('historyClear').onclick = () => {if (confirm('Delete every past quiz’s results from this laptop? This cannot be undone.')) action(async () => {await request('results/delete', {all: true}); await loadHistory();}, 'Past results deleted');};
 $('shareResults').onclick = () => action(async () => {await request('settings', {shareResults: !state.settings.shareResults}); await loadHistory();}, 'Sharing updated');
 $('syncNow').onclick = () => action(async () => {await request('results/sync'); await loadHistory();}, 'Sent what could be sent');
-// Your venue on BeerMat Online. Venues are added by BeerMat; their operators run them here. The laptop's server holds
+// Your venue on BeerMat Online. Venues join by buying Pro on the website; their operators run them here. The laptop's server holds
 // the sign-in and passes on the calls, so this page never talks to the internet itself.
 let venueAccount = null, myVenues = [], venue = null;
 const venueDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -823,7 +823,7 @@ async function loadVenue() {
 }
 function renderVenue() {
   const signedIn = !!venueAccount?.signedIn;
-  $('venueService').textContent = venueAccount?.service ? `BeerMat Online: ${venueAccount.service}` : 'Set the BeerMat Online address under Settings → Past quizzes';
+  $('venueService').textContent = venueAccount?.signedIn ? `Signed in as ${venueAccount.email}` : '';
   $('venueSignedOut').hidden = signedIn; $('venueSignedIn').hidden = !signedIn;
   if (venueAccount?.service) $('venueForgot').href = venueAccount.service.replace(/\/$/, '') + '/reset';
   if (!signedIn) return;

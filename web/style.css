@@ -476,6 +476,10 @@ details.menu[open] > summary { color: var(--text); background: var(--surface-2);
 .room-teams li.answered { border-color: color-mix(in srgb, var(--good) 60%, transparent); background: color-mix(in srgb, var(--good) 12%, transparent); }
 .room-teams li.answered .status { color: var(--good); font-weight: 700; }
 .room-teams li.muted { display: block; }
+/* Marking and the Teams tab: a card per team, side by side in as many columns as fit, so twenty teams are a few
+   rows rather than one long column. */
+#markCards, #teamCards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; align-items: start; }
+#markCards > *, #teamCards > * { margin: 0; }
 .room-teams li.waiting { border-style: dashed; } .room-teams li.offline { opacity: .55; }
 .up-next { margin: 0; padding-left: 22px; display: grid; gap: 4px; color: var(--muted); }
 .up-next li.played { text-decoration: line-through; opacity: .55; }
