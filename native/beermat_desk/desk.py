@@ -35,12 +35,14 @@ class Desk(QObject):
     confirmFinish = Signal(str)     # ask before finishing (what's at stake)
     quitRequested = Signal()        # Close BeerMat, pressed on a desk (also in a browser)
     transferCode = Signal(str)      # a team's 4-digit code to move to another phone
+    networkChanged = Signal()
 
     def __init__(self, data_dir, host_key, port=3000, laptop=True, parent=None):
         super().__init__(parent)
         self.server = QuizServer(data_dir, host_key, port, laptop, self)
         self.api = DeskApi(self)
         self._state, self._library, self._view, self._tv = None, None, {}, {}
+        self._laptop, self._network, self._checks = {}, {}, []
         self._status, self._connected, self._busy = 'Starting the quiz server…', False, False
         self._crashes = []
         self._refreshing = self._again = False
@@ -63,6 +65,66 @@ class Desk(QObject):
         """What the TV shows: the server's public state (/api/leaderboard, the same the web TV reads), plus the offset
         between this computer's clock and the server's so countdowns run locally between updates."""
         return self._tv
+
+    @Property('QVariantMap', notify=networkChanged)
+    def network(self):
+        """Venue & network: the laptop's quiz Wi-Fi and online link (/api/host/laptop), its addresses on the venue
+        network (/api/host/network) and the last connection check. The server and scripts/hotspot.py do the work."""
+        settings = (self._state or {}).get('settings', {})
+        return {'laptop': self._laptop, 'addresses': self._network.get('addresses', []), 'port': self._network.get('port', 0),
+                'checks': self._checks, 'joinMode': settings.get('joinMode', 'hotspot'), 'joinUrl': settings.get('joinUrl', ''),
+                'joinSsid': settings.get('joinSsid', ''), 'joinPassword': settings.get('joinPassword', ''), 'online': bool(settings.get('online'))}
+
+    @Slot()
+    def loadNetwork(self):
+        def laptop(status):
+            self._laptop = status
+            self.networkChanged.emit()
+            # A Wi-Fi or online job running: look again shortly, as the web desk does.
+            if any((job or {}).get('running') for job in (status.get('jobs') or {}).values()):
+                QTimer.singleShot(1500, self.loadNetwork)
+        self.api.host('laptop', {}, laptop, lambda e: (setattr(self, '_laptop', {'unavailable': e}), self.networkChanged.emit()), timeout_ms=30000)
+        self.api.host('network', {}, lambda n: (setattr(self, '_network', n), self.networkChanged.emit()))
+
+    @Slot()
+    def checkNetwork(self):
+        self._checks = [{'status': 'info', 'text': 'Checking…'}]
+        self.networkChanged.emit()
+        def done(reply):
+            self._checks = reply.get('checks', [])
+            self.networkChanged.emit()
+        self.api.host('network/check', {}, done, lambda e: self.toast.emit(e, True), timeout_ms=30000)
+
+    @Slot(str, str, str)
+    def startWifi(self, card, ssid, password):
+        """The quiz Wi-Fi (scripts/hotspot.py on Linux, Mobile Hotspot on Windows); the system asks for a password."""
+        body = {'action': 'start', 'card': card or 'auto', 'ssid': ssid, **({'password': password} if (self._laptop.get('wifi') or {}).get('needsPassword') else {})}
+        self.api.host('laptop/wifi', body, lambda _: (self.toast.emit('Starting the quiz Wi-Fi: answer the password prompt on this laptop', False), self.loadNetwork()),
+                      lambda e: self.toast.emit(e, True), timeout_ms=30000)
+
+    @Slot()
+    def stopWifi(self):
+        self.api.host('laptop/wifi', {'action': 'stop'}, lambda _: (self.toast.emit('Stopping the quiz Wi-Fi', False), self.loadNetwork()), lambda e: self.toast.emit(e, True))
+
+    @Slot()
+    def wifiOn(self):
+        self.api.host('laptop/wifi', {'action': 'on'}, lambda _: self.loadNetwork(), lambda e: self.toast.emit(e, True))
+
+    @Slot(bool)
+    def setOnline(self, on):
+        """The online link (a Cloudflare quick tunnel): needs internet on the laptop and cloudflared."""
+        self.api.host('laptop/online', {'action': 'start' if on else 'stop'}, lambda _: self.loadNetwork(), lambda e: self.toast.emit(e, True))
+
+    @Slot()
+    def useHotspot(self):
+        """As the web desk's join mode: players join on the quiz Wi-Fi."""
+        self._act('settings', {'joinMode': 'hotspot', 'joinUrl': 'http://10.42.0.1'}, 'Players join on the quiz Wi-Fi')
+
+    @Slot(str, str)
+    def useLan(self, address, ssid):
+        port = self._network.get('port', 3000)
+        url = f'http://{address}' + ('' if port == 80 else f':{port}')
+        self._act('settings', {'joinMode': 'lan', 'joinUrl': url, **({'joinSsid': ssid.strip()} if ssid.strip() else {})}, 'The TV now shows the venue network address')
 
     @Property(str, notify=statusChanged)
     def serverUrl(self):
@@ -234,6 +296,7 @@ class Desk(QObject):
             'upcoming': upcoming,
         }
         self.viewChanged.emit()
+        self.networkChanged.emit()
 
     @staticmethod
     def _answer_rows(s, q):

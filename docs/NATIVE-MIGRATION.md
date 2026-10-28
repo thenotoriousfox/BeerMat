@@ -75,7 +75,8 @@ Rows are features; columns are the existing client and its native replacement.
 | Quiz editor (18 formats) | yes | todo | largest single item |
 | Teams: let in (one or all), rename, move to another phone, disable/restore | yes | **built** | notes, returning teams/PINs, blocked names, photos, results download: todo |
 | Venue / Online | yes | todo | |
-| Settings: joining, hotspot, LAN, tunnel, sounds, bingo calls | yes | todo | server routes exist (`/api/host/laptop*`, `/network*`) |
+| Venue & network: quiz Wi-Fi start/stop (card, name, password), venue LAN address, online link, connection check, joining QR | yes | **built** (LAN join mode tested; Wi-Fi and tunnel need the real laptop) | |
+| Settings: sounds, bingo calls, quiz room, results sharing | yes | todo | |
 | Backup / restore / key / logs / data folder | yes | todo | backup message exists in `server-host.js` |
 | Screens: choose, blank, hot-plug, auto-open | yes | **built** (open/blank tested; choose and hot-plug need real screens) | `screens.py`; swap: todo |
 | Spotify web player on the desk | castlabs Widevine | **no equivalent** | proposal: Spotify Connect (server already supports choosing a device); needs your approval, see §5 |
@@ -160,7 +161,7 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 |---|---|
 | 1. Audit and shared contracts | **done**: this file, `CLIENT-PROTOCOL.md`, protocol version + discovery + tests |
 | 2. Native Qt foundation | **done**: server lifecycle, workspace shell, single instance, rotating logs, XWayland preference; todo: keyring for the key, first-run welcome |
-| 3. Native desk workspaces | Live **built**; Teams & marking **built**; Settings partly (plan, data, key, screens); Quizzes (editor) and Venue & network: todo (open the web desk meanwhile) |
+| 3. Native desk workspaces | Live, Rehearsal, Teams & marking, Venue & network **built**; Settings partly (plan, data, key, screens); Quizzes (library and editor): todo (open the web desk meanwhile); BeerMat Online venue sign-in: todo |
 | 4. Native TV | **built** for the main views (see §2.2); sounds, word snake, looks: todo |
 | 5. Rehearsal and licensing UI | **built**: options, simulated teams and actions, test phones apart, log, go live; plan display and check |
 | 6. Android | **built**: `native/android`, debug APK builds, 7 JVM tests pass (2 against the real server); UI unverified on a device; Online screens todo |

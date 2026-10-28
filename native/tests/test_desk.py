@@ -114,6 +114,14 @@ class DeskTest(unittest.TestCase):
         self.shot('2-loaded')
         self.window.setProperty('workspace', 1)
         self.shot('2-rehearsal')
+        # Venue & network: the server's addresses, and the venue-network join mode set through the desk.
+        self.window.setProperty('workspace', 4)
+        wait(lambda: desk.network.get('port') == port, what='the network details')
+        lan = next((a['address'] for a in desk.network['addresses'] if a['kind'] != 'hotspot'), None)
+        if lan:
+            desk.useLan(lan, 'Pub Guest')
+            wait(lambda: desk.network['joinMode'] == 'lan' and desk.tv['settings']['joinUrl'] == f'http://{lan}:{port}', what='the TV to show the venue address', log=self.toasts)
+        self.shot('2-venue')
         self.window.setProperty('workspace', 5)
         self.shot('2-settings')
         self.window.setProperty('workspace', 0)

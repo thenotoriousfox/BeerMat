@@ -173,7 +173,7 @@ ApplicationWindow {
                 }
                 PendingWorkspace { heading: "Quizzes"; summary: "Browse, create, duplicate, import, export and edit quizzes: every format, scoring rule, media type and round."; onOpenWebDesk: window.openWebDesk() }
                 TeamsWorkspace { view: window.view }
-                PendingWorkspace { heading: "Venue & network"; summary: "The quiz Wi-Fi, venue LAN and online link, joining codes, diagnostics, BeerMat Online and this laptop's registration."; onOpenWebDesk: window.openWebDesk() }
+                VenueWorkspace {}
                 SettingsWorkspace { view: window.view; onOpenWebDesk: window.openWebDesk() }
             }
         }
