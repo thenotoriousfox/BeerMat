@@ -39,6 +39,25 @@ class Prefs(QObject):
                 value = int(value)
             self.api.host('settings', {key: value}, self._done('Saved'), self._fail)
 
+    # ---- looks and sound themes (themes/<id>/: colours for the TV and phones, and a set of sounds) ----
+    @Slot(str)
+    def setLook(self, look):
+        """One look for every question, '@type' (each format its own) or '@random'."""
+        self.api.host('settings', {'look': look}, self._done('Look saved'), self._fail)
+
+    @Slot(str, str)
+    def setLookFor(self, kind, look):
+        self.api.host('settings', {'lookByType': {kind: look}}, self._done('Look saved'), self._fail)
+
+    @Slot(str)
+    def setSoundTheme(self, theme):
+        """'' (the pack's own sounds), a theme, '@type' or '@random'. Choosing one puts every moment back to its sounds."""
+        self.api.host('settings', {'soundTheme': theme}, self._done('Sound theme saved'), self._fail)
+
+    @Slot(str, str)
+    def setThemeFor(self, kind, theme):
+        self.api.host('settings', {'soundThemeByType': {kind: theme}}, self._done('Sound theme saved'), self._fail)
+
     # ---- sound pack ----
     @Property('QVariantList', constant=True)
     def slots(self):

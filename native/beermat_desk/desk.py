@@ -17,6 +17,7 @@ from .library import Library
 from .server import ROOT, QuizServer, node_binary
 from .tvsound import TvSound
 from .live import LiveTools
+from . import looks
 from .online import OnlineVenue
 from .prefs import Prefs
 
@@ -75,6 +76,13 @@ class Desk(QObject):
     @Property('QVariantMap', notify=viewChanged)
     def view(self):
         return self._view
+
+    @Property('QVariantMap', constant=True)
+    def lookPalettes(self):
+        """Each look's colours for the native TV (themes/<id>/look.css)."""
+        if not hasattr(self, '_palettes'):
+            self._palettes = looks.load(ROOT / 'themes')
+        return self._palettes
 
     @Property(QObject, constant=True)
     def prefs(self):
@@ -343,6 +351,9 @@ class Desk(QObject):
             'history': [{'id': h.get('id'), 'text': h.get('text') or '', 'round': h.get('round', ''), 'type': TYPE_NAMES.get(h.get('type'), h.get('type', ''))}
                         for h in s.get('history', [])],
             'blockedWords': '\n'.join(s.get('blockedWords') or []),
+            'looks': [{'value': i, 'text': n} for i, n in s.get('looks') or []], 'looksByType': s.get('looksByType') or {},
+            'soundThemes': s.get('soundThemes') or [], 'soundThemesByType': s.get('soundThemesByType') or {},
+            'formats': [{'value': k, 'text': v} for k, v in TYPE_NAMES.items()],
             # The live controls read the server's own question (host view), settings, tie and countdown as they are.
             'raw': q or {}, 'settings': settings, 'tie': s.get('tie') or {}, 'timer': s.get('timer') or {},
             'typeCode': (q or {}).get('type', ''), 'clipsRunning': (self.liveTools.clipsRunning() or {}).get('index', -1),

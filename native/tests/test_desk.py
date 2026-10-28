@@ -199,6 +199,12 @@ class DeskTest(DeskCase):
         calls.write_text('too short')
         prefs.importCalls(QUrl.fromLocalFile(str(calls)))
         wait(lambda: any(e and 'need 90 lines' in m for m, e in self.toasts), what='short calls refused')
+        # Looks: the question's look recolours the native TV, as look.css does the web TV.
+        prefs.setLook('halloween')
+        wait(lambda: desk.tv.get('look') == 'halloween', what='the Halloween look', log=self.toasts)
+        self.assertEqual(desk.lookPalettes['halloween']['gold'], '#ff7a1a')
+        prefs.setLook('@type')
+        prefs.setThemeFor('choice', '')
         prefs.loadSpotify()
         wait(lambda: prefs.spotify.get('locked') is True, what='Spotify locked on Free', log=self.toasts)
         self.window.setProperty('workspace', 5)

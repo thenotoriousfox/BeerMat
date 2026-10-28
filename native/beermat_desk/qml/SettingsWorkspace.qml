@@ -141,6 +141,53 @@ ScrollView {
         }
     }
 
+    // ---- looks and sound themes ----
+    Panel {
+        Layout.fillWidth: true; implicitHeight: 420
+        title: "Looks & sound themes"
+        RowLayout {
+            anchors.fill: parent; spacing: 20
+            ColumnLayout {
+                Layout.preferredWidth: 380; Layout.alignment: Qt.AlignTop; spacing: 8
+                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 13
+                       text: "A look colours the TV and phones; a sound theme sets the moments' sounds. Either can follow the question's format." }
+                Label { text: "Look"; color: Theme.muted }
+                ComboBox {
+                    Layout.fillWidth: true; textRole: "text"; valueRole: "value"
+                    model: [{value: "@type", text: "By format (below)"}, {value: "@random", text: "A different one each question"}].concat(settings.view.looks || [])
+                    currentIndex: Math.max(0, indexOfValue(settings.room.look || "@type")); onActivated: desk.prefs.setLook(currentValue)
+                }
+                Label { text: "Sound theme"; color: Theme.muted }
+                ComboBox {
+                    Layout.fillWidth: true; textRole: "text"; valueRole: "value"
+                    model: [{value: "", text: "The sound pack (Sounds, above)"}, {value: "@type", text: "By format (below)"}, {value: "@random", text: "A different one each question"}]
+                           .concat((settings.view.soundThemes || []).map(t => ({value: t, text: t})))
+                    currentIndex: Math.max(0, indexOfValue(settings.room.soundTheme || "")); onActivated: desk.prefs.setSoundTheme(currentValue)
+                }
+            }
+            ListView {
+                Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 2
+                model: settings.view.formats || []
+                delegate: RowLayout {
+                    required property var modelData
+                    width: ListView.view.width; spacing: 8
+                    Text { text: modelData.text; color: Theme.text; font.pixelSize: 13; Layout.preferredWidth: 170 }
+                    ComboBox {
+                        Layout.fillWidth: true; textRole: "text"; valueRole: "value"; model: settings.view.looks || []
+                        currentIndex: Math.max(0, indexOfValue((settings.view.looksByType || {})[modelData.value] || "stage"))
+                        onActivated: desk.prefs.setLookFor(modelData.value, currentValue)
+                    }
+                    ComboBox {
+                        Layout.fillWidth: true; textRole: "text"; valueRole: "value"
+                        model: [{value: "", text: "Pack sounds"}].concat((settings.view.soundThemes || []).map(t => ({value: t, text: t})))
+                        currentIndex: Math.max(0, indexOfValue((settings.view.soundThemesByType || {})[modelData.value] || ""))
+                        onActivated: desk.prefs.setThemeFor(modelData.value, currentValue)
+                    }
+                }
+            }
+        }
+    }
+
     // ---- Spotify ----
     Panel {
         Layout.fillWidth: true; implicitHeight: 250
