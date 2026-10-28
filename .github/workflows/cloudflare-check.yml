@@ -17,6 +17,11 @@ jobs:
           node-version: '24'
       - name: Cloudflare is set up
         run: test -n "$CLOUDFLARE_API_TOKEN" && test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "The CLOUDFLARE_API_TOKEN secret or the CLOUDFLARE_ACCOUNT_ID variable is missing"; exit 1; }
+      # What Cloudflare makes of the token: valid and active, and which accounts it reaches (never the token itself).
+      - name: The token
+        run: |
+          curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify | python3 -c 'import json,sys; d=json.load(sys.stdin); print("valid:", d["success"], "| status:", (d.get("result") or {}).get("status"), "| errors:", d.get("errors"))'
+          curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/accounts | python3 -c 'import json,sys; d=json.load(sys.stdin); print("accounts it reaches:", [(a["name"], a["id"]) for a in d.get("result") or []] or d.get("errors"))'
       - name: Website tools
         working-directory: site
         run: npm ci
