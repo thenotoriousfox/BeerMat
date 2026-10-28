@@ -54,8 +54,8 @@ RowLayout {
                             onEditingFinished: lib.renameRound(row.modelData.round, text)
                         }
                         Text { visible: row.modelData.kind === "round"; text: `${row.modelData.count}`; color: Theme.faint; font.pixelSize: 12 }
-                        ToolButton { visible: row.modelData.kind === "round"; text: "+"; ToolTip.visible: hovered; ToolTip.text: "Add a question to this round"; onClicked: lib.addQuestion(row.modelData.round) }
-                        ToolButton { visible: row.modelData.kind === "round" && row.modelData.count === 0; text: "✕"; ToolTip.visible: hovered; ToolTip.text: "Delete this empty round"; onClicked: lib.deleteRound(row.modelData.round) }
+                        Tool { visible: row.modelData.kind === "round"; text: "+"; ToolTip.visible: hovered; ToolTip.text: "Add a question to this round"; onClicked: lib.addQuestion(row.modelData.round) }
+                        Tool { visible: row.modelData.kind === "round" && row.modelData.count === 0; text: "✕"; ToolTip.visible: hovered; ToolTip.text: "Delete this empty round"; onClicked: lib.deleteRound(row.modelData.round) }
                         Text { visible: row.modelData.kind === "question"; text: row.modelData.text; color: row.modelData.selected ? Theme.goldHi : Theme.text; font.pixelSize: 13; elide: Text.ElideRight; Layout.fillWidth: true }
                         Text { visible: row.modelData.kind === "question"; text: row.modelData.tieBreaker ? "tie-breaker" : row.modelData.type || ""; color: Theme.faint; font.pixelSize: 11 }
                     }

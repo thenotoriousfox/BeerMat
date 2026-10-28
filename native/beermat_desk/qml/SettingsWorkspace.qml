@@ -1,16 +1,28 @@
-// Settings: the plan, the quiz data on this laptop (backup, folders, logs) and the quizmaster key. More settings move
-// here from the web desk as they are built natively; until then the web desk (Open the desk in a browser) has them.
+// Settings: the plan, the quiz room, sounds and buzzers, bingo calls, Spotify, the quiz data on this laptop (backup,
+// folders, logs), screens and the TV's sound, and the quizmaster key.
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Dialogs
 import QtQuick.Layouts
 import Desk
 
-ColumnLayout {
+ScrollView {
     id: settings
     required property var view
     readonly property var plan: view.plan || {}
+    readonly property var room: view.settings || {}
+    readonly property var pack: (desk.tv.sounds || {})
+    readonly property var spotify: desk.prefs.spotify
     signal openWebDesk()
+    contentWidth: availableWidth
+    onVisibleChanged: if (visible) desk.prefs.loadSpotify()
+
+    FileDialog { id: soundFile; property string slot: ""; title: "Choose a sound (MP3, Ogg or WAV)"; nameFilters: ["Sounds (*.mp3 *.ogg *.wav)"]
+                 onAccepted: slot === "buzzer" ? desk.prefs.addBuzzer(buzzerName.text, selectedFile) : desk.prefs.setSound(slot, selectedFile) }
+    FileDialog { id: callsFile; title: "Bingo calls: 90 lines, one per number"; nameFilters: ["Text or JSON (*.txt *.json)", "All files (*)"]; onAccepted: desk.prefs.importCalls(selectedFile) }
+
+  ColumnLayout {
+    width: settings.availableWidth
     spacing: Theme.gap
 
     FolderDialog { id: backupFolder; title: "Choose a folder for the backup"; onAccepted: desk.backup(selectedFolder) }
@@ -51,6 +63,117 @@ ColumnLayout {
                     DeskButton { text: "Open logs"; onClicked: Qt.openUrlExternally("file://" + desk.dataFolder + "/logs") }
                 }
             }
+        }
+    }
+
+    // ---- the quiz room ----
+    Panel {
+        Layout.fillWidth: true; implicitHeight: 170
+        title: "Quiz room"
+        GridLayout {
+            anchors.fill: parent; columns: 4; columnSpacing: 14; rowSpacing: 8
+            Label { text: "Quiz name"; color: Theme.muted }
+            Field { text: settings.room.title || ""; Layout.fillWidth: true; maximumLength: 80; onEditingFinished: if (text !== settings.room.title) desk.prefs.set("title", text) }
+            Label { text: "Team limit (0: none)"; color: Theme.muted }
+            SpinBox { from: 0; to: 250; editable: true; value: settings.room.maxTeams || 0; onValueModified: desk.prefs.set("maxTeams", value) }
+            Label { text: "Language (TV and phones)"; color: Theme.muted }
+            ComboBox {
+                textRole: "text"; valueRole: "value"; model: [{value: "en", text: "English"}, {value: "fr", text: "Français"}, {value: "es", text: "Español"}]
+                currentIndex: Math.max(0, indexOfValue(settings.room.language || "en")); onActivated: desk.prefs.set("language", currentValue)
+            }
+            CheckBox { text: "Desk reachable on the online link"; checked: !!settings.room.deskOnline; palette.windowText: Theme.text; onToggled: desk.prefs.set("deskOnline", checked) }
+            CheckBox { text: "Share results with BeerMat Online"; checked: !!settings.room.shareResults; palette.windowText: Theme.text; onToggled: desk.prefs.set("shareResults", checked) }
+        }
+    }
+
+    // ---- sounds and buzzers ----
+    Panel {
+        Layout.fillWidth: true; implicitHeight: 470
+        title: "Sounds & buzzers"
+        RowLayout {
+            anchors.fill: parent; spacing: 20
+            ListView {
+                Layout.fillWidth: true; Layout.minimumWidth: 420; Layout.fillHeight: true; clip: true; spacing: 4
+                model: desk.prefs.slots
+                delegate: RowLayout {
+                    required property var modelData
+                    readonly property string media: (settings.pack.slots || {})[modelData.slot] || ""
+                    width: ListView.view.width; spacing: 6
+                    Text { text: modelData.label; color: Theme.text; font.pixelSize: 13; Layout.preferredWidth: 200 }
+                    Text { text: media ? media.split("/").pop() : "none"; color: media ? Theme.muted : Theme.faint; font.pixelSize: 12; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                    Tool { text: "▶"; enabled: media !== ""; onClicked: desk.prefs.preview(media) }
+                    Tool { text: "Change…"; onClicked: { soundFile.slot = modelData.slot; soundFile.open() } }
+                    Tool { text: "✕"; enabled: media !== ""; onClicked: desk.prefs.clearSound(modelData.slot) }
+                }
+            }
+            ColumnLayout {
+                Layout.preferredWidth: 380; Layout.maximumWidth: 380; Layout.fillWidth: false; Layout.fillHeight: true; spacing: 6
+                Text { text: "Extra buzzer sounds"; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
+                Text { text: "Teams pick one for their buzz, after the eight built-in ones."; color: Theme.faint; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                ListView {
+                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 2
+                    model: settings.pack.buzzers || []
+                    delegate: RowLayout {
+                        required property var modelData
+                        required property int index
+                        width: ListView.view.width
+                        Text { text: modelData.name; color: Theme.text; font.pixelSize: 13; Layout.fillWidth: true; elide: Text.ElideRight }
+                        Tool { text: "▶"; onClicked: desk.prefs.preview(modelData.media) }
+                        Tool { text: "✕"; onClicked: desk.prefs.removeBuzzer(index) }
+                    }
+                }
+                RowLayout {
+                    Field { id: buzzerName; placeholderText: "Name"; Layout.fillWidth: true; maximumLength: 60 }
+                    DeskButton { text: "Add…"; implicitHeight: 34; onClicked: { soundFile.slot = "buzzer"; soundFile.open() } }
+                }
+                Text { text: "Bingo calls"; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold; Layout.topMargin: 8 }
+                RowLayout {
+                    DeskButton { text: "Import 90 calls…"; implicitHeight: 34; onClicked: callsFile.open() }
+                    DeskButton { text: "Built-in calls"; implicitHeight: 34; onClicked: desk.prefs.defaultCalls() }
+                }
+            }
+        }
+    }
+
+    // ---- Spotify ----
+    Panel {
+        Layout.fillWidth: true; implicitHeight: 250
+        title: "Spotify (optional)"
+        ColumnLayout {
+            anchors.fill: parent; spacing: 8
+            Text {
+                Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.gold; font.pixelSize: 13
+                text: "For private quizzes only. Spotify's terms cover personal listening: connecting Spotify gives no right to play music to a pub audience. Use uploaded files and the venue's music licence there. Needs internet on this laptop and Spotify Premium; phones never use Spotify."
+            }
+            Text {
+                visible: !!settings.spotify.locked; Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 13
+                text: "Spotify music rounds come with BeerMat Pro (Plan, above)."
+            }
+            ColumnLayout {
+                visible: !settings.spotify.locked && !settings.spotify.error
+                Layout.fillWidth: true; spacing: 6
+                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 12
+                       text: `One-time setup: create an app at developer.spotify.com/dashboard (tick Web API), add the Redirect URI ${settings.spotify.redirectUri || ""}, and paste its Client ID here. The music plays in the Spotify app on this laptop (Spotify Connect): open it and play any song once so it appears below.` }
+                RowLayout {
+                    Field { id: clientId; text: settings.spotify.clientId || ""; placeholderText: "Client ID"; Layout.preferredWidth: 320; maximumLength: 32 }
+                    DeskButton { text: "Connect Spotify"; implicitHeight: 34; enabled: clientId.text.trim().length > 0; onClicked: desk.prefs.connectSpotify(clientId.text) }
+                    DeskButton { text: "Disconnect"; implicitHeight: 34; enabled: !!settings.spotify.connected; onClicked: desk.prefs.disconnectSpotify() }
+                    Text { text: settings.spotify.connected ? `✓ Connected${settings.spotify.user ? " as " + settings.spotify.user : ""}` : "Not connected"
+                           color: settings.spotify.connected ? Theme.good : Theme.muted; font.pixelSize: 13 }
+                }
+                RowLayout {
+                    visible: !!settings.spotify.connected
+                    Label { text: "Play on"; color: Theme.muted }
+                    ComboBox {
+                        Layout.preferredWidth: 380; textRole: "text"; valueRole: "value"
+                        model: [{value: "", text: "Whichever Spotify player is active"}].concat((settings.spotify.devices || []).map(d => ({value: d.id, text: `${d.name} (${d.type})${d.active ? " — active" : ""}`})))
+                        currentIndex: Math.max(0, indexOfValue(settings.spotify.device || ""))
+                        onActivated: desk.prefs.chooseSpotifyDevice(currentValue)
+                    }
+                    DeskButton { text: "Refresh players"; implicitHeight: 34; onClicked: desk.prefs.loadSpotify() }
+                }
+            }
+            Text { visible: !!settings.spotify.error; text: settings.spotify.error || ""; color: Theme.bad; font.pixelSize: 13 }
         }
     }
 
@@ -110,7 +233,7 @@ ColumnLayout {
     }
 
     Panel {
-        Layout.fillWidth: true; Layout.fillHeight: true
+        Layout.fillWidth: true; implicitHeight: 200
         title: "Keyboard shortcuts"
         GridLayout {
             anchors.fill: parent; columns: 4; columnSpacing: 24; rowSpacing: 6
@@ -127,4 +250,5 @@ ColumnLayout {
             }
         }
     }
+}
 }

@@ -201,7 +201,7 @@ RowLayout {
                             width: ListView.view.width
                             Text { text: `${new Date(modelData.finished).toLocaleDateString()} · ${modelData.title} · ${modelData.teams} teams · 🏆 ${modelData.winner}`
                                    color: Theme.text; font.pixelSize: 13; elide: Text.ElideRight; Layout.fillWidth: true }
-                            ToolButton { text: "✕"; onClicked: desk.deleteResult(modelData.event) }
+                            Tool { text: "✕"; onClicked: desk.deleteResult(modelData.event) }
                         }
                         Text { visible: parent.count === 0; width: parent.width; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 13
                                text: "Results of live quizzes are kept here when each one ends (rehearsals aren't)." }
@@ -221,7 +221,7 @@ RowLayout {
                         width: ListView.view.width
                         Text { text: modelData.name; color: Theme.text; font.pixelSize: 13; Layout.fillWidth: true; elide: Text.ElideRight }
                         Text { text: `PIN ${modelData.pin}`; color: Theme.goldHi; font.pixelSize: 13; font.weight: Font.Bold }
-                        ToolButton { text: "Forget"; onClicked: desk.forgetRegular(modelData.id) }
+                        Tool { text: "Forget"; onClicked: desk.forgetRegular(modelData.id) }
                     }
                     Text { visible: parent.count === 0; width: parent.width; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 13
                            text: "Every team that answers in a live quiz is remembered with a 4-digit PIN, so it can come back as itself next time." }

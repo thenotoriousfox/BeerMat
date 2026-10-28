@@ -147,6 +147,27 @@ class DeskTest(DeskCase):
             desk.useLan(lan, 'Pub Guest')
             wait(lambda: desk.network['joinMode'] == 'lan' and desk.tv['settings']['joinUrl'] == f'http://{lan}:{port}', what='the TV to show the venue address', log=self.toasts)
         self.shot('2-venue')
+        # Settings on the server: the quiz room, a sound for a moment, a buzzer sound, bingo calls; Spotify is Pro.
+        prefs = desk.prefs
+        prefs.set('maxTeams', 20)
+        wait(lambda: desk.view['settings'].get('maxTeams') == 20, what='the team limit', log=self.toasts)
+        sound = Path(self.dir.name) / 'ding.wav'
+        from beermat_desk.tvsound import synth
+        synth(sound, [(660, 0)], 'sine')
+        prefs.setSound('correct', QUrl.fromLocalFile(str(sound)))
+        wait(lambda: str(desk.tv.get('sounds', {}).get('slots', {}).get('correct', '')).startswith('/media/'), what='the uploaded sound', log=self.toasts)
+        buzzers = len(desk.tv['sounds']['buzzers'])
+        prefs.addBuzzer('Ding', QUrl.fromLocalFile(str(sound)))
+        wait(lambda: len(desk.tv['sounds']['buzzers']) == buzzers + 1, what='the buzzer sound', log=self.toasts)
+        calls = Path(self.dir.name) / 'calls.txt'
+        calls.write_text('\n'.join(f'Number {n}' for n in range(1, 91)))
+        prefs.importCalls(QUrl.fromLocalFile(str(calls)))
+        wait(lambda: any('90 bingo calls imported' in m for m, _ in self.toasts), what='the bingo calls', log=self.toasts)
+        calls.write_text('too short')
+        prefs.importCalls(QUrl.fromLocalFile(str(calls)))
+        wait(lambda: any(e and 'need 90 lines' in m for m, e in self.toasts), what='short calls refused')
+        prefs.loadSpotify()
+        wait(lambda: prefs.spotify.get('locked') is True, what='Spotify locked on Free', log=self.toasts)
         self.window.setProperty('workspace', 5)
         self.shot('2-settings')
         self.window.setProperty('workspace', 0)

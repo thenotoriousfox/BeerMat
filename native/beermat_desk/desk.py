@@ -16,6 +16,7 @@ from .server import QuizServer
 from .tvsound import TvSound
 from .live import LiveTools
 from .online import OnlineVenue
+from .prefs import Prefs
 
 STEP_LABELS = {'reveal': 'Reveal next position', 'revealFirst': 'Reveal first place', 'show': 'Show leaderboard',
                'finish': 'Finish quiz', 'round': 'Start next round', 'question': 'Start next question'}
@@ -51,6 +52,7 @@ class Desk(QObject):
         self.liveTools = LiveTools(self)
         self.liveTools.clipsChanged.connect(self._rebuild)
         self.onlineVenue = OnlineVenue(self)
+        self.prefsModel = Prefs(self)
         self.resultsChanged.connect(self.onlineVenue.changed)
         self._state, self._library, self._view, self._tv = None, None, {}, {}
         self._laptop, self._network, self._checks = {}, {}, []
@@ -71,6 +73,10 @@ class Desk(QObject):
     @Property('QVariantMap', notify=viewChanged)
     def view(self):
         return self._view
+
+    @Property(QObject, constant=True)
+    def prefs(self):
+        return self.prefsModel
 
     @Property(QObject, constant=True)
     def online(self):
