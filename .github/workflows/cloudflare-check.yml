@@ -26,6 +26,8 @@ jobs:
           echo "Written by the Check Cloudflare workflow" > "$RUNNER_TEMP/check.txt"
           npx wrangler r2 object put beermat-downloads/checks/github.txt --file "$RUNNER_TEMP/check.txt" --remote
           npx wrangler r2 object delete beermat-downloads/checks/github.txt --remote
+      # Checked even when the bucket check fails, so one run shows both.
       - name: The website's Worker is reachable
+        if: success() || failure()
         working-directory: site
         run: npx wrangler deployments list | head -20
