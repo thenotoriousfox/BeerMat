@@ -8,34 +8,44 @@
 
 /* Begin PBXBuildFile section */
 		FF5E16F046D4BF0E71C5EFEB /* BeerMatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57EAF66B708E34FCF15A44F8 /* BeerMatApp.swift */; };
-		C93F62896D53691F8004AB66 /* PlayerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17CC5B5DE8DAB935D7DE4DA3 /* PlayerModel.swift */; };
-		C97D075D8CAAA1412B8FD8FA /* Identity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 880272B1232EBE55D66D0866 /* Identity.swift */; };
-		89CD861F5179090A91C9E590 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 715544AB5BEE1710D2D24CCD /* Theme.swift */; };
 		C6193F0B53662AE07838EDB3 /* ConnectViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 983FB6B68D71B84AF357938B /* ConnectViews.swift */; };
+		86CD39DFA85E55D121D00E9A /* Formats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CB69126E2F32F9C8879DA53 /* Formats.swift */; };
+		C97D075D8CAAA1412B8FD8FA /* Identity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 880272B1232EBE55D66D0866 /* Identity.swift */; };
+		A36810B70118DEA9A5E7CDBB /* OnlineModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 333674E85BC10D10F3826376 /* OnlineModel.swift */; };
+		359E324CD44711321EC0B2A7 /* OnlineViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F261B4C2477303B1C946D6D4 /* OnlineViews.swift */; };
 		C4E43E716504E214F82F11D3 /* PlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4054DD82EBE1A0B50BE9288 /* PlayView.swift */; };
+		C93F62896D53691F8004AB66 /* PlayerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17CC5B5DE8DAB935D7DE4DA3 /* PlayerModel.swift */; };
+		89CD861F5179090A91C9E590 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 715544AB5BEE1710D2D24CCD /* Theme.swift */; };
+		175372F8FF19CA46A0629217 /* OnlineClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7EDE1E4265BC7CE267A738 /* OnlineClient.swift */; };
 		824B1EFAECB440714C6D85B0 /* Protocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA82F1400160E8D1E89D553 /* Protocol.swift */; };
 		DCA9A29548AD00DD58319A60 /* QuizServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723B713B67C2EFF1B15DBFF3 /* QuizServer.swift */; };
 		AB449958B668108CE226ABBF /* SeededOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 045DB452985247F4E616213E /* SeededOrder.swift */; };
 		C1CA00203A886769CDCB1800 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D4DCD33D451C33EE27B1FBEE /* Assets.xcassets */; };
 		1BC78985E0E9CAB836A5C41D /* Fredoka.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3B50F7CF233B3E0A87753B66 /* Fredoka.ttf */; };
 		221AA84B12270184964716B0 /* Fredoka-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = AEF4CAACD9DAA77FD4E5CF6D /* Fredoka-OFL.txt */; };
+		D66D76482ACFB8B351FCF3C7 /* badges.json in Resources */ = {isa = PBXBuildFile; fileRef = 433FD896311AAF7DEE0FF434 /* badges.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		F5BF48AA40CAD7891EB709FC /* BeerMat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BeerMat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9C06A4676F6928C0F2B0C4D4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		57EAF66B708E34FCF15A44F8 /* BeerMatApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerMatApp.swift; sourceTree = "<group>"; };
-		17CC5B5DE8DAB935D7DE4DA3 /* PlayerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerModel.swift; sourceTree = "<group>"; };
-		880272B1232EBE55D66D0866 /* Identity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Identity.swift; sourceTree = "<group>"; };
-		715544AB5BEE1710D2D24CCD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		983FB6B68D71B84AF357938B /* ConnectViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectViews.swift; sourceTree = "<group>"; };
+		3CB69126E2F32F9C8879DA53 /* Formats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formats.swift; sourceTree = "<group>"; };
+		880272B1232EBE55D66D0866 /* Identity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Identity.swift; sourceTree = "<group>"; };
+		333674E85BC10D10F3826376 /* OnlineModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineModel.swift; sourceTree = "<group>"; };
+		F261B4C2477303B1C946D6D4 /* OnlineViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineViews.swift; sourceTree = "<group>"; };
 		E4054DD82EBE1A0B50BE9288 /* PlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayView.swift; sourceTree = "<group>"; };
+		17CC5B5DE8DAB935D7DE4DA3 /* PlayerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerModel.swift; sourceTree = "<group>"; };
+		715544AB5BEE1710D2D24CCD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		BD7EDE1E4265BC7CE267A738 /* OnlineClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineClient.swift; sourceTree = "<group>"; };
 		0AA82F1400160E8D1E89D553 /* Protocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Protocol.swift; sourceTree = "<group>"; };
 		723B713B67C2EFF1B15DBFF3 /* QuizServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizServer.swift; sourceTree = "<group>"; };
 		045DB452985247F4E616213E /* SeededOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeededOrder.swift; sourceTree = "<group>"; };
 		D4DCD33D451C33EE27B1FBEE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3B50F7CF233B3E0A87753B66 /* Fredoka.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Fredoka.ttf; sourceTree = "<group>"; };
 		AEF4CAACD9DAA77FD4E5CF6D /* Fredoka-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Fredoka-OFL.txt; sourceTree = "<group>"; };
+		433FD896311AAF7DEE0FF434 /* badges.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = badges.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -63,14 +73,18 @@
 			isa = PBXGroup;
 			children = (
 				57EAF66B708E34FCF15A44F8 /* BeerMatApp.swift */,
-				17CC5B5DE8DAB935D7DE4DA3 /* PlayerModel.swift */,
-				880272B1232EBE55D66D0866 /* Identity.swift */,
-				715544AB5BEE1710D2D24CCD /* Theme.swift */,
 				983FB6B68D71B84AF357938B /* ConnectViews.swift */,
+				3CB69126E2F32F9C8879DA53 /* Formats.swift */,
+				880272B1232EBE55D66D0866 /* Identity.swift */,
+				333674E85BC10D10F3826376 /* OnlineModel.swift */,
+				F261B4C2477303B1C946D6D4 /* OnlineViews.swift */,
 				E4054DD82EBE1A0B50BE9288 /* PlayView.swift */,
+				17CC5B5DE8DAB935D7DE4DA3 /* PlayerModel.swift */,
+				715544AB5BEE1710D2D24CCD /* Theme.swift */,
 				D4DCD33D451C33EE27B1FBEE /* Assets.xcassets */,
 				3B50F7CF233B3E0A87753B66 /* Fredoka.ttf */,
 				AEF4CAACD9DAA77FD4E5CF6D /* Fredoka-OFL.txt */,
+				433FD896311AAF7DEE0FF434 /* badges.json */,
 				9C06A4676F6928C0F2B0C4D4 /* Info.plist */,
 			);
 			path = BeerMat;
@@ -79,6 +93,7 @@
 		2C8482DCC488C2776CB797FA /* BeerMatKit */ = {
 			isa = PBXGroup;
 			children = (
+				BD7EDE1E4265BC7CE267A738 /* OnlineClient.swift */,
 				0AA82F1400160E8D1E89D553 /* Protocol.swift */,
 				723B713B67C2EFF1B15DBFF3 /* QuizServer.swift */,
 				045DB452985247F4E616213E /* SeededOrder.swift */,
@@ -150,6 +165,7 @@
 				C1CA00203A886769CDCB1800 /* Assets.xcassets in Resources */,
 				1BC78985E0E9CAB836A5C41D /* Fredoka.ttf in Resources */,
 				221AA84B12270184964716B0 /* Fredoka-OFL.txt in Resources */,
+				D66D76482ACFB8B351FCF3C7 /* badges.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -161,11 +177,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				FF5E16F046D4BF0E71C5EFEB /* BeerMatApp.swift in Sources */,
-				C93F62896D53691F8004AB66 /* PlayerModel.swift in Sources */,
-				C97D075D8CAAA1412B8FD8FA /* Identity.swift in Sources */,
-				89CD861F5179090A91C9E590 /* Theme.swift in Sources */,
 				C6193F0B53662AE07838EDB3 /* ConnectViews.swift in Sources */,
+				86CD39DFA85E55D121D00E9A /* Formats.swift in Sources */,
+				C97D075D8CAAA1412B8FD8FA /* Identity.swift in Sources */,
+				A36810B70118DEA9A5E7CDBB /* OnlineModel.swift in Sources */,
+				359E324CD44711321EC0B2A7 /* OnlineViews.swift in Sources */,
 				C4E43E716504E214F82F11D3 /* PlayView.swift in Sources */,
+				C93F62896D53691F8004AB66 /* PlayerModel.swift in Sources */,
+				89CD861F5179090A91C9E590 /* Theme.swift in Sources */,
+				175372F8FF19CA46A0629217 /* OnlineClient.swift in Sources */,
 				824B1EFAECB440714C6D85B0 /* Protocol.swift in Sources */,
 				DCA9A29548AD00DD58319A60 /* QuizServer.swift in Sources */,
 				AB449958B668108CE226ABBF /* SeededOrder.swift in Sources */,

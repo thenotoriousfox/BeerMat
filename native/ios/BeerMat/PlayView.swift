@@ -1,4 +1,5 @@
 import AVFoundation
+import PhotosUI
 import SwiftUI
 
 private let letters = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ").map(String.init)
@@ -27,10 +28,10 @@ struct PlayView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if menu { TeamMenu() } else if let game = model.game {
                         if game.team?.waiting == true { Lobby(title: "You're in the waiting room", text: "The quizmaster will let you in shortly.") }
-                        else if game.settings.ended { Lobby(title: "That's the quiz!", text: "Thanks for playing. Final scores are on the TV.") }
+                        else if game.settings.ended { Lobby(title: "That's the quiz!", text: "Thanks for playing. Final scores are on the TV."); KeepResult() }
                         else if let q = game.question {
                             if nativeTypes.contains(q.type) { QuestionView(q: q).id(q.id) } else { BrowserRound(q: q) }
-                        } else { Lobby(title: "You're in!", text: "Waiting for the quiz to start. Keep this app open.") }
+                        } else { Lobby(title: "You're in!", text: "Waiting for the quiz to start. Keep this app open."); TeamSetup() }
                     }
                     MessageText()
                 }.padding(20)
@@ -60,10 +61,46 @@ private struct TeamMenu: View {
             Text("Recovery code").foregroundStyle(Brand.muted)
             Text(model.secret).font(.footnote.monospaced().bold()).textSelection(.enabled)
             Text("Keep it to rejoin from another phone. The quizmaster can also give you a 4-digit code to move your team.").font(.footnote).foregroundStyle(Brand.faint)
+            TeamSetup()
             Toggle("Vibrate for new questions", isOn: Binding(get: { model.haptics }, set: { model.haptics = $0 }))
             if let url = model.webPlayerURL { Link("Open in Safari instead", destination: url).buttonStyle(.bordered) }
             Button("Switch team") { model.switchTeam() }.buttonStyle(.bordered)
             Button("Other quizzes") { model.leave() }.buttonStyle(.bordered)
+        }
+    }
+}
+
+/// The team's buzzer sound (heard on the TV when it buzzes first) and its photo for the big screen.
+private struct TeamSetup: View {
+    @EnvironmentObject var model: PlayerModel
+    @State private var pick: PhotosPickerItem?
+    var body: some View {
+        if let game = model.game, let team = game.team {
+            let names = builtInBuzzers + game.buzzerNames
+            Text("Your buzzer sound").font(Brand.display(20, .headline)).padding(.top, 8)
+            Menu(team.sound.flatMap { names.indices.contains($0) ? names[$0] : nil } ?? "Picked from your team name") {
+                ForEach(names.indices, id: \.self) { i in Button(names[i]) { model.setSound(i) } }
+            }.buttonStyle(.bordered)
+            if game.settings.teamPhotos {
+                Text("Team photo").font(Brand.display(20, .headline)).padding(.top, 8)
+                Text(team.photo.isEmpty ? "Add a team photo to appear on the big screen. The quizmaster approves it first."
+                     : team.photoStatus == "approved" ? "✓ Approved — showing on the TV" : "Waiting for the quizmaster to approve it").foregroundStyle(Brand.muted)
+                // The system photo picker: no photo-library permission needed.
+                PhotosPicker(team.photo.isEmpty ? "Choose a photo" : "Change the photo", selection: $pick, matching: .images).buttonStyle(.bordered)
+                    .onChange(of: pick) { item in Task { if let data = try? await item?.loadTransferable(type: Data.self) { model.setPhoto(data) } } }
+            }
+        }
+    }
+}
+
+/// At the end of a live quiz: the team's result, signed by the quiz laptop, kept in a BeerMat Online profile.
+private struct KeepResult: View {
+    @EnvironmentObject var model: PlayerModel
+    @EnvironmentObject var online: OnlineModel
+    var body: some View {
+        if !online.client.baseUrl.isEmpty {
+            BigButton(title: "Keep this result", enabled: !model.busy) { Task { if let claim = await model.result() { await online.keep(claim) } } }
+            if !online.message.isEmpty { Text(online.message).foregroundStyle(online.isError ? Brand.bad : Brand.goldHi) }
         }
     }
 }
@@ -117,6 +154,7 @@ private struct QuestionView: View {
     @State private var picks: [String] = []
     @State private var order: [Int] = []
     @State private var sheet: [String] = []
+    @State private var points: [[Double]] = []
     @State private var loaded = false
 
     var body: some View {
@@ -127,8 +165,11 @@ private struct QuestionView: View {
         let shuffle: (Int) -> [Int] = { n in game.settings.scrambleKeypads ? seededOrder(n, "\(teamId):\(q.id)") : Array(0..<n) }
 
         QuestionHead(q: q)
-        MediaView(server: model.serverBase, media: q.media)
-        if q.type == "buzzer" { BuzzerView(q: q) } else {
+        if q.type != "pinpoint" { MediaView(server: model.serverBase, media: q.media) }
+        if q.type == "buzzer" { BuzzerView(q: q) }
+        else if q.type == "bingo" || q.type == "musicbingo" { BingoView(q: q) }
+        else if q.type == "clips" { ClipsView(q: q) }
+        else {
             Group {
                 switch q.type {
                 case "choice", "vote":
@@ -155,7 +196,7 @@ private struct QuestionView: View {
                     if !locked && !order.isEmpty { Button("Undo last") { order.removeLast() } }
                 case "tiles":
                     Text("Tap the tiles in order to build the answer").foregroundStyle(Brand.muted)
-                    Text(order.map { q.pieces[$0] }.joined().isEmpty ? "…" : order.map { q.pieces[$0] }.joined()).font(Brand.display(30))
+                    Text(tileWord(order.map { q.pieces[$0] }.joined(), q.wordLengths)).font(Brand.display(30))
                     // Tiles are always in a different order on each team's phone.
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 5), spacing: 8) {
                         ForEach(seededOrder(q.pieces.count, "\(teamId):\(q.id)"), id: \.self) { i in
@@ -167,6 +208,10 @@ private struct QuestionView: View {
                         }
                     }
                     if !locked && !order.isEmpty { Button("Undo last") { order.removeLast() } }
+                case "pinpoint":
+                    PinpointView(server: model.serverBase, q: q, taps: $points, enabled: !locked)
+                case "wordsnake":
+                    WordSnakeView(q: q, path: $order, enabled: !locked)
                 case "sheet":
                     ForEach(q.items.indices, id: \.self) { i in
                         TextField("\(i + 1). \(q.items[i])", text: Binding(get: { sheet.indices.contains(i) ? sheet[i] : "" }, set: { if sheet.indices.contains(i) { sheet[i] = String($0.prefix(300)) } }))
@@ -195,17 +240,19 @@ private struct QuestionView: View {
     private var value: Any {
         switch q.type {
         case "multi": return picks
-        case "sequence", "tiles": return order
+        case "sequence", "tiles", "wordsnake": return order
+        case "pinpoint": return points
         case "sheet": return sheet
         default: return text
         }
     }
-    private var draftKey: String { "\(text)|\(picks)|\(order)|\(sheet)" }
+    private var draftKey: String { "\(text)|\(picks)|\(order)|\(sheet)|\(points)" }
     private var ready: Bool {
         switch q.type {
         case "sequence": return order.count == q.items.count
         case "multi": return !picks.isEmpty
-        case "tiles": return !order.isEmpty
+        case "tiles", "wordsnake": return !order.isEmpty
+        case "pinpoint": return !points.isEmpty
         case "sheet": return sheet.contains { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         default: return !text.trimmingCharacters(in: .whitespaces).isEmpty
         }
@@ -216,6 +263,7 @@ private struct QuestionView: View {
         case let s as String: text = s
         case let a as [Any] where q.type == "multi": picks = a.map { "\($0)" }
         case let a as [Any] where q.type == "sheet": for (i, v) in a.enumerated() where i < sheet.count { sheet[i] = "\(v)" }
+        case let a as [Any] where q.type == "pinpoint": points = a.compactMap { ($0 as? [Any])?.compactMap { number($0) } }
         case let a as [Any]: order = a.compactMap { ($0 as? NSNumber)?.intValue ?? ($0 as? Int) }
         default: break
         }

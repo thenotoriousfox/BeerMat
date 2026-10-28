@@ -2,9 +2,12 @@
 
 The player app in Swift and SwiftUI, replacing the Capacitor app in `mobile/` once it is verified. It does what the
 native Android app does (`native/android/README.md`): connect by QR code, address or recent quiz; join or recover a
-team; play typed, number, choice, vote, tick-all, letter, order, tiles, sheet and buzzer rounds natively; open other
-formats in Safari as the same team; the rehearsal "You're connected" screen; live updates with reconnection; away
-reporting; haptics. The quiz server decides everything (`docs/CLIENT-PROTOCOL.md`).
+team; **all 18 formats natively** (pinpoint, word snake, bingo, music bingo and clips too); the team's buzzer sound
+and photo (system photo picker, no library permission); the rehearsal "You're connected" screen; live updates with
+reconnection; away reporting; haptics; and the **BeerMat Online** side as tabs: Profile (statistics, badges,
+privacy, data download and deletion), Keep this result, Find a quiz (by town, or near you with permission asked on
+tap), reminders (a notification two hours before, or a calendar file to share), saved venues, venue pages and an
+Apple Maps map with day filters. The quiz server decides everything (`docs/CLIENT-PROTOCOL.md`).
 
 > **Status: not compiled.** This was written on Linux without Xcode. Nothing here has been built, run on a simulator
 > or a device, or signed. Expect compile fixes on the first Xcode build. `BeerMatKit`'s tests are the quickest check.
@@ -15,7 +18,8 @@ reporting; haptics. The quiz server decides everything (`docs/CLIENT-PROTOCOL.md
 |---|---|
 | `BeerMat.xcodeproj` | The app target (iOS 16+, iPhone). Compiles `BeerMat/` and `BeerMatKit/Sources/BeerMatKit/` |
 | `BeerMat/` | SwiftUI app: `PlayerModel` (connect, join, play, reconnect; no game rules), views, Keychain `Identity`, `Info.plist`, assets, Fredoka |
-| `BeerMatKit/` | Swift package with no UI: protocol, networking, QR parsing, the browser's keypad shuffle; its tests run with `swift test` |
+| `BeerMatKit/` | Swift package with no UI: protocol, networking, QR parsing, the browser's keypad shuffle, the BeerMat Online client; its tests run with `swift test` (against real servers when Node.js is there) |
+| `make-project.py` | Writes `BeerMat.xcodeproj` from the files present: run it after adding or removing one |
 
 ## iOS specifics
 
@@ -43,5 +47,5 @@ Debug builds use the bundle id `uk.beermat.app.next` (side by side with the Capa
 Capabilities) to the team that publishes the current app. Don't submit to the App Store before the native app is
 approved to replace the Capacitor one.
 
-Not yet in the native app: BeerMat Online profiles and results, Find a quiz, map and reminders, team photos and
-buzzer sounds, languages other than English. No Xcode UI-test target yet.
+Not yet in the native app: languages other than English. No Xcode UI-test target yet (the Android app's UI tests,
+`native/android/scripts/ui-test.sh`, are the model for one).

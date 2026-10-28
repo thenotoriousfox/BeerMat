@@ -41,6 +41,18 @@ public final class QuizServer: @unchecked Sendable {
     public func answer(_ secret: String, question: Int, value: Any) async throws { _ = try await request("POST", "/api/answer", ["question": question, "value": value], secret) }
     public func draft(_ secret: String, question: Int, value: Any) async throws { _ = try await request("POST", "/api/draft", ["question": question, "value": value], secret) }
     public func buzz(_ secret: String, question: Int) async throws { _ = try await request("POST", "/api/buzz", ["question": question], secret) }
+    /// Bingo: the team shouts; the quizmaster checks the ticket.
+    public func bingo(_ secret: String, question: Int) async throws { _ = try await request("POST", "/api/bingo", ["question": question], secret) }
+    /// Sound clips: a tap during the clip the team thinks is the one.
+    public func tap(_ secret: String, question: Int) async throws { _ = try await request("POST", "/api/tap", ["question": question], secret) }
+    /// Word snake (and pinpoint) help: the decoys go, for fewer points.
+    public func goWide(_ secret: String, question: Int) async throws { _ = try await request("POST", "/api/gowide", ["question": question], secret) }
+    public func sound(_ secret: String, index: Int) async throws { _ = try await request("POST", "/api/team/sound", ["sound": index], secret) }
+    /// The team's photo for the TV: a square JPEG; the quizmaster approves it first.
+    public func photo(_ secret: String, jpeg: Data) async throws { _ = try await request("POST", "/api/team/photo", nil, secret, raw: jpeg) }
+    /// The team's result after a live quiz, signed by the quiz laptop, for the player to keep in a profile.
+    public func result(_ secret: String) async throws -> [String: Any] { (try await request("POST", "/api/team/result", [:], secret))["claim"] as? [String: Any] ?? [:] }
+
     public func agree(_ secret: String, question: Int) async throws { _ = try await request("POST", "/api/agree", ["question": question], secret) }
     /// Leaving the app during an open question is reported to the quizmaster, as the web page does.
     public func away(_ secret: String, question: Int, state: String) async throws { _ = try await request("POST", "/api/away", ["question": question, "state": state], secret) }
@@ -70,13 +82,16 @@ public final class QuizServer: @unchecked Sendable {
     }
     #endif
 
-    private func request(_ method: String, _ route: String, _ body: [String: Any]? = nil, _ secret: String = "") async throws -> [String: Any] {
+    private func request(_ method: String, _ route: String, _ body: [String: Any]? = nil, _ secret: String = "", raw: Data? = nil) async throws -> [String: Any] {
         var request = URLRequest(url: URL(string: base + route)!)
         request.httpMethod = method
         if !secret.isEmpty { request.setValue("Bearer \(secret)", forHTTPHeaderField: "Authorization") }
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        } else if let raw {
+            request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+            request.httpBody = raw
         }
         let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0

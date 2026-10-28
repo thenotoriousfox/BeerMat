@@ -3,7 +3,8 @@ import SwiftUI
 import UIKit
 
 /// Round formats the app draws itself; any other opens the quiz's own player page in Safari (same team).
-let nativeTypes: Set<String> = ["text", "picture", "audio", "choice", "vote", "multi", "letter", "number", "nearest", "sequence", "tiles", "sheet", "buzzer"]
+let nativeTypes: Set<String> = ["text", "picture", "audio", "choice", "vote", "multi", "letter", "number", "nearest", "sequence", "tiles", "sheet", "buzzer",
+                                 "pinpoint", "wordsnake", "bingo", "musicbingo", "clips"]
 
 enum Stage { case connect, join, play }
 
@@ -140,6 +141,31 @@ final class PlayerModel: ObservableObject {
         guard let q = game?.question, let quiz = server else { return }
         let secret = self.secret
         Task { try? await quiz.draft(secret, question: q.id, value: value) }
+    }
+
+    /// Bingo dabs stay on the phone, as on paper (the server checks the ticket against the calls).
+    @Published var dabs: [Int: Set<String>] = [:]
+    func dab(_ question: Int, _ cell: String) { var now = dabs[question] ?? []; if now.contains(cell) { now.remove(cell) } else { now.insert(cell) }; dabs[question] = now }
+
+    func claimBingo() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.bingo(self.secret, question: q.id); self.say("BINGO called — the quizmaster is checking"); await self.refresh() } }
+    func tap() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.tap(self.secret, question: q.id); self.say("Tap recorded"); await self.refresh() } }
+    func goWide() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.goWide(self.secret, question: q.id); await self.refresh() } }
+    func setSound(_ index: Int) { work(quiet: true) { try await self.server!.sound(self.secret, index: index); self.say("Buzzer sound saved"); await self.refresh() } }
+
+    /// A picture from the phone, cropped square to 360 px and sent as a JPEG (as the browser player does).
+    func setPhoto(_ data: Data) {
+        guard let image = UIImage(data: data) else { return say("That picture couldn't be read", error: true) }
+        let side = min(image.size.width, image.size.height)
+        let crop = CGRect(x: (image.size.width - side) / 2, y: (image.size.height - side) / 2, width: side, height: side)
+        let jpeg = UIGraphicsImageRenderer(size: CGSize(width: 360, height: 360), format: { let f = UIGraphicsImageRendererFormat(); f.scale = 1; return f }()).jpegData(withCompressionQuality: 0.85) { _ in
+            image.draw(in: CGRect(x: -crop.minX * 360 / side, y: -crop.minY * 360 / side, width: image.size.width * 360 / side, height: image.size.height * 360 / side))
+        }
+        work(quiet: true) { try await self.server!.photo(self.secret, jpeg: jpeg); self.say("Photo sent: the quizmaster approves it first"); await self.refresh() }
+    }
+
+    /// The signed result to keep (after the quiz ends).
+    func result() async -> [String: Any]? {
+        do { return try await server?.result(secret) } catch let e as QuizError { say(e.message, error: true); return nil } catch { say("Can't reach the quiz", error: true); return nil }
     }
 
     func buzz() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.buzz(self.secret, question: q.id); await self.refresh() } }

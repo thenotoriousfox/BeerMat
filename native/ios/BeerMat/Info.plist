@@ -40,6 +40,9 @@
 	<!-- The QR code on the TV; asked once, when the player taps Scan. -->
 	<key>NSCameraUsageDescription</key>
 	<string>Scan the QR code on the quiz TV to join.</string>
+	<!-- Find a quiz near me: asked only when the player taps it; the position is rounded to about 100 m before it's sent. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>To find quiz nights near you. Asked only when you tap Quizzes near me; your position is rounded before it's sent.</string>
 	<!-- iOS local-network privacy: quizzes run on the quiz laptop on the venue's or the quiz Wi-Fi. -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Quizzes run on the quizmaster's laptop on the venue's Wi-Fi or the quiz Wi-Fi, so BeerMat needs to reach it on your local network.</string>
