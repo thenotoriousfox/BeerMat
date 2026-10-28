@@ -114,7 +114,6 @@ function renderPending() {
   $('pending').textContent = waiting ? `${waiting} result${waiting === 1 ? '' : 's'} waiting to be saved${client.signedIn() ? ' — saved automatically when online' : ' — sign in to save'}.` : '';
 }
 async function renderProfile() {
-  $('serviceUrl').value = client.baseUrl;
   $('onlineMissing').hidden = !!client.baseUrl;
   $('forgotPassword').href = client.resetUrl;
   const signedIn = client.signedIn();
@@ -173,11 +172,6 @@ $('exportData').onclick = guarded(async () => {
 $('deleteAccount').onclick = guarded(async () => {
   if (!confirm('Delete your BeerMat Online account, profile and saved results? This cannot be undone.')) return;
   await client.deleteAccount(); say('Account deleted'); renderProfile();
-});
-$('saveService').onclick = guarded(async () => {
-  const url = $('serviceUrl').value.trim();
-  if (url && !/^https:\/\//.test(url) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(url)) throw Error('The address must start with https://');
-  client.setBaseUrl(url); say('Saved'); renderProfile();
 });
 
 // ---- Find a quiz ----

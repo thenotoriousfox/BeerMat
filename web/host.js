@@ -769,7 +769,6 @@ function renderHistory() {
   $('historyClear').hidden = !past.events.length;
   $('historyPending').textContent = past.pending ? `${past.pending} waiting to send${past.lastError ? ` (${past.lastError})` : ''}` : '';
   $('venueKeyId').textContent = past.venueKeyId; $('venueKey').value = past.venueKey;
-  if (document.activeElement !== $('onlineServiceUrl')) $('onlineServiceUrl').value = state.settings.onlineService || '';
   $('shareResults').textContent = `Share results: ${state.settings.shareResults ? 'on' : 'off'}`;
   $('syncNow').hidden = !past.pending;
   renderRegulars();
@@ -787,7 +786,6 @@ function renderRegulars() {
 }
 $('regularsFilter').oninput = renderRegulars;
 $('historyClear').onclick = () => {if (confirm('Delete every past quiz’s results from this laptop? This cannot be undone.')) action(async () => {await request('results/delete', {all: true}); await loadHistory();}, 'Past results deleted');};
-$('onlineServiceForm').onsubmit = e => {e.preventDefault(); action(async () => {await request('settings', {onlineService: $('onlineServiceUrl').value.trim()}); await loadHistory();}, 'Online service saved');};
 $('shareResults').onclick = () => action(async () => {await request('settings', {shareResults: !state.settings.shareResults}); await loadHistory();}, 'Sharing updated');
 $('syncNow').onclick = () => action(async () => {await request('results/sync'); await loadHistory();}, 'Sent what could be sent');
 // Your venue on BeerMat Online. Venues are added by BeerMat; their operators run them here. The laptop's server holds

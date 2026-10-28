@@ -35,14 +35,13 @@ async function appContext() {
   const context = await browser.newContext({...phone, userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36 BeerMatApp/0.4.0 (android)'});
   await context.route('http://localhost/**', route => {
     const p = new URL(route.request().url()).pathname, file = shared[p] || path.join(www, p === '/' ? 'index.html' : p);
+    // This copy of the app points at the test's BeerMat Online.
+    if (p === '/config.js') return route.fulfill({status: 200, contentType: 'text/javascript', body: readFileSync(file, 'utf8').replace(/onlineService = "[^"]*"/, `onlineService = ${JSON.stringify(online)}`)});
     if (!existsSync(file)) return route.fulfill({status: 404, body: ''});
     route.fulfill({status: 200, body: readFileSync(file), contentType: {'.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css'}[path.extname(file)]});
   });
-  // This copy of the app points at the test's BeerMat Online; the quiz page records vibrations.
-  await context.addInitScript(url => {
-    if (location.host === 'localhost') localStorage.setItem('beermat-online:baseUrl', JSON.stringify(url));
-    window.vibrations = []; navigator.vibrate = pattern => {window.vibrations.push(pattern); return true;};
-  }, online);
+  // The quiz page records vibrations.
+  await context.addInitScript(() => {window.vibrations = []; navigator.vibrate = pattern => {window.vibrations.push(pattern); return true;};});
   return context;
 }
 

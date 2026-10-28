@@ -7,7 +7,7 @@
 export function createOnlineClient({baseUrl, venueListUrl = '', fetch = globalThis.fetch.bind(globalThis), storage, now = Date.now, timeout = 10000}) {
   const read = (name, fallback) => {try {return JSON.parse(storage.getItem('beermat-online:' + name)) ?? fallback;} catch {return fallback;}};
   const write = (name, value) => value === null ? storage.removeItem('beermat-online:' + name) : storage.setItem('beermat-online:' + name, JSON.stringify(value));
-  const base = () => (read('baseUrl', null) || baseUrl || '').replace(/\/$/, '');
+  const base = () => (baseUrl || '').replace(/\/$/, '');
 
   async function api(method, route, body, {headers = {}} = {}) {
     if (!base()) throw Object.assign(Error('BeerMat Online is not set up in this app'), {offline: true});
@@ -44,7 +44,6 @@ export function createOnlineClient({baseUrl, venueListUrl = '', fetch = globalTh
 
   return {
     get baseUrl() {return base();},
-    setBaseUrl(url) {write('baseUrl', url || null);},
     signedIn,
     profile: () => read('profile', null),
     async signUp(details) {return keep(await api('POST', '/v1/accounts', details));},

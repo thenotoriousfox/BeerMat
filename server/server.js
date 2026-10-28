@@ -208,6 +208,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return file.startsWith(base + path.sep) && /\.(mp3|ogg|wav)$/i.test(file) && existsSync(file) && statSync(file).isFile() ? file : null;
   };
   const settings = () => ({...defaultSettings, ...getMeta('settings', {})});
+  // BeerMat Online's address: the desk's own, or BeerMat's when the box was saved empty.
+  const onlineBase = () => settings().onlineService || onlineDefault;
   // Each event has an ID, so phones can tell "a new quiz has started" from a revoked code.
   if (!getMeta('event', '')) setMeta('event', token().slice(0, 12));
   // Events saved before the automatic TV existed start on it once.
@@ -495,7 +497,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     rememberTeams();
     run('INSERT INTO event_results VALUES(?,?,?,?) ON CONFLICT(event) DO UPDATE SET title=excluded.title,finished=excluded.finished,data=excluded.data', event, settings().title, now(), JSON.stringify(results));
     // Shared online only when the quizmaster has switched it on: team names, positions and points, signed by this laptop.
-    if (settings().shareResults && settings().onlineService) {
+    if (settings().shareResults) {
       const summary = signClaim({v: 1, kind: 'beermat.event', event, title: settings().title, date: now(), teams: results.map(r => ({ref: teamRef(event, r.team), name: r.name, rank: r.rank, points: r.points}))}, venueKey());
       run('INSERT INTO sync_outbox(id,kind,payload,created) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,sent=NULL,attempts=0', 'event:' + event, 'event', JSON.stringify(summary), now());
       flushOutbox();
@@ -540,7 +542,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // The service treats a repeat of the same event as the same upload, so a retry never counts twice.
   let flushing = null;
   function flushOutbox() {
-    const base = settings().onlineService;
+    const base = onlineBase();
     if (flushing || !base || !fetchImpl) return flushing;
     flushing = (async () => {
       for (const item of rows('SELECT * FROM sync_outbox WHERE sent IS NULL ORDER BY created')) {
@@ -565,7 +567,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const planOut = () => {const {has, ...out} = plan(); return out;};
   // Asks BeerMat Online for a fresh licence: a request signed with this laptop's venue key, so no sign-in is needed.
   async function refreshLicence() {
-    const base = settings().onlineService;
+    const base = onlineBase();
     requireValue(base && fetchImpl, 'Set the BeerMat Online address first');
     let response;
     try {
@@ -590,7 +592,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     ['POST', /^\/v1\/venues\/[\w-]{1,64}\/keys$/], ['POST', /^\/v1\/venues\/[\w-]{1,64}\/billing$/], ['POST', /^\/v1\/venues\/[\w-]{1,64}\/events$/], ['PATCH', /^\/v1\/events\/[\w-]{1,64}$/], ['DELETE', /^\/v1\/events\/[\w-]{1,64}$/],
   ];
   async function onlineApi(method, route, body) {
-    const base = settings().onlineService;
+    const base = onlineBase();
     requireValue(base, 'Set the BeerMat Online address first');
     const session = getMeta('onlineSession', null);
     let response;
@@ -606,7 +608,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // The shared buzzer library on BeerMat Online: anyone can see what's in it; playing, adding, sharing and reporting
   // are BeerMat Pro, asked for with a request signed by this laptop's venue key (like its licence).
   async function libraryApi(route, request, extra = {}, timeout = 15000) {
-    const base = settings().onlineService;
+    const base = onlineBase();
     requireValue(base && fetchImpl, 'Set the BeerMat Online address first');
     let response;
     try {
@@ -997,7 +999,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           if (regular.photo && !one('SELECT 1 FROM teams WHERE photo=?', regular.photo)) try {unlinkSync(path.join(mediaDir, path.basename(regular.photo)));} catch {}
           return send(200, {ok: true});
         }
-        if (p === '/api/host/online/account') {const session = getMeta('onlineSession', null); return send(200, {service: settings().onlineService, signedIn: !!session, email: session?.email || '', name: session?.name || ''});}
+        if (p === '/api/host/online/account') {const session = getMeta('onlineSession', null); return send(200, {service: onlineBase(), signedIn: !!session, email: session?.email || '', name: session?.name || ''});}
         if (p === '/api/host/online/signin' || p === '/api/host/online/signup') {
           requireValue(typeof body.email === 'string' && typeof body.password === 'string', 'Enter your email and password');
           const data = p.endsWith('signin') ? await onlineApi('POST', '/v1/sessions', {email: body.email, password: body.password})
