@@ -449,6 +449,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // A new id each time the server starts: phones and the TV reload when it changes, so they never keep running the
   // page as it was before an update.
   const build = token().slice(0, 8);
+  // The client protocol (docs/CLIENT-PROTOCOL.md). It goes up only when a change would break an existing client; new
+  // fields alone don't change it. Every state carries it, so native clients can tell which server they are talking to.
+  const PROTOCOL = 1;
   function tvView() {
     const s = settings();
     // The quizmaster revealing the leaderboard position by position takes the TV until the next question.
@@ -741,7 +744,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const url = onlineUrl(), secret = secretRound(), s = {...settings(), ...secret && {leaderboardVisible: false, secretRound: true}};
     return url ? {...s, joinUrl: url, joinPassword: '', online: true} : s;
   };
-  function publicState() { return {serverTime: now(), build, rehearsal: !liveNow(), settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), reveal: publicScores().length ? boardReveal() : null, wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
+  function publicState() { return {protocol: PROTOCOL, serverTime: now(), build, rehearsal: !liveNow(), settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), reveal: publicScores().length ? boardReveal() : null, wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
 
   // Final scoring once answers stop: nearest-wins needs every answer before it can rank them.
   function settle(q) {
@@ -969,6 +972,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       const auth = req.headers.authorization?.replace(/^Bearer /, '');
       settle(latest());
       if (req.method === 'GET' && p === '/api/events') return openStream(req, res, url);
+      // Discovery: what a native app checks before joining (is this a BeerMat quiz server, which protocol, rehearsing?).
+      if (req.method === 'GET' && p === '/api/hello') return send(200, {app: 'BeerMat', protocol: PROTOCOL, build, title: settings().title, rehearsal: !liveNow(), registrationOpen: !!settings().registrationOpen && !settings().ended});
       if ((req.method === 'GET' || req.method === 'HEAD') && !p.startsWith('/api/')) {
         const routes = {'/host': 'host.html', '/display': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
         if (p.startsWith('/media/')) {
@@ -1049,7 +1054,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/plan/refresh') return send(200, await refreshLicence());
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats();
-          return send(200, {serverTime: now(), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board: boardStep(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {protocol: PROTOCOL, serverTime: now(), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board: boardStep(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -1531,7 +1536,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       // rehearsal, and a phone that joined a rehearsal never. Such a phone sees a connection screen and nothing else.
       if (team.kind === 'device') {
         requireValue(p === '/api/state', 'This is a rehearsal: your phone is connected, but playing is switched off.', 403);
-        return send(200, {serverTime: now(), build, settings: shownSettings(), look: lookFor(null), event: getMeta('event', ''), question: null, teams: [],
+        return send(200, {protocol: PROTOCOL, serverTime: now(), build, settings: shownSettings(), look: lookFor(null), event: getMeta('event', ''), question: null, teams: [],
           team: {id: team.id, name: team.name, waiting: false}, answer: null, draft: null, rehearsal: {device: true, connected: true, title: settings().title}});
       }
       requireValue(team.kind === 'sim' ? !liveNow() : liveNow(), team.kind === 'sim' ? 'Simulated teams only take part in a rehearsal' : 'This quiz isn’t live yet. Ask the quizmaster.', 403);

@@ -1,0 +1,157 @@
+# Native migration: audit, parity matrix and status
+
+Branch: `native-migration`. Goal: replace the Electron desk and TV with a Qt 6/QML app (PySide6), and the Capacitor
+phone app with native Kotlin/Compose (Android) and Swift/SwiftUI (iOS), keeping the Node quiz server as the only
+quiz engine and the browser player fully supported. Electron and Capacitor stay until each replacement is verified
+and approved (§6).
+
+Companion documents: `docs/CLIENT-PROTOCOL.md` (the contract every client follows), `docs/NATIVE-DESK.md` (the
+first evaluation and the PySide6 vs C++ choice).
+
+Status labels used below: **done** (implemented and covered by an automated test), **built** (implemented, checked
+by hand or partly tested), **todo**, **n/a**.
+
+## 1. What exists today (audited 28 Oct 2026, `main` at 31fc077)
+
+| Part | Where | Size | Notes |
+|---|---|---|---|
+| Quiz engine, SQLite, live updates, networking, plans, rehearsals | `server/` | server.js 144 KB, model.js 28 KB, rehearsal.js 11 KB | 90 routes; SSE + WebSocket nudges; `node:sqlite` with migrations on start |
+| Desk page | `web/host.html` + `host.js` | 43 KB + 126 KB | 5 tabs: Tonight, Quizzes, Teams, Venue, Settings |
+| TV page | `web/display.html` + `client.js` | shares `client.js` (57 KB) with the player | views: question, join, leaderboard + stepped reveal, winner, wheel, blank, countdown; 18 formats incl. bingo, word snake, clips, buzzer |
+| Player page | `web/player.html` + `client.js`, `app.js`, `i18n.js` | | every format, buzzers, bingo, photos, sounds, recovery, transfer, away, rehearsal screen, languages |
+| Electron shell | `desktop/` | main.js 23 KB + 8 small modules | server in a utility process, restart on crash, screens and TV window, TV sound output, backup/restore, key in safeStorage, menus, first-run, X11 relaunch on Wayland |
+| Capacitor app | `mobile/` | www/main.js 24 KB | wraps the **same player page** loaded from the laptop; adds QR scan (ML Kit), Wi-Fi QR handling, recent quizzes, haptics, Profile/results (Online), Find a quiz + map + reminders (Online) |
+| Online service | `online/` | | accounts, results, venues, licences, Stripe; untouched by this migration |
+| Website | `site/` | Astro | untouched |
+| Tests | `tests/` | 134 Node tests + Playwright browser suites + `test_hotspot.py` | all pass at the start of this branch |
+
+Plans and rehearsals are already implemented on `main` (`server/edition.js`, `server/rehearsal.js`, session mode in
+`server.js`): Free rehearses only, phones joining a rehearsal become *test devices* refused every gameplay route
+(enforced in the server), simulated teams play through the normal player routes, Pro can go live. The `rehearsal`
+branch is fully merged. The migration builds on this; it adds no licensing logic in clients.
+
+### Desk features (web `host.*`) by tab
+
+* **Tonight**: preflight checks; Next (question, round, leaderboard steps, finish); close/pause/resume/reveal with drum
+  roll; answers & marking (per-team cards, sheets, multi-item marks, manual marks, paper answers); teams in the room
+  (admit from waiting room, photos, away warnings); **Rehearsal** panel (start/stop, options, simulated teams, manual
+  actions: right, wrong, duplicate, invalid, stale, buzz, agree, disconnect, reconnect; test phones; event log; go
+  live); Up next; On the TV (view, look); tools: wheel, TV countdown; buzzer game controls; bingo calls/verdicts;
+  sound clips; tie-breaker.
+* **Quizzes**: load/download/print, Google Drive, the editor for all 18 formats and options (Evil Mode, speed bonus,
+  go wide, secret rounds, tie-breaker, media upload), unsaved-change guard, library save.
+* **Teams**: recovery codes, rename, move phone (transfer), disable, notes, returning teams/PINs, blocked names,
+  paper round / score corrections, results download.
+* **Venue**: BeerMat Online sign-in/up, venue details, quiz nights, laptop registration, venue key.
+* **Settings**: plan (check/refresh), quiz room, joining (hotspot, LAN, online tunnel), laptop setup, screens, quiz
+  data and past quizzes, sounds/buzzers (shared library), bingo calls, Spotify, shortcuts, credits.
+
+### Electron-only (desktop app) features
+
+Screens list, open/close TV, blank, swap, choose TV screen, auto-open on hot-plug, TV sound output (`setSinkId`),
+backup, restore (stop server → restore → restart), show quizmaster key, open desk in a browser, open logs/data folder,
+crash restart (3/min), single instance, first-run welcome (Windows firewall), Wayland → XWayland relaunch, castlabs
+Widevine for the Spotify web player on the desk.
+
+## 2. Parity matrix
+
+Rows are features; columns are the existing client and its native replacement.
+
+### 2.1 Quizmaster desk: Electron → native Qt (`native/`)
+
+| Feature | Electron | Native | Notes |
+|---|---|---|---|
+| Start server, ticket login, live updates | yes | **done** | `server.py`, `api.py`; same `server-host.js` over a stdio channel |
+| Crash restart (3/min), controlled shutdown, server stops if desk dies | yes | **done** | test kills the server mid-quiz |
+| Load quiz file with embedded media | yes | **done** | |
+| Next / close / pause / resume / reveal, keys N C P R | yes | **done** | reveal drum-roll delay: todo |
+| Live question, tally, countdown, teams, outline | yes | **done** | |
+| Session mode, simulated teams, test devices listed apart | yes | **done** | view fields + test; panel UI: todo |
+| Rehearsal start/stop | yes | **done** (slots) | options UI, manual actions, log, go live: todo |
+| Plan display / refresh | yes | todo | |
+| Answers & marking | yes | todo | |
+| Buzzer, bingo, clips, wheel, countdown, tie-breaker controls | yes | todo | |
+| Waiting room, photos, away warnings | yes | todo | |
+| Quiz editor (18 formats) | yes | todo | largest single item |
+| Teams tab | yes | todo | |
+| Venue / Online | yes | todo | |
+| Settings: joining, hotspot, LAN, tunnel, sounds, bingo calls | yes | todo | server routes exist (`/api/host/laptop*`, `/network*`) |
+| Backup / restore / key / logs / data folder | yes | todo | backup message exists in `server-host.js` |
+| Screens: choose, swap, blank, hot-plug | yes | todo | `QGuiApplication.screens()`, `screenAdded/Removed` |
+| Spotify web player on the desk | castlabs Widevine | **no equivalent** | proposal: Spotify Connect (server already supports choosing a device); needs your approval, see §5 |
+| Single instance, first run, Wayland handling | yes | todo | |
+
+### 2.2 TV / projector: web `display` → native QML window
+
+| Feature | Web TV | Native | Notes |
+|---|---|---|---|
+| Question + all formats, media | yes | todo | reads `/api/state` like the web TV (publicState) |
+| Join screen with QR (Wi-Fi + URL) | yes | todo | QR generation in Python (`qrcode`/`segno`) or port `web/qr.js` |
+| Leaderboard, stepped reveal, winner, confetti | yes | todo | |
+| Wheel, countdown, buzzer leader, bingo board, clips | yes | todo | |
+| Blank, look/themes, sounds, rehearsal badge | yes | todo | `QtMultimedia` for sound/video; output device via `QMediaDevices` |
+| Full screen on chosen display, preview on desk | Electron | todo | |
+
+Until this is done the web TV stays the fallback: the native desk can open `http://127.0.0.1:<port>/display` in
+the system browser on the TV screen.
+
+### 2.3 Phone apps: Capacitor → Kotlin/Compose and SwiftUI
+
+| Feature | Capacitor (both) | Android native | iOS native |
+|---|---|---|---|
+| QR scan (incl. Wi-Fi QR), typed address, recent quizzes | yes | todo | todo |
+| Join, recovery code kept, reconnect, transfer | yes (player page) | todo | todo |
+| All 18 formats, buzz, bingo, clips, pinpoint, word snake | yes (player page) | todo | todo |
+| Rehearsal connection screen | yes (player page) | todo | todo |
+| Haptics on new question / buzz turn | Android | todo | todo |
+| Profile, results, statistics, badges (Online) | yes | todo | todo |
+| Find a quiz, map, reminders (Online) | yes | todo | todo |
+
+**Drift risk.** The Capacitor app shows the server's own player page, so it can't drift from the browser. A native
+player re-implements every format's input and display three times (browser, Kotlin, Swift). Mitigations: the server
+stays the only judge (clients only shape `value`, table in `CLIENT-PROTOCOL.md`); a shared cross-client test plays
+each format through every client against one server; and native apps fall back to the web player page for any
+`type` they don't know, so a new server format never locks a team out.
+
+## 3. Reused unchanged
+
+`server/` (engine, SQLite, rehearsals, plans, networking, Spotify Connect), `desktop/server-host.js` and
+`desktop/database.js` (run by the native desk), `scripts/hotspot.py` and `hotspot-windows.ps1`, `web/` (browser
+player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
+
+## 4. Server changes made for native clients
+
+| Change | Compatible? | Test |
+|---|---|---|
+| `server-host.js` stdio channel (`BEERMAT_CHANNEL=stdio`) | yes: Electron channels unchanged | `native/tests/test_desk.py` |
+| `protocol: 1` on every state; `GET /api/hello` discovery | yes: new fields and route only | `tests/protocol.test.js` |
+
+## 5. Decisions needing approval
+
+1. **Spotify on the desk.** No technically and legally supported way to play Spotify inside a Qt app without
+   Widevine/Chromium. Proposed: drive the Spotify app via Spotify Connect (already in the server). Not silently
+   removed: the Electron desk keeps it until you decide.
+2. **Native player vs web player in the phone apps** (§2.3 drift risk). `docs/MOBILE.md` records the earlier decision
+   to wrap the web player; the migration brief reverses it.
+3. **iOS** can't be compiled or tested here (no macOS/Xcode). Any iOS code will be marked unverified.
+4. **Wayland**: Qt can't place a window on a chosen screen under Wayland; the native desk will run the TV window via
+   XWayland (`QT_QPA_PLATFORM=xcb`) as Electron does, with a guided "drag the TV window to the TV and press F11"
+   fallback.
+
+## 6. Stages and status
+
+| Stage | Status |
+|---|---|
+| 1. Audit and shared contracts | **done**: this file, `CLIENT-PROTOCOL.md`, protocol version + discovery + tests |
+| 2. Native Qt foundation | **built** (prototype from `native-desk`, rebased, rehearsal-aware, test passing); still todo: settings store, keyring, single instance, logging, navigation shell |
+| 3. Native desk workspaces | todo |
+| 4. Native TV | todo |
+| 5. Rehearsal and licensing UI | partly (view data + test) |
+| 6. Android | todo |
+| 7. iOS | todo (unverifiable here) |
+| 8. Packaging | todo |
+| 9. Legacy retirement | not before 3–8 are verified and you approve |
+
+Realistic size, from the prototype's measured pace (`NATIVE-DESK.md` §4): desk to parity 6–7 weeks; native TV
+2–3 weeks; each phone app 3–5 weeks (formats, Online screens); packaging 1 week. Electron and Capacitor keep shipping
+meanwhile.
