@@ -247,11 +247,22 @@ function renderBuzzers() {
     actions.append(listen, button(b.hidden ? 'Show again' : 'Hide', () => api('PATCH', `/v1/admin/buzzers/${b.id}`, {hidden: !b.hidden}), b.hidden ? 'Back in the library' : 'Hidden'),
       button('Remove', () => confirm(`Remove “${b.name}” from the library for good?`) ? api('DELETE', `/v1/admin/buzzers/${b.id}`) : false, 'Removed', 'danger small'));
     if (b.venue) actions.append(button('Stop venue sharing…', () => prompt(`Stop ${b.venueName} sharing buzzers, and remove every clip it has shared? Type the venue’s name to confirm.`) === b.venueName ? api('POST', `/v1/admin/venues/${b.venue}/library`, {banned: true}) : false, 'Venue stopped from sharing', 'danger small'));
-    tr.append(name, el('td', b.venueName), el('td', date(b.added)), el('td', String(b.reports), b.reports ? 'warn' : 'muted'), actions);
+    tr.append(name, el('td', b.venueName || '—', b.venueName ? undefined : 'muted'), el('td', date(b.added)), el('td', String(b.reports), b.reports ? 'warn' : 'muted'), actions);
     return tr;
   }));
   if (!shown.length) {const tr = el('tr'), td = el('td', buzzers.length ? 'No buzzers match.' : 'Nothing shared yet.', 'muted'); td.colSpan = 5; tr.append(td); $('buzzerRows').append(tr);}
 }
 $('buzzerSearch').oninput = renderBuzzers;
+$('buzzerAdd').onsubmit = guarded(async () => {
+  const files = [...$('buzzerFiles').files];
+  for (const file of files) {
+    if (file.size > 2 * 1024 * 1024) throw Error(`${file.name}: clips up to 2 MB`);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = ''; for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    await api('POST', '/v1/admin/buzzers', {name: file.name.replace(/\.[^.]+$/, '').replace(/_+/g, ' ').trim().slice(0, 60), audio: btoa(binary)});
+  }
+  $('buzzerAdd').reset(); await loadBuzzers();
+  return files.length;
+}, 'Added to the library');
 
 start();

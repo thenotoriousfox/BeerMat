@@ -404,7 +404,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return send(200, {received: true});
       }
       // A shared buzzer arrives as base64 audio: up to 2 MB of it.
-      const input = ['POST', 'PATCH', 'PUT'].includes(method) ? await body(req, method === 'POST' && p === '/v1/buzzers' ? 3 * 1024 * 1024 : undefined) : {};
+      const input = ['POST', 'PATCH', 'PUT'].includes(method) ? await body(req, method === 'POST' && (p === '/v1/buzzers' || p === '/v1/admin/buzzers') ? 3 * 1024 * 1024 : undefined) : {};
       const parts = p.split('/').slice(2);
 
       // ---- Accounts ----
@@ -646,9 +646,19 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       // and can stop a venue sharing any more.
       if (method === 'GET' && p === '/v1/admin/buzzers') {
         admin();
-        return send(200, {buzzers: rows(`SELECT b.id,b.name,b.seconds,b.created,b.hidden,b.venue,v.name venue_name,(SELECT COUNT(*) FROM reports r WHERE r.kind='buzzer' AND r.target=b.id AND r.resolved IS NULL) reports
+        return send(200, {buzzers: rows(`SELECT b.id,b.name,b.seconds,b.created,b.hidden,b.venue,b.venue_key,v.name venue_name,(SELECT COUNT(*) FROM reports r WHERE r.kind='buzzer' AND r.target=b.id AND r.resolved IS NULL) reports
           FROM shared_buzzers b LEFT JOIN venues v ON v.id=b.venue WHERE b.removed IS NULL ORDER BY b.hidden DESC, reports DESC, b.created DESC LIMIT 1000`)
-          .map(b => ({...buzzerOut(b), hidden: !!b.hidden, venue: b.venue, venueName: b.venue_name || '(venue removed)', reports: b.reports}))});
+          .map(b => ({...buzzerOut(b), hidden: !!b.hidden, venue: b.venue, venueName: b.venue_key === 'beermat' ? '' : b.venue_name || '(venue removed)', reports: b.reports}))});
+      }
+      // BeerMat's own clips, added by an admin (only ones BeerMat has the right to share: CC0, public domain, its own).
+      if (method === 'POST' && p === '/v1/admin/buzzers') {
+        admin();
+        const name = text(input.name, 60, {required: true, name: 'Buzzer name'});
+        check(typeof input.audio === 'string' && input.audio.length <= 3 * 1024 * 1024, 'Send the clip as base64 audio, up to 2 MB');
+        const audio = Buffer.from(input.audio, 'base64'); check(audio.length > 0, 'Choose a sound file');
+        const mp3 = await transcode(audio), buzzerId = id();
+        run("INSERT INTO shared_buzzers(id,name,venue,venue_key,audio,seconds,created) VALUES(?,?,NULL,'beermat',?,?,?)", buzzerId, name, mp3, mp3.length * 8 / 128000, now());
+        return send(201, buzzerOut(one('SELECT * FROM shared_buzzers WHERE id=?', buzzerId)));
       }
       if (method === 'GET' && parts[0] === 'admin' && parts[1] === 'buzzers' && parts.length === 4 && parts[3] === 'audio') {
         admin(); const b = sharedBuzzer(parts[2]);

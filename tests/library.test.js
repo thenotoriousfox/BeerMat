@@ -131,6 +131,14 @@ test('shared buzzer library: shared by Pro, seen by everyone, played and added b
     assert.equal((await upload({}, Buffer.from('not the clip').toString('base64'))).status, 400);
     assert.equal((await upload({sha256: createHash('sha256').update('x').digest('hex')}, Buffer.from('x').toString('base64'))).status, 400, 'not audio');
     assert.equal((await upload({})).status, 201);
+
+    // BeerMat adds its own clips from the admin console; only admins can.
+    assert.equal((await api('POST', '/v1/admin/buzzers', {name: 'Ding', audio: clip.toString('base64')})).status, 401);
+    const ding = await api('POST', '/v1/admin/buzzers', {name: 'Ding', audio: clip.toString('base64')}, admin);
+    assert.equal(ding.status, 201);
+    assert.equal((await api('GET', '/v1/admin/buzzers', undefined, admin)).buzzers.find(b => b.id === ding.id).venueName, '', 'not labelled');
+    assert.deepEqual(Object.keys((await api('GET', '/v1/buzzers')).buzzers.find(b => b.name === 'Ding')).sort(), ['added', 'id', 'name', 'seconds'], 'anonymous like every other clip');
+    assert.ok((await api('GET', '/v1/buzzers')).buzzers.some(b => b.name === 'Ding'));
   } finally {
     await Promise.all([red, blue].map(d => d.quiz.close()));
     await service.close(); rmSync(dir, {recursive: true, force: true});

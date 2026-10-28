@@ -38,6 +38,7 @@
 
   <section id="buzzers" class="tab" hidden>
     <div class="toolbar"><input id="buzzerSearch" type="search" placeholder="Find a buzzer or venue" aria-label="Find a buzzer"><span id="buzzerTotal" class="muted"></span></div>
+    <form id="buzzerAdd" class="toolbar"><label>Add BeerMat’s own clips<input id="buzzerFiles" type="file" accept="audio/mpeg,audio/ogg,audio/wav,audio/mp4" multiple required></label><button class="primary">＋ Add to the library</button><span class="muted">Each file’s name becomes the buzzer’s name. Only clips BeerMat has the right to share: CC0, public domain or your own recordings (and credit any that need it on the website’s Credits page).</span></form>
     <p class="muted">The shared buzzer library: clips Pro venues shared, newest first, with hidden and reported ones at the top. A clip is hidden by itself once three venues report it. Remove anything that isn’t theirs to share (a copyright complaint to hello@ means removing it straight away). A venue that keeps sharing clips it has no right to can be stopped: that also removes every clip it shared.</p>
     <table class="list"><thead><tr><th>Buzzer</th><th>Shared by</th><th>Added</th><th>Reports</th><th></th></tr></thead><tbody id="buzzerRows"></tbody></table>
   </section>

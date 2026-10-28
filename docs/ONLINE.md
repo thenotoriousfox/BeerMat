@@ -134,6 +134,9 @@ Venues on Pro share short buzzer clips with each other from the desk (**Settings
   is hidden and `ADMIN_EMAIL` is told. In the admin console (**Buzzers**) an admin plays, hides, shows or removes a clip
   (either deals with its reports) and can stop a venue sharing, which removes every clip it shared. A copyright
   complaint to hello@ means removing the clip straight away.
+* **BeerMat's own clips**: an admin adds clips from the console (`POST /v1/admin/buzzers {name, audio}`); they're
+  anonymous like every other clip. Only add ones BeerMat has the right to share (CC0, public domain, its own), since
+  choosing them makes BeerMat their publisher.
 
 ## Data model
 
