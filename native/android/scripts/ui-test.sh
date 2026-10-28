@@ -16,7 +16,8 @@ node --disable-warning=ExperimentalWarning "$ROOT/tests/fixtures/online.mjs" --b
 node --disable-warning=ExperimentalWarning "$ROOT/tests/fixtures/serve.mjs" pro --bind 0.0.0.0 < "$work/keep-in" > "$work/keep-out" & keep_pid=$!
 # Holding the fifos open keeps the servers running; closing them (on exit) stops them.
 exec 5> "$work/live-in" 6> "$work/rehearsal-in" 7> "$work/online-in" 8> "$work/keep-in"
-trap 'exec 5>&- 6>&- 7>&- 8>&-; wait $live_pid $rehearsal_pid $online_pid $keep_pid 2>/dev/null; rm -rf "$work"' EXIT
+# The network test switches the device's Wi-Fi and data off: they're always switched back on.
+trap 'exec 5>&- 6>&- 7>&- 8>&-; "$ADB" shell "svc wifi enable; svc data enable" >/dev/null 2>&1; wait $live_pid $rehearsal_pid $online_pid $keep_pid 2>/dev/null; rm -rf "$work"' EXIT
 until [ -s "$work/live-out" ] && [ -s "$work/rehearsal-out" ] && [ -s "$work/online-out" ] && [ -s "$work/keep-out" ]; do sleep 0.5; done
 keep=$(head -1 "$work/keep-out")
 # BeerMat Online: a Pro venue in Bristol with a quiz night.

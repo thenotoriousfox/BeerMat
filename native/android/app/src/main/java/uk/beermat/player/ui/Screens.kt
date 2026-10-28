@@ -209,7 +209,7 @@ fun RehearsalScreen(vm: PlayerViewModel, ui: UiState) {
         Box(Modifier.size(120.dp).clip(CircleShape).background(Brand.good.copy(alpha = .18f)).border(3.dp, Brand.good, CircleShape), contentAlignment = Alignment.Center) {
             Text("✓", color = Brand.good, fontSize = 64.sp, fontWeight = FontWeight.Bold)
         }
-        Text("You're connected", style = MaterialTheme.typography.displaySmall, modifier = Modifier.padding(top = 24.dp))
+        Text(if (ui.connected) "You're connected" else "Reconnecting…", style = MaterialTheme.typography.displaySmall, modifier = Modifier.padding(top = 24.dp))
         Text(ui.game?.settings?.title ?: "", color = Brand.goldHi, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 4.dp))
         Text(
             "This is a rehearsal. Your phone reached the quiz, so it'll work on the night, but playing is switched off: the quizmaster is testing with simulated teams.",

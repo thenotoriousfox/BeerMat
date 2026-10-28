@@ -225,4 +225,20 @@ class PlayerUiTest {
         waitText("This is a rehearsal")
         shot("20-rehearsal")
     }
+
+    /** The network drops (Wi-Fi and mobile data off) and comes back: the app says so, then reconnects by itself. */
+    @Test fun reconnectsAfterTheNetworkDrops() {
+        val rehearsal = args.getString("rehearsal") ?: ""
+        assumeTrue("needs the ui-test.sh servers", rehearsal.isNotEmpty())
+        val shell = { command: String -> InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command).close() }
+        join(rehearsal.removePrefix("http://"), "Flaky Phone")
+        waitText("CONNECTED")
+        try {
+            shell("svc wifi disable"); shell("svc data disable")
+            waitText("RECONNECTING", 30000)
+            shot("21-offline")
+        } finally { shell("svc wifi enable"); shell("svc data enable") }
+        waitText("● CONNECTED", 60000)
+        shot("22-back")
+    }
 }

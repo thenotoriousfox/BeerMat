@@ -7,6 +7,9 @@ import java.io.File
 class FreshApp : org.junit.rules.ExternalResource() {
     override fun before() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        File(context.applicationInfo.dataDir, "shared_prefs").listFiles()?.forEach { it.delete() }
+        // Through the API: the app process keeps preferences in memory between tests, so deleting the files isn't enough.
+        File(context.applicationInfo.dataDir, "shared_prefs").listFiles()?.forEach { file ->
+            context.getSharedPreferences(file.nameWithoutExtension, 0).edit().clear().commit()
+        }
     }
 }
