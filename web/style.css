@@ -405,8 +405,12 @@ nav #logout { margin-left: auto; }
 /* ---------- Desk: Tonight (the night itself), Quizzes, Teams, Venue, Settings ---------- */
 /* The desk uses the whole screen, however wide. */
 body[data-role=host] { max-width: none; padding: 24px 32px; }
-/* On a wide screen, Settings sits in two columns rather than stretching every field across it. */
-@media (min-width: 1600px) { .settings:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; align-items: start; } }
+/* Settings: a menu of groups on the left, one group at a time on the right (a row of buttons on a small screen). */
+.settings:not([hidden]) { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 24px; align-items: start; }
+.settings-nav { flex-direction: column; align-items: stretch; border-radius: var(--radius); top: 90px; }
+.settings-nav button { text-align: left; }
+.settings-body { max-width: 1150px; min-width: 0; }
+.settings-body > section.other-group { display: none; }
 body[data-role=host] nav { top: 8px; }
 /* The control bar stays in reach while the page scrolls: where the quiz is, and one big button for what's next. */
 .control-bar { position: sticky; top: 74px; z-index: 9; backdrop-filter: blur(14px); background: color-mix(in srgb, var(--surface-solid) 92%, transparent); border-color: var(--line-strong); }
@@ -491,6 +495,8 @@ details.tools > summary { cursor: pointer; font-weight: 700; }
 @media (max-width: 1100px) {
   .tonight-grid, .editor-layout { grid-template-columns: 1fr; }
   .tonight-grid { grid-template-areas: "main" "room" "side"; }
+  .settings:not([hidden]) { grid-template-columns: 1fr; gap: 0; }
+  .settings-nav { flex-direction: row; position: static; }
   .outline-col { position: static; max-height: none; }
   .control-bar { position: static; }
 }

@@ -41,7 +41,7 @@ try {
   assert.equal(await desk.evaluate(() => typeof window.require), 'undefined');
   assert.equal(await desk.evaluate(() => typeof window.process), 'undefined');
   assert.deepEqual(await desk.evaluate(() => Object.keys(window.beermatDesktop).sort()).then(k => k.length), 15);
-  await desk.locator('[data-tab=settings]').click(); await desk.locator('#screensPanel').waitFor({state: 'visible'});
+  await desk.locator('[data-tab=settings]').click(); await desk.locator('.settings-nav [data-group=screens]').click(); await desk.locator('#screensPanel').waitFor({state: 'visible'});
   assert.match(await desk.locator('#screensInfo').textContent(), /One screen connected/);
   pass('desk page: no Node access, only the desktop calls; Screens panel shows one screen');
 

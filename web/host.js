@@ -26,7 +26,23 @@ function action(fn, success = 'Saved') {
   actionQueue = task.catch(() => {});
   return task;
 }
+// Settings shows one group at a time (General, Joining, Screens…), remembered on this laptop. A group whose
+// sections are all hidden (the laptop controls, in a plain browser) drops out of the menu.
+let settingsGroup = readStorage('beermat-settings-group') || 'general';
+function showSettings(chosen) {
+  if (chosen) {settingsGroup = chosen; writeStorage('beermat-settings-group', chosen);}
+  const sections = [...document.querySelectorAll('.settings-body > section')];
+  const available = new Set(sections.filter(s => !s.hidden).map(s => s.dataset.group));
+  const group = available.has(settingsGroup) ? settingsGroup : 'general';
+  sections.forEach(s => s.classList.toggle('other-group', s.dataset.group !== group));
+  document.querySelectorAll('.settings-nav button').forEach(b => {b.hidden = !available.has(b.dataset.group); b.classList.toggle('selected', b.dataset.group === group);});
+}
+document.querySelectorAll('.settings-nav button').forEach(b => b.onclick = () => showSettings(b.dataset.group));
+// The laptop's sections appear once its status has loaded: the menu follows.
+new MutationObserver(() => showSettings()).observe(document.querySelector('.settings-body'), {subtree: true, attributeFilter: ['hidden']});
+// A tab, or a Settings group as 'settings:joining'.
 function chooseTab(name) {
+  if (name.startsWith('settings:')) {showSettings(name.slice(9)); name = 'settings';}
   tab = name;
   document.querySelectorAll('[data-pane]').forEach(el => el.hidden = el.dataset.pane !== name);
   document.querySelectorAll('[data-tab]').forEach(el => el.classList.toggle('selected', el.dataset.tab === name));
@@ -1135,6 +1151,7 @@ function renderState(s) {
   selectOptions($('adjustTeam'), s.teams.filter(t => t.enabled).map(t => [t.id, t.name]), $('adjustTeam').value);
   renderTonight(s);
   renderPlan(s.plan);
+  showSettings();
 }
 // ---- Plan: Free (3 questions, 3 teams, no Spotify) or Pro, from the venue's licence ----
 const longDate = t => new Date(t).toLocaleDateString(undefined, {day: 'numeric', month: 'long', year: 'numeric'});
@@ -1146,7 +1163,7 @@ function renderPlan(plan) {
   $('planInfo').textContent = !free ? `${plan.venue ? plan.venue + ' has BeerMat Pro' : 'BeerMat Pro'}${plan.paidUntil ? `, paid until ${longDate(plan.paidUntil)}` : ''}.${plan.expires ? ` This laptop holds it offline until ${longDate(plan.expires)}.` : ''}`
     : plan.venue ? `${plan.venue} is on BeerMat Free.` : 'This laptop is on BeerMat Free.';
 }
-$('planSee').onclick = () => chooseTab('settings');
+$('planSee').onclick = () => chooseTab('settings:general');
 $('venueBilling').onclick = () => action(async () => {
   const {url} = await onlineCall('POST', `/v1/venues/${encodeURIComponent(venue.id)}/billing`);
   if (!window.open(url, '_blank')) location.assign(url);
@@ -1182,8 +1199,8 @@ function renderTonight(s) {
     const all = library?.rounds.flatMap(r => r.questions) || [], wifi = laptop?.wifi?.running, lan = s.settings.joinMode === 'lan';
     const items = [
       [all.length > 0, all.length ? `Quiz ready: ${library.rounds.length} ${library.rounds.length === 1 ? 'round' : 'rounds'}, ${all.length} questions` : 'No questions yet', 'build', 'Build the quiz'],
-      [!!(wifi || lan || s.online), wifi ? `Quiz Wi-Fi “${wifi.ssid}” is on` : lan ? 'Teams join on the venue’s Wi-Fi' : s.online ? 'Teams join over the internet' : 'Quiz Wi-Fi is off', 'settings', 'Set up joining'],
-      [!!screensInfo?.tv || !window.beermatDesktop, window.beermatDesktop ? (screensInfo?.tv ? 'TV screen is open' : 'TV screen not open yet') : 'Open the TV screen (TV screen ↗ above) on the TV', 'settings', 'Screens'],
+      [!!(wifi || lan || s.online), wifi ? `Quiz Wi-Fi “${wifi.ssid}” is on` : lan ? 'Teams join on the venue’s Wi-Fi' : s.online ? 'Teams join over the internet' : 'Quiz Wi-Fi is off', 'settings:joining', 'Set up joining'],
+      [!!screensInfo?.tv || !window.beermatDesktop, window.beermatDesktop ? (screensInfo?.tv ? 'TV screen is open' : 'TV screen not open yet') : 'Open the TV screen (TV screen ↗ above) on the TV', 'settings:screens', 'Screens'],
       [active.length > 0, active.length ? `${active.length} ${active.length === 1 ? 'team has' : 'teams have'} joined` : 'Waiting for teams to join', null, null],
     ];
     $('setupList').replaceChildren(...items.map(([ok, text, to, label]) => {
