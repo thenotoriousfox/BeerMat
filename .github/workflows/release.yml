@@ -39,6 +39,9 @@ jobs:
       # npm 12, as the lockfile was made with: it reads .npmrc's allow-git and package.json's allowScripts.
       - run: npm install -g npm@12
       - run: npm ci
+      # The shared buzzer library's test needs ffmpeg, which runners lack.
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
       - if: runner.os == 'Linux'
         run: npm test
       - run: npm run ${{ matrix.dist }} -- --publish never
