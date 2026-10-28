@@ -175,7 +175,7 @@ ApplicationWindow {
                 }
                 QuizzesWorkspace { onOpenQuiz: openQuiz.open(); onOpenWebDesk: window.openWebDesk() }
                 TeamsWorkspace { view: window.view }
-                VenueWorkspace {}
+                VenueWorkspace { objectName: "venue" }
                 SettingsWorkspace { view: window.view; onOpenWebDesk: window.openWebDesk() }
             }
         }

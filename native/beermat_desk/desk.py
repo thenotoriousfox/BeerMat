@@ -15,6 +15,7 @@ from .library import Library
 from .server import QuizServer
 from .tvsound import TvSound
 from .live import LiveTools
+from .online import OnlineVenue
 
 STEP_LABELS = {'reveal': 'Reveal next position', 'revealFirst': 'Reveal first place', 'show': 'Show leaderboard',
                'finish': 'Finish quiz', 'round': 'Start next round', 'question': 'Start next question'}
@@ -49,6 +50,8 @@ class Desk(QObject):
         self.tvSound = TvSound(self)
         self.liveTools = LiveTools(self)
         self.liveTools.clipsChanged.connect(self._rebuild)
+        self.onlineVenue = OnlineVenue(self)
+        self.resultsChanged.connect(self.onlineVenue.changed)
         self._state, self._library, self._view, self._tv = None, None, {}, {}
         self._laptop, self._network, self._checks = {}, {}, []
         self._review, self._results = None, {}
@@ -68,6 +71,10 @@ class Desk(QObject):
     @Property('QVariantMap', notify=viewChanged)
     def view(self):
         return self._view
+
+    @Property(QObject, constant=True)
+    def online(self):
+        return self.onlineVenue
 
     @Property(QObject, constant=True)
     def live(self):
@@ -582,6 +589,10 @@ class Desk(QObject):
     def goLive(self):
         """Pro only; the server refuses it on Free with a sentence the desk shows."""
         self._act('live', {}, 'Live: real teams can join and play')
+
+    def refreshPlanQuietly(self):
+        """After signing in or registering: the plan comes with the laptop's registration (unregistered stays as is)."""
+        self.api.host('plan/refresh', {}, lambda _: self.refresh(), lambda _: None, timeout_ms=30000)
 
     @Slot()
     def refreshPlan(self):
