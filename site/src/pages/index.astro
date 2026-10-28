@@ -7,11 +7,11 @@ import {PRICE} from '../consts';
 const TV = {width: 1600, height: 900}, DESK = {width: 1600, height: 1000}, PHONE = {width: 780, height: 1688};
 const screens = [
 	{n: '1', where: 'On the telly', title: 'The quiz on the big screen', text: 'The question, the clock and a QR code to join, big enough for the back of the room. A second screen, a projector or the pub’s TV.',
-		shot: {src: '/shots/tv-question.webp', alt: 'The TV during a question: four coloured answers and the time left', ...TV}},
+		shot: {src: '/shots/tv-question.webp', alt: 'The TV during a question: four coloured answers and the time left', ...TV, retina: true, sizes: '(min-width: 1024px) 420px, 100vw'}},
 	{n: '2', where: 'On every table', title: 'Teams play on a phone', text: 'Heads together round one phone, then a tap to answer. They play in the browser: no app, no account, no sign-up.',
 		shot: {src: '/shots/phone-choice.webp', alt: 'A team’s phone during a question, with four answers to tap', ...PHONE}, tall: true},
 	{n: '3', where: 'Behind the bar', title: 'You run it from the desk', text: 'The next question is one big button. Answers are marked as they arrive, and you see which teams are in.',
-		shot: {src: '/shots/desk.webp', alt: 'The quizmaster’s desk: the live question, which teams have answered, and what’s up next', ...DESK}},
+		shot: {src: '/shots/desk.webp', alt: 'The quizmaster’s desk: the live question, which teams have answered, and what’s up next', ...DESK, retina: true, sizes: '(min-width: 1024px) 420px, 100vw'}},
 ];
 const formatShots = [
 	['phone-wordsnake', 'Word snake', 'Trace the answer through a grid of letters'],
@@ -49,14 +49,14 @@ const reasons = [
 			<h1 class="text-4xl text-balance sm:text-5xl lg:text-6xl">Run the whole pub quiz from <span class="text-amber neon">one laptop</span></h1>
 			<p class="mt-5 max-w-xl text-lg text-muted">The desk for the quizmaster, the quiz on the TV, and every team playing on their phones. No paper, no marking by hand, and it works with or without internet.</p>
 			<div class="mt-8 flex flex-wrap gap-3">
-				<a href="/download" class="btn btn-primary">Try it free</a>
+				<a href="/download" class="btn btn-primary">Download free</a>
 				<a href="#how" class="btn btn-ghost">See how it works</a>
 			</div>
-			<p class="mt-4 text-sm text-muted">Create for free. Rehearse without limits. Go Pro when you’re ready to host. Players never pay.</p>
+			<p class="mt-4 text-sm text-muted">Create for free. Go Pro to host. Players never pay.</p>
 			<p class="mt-6 text-sm text-muted">Playing, not hosting? <a href="/find" class="font-semibold">Find a quiz near you →</a></p>
 		</div>
 		<div class="relative pb-10 sm:pb-14 lg:pb-0">
-			<Shot src="/shots/tv-question.webp" alt="The quiz on the TV: the question, four coloured answers and the time left" {...TV} loading="eager" class="shadow-2xl shadow-pink/20" />
+			<Shot src="/shots/tv-question.webp" alt="The quiz on the TV: the question, four coloured answers and the time left" {...TV} retina sizes="(min-width: 1024px) 560px, 100vw" loading="eager" class="shadow-2xl shadow-pink/20" />
 			<div class="absolute -bottom-4 right-3 w-[20%] max-w-[8rem] sm:right-6 lg:-bottom-16 lg:-right-6">
 				<Shot src="/shots/phone-choice.webp" alt="A team answering the same question on a phone" {...PHONE} loading="eager" class="!rounded-2xl border-white/30 shadow-2xl" />
 			</div>
@@ -98,8 +98,8 @@ const reasons = [
 			</ul>
 		</div>
 		<div class="grid grid-cols-6 items-end gap-4">
-			<div class="col-span-6 sm:col-span-4"><Shot src="/shots/tv-reveal.webp" alt="The answer revealed on the TV, with how many teams picked each answer and the fastest teams" {...TV} /></div>
-			<div class="col-span-6 sm:col-span-4 sm:col-start-3 sm:-mt-10"><Shot src="/shots/tv-leaderboard.webp" alt="The leaderboard on the TV" {...TV} /></div>
+			<div class="col-span-6 sm:col-span-4"><Shot src="/shots/tv-reveal.webp" alt="The answer revealed on the TV, with how many teams picked each answer and the fastest teams" {...TV} retina sizes="(min-width: 640px) 460px, 100vw" /></div>
+			<div class="col-span-6 sm:col-span-4 sm:col-start-3 sm:-mt-10"><Shot src="/shots/tv-leaderboard.webp" alt="The leaderboard on the TV" {...TV} retina sizes="(min-width: 640px) 460px, 100vw" /></div>
 		</div>
 	</section>
 
@@ -109,12 +109,14 @@ const reasons = [
 			<p class="eyebrow">Round formats</p>
 			<h2 class="text-3xl text-balance sm:text-4xl">More than questions and answers</h2>
 			<p class="max-w-2xl text-muted">Every format plays on the phones teams already have. Here are a few, as teams see them.</p>
-			<ul class="phone-strip mt-10 lg:grid-flow-row lg:grid-cols-6">
+			<ul class="format-gallery mt-10">
 				{formatShots.map(([file, name, text]) => (
-					<li class="list-none">
-						<Shot src={`/shots/${file}.webp`} alt={`${name} on a team’s phone: ${text.toLowerCase()}`} {...PHONE} />
-						<h3 class="mt-3 text-base">{name}</h3>
-						<p class="mb-0 text-sm text-muted">{text}</p>
+					<li class="format-item">
+						<div class="format-shot"><Shot src={`/shots/${file}.webp`} alt={`${name} on a team’s phone: ${text.toLowerCase()}`} {...PHONE} /></div>
+						<div class="format-caption">
+							<h3 class="text-lg">{name}</h3>
+							<p class="mb-0 text-muted">{text}</p>
+						</div>
 					</li>
 				))}
 			</ul>

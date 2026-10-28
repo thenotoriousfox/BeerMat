@@ -41,17 +41,27 @@
 		caption.textContent = shot.caption!;
 		count.textContent = shots.length > 1 ? `${index + 1} of ${shots.length}` : '';
 	}
-	shots.forEach((button, i) => button.addEventListener('click', () => {opener = button; show(i); dialog.showModal();}));
+	// The page behind stays put while the viewer is open, phones included (fixing the body is what stops iOS scrolling).
+	let scrolled = 0;
+	const lock = () => {scrolled = scrollY; Object.assign(document.body.style, {position: 'fixed', top: `-${scrolled}px`, left: '0', right: '0'});};
+	const unlock = () => {Object.assign(document.body.style, {position: '', top: '', left: '', right: ''}); scrollTo({top: scrolled, behavior: 'instant'});};
+	shots.forEach((button, i) => button.addEventListener('click', () => {opener = button; show(i); lock(); dialog.showModal();}));
 	dialog.querySelectorAll<HTMLButtonElement>('[data-step]').forEach(b => b.addEventListener('click', () => show(index + Number(b.dataset.step))));
 	dialog.querySelector('[data-close]')!.addEventListener('click', () => dialog.close());
 	dialog.querySelectorAll<HTMLElement>('.lightbox-nav').forEach(b => {b.hidden = shots.length < 2;});
 	dialog.addEventListener('keydown', e => {
+		// Tab and Shift+Tab go round the viewer's own buttons only.
+		if (e.key === 'Tab') {
+			const stops = [...dialog.querySelectorAll<HTMLElement>('button')].filter(b => !b.hidden && b.offsetParent);
+			const i = stops.indexOf(document.activeElement as HTMLElement);
+			e.preventDefault(); stops[(i + (e.shiftKey ? -1 : 1) + stops.length) % stops.length]?.focus();
+		}
 		if (e.key === 'ArrowRight') {e.preventDefault(); show(index + 1);}
 		if (e.key === 'ArrowLeft') {e.preventDefault(); show(index - 1);}
 	});
 	// A click on the dark backdrop (not the picture or the buttons) closes it.
 	dialog.addEventListener('click', e => {if (e.target === dialog || (e.target as HTMLElement).classList.contains('lightbox-stage')) dialog.close();});
-	dialog.addEventListener('close', () => {opener?.focus(); image.removeAttribute('src');});
+	dialog.addEventListener('close', () => {unlock(); opener?.focus({preventScroll: true}); image.removeAttribute('src');});
 	// Swiping left or right on a phone.
 	let startX: number | null = null;
 	dialog.addEventListener('touchstart', e => {startX = e.touches[0].clientX;}, {passive: true});

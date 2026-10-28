@@ -27,9 +27,12 @@ const host = (route, body = {}) => post('host/' + route, body, key);
 await host('settings', {title: 'Tuesday Quiz Night', waitingRoom: false, teamPhotos: false});
 const state = () => host('state');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-// Saves a PNG and converts it to WebP (quality 82), the format the site uses.
-const webp = (png, name) => execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', png, '-c:v', 'libwebp', '-quality', '82', path.join(out, `${name}.webp`)]);
-const shot = async (page, name, options = {}) => {const file = path.join(raw, `${name}.png`); await page.screenshot({path: file, ...options}); webp(file, name);};
+// Converts a capture to WebP (quality 90: the shots are mostly text). TV and desk captures are taken at twice their
+// layout size, for sharp text on high-density screens and in the full-screen viewer: they're saved as <name>@2x.webp
+// at full size and <name>.webp at half (the page's srcset picks). Phone captures are already 2× and kept as they are.
+const encode = (png, file, scale) => execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', png, ...(scale ? ['-vf', `scale=iw/${scale}:-1:flags=lanczos`] : []), '-c:v', 'libwebp', '-quality', '90', path.join(out, file)]);
+const webp = (png, name, retina = false) => {encode(png, `${name}.webp`, retina ? 2 : 0); if (retina) encode(png, `${name}@2x.webp`, 0);};
+const shot = async (page, name, options = {}) => {const file = path.join(raw, `${name}.png`); await page.screenshot({path: file, ...options}); webp(file, name, page.retina);};
 
 const browser = await chromium.launch();
 try {
@@ -48,11 +51,11 @@ try {
     if (await send.isVisible()) await send.click({timeout: 5000});
   };
 
-  const tv = await (await browser.newContext({viewport: {width: 1600, height: 900}})).newPage();
+  const tv = await (await browser.newContext({viewport: {width: 1600, height: 900}, deviceScaleFactor: 2})).newPage(); tv.retina = true;
   await tv.goto(base + '/display'); await sleep(1500);
   await shot(tv, 'tv-join');
 
-  const desk = await (await browser.newContext({viewport: {width: 1600, height: 1000}})).newPage();
+  const desk = await (await browser.newContext({viewport: {width: 1600, height: 1000}, deviceScaleFactor: 2})).newPage(); desk.retina = true;
   await desk.goto(base + '/host'); await desk.fill('#key', 'screenshot-quiz-key-0123'); await desk.click('#loginForm button'); await desk.locator('#panel').waitFor();
 
   // Opens one saved question by id, closing the one before.
