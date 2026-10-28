@@ -440,7 +440,8 @@ body[data-role=host] nav { top: 8px; }
 body[data-role=host] #message { position: fixed; right: 20px; bottom: 20px; z-index: 30; max-width: 420px; margin: 0; padding: 12px 18px; border-radius: 14px; background: var(--surface-solid); border: 1px solid var(--line-strong); box-shadow: var(--shadow); min-height: 0; }
 body[data-role=host] #message:empty { display: none; }
 body[data-role=host] #message.error { background: #4a1426; border-color: rgba(255, 84, 112, .6); color: #ffd1d9; }
-.outline-col .row button { padding: 6px 12px; font-size: .85rem; margin: 4px 4px 4px 0; }
+.outline-col .row button { padding: 6px 12px; font-size: .85rem; margin: 2px 4px 2px 0; }
+.outline-col h2 { margin-bottom: 8px; }
 details.menu { position: relative; margin: 0 0 0 auto; border: 0; padding: 0; background: none; box-shadow: none; }
 /* A section with an open menu sits above the sections after it, so the menu isn't hidden under them. */
 section:has(details.menu[open]) { position: relative; z-index: 15; }
@@ -485,10 +486,17 @@ details.tools > summary { cursor: pointer; font-weight: 700; }
 .quiz-head .title-row { align-items: flex-end; } .quiz-head details.menu { margin-left: 0; }
 .quiz-head .title-row label { flex: 1; min-width: 260px; }
 .file-items { min-width: 340px; }
-.editor-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 22px; align-items: start; }
-.outline-col { position: sticky; top: 80px; max-height: calc(100vh - 100px); overflow: auto; }
-.outline-col .grid { grid-template-columns: 1fr; }
-.outline { display: grid; gap: 10px; margin-top: 12px; }
+.editor-layout { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 22px; align-items: start; }
+/* The rounds and questions stay in view below the menu bar while the editor scrolls: the controls at the top, and the
+   outline filling the rest of the column's height, scrolling on its own. The editor is never shorter than the
+   column, so at the bottom of the page the column isn't pushed up under the menu bar. */
+.outline-col { position: sticky; top: 84px; max-height: calc(100vh - 150px); display: flex; flex-direction: column; overflow: hidden; }
+.editor-col { min-height: calc(100vh - 150px); }
+.outline-col .grid { grid-template-columns: 1fr; gap: 10px; }
+.outline-col label { margin-bottom: 6px; }
+.outline-col .check { font-size: .88rem; margin: 6px 0 0; }
+.outline { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 10px; margin-top: 12px; flex: 1 1 auto; min-height: 140px; overflow: hidden auto; padding-right: 4px; }
+.outline-round, .outline-round li { min-width: 0; }
 .outline-round { border: 1px solid var(--line); border-radius: 14px; padding: 6px; background: var(--surface); }
 .outline-round.current { border-color: color-mix(in srgb, var(--gold) 55%, transparent); }
 .outline-title { width: 100%; margin: 0; text-align: left; background: transparent; color: var(--text); box-shadow: none; font-family: var(--display); padding: 6px 8px; }
@@ -502,7 +510,9 @@ details.tools > summary { cursor: pointer; font-weight: 700; }
   .tonight-grid { grid-template-areas: "main" "room" "side"; }
   .settings:not([hidden]) { grid-template-columns: 1fr; gap: 0; }
   .settings-nav { flex-direction: row; position: static; }
-  .outline-col { position: static; max-height: none; }
+  .outline-col { position: static; max-height: none; overflow: visible; }
+  .editor-col { min-height: 0; }
+  .outline { overflow: visible; }
   .control-bar { position: static; }
 }
 .stage { min-height: 230px; border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); box-shadow: var(--shadow), 0 0 40px color-mix(in srgb, var(--gold) 12%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--gold) 10%, transparent), var(--surface)); }
