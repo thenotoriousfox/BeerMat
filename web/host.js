@@ -748,6 +748,7 @@ function renderScreens(info) {
   if (document.activeElement !== $('tvSound')) selectOptions($('tvSound'), [['auto', 'Automatic: the TV’s HDMI or DisplayPort sound when it is full screen'], ['laptop', 'Same as the laptop'], ...names.map(n => [n, sound.outputs.includes(n) ? n : `${n} (not connected)`])], sound.choice);
   $('tvSoundState').textContent = sound.active ? `🔊 Playing through ${sound.active}` : '🔊 Playing through the laptop’s sound output';
   screensInfo = info;
+  if (state) renderTonight(state);
 }
 let screensInfo = null;
 if (desktop) {
@@ -926,6 +927,7 @@ async function loadLaptop() {
 const jobText = (id, job, working) => {$(id).textContent = job?.running ? working : job?.message || ''; $(id).classList.toggle('warning', job?.ok === false);};
 function renderLaptop() {
   $('laptopPanel').hidden = !laptop; if (!laptop) return;
+  if (state) renderTonight(state);
   const w = laptop.wifi, job = laptop.jobs.wifi, working = !!job?.running, on = w.running;
   const where = c => c.connected ? `on ${c.network}, shares it` : c.hosting ? 'hosting the quiz Wi-Fi' : 'free';
   $('wifiControls').hidden = !w.available || !laptop.local;
@@ -1197,15 +1199,23 @@ function renderTonight(s) {
   $('setupCard').hidden = !fresh;
   if (fresh) {
     const all = library?.rounds.flatMap(r => r.questions) || [], wifi = laptop?.wifi?.running, lan = s.settings.joinMode === 'lan';
+    // Each item that isn't done yet has a button that does it here (or opens where it's done).
+    const w = laptop?.wifi, starting = laptop?.jobs?.wifi?.running;
+    const wifiFix = wifi || lan || s.online ? null : starting ? null
+      : w?.available ? (w.wifiOn ? ['Start quiz Wi-Fi', () => $('wifiStart').click()] : ['Switch Wi-Fi on', () => $('wifiOn').click()])
+      : ['Set up joining', () => chooseTab('settings:joining')];
+    const tvOpen = !!screensInfo?.open, tvAuto = !!screensInfo?.autoOpen;
     const items = [
-      [all.length > 0, all.length ? `Quiz ready: ${library.rounds.length} ${library.rounds.length === 1 ? 'round' : 'rounds'}, ${all.length} questions` : 'No questions yet', 'build', 'Build the quiz'],
-      [!!(wifi || lan || s.online), wifi ? `Quiz Wi-Fi “${wifi.ssid}” is on` : lan ? 'Teams join on the venue’s Wi-Fi' : s.online ? 'Teams join over the internet' : 'Quiz Wi-Fi is off', 'settings:joining', 'Set up joining'],
-      [!!screensInfo?.tv || !window.beermatDesktop, window.beermatDesktop ? (screensInfo?.tv ? 'TV screen is open' : 'TV screen not open yet') : 'Open the TV screen (TV screen ↗ above) on the TV', 'settings:screens', 'Screens'],
-      [active.length > 0, active.length ? `${active.length} ${active.length === 1 ? 'team has' : 'teams have'} joined` : 'Waiting for teams to join', null, null],
+      [all.length > 0, all.length ? `Quiz ready: ${library.rounds.length} ${library.rounds.length === 1 ? 'round' : 'rounds'}, ${all.length} questions` : 'No questions yet', ['Build the quiz', () => chooseTab('build')]],
+      [!!(wifi || lan || s.online), wifi ? `Quiz Wi-Fi “${wifi.ssid}” is on` : lan ? 'Teams join on the venue’s Wi-Fi' : s.online ? 'Teams join over the internet' : starting ? 'Starting the quiz Wi-Fi…' : 'Quiz Wi-Fi is off', wifiFix],
+      // The desktop app opens the TV by itself when a TV is plugged in (Settings → Screens → Open by itself).
+      [!window.beermatDesktop || tvOpen || tvAuto, !window.beermatDesktop ? 'Open the TV screen (TV screen ↗ above) on the TV'
+        : tvOpen ? 'TV screen is open' : tvAuto ? 'The TV screen opens by itself when a TV is plugged in' : 'TV screen not open yet', ['Open the TV', () => $('tvOpen').click()]],
+      [active.length > 0, active.length ? `${active.length} ${active.length === 1 ? 'team has' : 'teams have'} joined` : 'Waiting for teams to join', null],
     ];
-    $('setupList').replaceChildren(...items.map(([ok, text, to, label]) => {
+    $('setupList').replaceChildren(...items.map(([ok, text, fix]) => {
       const li = element('li', undefined, ok ? 'ok' : 'todo'); li.append(element('span', ok ? '✓' : '○', 'tick'), element('span', text));
-      if (!ok && to) {const b = element('button', label, 'subtle'); b.type = 'button'; b.onclick = () => chooseTab(to); li.append(b);}
+      if (!ok && fix) {const b = element('button', fix[0], 'subtle'); b.type = 'button'; b.onclick = fix[1]; li.append(b);}
       return li;
     }));
   }
