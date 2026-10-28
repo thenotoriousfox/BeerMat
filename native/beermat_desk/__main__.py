@@ -10,7 +10,6 @@ import hashlib
 import logging
 import logging.handlers
 import os
-import secrets
 import signal
 import sys
 from pathlib import Path
@@ -22,28 +21,12 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 
 from .desk import Desk
+from .keystore import load_key
 from .screens import Screens
 from .server import ROOT
 
 # The QML sits at native/beermat_desk/qml in the repository and in packaged builds (qr.mjs reaches ../../../web).
 HERE = ROOT / 'native' / 'beermat_desk'
-
-
-def host_key(data_dir):
-    """The quizmaster key: it also unlocks the desk from a browser, so it's long, random and readable only by this user.
-    (The Electron app encrypts its copy with the system keychain; the packaged native desk will use keyring for that.)"""
-    file = Path(data_dir) / 'host-key'
-    if file.exists():
-        text = file.read_text().strip()
-        if text and not text.startswith('enc:'):
-            return text
-    key = secrets.token_urlsafe(18)
-    file.parent.mkdir(parents=True, exist_ok=True)
-    temporary = file.with_suffix('.tmp')
-    temporary.write_text(key)
-    os.chmod(temporary, 0o600)
-    temporary.replace(file)
-    return key
 
 
 def start_logging(data_dir):
@@ -101,7 +84,10 @@ def main(argv=None):
     if instance is None:
         log.info('BeerMat Desk is already running for %s; brought it to the front', data_dir)
         return 0
-    desk = Desk(data_dir, host_key(data_dir), port=args.port, laptop=not args.no_laptop)
+    key, kept = load_key(data_dir)
+    log.info('Quizmaster key kept in the %s', 'system keychain' if kept == 'keychain' else 'data folder (no keychain available)')
+    desk = Desk(data_dir, key, port=args.port, laptop=not args.no_laptop)
+    desk.keyKept = kept
 
     engine = QQmlApplicationEngine()
     screens = Screens(app)

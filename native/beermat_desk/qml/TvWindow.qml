@@ -19,7 +19,12 @@ Window {
     // move it). Found on a real two-screen desk: without this the TV filled the desk's screen.
     x: tvScreen ? tvScreen.virtualX + (full ? 0 : 60) : 0
     y: tvScreen ? tvScreen.virtualY + (full ? 0 : 60) : 0
-    visibility: !screens.open ? Window.Hidden : full ? Window.FullScreen : Window.Windowed
+    // X11 won't move a full-screen window (leaving full screen restores its old place): when the TV's screen changes
+    // (a swap, a choice, a screen plugged in) it's hidden for a moment, placed on the new screen and shown there.
+    property bool placing: false
+    onTvScreenChanged: if (screens.open) { placing = true; replace.restart() }
+    Timer { id: replace; interval: 250; onTriggered: tvWindow.placing = false }
+    visibility: !screens.open || placing ? Window.Hidden : full ? Window.FullScreen : Window.Windowed
     onClosing: (close) => { close.accepted = false; screens.setOpen(false) }
 
     TvStage { anchors.fill: parent; tv: desk.tv; serverUrl: desk.serverUrl; blanked: screens.blanked }

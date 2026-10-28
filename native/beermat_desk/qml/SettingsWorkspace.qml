@@ -14,6 +14,7 @@ ScrollView {
     readonly property var pack: (desk.tv.sounds || {})
     readonly property var spotify: desk.prefs.spotify
     signal openWebDesk()
+    signal swapScreens()
     contentWidth: availableWidth
     onVisibleChanged: if (visible) desk.prefs.loadSpotify()
 
@@ -246,6 +247,7 @@ ScrollView {
                     Component.onCompleted: currentIndex = Math.max(0, indexOfValue(screens.chosenName))
                     onActivated: screens.choose(currentValue)
                 }
+                DeskButton { text: "Swap desk and TV screens"; implicitHeight: 34; enabled: screens.displays.length > 1 && screens.canPlace; onClicked: settings.swapScreens() }
                 CheckBox { text: "Open the TV by itself when a screen is connected"; checked: screens.autoOpen; palette.windowText: Theme.text; onToggled: screens.setAutoOpen(checked) }
             }
             RowLayout {
@@ -274,7 +276,8 @@ ScrollView {
         ColumnLayout {
             anchors.fill: parent; spacing: 8
             Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
-                   text: "The key opens this quiz's desk in a browser, on this laptop or another device on the quiz network. Keep it to yourself." }
+                   text: "The key opens this quiz's desk in a browser, on this laptop or another device on the quiz network. Keep it to yourself. "
+                         + (desk.keyStore === "keychain" ? "It's kept in this computer's keychain." : "It's kept in the data folder, readable only by you (no system keychain was available).") }
             RowLayout {
                 spacing: 8
                 Field { id: keyField; text: shown.checked ? desk.hostKey : "••••••••••••••••••••••••"; readOnly: true; Layout.preferredWidth: 300; font.family: "monospace" }

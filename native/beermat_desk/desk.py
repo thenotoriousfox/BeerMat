@@ -621,6 +621,12 @@ class Desk(QObject):
         self.api.host('plan/refresh', {}, done, lambda e: self.toast.emit(f'Could not check the plan: {e}', True), timeout_ms=30000)
 
     # ---- the laptop: backups, key, folders ----
+    keyKept = 'file'   # where __main__ found the quizmaster key: 'keychain' or 'file'
+
+    @Property(str, constant=True)
+    def keyStore(self):
+        return self.keyKept
+
     @Property(str, constant=True)
     def hostKey(self):
         return self.server.host_key

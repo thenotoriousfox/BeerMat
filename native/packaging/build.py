@@ -1,7 +1,7 @@
 """Builds the self-contained BeerMat Desk: Python, Qt (PySide6 Essentials, and QtMultimedia from Addons) and Node.js bundled, so users install
 nothing else. Run it on the system you're building for (PyInstaller doesn't cross-compile):
 
-    python -m venv .venv && .venv/bin/pip install PySide6-Essentials==6.11.1 PySide6-Addons==6.11.1 pyinstaller
+    python -m venv .venv && .venv/bin/pip install PySide6-Essentials==6.11.1 PySide6-Addons==6.11.1 keyring pyinstaller
     .venv/bin/python native/packaging/build.py              # Linux: dist/native/BeerMat-Desk-<v>-linux-x64.tar.gz (+ AppImage)
     .venv\\Scripts\\python native\\packaging\\build.py         # Windows: dist\\native\\BeerMat-Desk-<v>-win-x64.zip (+ installer)
 
@@ -73,7 +73,7 @@ def pyinstaller(runtime):
             '--distpath', str(OUT / 'pyinstaller'), '--workpath', str(OUT / 'work'), '--specpath', str(OUT / 'work'),
             '--paths', str(ROOT / 'native'), f'--add-data={runtime}{sep}runtime', *data,
             *[f'--exclude-module={m}' for m in EXCLUDE], *([f'--icon={icon}'] if icon.exists() else []),
-            '--hidden-import=PySide6.QtQuickControls2', '--hidden-import=PySide6.QtMultimedia', str(HERE / 'entry.py')]
+            '--hidden-import=PySide6.QtQuickControls2', '--hidden-import=PySide6.QtMultimedia', '--collect-submodules=keyring', '--copy-metadata=keyring', str(HERE / 'entry.py')]
     subprocess.run(args, check=True)
     return OUT / 'pyinstaller' / 'BeerMat-Desk'
 

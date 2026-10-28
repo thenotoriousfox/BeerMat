@@ -36,7 +36,7 @@ class Screens(QObject):
         chosen = self._prefs.value('audience', '', str)
         if chosen:
             for i, s in enumerate(screens):
-                if s.name() == chosen and (s is not primary or len(screens) == 1):
+                if s.name() == chosen:
                     return i
         others = [i for i, s in enumerate(screens) if s is not primary]
         return others[0] if others else -1
@@ -89,6 +89,17 @@ class Screens(QObject):
         """A screen by name, or '' for automatic."""
         self._prefs.setValue('audience', name)
         self.changed.emit()
+
+    @Slot(str, result=str)
+    def swap(self, desk_screen):
+        """The TV goes to the desk's screen; returns the screen the TV was on, for the desk window to move to."""
+        screens = QGuiApplication.screens()
+        old = screens[self.target].name() if self.target >= 0 else ''
+        if len(screens) < 2 or not old or old == desk_screen:
+            return ''
+        self._prefs.setValue('audience', desk_screen)
+        self.changed.emit()
+        return old
 
     @Slot(bool)
     def setAutoOpen(self, on):

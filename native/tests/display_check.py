@@ -39,6 +39,13 @@ report.update(tvVisible=tv.isVisible(), tvScreen=tv.screen().name(), tvGeometry=
 tv.grabWindow().save(str(out / f'real-{app.platformName()}-tv.png')); win.grabWindow().save(str(out / f'real-{app.platformName()}-desk.png'))
 for _ in range(linger // 2):
     wait(lambda: False, 2); print(json.dumps({'screens': [s.name() for s in app.screens()], 'tvScreen': tv.screen().name(), 'visibility': str(tv.visibility()).split('.')[-1]}), flush=True)
+# Swap: the TV goes to the desk's screen and the desk to the TV's, then back.
+from PySide6.QtCore import QMetaObject
+QMetaObject.invokeMethod(win, 'swapScreens'); wait(lambda: False, 2.5)
+report['swapped'] = {'tvScreen': tv.screen().name(), 'deskScreen': win.screen().name(), 'tvVisibility': str(tv.visibility()).split('.')[-1],
+                     'target': screens.target, 'chosen': screens.chosenName, 'tvGeometry': list(tv.geometry().getRect())}
+QMetaObject.invokeMethod(win, 'swapScreens'); wait(lambda: False, 2.5)
+report['swappedBack'] = {'tvScreen': tv.screen().name(), 'deskScreen': win.screen().name()}
 screens.setBlank(True); wait(lambda: False, 0.8); tv.grabWindow().save(str(out / f'real-{app.platformName()}-tv-blank.png'))
 screens.setOpen(False); wait(lambda: not tv.isVisible(), 3)
 report['closedOk'] = not tv.isVisible()

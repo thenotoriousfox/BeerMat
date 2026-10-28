@@ -70,6 +70,16 @@ ApplicationWindow {
         delegate: Item { required property int index; Shortcut { sequence: `Ctrl+${index + 1}`; onActivated: window.workspace = index } }
     }
 
+    // Desk and TV change screens (when the TV is plugged into the screen the desk opened on, say).
+    function swapScreens() {
+        const moveTo = screens.swap(window.screen.name)
+        const target = Qt.application.screens.find(s => s.name === moveTo)
+        if (!target) return toast.show("Swapping needs two screens and the TV on one of them.", true)
+        window.screen = target
+        window.x = target.virtualX + 40; window.y = target.virtualY + 40
+        toast.show("Desk and TV swapped screens", false)
+    }
+
     function openWebDesk() {
         Qt.openUrlExternally(desk.deskUrl)
         toast.show("The web desk asks for the quizmaster key: it's in Settings → Quizmaster key.", false)
@@ -200,7 +210,7 @@ ApplicationWindow {
                 QuizzesWorkspace { onOpenQuiz: openQuiz.open(); onOpenWebDesk: window.openWebDesk() }
                 TeamsWorkspace { view: window.view }
                 VenueWorkspace { objectName: "venue" }
-                SettingsWorkspace { view: window.view; onOpenWebDesk: window.openWebDesk() }
+                SettingsWorkspace { view: window.view; onOpenWebDesk: window.openWebDesk(); onSwapScreens: window.swapScreens() }
             }
         }
     }
