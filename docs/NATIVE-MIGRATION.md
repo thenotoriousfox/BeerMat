@@ -169,11 +169,18 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 | 8. Packaging | Linux `.tar.gz` **built and run** (167 MB, bundled Node, Python, Qt incl. Multimedia); AppImage needs `appimagetool`; Windows installer script written, **not built**; Android debug APK built; iOS not built |
 | 9. Legacy retirement | **not started**, as agreed: Electron, Capacitor and the browser player all still pass their tests |
 
+### Done since (29 Oct 2026)
+
+* **Languages**: French and Spanish in both native apps and the native TV, from `web/i18n.js` as the one dictionary
+  (`scripts/export-i18n.mjs`); tests keep the apps' copies in step and fail on any untranslated `t()` phrase.
+* Desk: the quizmaster key in the system keychain (file fallback), swapping desk and TV screens (checked on real
+  screens), wheel tick sounds, the Halloween look's scenery, printing blank answer sheets (PDF).
+
 ### Still to do
 
-* **Languages** (French, Spanish) in the native apps and the native TV: the browser player and web TV have them. Plan: export the dictionary from `web/i18n.js` as the single source, add the apps' own phrases to it, generate it into the apps.
-* Desk: swap desk and TV screens, the quizmaster key in the system keychain, wheel tick sounds, the Halloween look's animated scenery, printing blank answer sheets.
-* Hardware: unplugging and replugging a TV (`native/tests/display_check.py --wait 60`), a real Android phone on a quiz Wi-Fi, any iPhone build at all, a Windows build and install.
+* Hardware only: unplugging and replugging a TV (`native/tests/display_check.py --wait 60`), a real Android phone on a
+  quiz Wi-Fi, any iPhone build, a Windows build and install, and the keychain on a real desktop session (the packaged
+  test ran without one and used the file fallback, as designed).
 
 ## Real display check (28 Oct 2026, this development machine)
 
