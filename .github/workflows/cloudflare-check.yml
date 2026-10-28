@@ -30,4 +30,4 @@ jobs:
       - name: The website's Worker is reachable
         if: success() || failure()
         working-directory: site
-        run: npx wrangler deployments list | head -20
+        run: npx wrangler deployments list
