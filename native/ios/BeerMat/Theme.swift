@@ -44,7 +44,7 @@ struct MessageText: View {
     @EnvironmentObject var model: PlayerModel
     var body: some View {
         if !model.message.isEmpty {
-            Text(model.message).fontWeight(.semibold).foregroundStyle(model.isError ? Brand.bad : Brand.goldHi)
+            Text(t(model.message)).fontWeight(.semibold).foregroundStyle(model.isError ? Brand.bad : Brand.goldHi)
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8).accessibilityAddTraits(.updatesFrequently)
         }
     }

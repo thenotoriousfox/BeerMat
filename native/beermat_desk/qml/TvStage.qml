@@ -5,6 +5,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Desk
+import "i18n.mjs" as I18n
 
 Item {
     id: root
@@ -17,6 +18,14 @@ Item {
         goldHi: Theme.goldHi, pink: Theme.pink, teal: Theme.teal, violet: Theme.violet, good: Theme.good, bad: Theme.bad, onAccent: Theme.onAccent,
         line: Theme.line, lineStrong: Theme.lineStrong, panel: Theme.panel}, palettes[tv.look || "stage"] || {})
     readonly property var settings: tv.settings || {}
+    // The quiz's language (the quizmaster chooses it); English if it's one the dictionary doesn't have.
+    readonly property int langIndex: ({fr: 0, es: 1})[settings.language] ?? -1
+    function t(text, values) {
+        const row = langIndex >= 0 ? I18n.translations[text] : null
+        let out = row ? row[langIndex] : text
+        for (const k in (values || {})) out = out.split("{" + k + "}").join(String(values[k]))
+        return out
+    }
     readonly property var q: tv.question || null
     readonly property var teams: tv.teams || []
     readonly property string view: blanked ? "blank" : (tv.view || "")
@@ -61,7 +70,7 @@ Item {
             Image { source: brand + "mark.svg"; sourceSize: Qt.size(88, 88); Layout.preferredWidth: 88; Layout.preferredHeight: 88 }
             ColumnLayout {
                 spacing: 0; Layout.fillWidth: true
-                Text { text: "QUIZ NIGHT"; color: root.pal.gold; font.family: Theme.display; font.pixelSize: 22; font.weight: Font.Bold; font.letterSpacing: 6 }
+                Text { text: root.t("QUIZ NIGHT"); color: root.pal.gold; font.family: Theme.display; font.pixelSize: 22; font.weight: Font.Bold; font.letterSpacing: 6 }
                 Text { text: root.settings.title || "BeerMat"; color: root.pal.text; font.family: Theme.display; font.pixelSize: 56; font.weight: Font.Bold; elide: Text.ElideRight; Layout.fillWidth: true }
             }
             // The TV countdown the quizmaster set (Tools).
@@ -78,7 +87,7 @@ Item {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         readonly property int secs: Math.ceil(parent.parent.msLeft / 1000)
-                        text: parent.parent.msLeft > 0 ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}` : "Time’s up!"
+                        text: parent.parent.msLeft > 0 ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}` : root.t("Time’s up!")
                         color: root.pal.text; font.family: Theme.display; font.pixelSize: 52; font.weight: Font.Bold
                     }
                 }
@@ -101,7 +110,7 @@ Item {
                 readonly property bool lan: !online && root.settings.joinMode === "lan"
                 readonly property bool locked: !online && !lan && !!root.settings.joinPassword
                 readonly property bool joining: !!root.settings.registrationOpen && !root.settings.ended
-                Text { id: joinTitle; anchors.horizontalCenter: parent.horizontalCenter; text: "Join the quiz on your phone"; color: root.pal.text; font.family: Theme.display; font.pixelSize: 72; font.weight: Font.Bold }
+                Text { id: joinTitle; anchors.horizontalCenter: parent.horizontalCenter; text: root.t("Join the quiz on your phone"); color: root.pal.text; font.family: Theme.display; font.pixelSize: 72; font.weight: Font.Bold }
                 RowLayout {
                     anchors.top: joinTitle.bottom; anchors.topMargin: 50; anchors.horizontalCenter: parent.horizontalCenter
                     spacing: 80
@@ -113,10 +122,10 @@ Item {
                         spacing: 28; Layout.maximumWidth: 900
                         Repeater {
                             model: [
-                                joinView.online ? "" : joinView.locked ? `Join the “${root.settings.joinSsid}” Wi-Fi (password: ${root.settings.joinPassword})` : `Join the “${root.settings.joinSsid}” Wi-Fi first`,
-                                "Scan with your phone camera",
-                                `Or go to ${joinView.url.replace(/^https?:\/\//, "")}`,
-                                "Pick a team name and keep the page open"].filter(s => s)
+                                joinView.online ? "" : joinView.locked ? root.t("Join the “{ssid}” Wi-Fi (password: {password})", {ssid: root.settings.joinSsid, password: root.settings.joinPassword}) : root.t("Join the “{ssid}” Wi-Fi first", {ssid: root.settings.joinSsid}),
+                                root.t("Scan with your phone camera"),
+                                root.t("Or go to {url}", {url: joinView.url.replace(/^https?:\/\//, "")}),
+                                root.t("Pick a team name and keep the page open")].filter(s => s)
                             delegate: RowLayout {
                                 required property string modelData
                                 required property int index
@@ -126,10 +135,10 @@ Item {
                                 Text { text: modelData; color: root.pal.text; font.pixelSize: 40; font.weight: Font.DemiBold; wrapMode: Text.WordWrap; Layout.maximumWidth: 800 }
                             }
                         }
-                        Text { visible: !joinView.online && !joinView.lan; text: "If your phone warns about “no internet”, choose “Use network as is” or “Stay connected”."
+                        Text { visible: !joinView.online && !joinView.lan; text: root.t("If your phone warns about “no internet”, choose “Use network as is” or “Stay connected”.")
                                color: root.pal.muted; font.pixelSize: 26; wrapMode: Text.WordWrap; Layout.maximumWidth: 860 }
                         Text {
-                            text: !joinView.joining ? "Registration is closed — ask the quizmaster to join" : root.teams.length === 1 ? "1 team has joined" : root.teams.length ? `${root.teams.length} teams have joined` : "Be the first team to join!"
+                            text: !joinView.joining ? root.t("Registration is closed — ask the quizmaster to join") : root.teams.length === 1 ? root.t("1 team has joined") : root.teams.length ? root.t("{n} teams have joined", {n: root.teams.length}) : root.t("Be the first team to join!")
                             color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 40; font.weight: Font.Bold
                         }
                     }
@@ -157,7 +166,7 @@ Item {
                     Text { text: questionView.q ? (questionView.q.round || "").toUpperCase() : ""; color: root.pal.gold; font.pixelSize: 30; font.weight: Font.Bold; font.letterSpacing: 4 }
                     Text {
                         Layout.fillWidth: true
-                        text: questionView.q ? questionView.q.text : "Waiting for the quizmaster"
+                        text: questionView.q ? questionView.q.text : root.t("Waiting for the quizmaster")
                         color: root.pal.text; font.family: Theme.display; font.weight: Font.Bold; wrapMode: Text.WordWrap
                         font.pixelSize: text.length > 140 ? 54 : text.length > 80 ? 66 : 78
                     }
@@ -166,9 +175,9 @@ Item {
                         visible: !!questionView.q
                         spacing: 24
                         Text {
-                            text: !questionView.q ? "" : questionView.bingo ? (questionView.q.paused ? "Paused" : questionView.q.live ? "Eyes down — game in progress" : "Game over")
-                                : questionView.q.paused ? `Paused · ${Math.ceil(questionView.q.remaining / 1000)}s remaining`
-                                : !questionView.q.open || questionView.msLeft <= 0 ? "Answers closed" : `${Math.ceil(questionView.msLeft / 1000)}s remaining`
+                            text: !questionView.q ? "" : questionView.bingo ? (questionView.q.paused ? root.t("Paused") : questionView.q.live ? root.t("Eyes down — game in progress") : root.t("Game over"))
+                                : questionView.q.paused ? root.t("Paused · {n}s remaining", {n: Math.ceil(questionView.q.remaining / 1000)})
+                                : !questionView.q.open || questionView.msLeft <= 0 ? root.t("Answers closed") : root.t("{n}s remaining", {n: Math.ceil(questionView.msLeft / 1000)})
                             color: questionView.q && questionView.q.open ? root.pal.goldHi : root.pal.muted; font.family: Theme.display; font.pixelSize: 40; font.weight: Font.DemiBold
                         }
                         Rectangle {
@@ -199,7 +208,7 @@ Item {
                                 y: !target ? 0 : (parent.height - parent.paintedHeight) / 2 + target.y * parent.paintedHeight - 22
                             }
                         }
-                        Text { visible: questionView.isAudio; text: "♪  Listen"; color: root.pal.teal; font.family: Theme.display; font.pixelSize: 64; font.weight: Font.Bold }
+                        Text { visible: questionView.isAudio; text: root.t("♪  Listen"); color: root.pal.teal; font.family: Theme.display; font.pixelSize: 64; font.weight: Font.Bold }
                         ColumnLayout {
                             Layout.fillWidth: true; Layout.fillHeight: true
                             spacing: 18
@@ -244,9 +253,9 @@ Item {
                                 visible: !!b
                                 spacing: 12
                                 Image { visible: !!(parent.b && parent.b.active && parent.b.active.photo); source: visible ? root.serverUrl + parent.b.active.photo : ""; sourceSize.height: 160; height: 160; fillMode: Image.PreserveAspectFit }
-                                Text { text: parent.b && parent.b.active ? `🔔 ${parent.b.active.name}` : questionView.q && questionView.q.open ? "Buzzers open" : ""
+                                Text { text: parent.b && parent.b.active ? `🔔 ${parent.b.active.name}` : questionView.q && questionView.q.open ? root.t("Buzzers open") : ""
                                        color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 96; font.weight: Font.Bold }
-                                Text { text: !parent.b ? "" : parent.b.agreeOpen ? `“${parent.b.announced}” — agree now! ${parent.b.agreeCount} agreed` : (parent.b.queue || []).filter(x => x.status === "queued").map(x => x.name).join(" · ")
+                                Text { text: !parent.b ? "" : parent.b.agreeOpen ? root.t("“{answer}” — agree now! {n} agreed", {answer: parent.b.announced, n: parent.b.agreeCount}) : (parent.b.queue || []).filter(x => x.status === "queued").map(x => x.name).join(" · ")
                                        color: root.pal.text; font.pixelSize: 40 }
                             }
                             // Word snake: the grid; once revealed, the answer's path lights up in order.
@@ -275,11 +284,11 @@ Item {
                                 readonly property var g: questionView.q ? questionView.q.bingo : null
                                 visible: !!g
                                 spacing: 16
-                                Text { text: !parent.g ? "" : parent.g.music ? (parent.g.played ? `🎵 Song ${parent.g.played}` : "🎵") : (parent.g.last !== null && parent.g.last !== undefined ? parent.g.last : "–")
+                                Text { text: !parent.g ? "" : parent.g.music ? (parent.g.played ? "🎵 " + root.t("Song {n}", {n: parent.g.played}) : "🎵") : (parent.g.last !== null && parent.g.last !== undefined ? parent.g.last : "–")
                                        color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 160; font.weight: Font.Bold }
-                                Text { text: !parent.g ? "" : parent.g.music ? (parent.g.titles && parent.g.titles.length ? `Last revealed: ${parent.g.titles[parent.g.titles.length - 1]}` : "") : (root.settings.bingoPhrases && parent.g.phrase ? parent.g.phrase : "")
+                                Text { text: !parent.g ? "" : parent.g.music ? (parent.g.titles && parent.g.titles.length ? root.t("Last revealed: {title}", {title: parent.g.titles[parent.g.titles.length - 1]}) : "") : (root.settings.bingoPhrases && parent.g.phrase ? parent.g.phrase : "")
                                        color: root.pal.text; font.pixelSize: 40 }
-                                Text { text: parent.g && parent.g.winners && parent.g.winners.length ? `Winner: ${parent.g.winners.map(w => w.name || w).join(", ")}` : parent.g ? `${parent.g.count || 0} called` : ""
+                                Text { text: parent.g && parent.g.winners && parent.g.winners.length ? root.t("Winner: {names}", {names: parent.g.winners.map(w => w.name || w).join(", ")}) : parent.g ? root.t("{n} called", {n: parent.g.count || 0}) : ""
                                        color: root.pal.muted; font.pixelSize: 34 }
                                 Grid {
                                     visible: !!parent.g && !parent.g.music && !!parent.g.board
@@ -300,9 +309,9 @@ Item {
                             Column {
                                 readonly property var c: questionView.q ? questionView.q.clipGame : null
                                 visible: !!c
-                                Text { text: !parent.c ? "" : parent.c.playing ? `🎵 Clip ${parent.c.playing} of ${parent.c.count}` : questionView.q.live ? "Listen carefully…" : "Clips finished"
+                                Text { text: !parent.c ? "" : parent.c.playing ? root.t("🎵 Clip {n} of {count}", {n: parent.c.playing, count: parent.c.count}) : questionView.q.live ? root.t("Listen carefully…") : root.t("Clips finished")
                                        color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 84; font.weight: Font.Bold }
-                                Text { text: parent.c ? `${parent.c.taps} teams have tapped` : ""; color: root.pal.text; font.pixelSize: 40 }
+                                Text { text: parent.c ? root.t("{n} teams have tapped", {n: parent.c.taps}) : ""; color: root.pal.text; font.pixelSize: 40 }
                             }
                             Item { Layout.fillHeight: true }
                         }
@@ -325,19 +334,19 @@ Item {
                     color: Qt.rgba(root.pal.good.r, root.pal.good.g, root.pal.good.b, 0.16); border.color: root.pal.good; border.width: 3
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 30; spacing: 8
-                        Text { visible: !reveal.tiles; text: "ANSWER"; color: root.pal.good; font.pixelSize: 26; font.weight: Font.Bold; font.letterSpacing: 4 }
+                        Text { visible: !reveal.tiles; text: root.t("ANSWER"); color: root.pal.good; font.pixelSize: 26; font.weight: Font.Bold; font.letterSpacing: 4 }
                         Text {
                             visible: !reveal.tiles
                             Layout.fillWidth: true; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight
-                            text: !reveal.q ? "" : reveal.q.type === "sheet" ? (reveal.q.itemAnswers || []).map((a, i) => `${i + 1}. ${a || "Marked by quizmaster"}`).join("   ")
-                                : reveal.q.type === "sequence" ? (reveal.q.items || []).join("  →  ") : (reveal.q.answer || "Marked by quizmaster")
+                            text: !reveal.q ? "" : reveal.q.type === "sheet" ? (reveal.q.itemAnswers || []).map((a, i) => `${i + 1}. ${a || root.t("Marked by quizmaster")}`).join("   ")
+                                : reveal.q.type === "sequence" ? (reveal.q.items || []).join("  →  ") : (reveal.q.answer || root.t("Marked by quizmaster"))
                             color: root.pal.text; font.family: Theme.display; font.pixelSize: 58; font.weight: Font.Bold
                         }
                         Text { visible: !reveal.tiles && !!reveal.q && !!reveal.q.answerNote; text: reveal.q ? reveal.q.answerNote || "" : ""; color: root.pal.muted; font.pixelSize: 30; Layout.fillWidth: true; elide: Text.ElideRight }
                         Text {
                             readonly property var scorers: reveal.q ? reveal.q.scorers : null
                             visible: !!scorers && reveal.q.type !== "vote"
-                            text: !scorers ? "" : !scorers.length ? "Nobody scored this time" : scorers.length === 1 ? `1 team scored: ${scorers[0].name}` : `${scorers.length} teams scored — ${scorers.slice(0, 5).map(s => s.name).join(", ")}${scorers.length > 5 ? "…" : ""}`
+                            text: !scorers ? "" : !scorers.length ? root.t("Nobody scored this time") : scorers.length === 1 ? root.t("1 team scored: {name}", {name: scorers[0].name}) : root.t("{n} teams scored — {names}", {n: scorers.length, names: scorers.slice(0, 5).map(s => s.name).join(", ") + (scorers.length > 5 ? "…" : "")})
                             color: root.pal.goldHi; font.pixelSize: 30; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight
                         }
                     }
@@ -351,10 +360,10 @@ Item {
                 Behavior on opacity { NumberAnimation { duration: 300 } }
                 readonly property var reveal: root.tv.reveal || null
                 readonly property int shownFromBottom: reveal && !reveal.done ? reveal.shown : 100000
-                Text { id: boardTitle; text: "Leaderboard"; color: root.pal.text; font.family: Theme.display; font.pixelSize: 72; font.weight: Font.Bold }
+                Text { id: boardTitle; text: root.t("Leaderboard"); color: root.pal.text; font.family: Theme.display; font.pixelSize: 72; font.weight: Font.Bold }
                 Text {
                     anchors.left: boardTitle.right; anchors.leftMargin: 30; anchors.baseline: boardTitle.baseline
-                    text: root.settings.secretRound ? "Secret round: the scores stay hidden until the end of the quiz." : !root.settings.leaderboardVisible ? "The quizmaster has hidden scores for now." : root.settings.ended ? "Final scores" : ""
+                    text: root.settings.secretRound ? root.t("Secret round: the scores stay hidden until the end of the quiz.") : !root.settings.leaderboardVisible ? root.t("The quizmaster has hidden scores for now.") : root.settings.ended ? root.t("Final standings") : ""
                     color: root.pal.muted; font.pixelSize: 32
                 }
                 GridView {
@@ -396,10 +405,10 @@ Item {
                 readonly property var leaders: root.teams.filter(t => t.rank === 1)
                 Column {
                     anchors.centerIn: parent; spacing: 26
-                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: "AND THE WINNER IS…"; color: root.pal.gold; font.pixelSize: 44; font.weight: Font.Bold; font.letterSpacing: 8 }
+                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.t("AND THE WINNER IS…"); color: root.pal.gold; font.pixelSize: 44; font.weight: Font.Bold; font.letterSpacing: 8 }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: root.settings.leaderboardVisible === false ? "Scores are hidden for now" : parent.parent.leaders.map(t => t.name).join(" & ") || "No teams yet"
+                        text: root.settings.leaderboardVisible === false ? root.t("Scores are hidden for now") : parent.parent.leaders.map(t => t.name).join(" & ") || root.t("No teams yet")
                         color: root.pal.text; font.family: Theme.display; font.pixelSize: 130; font.weight: Font.Bold
                         scale: root.view === "winner" ? 1 : 0.6
                         Behavior on scale { NumberAnimation { duration: 900; easing.type: Easing.OutBack } }
@@ -407,7 +416,7 @@ Item {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         readonly property var leaders: parent.parent.leaders
-                        text: leaders.length && root.settings.leaderboardVisible !== false && leaders[0].score !== null ? `${leaders[0].score} points${leaders.length > 1 ? " — a tie!" : ""}` : ""
+                        text: leaders.length && root.settings.leaderboardVisible !== false && leaders[0].score !== null ? root.t(leaders.length > 1 ? "{n} points — a tie!" : "{n} points", {n: leaders[0].score}) : ""
                         color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 56; font.weight: Font.Bold
                     }
                     Row {
@@ -498,18 +507,18 @@ Item {
                         spotlight.armedFor = null
                         spotlight.shownFor = q.id
                         const f = q.first
-                        spotlight.show({kind: f.kind === "tieBreaker" ? "TIE-BREAKER WINNER" : f.kind === "nearest" ? "CLOSEST ANSWER" : "FASTEST FINGERS", names: f.name,
+                        spotlight.show({kind: f.kind === "tieBreaker" ? root.t("TIE-BREAKER WINNER") : f.kind === "nearest" ? root.t("CLOSEST ANSWER") : root.t("FASTEST FINGERS"), names: f.name,
                                         photos: f.photo ? [f.photo] : [], initials: [f.name.charAt(0).toUpperCase()],
-                                        detail: f.kind !== "fastest" ? `Answered ${f.answer}` : `${(f.ms / 1000).toFixed(1)}s`}, 7000)
+                                        detail: f.kind !== "fastest" ? root.t("Answered {answer}", {answer: f.answer}) : root.t("{s}s", {s: (f.ms / 1000).toFixed(1)})}, 7000)
                     }
                     const r = root.tv.reveal
                     const done = r && r.done ? String(r.question) : ""
                     if (done && done !== spotlight.boardDone && spotlight.boardDone !== "") {
                         const top = root.teams.filter(t => t.rank === 1).slice(0, 4)
                         spotlight.shownFor = null
-                        if (top.length) spotlight.show({kind: top.length > 1 ? "TIED FOR FIRST" : "IN FIRST PLACE", names: top.map(t => t.name).join(" & "),
+                        if (top.length) spotlight.show({kind: top.length > 1 ? root.t("TIED FOR FIRST") : root.t("IN FIRST PLACE"), names: top.map(t => t.name).join(" & "),
                                                         photos: top.filter(t => t.photo).map(t => t.photo), initials: top.map(t => t.name.charAt(0).toUpperCase()),
-                                                        detail: top[0].score === null ? "" : `${top[0].score} points`}, 5000 + (top.length - 1) * 2500)
+                                                        detail: top[0].score === null ? "" : root.t("{n} points", {n: top[0].score})}, 5000 + (top.length - 1) * 2500)
                     }
                     spotlight.boardDone = done || (spotlight.boardDone === "" ? "-" : spotlight.boardDone)
                 }
@@ -562,20 +571,20 @@ Item {
             anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 28
             width: rehearsalLabel.implicitWidth + 40; height: 52; radius: 26
             color: Qt.rgba(root.pal.teal.r, root.pal.teal.g, root.pal.teal.b, 0.2); border.color: root.pal.teal; border.width: 2
-            Text { id: rehearsalLabel; anchors.centerIn: parent; text: "REHEARSAL"; color: root.pal.teal; font.pixelSize: 26; font.weight: Font.Bold; font.letterSpacing: 4 }
+            Text { id: rehearsalLabel; anchors.centerIn: parent; text: root.t("REHEARSAL"); color: root.pal.teal; font.pixelSize: 26; font.weight: Font.Bold; font.letterSpacing: 4 }
         }
         // Joining, under the leaderboard and the question.
         Text {
             visible: (root.view === "leaderboard") && !!root.settings.registrationOpen && !root.settings.ended
             anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.margins: 36
-            text: root.settings.online ? `Join: ${(root.settings.joinUrl || "").replace(/^https?:\/\//, "")}` : `Join: Wi-Fi “${root.settings.joinSsid}” → ${(root.settings.joinUrl || "").replace(/^https?:\/\//, "")}`
+            text: root.settings.online ? root.t("Join: {url}", {url: (root.settings.joinUrl || "").replace(/^https?:\/\//, "")}) : root.t("Join: Wi-Fi “{ssid}” → {url}", {ssid: root.settings.joinSsid, url: (root.settings.joinUrl || "").replace(/^https?:\/\//, "")})
             color: root.pal.muted; font.pixelSize: 28
         }
         // Nothing yet from the server
         Text {
             visible: !root.tv.settings
             anchors.centerIn: parent
-            text: "Connecting to the quiz…"; color: root.pal.muted; font.family: Theme.display; font.pixelSize: 56
+            text: root.t("Connecting to the quiz…"); color: root.pal.muted; font.family: Theme.display; font.pixelSize: 56
         }
     }
 }

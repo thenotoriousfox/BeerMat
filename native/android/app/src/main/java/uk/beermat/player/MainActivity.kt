@@ -1,5 +1,6 @@
 package uk.beermat.player
 
+import uk.beermat.player.ui.t
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        uk.beermat.player.ui.I18n.load(this)
         // Leaving the app during an open question is reported, as a browser tab going to the background is.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStop(owner: LifecycleOwner) = vm.away("away")
@@ -42,6 +44,6 @@ class MainActivity : ComponentActivity() {
         val options = GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).enableAutoZoom().build()
         GmsBarcodeScanning.getClient(this, options).startScan()
             .addOnSuccessListener { code -> code.rawValue?.let(vm::scanned) }
-            .addOnFailureListener { vm.say("The scanner isn't available on this phone. Type the address on the TV instead.", true) }
+            .addOnFailureListener { vm.say(t("The scanner isn’t available on this phone. Type the address on the TV instead."), true) }
     }
 }

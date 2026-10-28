@@ -1,5 +1,6 @@
 package uk.beermat.player.online
 
+import uk.beermat.player.ui.t
 import android.Manifest
 import android.app.AlarmManager
 import android.app.NotificationChannel
@@ -46,7 +47,7 @@ object Reminders {
 
     fun channel(context: Context) {
         context.getSystemService(NotificationManager::class.java)
-            .createNotificationChannel(NotificationChannel(CHANNEL, "Quiz night reminders", NotificationManager.IMPORTANCE_DEFAULT))
+            .createNotificationChannel(NotificationChannel(CHANNEL, t("Quiz night reminders"), NotificationManager.IMPORTANCE_DEFAULT))
     }
 
     fun notify(context: Context, id: String, title: String, venue: String) {
@@ -54,12 +55,12 @@ object Reminders {
         channel(context)
         val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val n = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.mipmap.ic_launcher_foreground)
-            .setContentTitle("Quiz night in two hours").setContentText("$title at $venue").setContentIntent(open).setAutoCancel(true).build()
+            .setContentTitle(t("Quiz night in two hours")).setContentText(t("{title} at {venue}", "title" to title, "venue" to venue)).setContentIntent(open).setAutoCancel(true).build()
         context.getSystemService(NotificationManager::class.java).notify(id.hashCode(), n)
     }
 }
 
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) =
-        Reminders.notify(context, intent.getStringExtra("id") ?: "", intent.getStringExtra("title") ?: "Quiz night", intent.getStringExtra("venue") ?: "")
+        Reminders.notify(context, intent.getStringExtra("id") ?: "", intent.getStringExtra("title") ?: t("Quiz night"), intent.getStringExtra("venue") ?: "")
 }

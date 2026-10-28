@@ -21,6 +21,8 @@ struct RootView: View {
     @EnvironmentObject var model: PlayerModel
     @EnvironmentObject var online: OnlineModel
     var body: some View {
+        // In a quiz, the quiz's language (as for the TV and browsers); elsewhere the phone's.
+        let _ = { I18n.lang = model.game?.settings.language ?? I18n.phone }()
         ZStack {
             LinearGradient(colors: [Color(hex: 0x241046), Brand.bg, Brand.bg2], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
             Group {
@@ -28,10 +30,10 @@ struct RootView: View {
                 // The app's own screens around the quiz, as tabs; a quiz in play has the whole screen.
                 case .connect:
                     TabView {
-                        ConnectView().tabItem { Label("Play", systemImage: "gamecontroller") }
-                        FindView().tabItem { Label("Find a quiz", systemImage: "magnifyingglass") }
-                        MapTab().tabItem { Label("Map", systemImage: "map") }
-                        ProfileView().tabItem { Label("Profile", systemImage: "person.crop.circle") }
+                        ConnectView().tabItem { Label(t("Play"), systemImage: "gamecontroller") }
+                        FindView().tabItem { Label(t("Find a quiz"), systemImage: "magnifyingglass") }
+                        MapTab().tabItem { Label(t("Map"), systemImage: "map") }
+                        ProfileView().tabItem { Label(t("Profile"), systemImage: "person.crop.circle") }
                     }
                 case .join: JoinView()
                 case .play: if model.game?.testDevice == true { RehearsalView() } else { PlayView() }

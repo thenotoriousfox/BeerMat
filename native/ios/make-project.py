@@ -6,7 +6,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 APP = sorted(p.name for p in (HERE / 'BeerMat').glob('*.swift'))
 KIT = sorted(p.name for p in (HERE / 'BeerMatKit/Sources/BeerMatKit').glob('*.swift'))
-RESOURCES = ['Assets.xcassets', 'Fredoka.ttf', 'Fredoka-OFL.txt', 'badges.json']
+RESOURCES = ['Assets.xcassets', 'Fredoka.ttf', 'Fredoka-OFL.txt', 'badges.json', 'i18n.json']
 
 
 def oid(name):

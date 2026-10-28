@@ -8,7 +8,7 @@ private func when(_ ms: Any?) -> String {
 
 struct OnlineMessage: View {
     @EnvironmentObject var online: OnlineModel
-    var body: some View { if !online.message.isEmpty { Text(online.message).fontWeight(.semibold).foregroundStyle(online.isError ? Brand.bad : Brand.goldHi) } }
+    var body: some View { if !online.message.isEmpty { Text(t(online.message)).fontWeight(.semibold).foregroundStyle(online.isError ? Brand.bad : Brand.goldHi) } }
 }
 
 // ---- Profile ----
@@ -20,38 +20,38 @@ struct ProfileView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Profile").font(Brand.display(32, .largeTitle))
-                Text("Optional: keep your team's results, see your statistics and badges. Playing never needs an account.").foregroundStyle(Brand.muted)
+                Text(t("Profile")).font(Brand.display(32, .largeTitle))
+                Text(t("Optional: keep your team’s results, see your statistics and badges. Playing never needs an account.")).foregroundStyle(Brand.muted)
                 if let me = online.profile {
-                    Text("Signed in as \(me["displayName"] as? String ?? "") (\(me["email"] as? String ?? ""))").fontWeight(.bold)
-                    if (me["emailVerified"] as? Bool) != true { HStack { Text("Confirm your email to count results.").foregroundStyle(Brand.goldHi); Button("Send again") { online.resendVerify() } } }
-                    if online.outbox > 0 { Text("\(online.outbox) result(s) waiting to be sent.").foregroundStyle(Brand.goldHi) }
+                    Text(t("Signed in as {name} ({email})", ["name": me["displayName"] as? String ?? "", "email": me["email"] as? String ?? ""])).fontWeight(.bold)
+                    if (me["emailVerified"] as? Bool) != true { HStack { Text(t("Confirm your email to count results.")).foregroundStyle(Brand.goldHi); Button(t("Send again")) { online.resendVerify() } } }
+                    if online.outbox > 0 { Text(t("{n} result(s) waiting to be sent.", ["n": online.outbox])).foregroundStyle(Brand.goldHi) }
                     StatsView()
-                    Text("Privacy").font(Brand.display(20, .headline)).padding(.top, 12)
+                    Text(t("Privacy")).font(Brand.display(20, .headline)).padding(.top, 12)
                     let privacy = me["privacy"] as? [String: Any] ?? [:]
-                    ForEach([("leaderboards", "Show me on leaderboards"), ("photo", "Show my photo"), ("history", "Show my quiz history")], id: \.0) { key, label in
+                    ForEach([("leaderboards", t("Show me on leaderboards")), ("photo", t("Show my photo")), ("history", t("Show my quiz history"))], id: \.0) { key, label in
                         Toggle(label, isOn: Binding(get: { privacy[key] as? Bool ?? false }, set: { online.privacy(key, $0) }))
                     }
-                    Button("Download my data") { Task { export = await online.exportData() } }.buttonStyle(.bordered)
+                    Button(t("Download my data")) { Task { export = await online.exportData() } }.buttonStyle(.bordered)
                     if let export { ShareLink("Share my data", item: export) }
-                    Button("Sign out") { online.signOut() }.buttonStyle(.bordered)
-                    if confirmDelete { HStack { Text("Delete everything, for good?").foregroundStyle(Brand.bad); Button("Delete", role: .destructive) { online.deleteAccount() } } }
-                    else { Button("Delete my account", role: .destructive) { confirmDelete = true } }
+                    Button(t("Sign out")) { online.signOut() }.buttonStyle(.bordered)
+                    if confirmDelete { HStack { Text(t("Delete everything, for good?")).foregroundStyle(Brand.bad); Button(t("Delete"), role: .destructive) { online.deleteAccount() } } }
+                    else { Button(t("Delete my account"), role: .destructive) { confirmDelete = true } }
                 } else {
-                    TextField("Email", text: $email).textContentType(.emailAddress).keyboardType(.emailAddress).textInputAutocapitalization(.never).padding(12).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12))
-                    SecureField("Password", text: $password).textContentType(.password).padding(12).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12))
-                    TextField("Your name (new account only)", text: $name).padding(12).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12))
-                    BigButton(title: "Sign in", enabled: !email.isEmpty && !password.isEmpty && !online.busy) { online.signIn(email, password); password = "" }
-                    Button("Create account") { online.signUp(email, password, name); password = "" }.disabled(email.isEmpty || password.isEmpty || name.isEmpty).buttonStyle(.bordered)
-                    if let reset = URL(string: online.client.resetUrl), !online.client.resetUrl.isEmpty { Link("Forgotten your password?", destination: reset) }
-                    if online.outbox > 0 { Text("\(online.outbox) result(s) kept on this phone: sign in to add them.").foregroundStyle(Brand.goldHi) }
+                    TextField(t("Email"), text: $email).textContentType(.emailAddress).keyboardType(.emailAddress).textInputAutocapitalization(.never).padding(12).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12))
+                    SecureField(t("Password"), text: $password).textContentType(.password).padding(12).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12))
+                    TextField(t("Your name (new account only)"), text: $name).padding(12).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12))
+                    BigButton(title: t("Sign in"), enabled: !email.isEmpty && !password.isEmpty && !online.busy) { online.signIn(email, password); password = "" }
+                    Button(t("Create account")) { online.signUp(email, password, name); password = "" }.disabled(email.isEmpty || password.isEmpty || name.isEmpty).buttonStyle(.bordered)
+                    if let reset = URL(string: online.client.resetUrl), !online.client.resetUrl.isEmpty { Link(t("Forgotten your password?"), destination: reset) }
+                    if online.outbox > 0 { Text(t("{n} result(s) kept on this phone: sign in to add them.", ["n": online.outbox])).foregroundStyle(Brand.goldHi) }
                 }
                 OnlineMessage()
-                Button(advanced ? "Hide advanced" : "Advanced") { advanced.toggle(); service = online.client.baseUrl }.padding(.top, 12)
+                Button(advanced ? t("Hide advanced") : t("Advanced")) { advanced.toggle(); service = online.client.baseUrl }.padding(.top, 12)
                 if advanced {
-                    TextField("BeerMat Online address", text: $service).keyboardType(.URL).textInputAutocapitalization(.never).padding(12).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12))
-                    Button("Use this address") { online.setService(service) }.buttonStyle(.bordered)
-                    Text("Default: \(OnlineModel.defaultService)").font(.footnote).foregroundStyle(Brand.faint)
+                    TextField(t("BeerMat Online address"), text: $service).keyboardType(.URL).textInputAutocapitalization(.never).padding(12).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12))
+                    Button(t("Use this address")) { online.setService(service) }.buttonStyle(.bordered)
+                    Text(t("Default: {url}", ["url": OnlineModel.defaultService])).font(.footnote).foregroundStyle(Brand.faint)
                 }
             }.padding(24)
         }
@@ -63,16 +63,16 @@ struct StatsView: View {
     var body: some View {
         if let s = online.stats {
             let st = s["stats"] as? [String: Any] ?? [:]
-            Text("Your statistics").font(Brand.display(20, .headline)).padding(.top, 12)
-            if (s["stale"] as? Bool) == true { Text("Offline: these are your statistics as last seen.").foregroundStyle(Brand.faint) }
+            Text(t("Your statistics")).font(Brand.display(20, .headline)).padding(.top, 12)
+            if (s["stale"] as? Bool) == true { Text(t("Offline: these are your statistics as last seen.")).foregroundStyle(Brand.faint) }
             HStack(spacing: 8) {
-                ForEach([("Quizzes", "quizzes"), ("Wins", "wins"), ("Podiums", "podiums"), ("Correct", "correct")], id: \.1) { label, key in
+                ForEach([(t("Quizzes"), "quizzes"), (t("Wins"), "wins"), (t("Podiums"), "podiums"), (t("Correct"), "correct")], id: \.1) { label, key in
                     VStack { Text("\((st[key] as? NSNumber)?.intValue ?? 0)").font(Brand.display(24)).foregroundStyle(Brand.goldHi); Text(label).font(.caption).foregroundStyle(Brand.muted) }
                         .frame(maxWidth: .infinity).padding(10).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12))
                 }
             }
             let earned = Set((s["achievements"] as? [[String: Any]] ?? []).compactMap { $0["id"] as? String })
-            Text("Badges").font(Brand.display(20, .headline))
+            Text(t("Badges")).font(Brand.display(20, .headline))
             ForEach(online.badges, id: \.self) { b in
                 Text("\(earned.contains(b["id"] ?? "") ? "🏅" : "🔒") \(b["name"] ?? "") — \(b["description"] ?? "")").foregroundStyle(earned.contains(b["id"] ?? "") ? Brand.text : Brand.faint)
             }
@@ -87,13 +87,13 @@ struct FindView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Find a quiz").font(Brand.display(32, .largeTitle))
-                TextField("Town or postcode", text: $q).padding(12).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12)).submitLabel(.search).onSubmit { online.search(q) }
-                BigButton(title: "Search", enabled: !q.isEmpty && !online.busy) { online.search(q) }
-                Button("Quizzes near me") { online.near() }.buttonStyle(.bordered)
+                Text(t("Find a quiz")).font(Brand.display(32, .largeTitle))
+                TextField(t("Town or postcode"), text: $q).padding(12).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12)).submitLabel(.search).onSubmit { online.search(q) }
+                BigButton(title: t("Search"), enabled: !q.isEmpty && !online.busy) { online.search(q) }
+                Button(t("Quizzes near me")) { online.near() }.buttonStyle(.bordered)
                 OnlineMessage()
-                if let stale = online.eventsStale { Text("Offline: these are the results from \(when(stale)); they may be out of date.").foregroundStyle(Brand.faint) }
-                if online.searched && online.events.isEmpty { Text("No quiz nights found there yet.").foregroundStyle(Brand.muted) }
+                if let stale = online.eventsStale { Text(t("Offline: these are the results from {date}; they may be out of date.", ["date": when(stale)])).foregroundStyle(Brand.faint) }
+                if online.searched && online.events.isEmpty { Text(t("No quiz nights found there yet.")).foregroundStyle(Brand.muted) }
                 ForEach(online.events.indices, id: \.self) { i in EventCard(event: online.events[i]) }
             }.padding(24)
         }.task { if online.venues.isEmpty { online.loadVenues() } }
@@ -111,9 +111,9 @@ struct EventCard: View {
                 .foregroundStyle(Brand.muted)
             Text(when(event["startsAt"]) + ((event["entry"] as? String).flatMap { $0.isEmpty ? nil : " · \($0)" } ?? "")).foregroundStyle(Brand.goldHi)
             HStack {
-                Button("⏰ Remind me") { online.remind(event) }
-                ShareLink("📅 Calendar", item: OnlineModel.calendarFile(event))
-                if let d = (v["directions"] as? String).flatMap(URL.init(string:)) { Link("Directions", destination: d) }
+                Button(t("⏰ Remind me")) { online.remind(event) }
+                ShareLink(t("📅 Calendar"), item: OnlineModel.calendarFile(event))
+                if let d = (v["directions"] as? String).flatMap(URL.init(string:)) { Link(t("Directions"), destination: d) }
             }.font(.footnote)
         }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(Brand.panel, in: RoundedRectangle(cornerRadius: 14))
     }
@@ -138,7 +138,7 @@ struct MapTab: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack {
                     ForEach([""] + days, id: \.self) { d in
-                        Button(d.isEmpty ? "All" : String(d.prefix(3)).capitalized) { day = d }
+                        Button(d.isEmpty ? t("All") : String(d.prefix(3)).capitalized) { day = d }
                             .font(.footnote.bold()).padding(.horizontal, 10).padding(.vertical, 6)
                             .foregroundStyle(day == d ? Brand.onAccent : Brand.text).background(day == d ? Brand.gold : Brand.panel, in: Capsule())
                     }
@@ -168,12 +168,12 @@ struct VenueSheet: View {
                 let nights = (v["quizNights"] as? [[String: Any]] ?? []).map { "\(($0["day"] as? String ?? "").capitalized) \($0["time"] as? String ?? "")" }
                 if !nights.isEmpty { Text("Quiz nights: " + nights.joined(separator: ", ")).foregroundStyle(Brand.goldHi) }
                 HStack {
-                    Button(online.favourites.contains(id) ? "★ Saved" : "☆ Save venue") { online.favourite(id, !online.favourites.contains(id)) }
-                    if let d = (v["directions"] as? String).flatMap(URL.init(string:)) { Link("Directions", destination: d) }
-                    if let w = (v["website"] as? String).flatMap(URL.init(string:)), w.scheme == "https" { Link("Website", destination: w) }
+                    Button(online.favourites.contains(id) ? t("★ Saved") : t("☆ Save venue")) { online.favourite(id, !online.favourites.contains(id)) }
+                    if let d = (v["directions"] as? String).flatMap(URL.init(string:)) { Link(t("Directions"), destination: d) }
+                    if let w = (v["website"] as? String).flatMap(URL.init(string:)), w.scheme == "https" { Link(t("Website"), destination: w) }
                 }
                 let upcoming = v["upcoming"] as? [[String: Any]] ?? []
-                if upcoming.isEmpty { Text("No quiz nights published yet.").foregroundStyle(Brand.faint) }
+                if upcoming.isEmpty { Text(t("No quiz nights published yet.")).foregroundStyle(Brand.faint) }
                 ForEach(upcoming.indices, id: \.self) { i in EventCard(event: upcoming[i]) }
             }.padding(24)
         }.background(Brand.panel).foregroundStyle(Brand.text)

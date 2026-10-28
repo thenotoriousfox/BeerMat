@@ -65,19 +65,19 @@ final class OnlineModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
     }
 
-    func setService(_ url: String) { client.baseUrl = url.trimmingCharacters(in: CharacterSet(charactersIn: "/ ")); PhoneStorage().set("baseUrl", client.baseUrl); say("Saved") }
-    func signIn(_ email: String, _ password: String) { work { _ = try await self.client.signIn(email: email, password: password); await self.load(); self.say("Signed in") } }
-    func signUp(_ email: String, _ password: String, _ name: String) { work { _ = try await self.client.signUp(email: email, password: password, displayName: name); await self.load(); self.say("Account created: check your email to confirm it") } }
-    func signOut() { work { await self.client.signOut(); self.stats = nil; self.say("Signed out") } }
+    func setService(_ url: String) { client.baseUrl = url.trimmingCharacters(in: CharacterSet(charactersIn: "/ ")); PhoneStorage().set("baseUrl", client.baseUrl); say(t("Saved")) }
+    func signIn(_ email: String, _ password: String) { work { _ = try await self.client.signIn(email: email, password: password); await self.load(); self.say(t("Signed in")) } }
+    func signUp(_ email: String, _ password: String, _ name: String) { work { _ = try await self.client.signUp(email: email, password: password, displayName: name); await self.load(); self.say(t("Account created: check your email to confirm it")) } }
+    func signOut() { work { await self.client.signOut(); self.stats = nil; self.say(t("Signed out")) } }
     func refresh() { work { await self.load() } }
     private func load() async {
         _ = try? await client.refreshProfile()
-        if let flushed = try? await client.flush(), flushed.sent > 0 { say("\(flushed.sent) result\(flushed.sent == 1 ? "" : "s") added to your profile") }
+        if let flushed = try? await client.flush(), flushed.sent > 0 { say(t("{n} result(s) added to your profile", ["n": flushed.sent])) }
         stats = (try? await client.stats()) ?? stats
     }
-    func privacy(_ key: String, _ on: Bool) { work { try await self.client.updateProfile(["privacy": [key: on]]); self.say("Privacy saved") } }
-    func resendVerify() { work { try await self.client.resendVerify(); self.say("We've sent the email again") } }
-    func deleteAccount() { work { try await self.client.deleteAccount(); self.stats = nil; self.say("Your account and everything in it are deleted") } }
+    func privacy(_ key: String, _ on: Bool) { work { try await self.client.updateProfile(["privacy": [key: on]]); self.say(t("Privacy saved")) } }
+    func resendVerify() { work { try await self.client.resendVerify(); self.say(t("We’ve sent the email again")) } }
+    func deleteAccount() { work { try await self.client.deleteAccount(); self.stats = nil; self.say(t("Your account and everything in it are deleted")) } }
     func exportData() async -> String? {
         guard let data = try? await client.exportData(), let json = try? JSONSerialization.data(withJSONObject: data, options: .prettyPrinted) else { return nil }
         return String(decoding: json, as: UTF8.self)
@@ -87,7 +87,7 @@ final class OnlineModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     func keep(_ claim: [String: Any]) async {
         do {
             let r = try await client.saveResult(claim)
-            say(r.sent > 0 ? "Result kept in your profile" : !client.signedIn ? "Result kept on this phone: sign in under Profile to add it" : "Result kept on this phone; it's added when BeerMat Online can be reached")
+            say(r.sent > 0 ? t("Result kept in your profile") : !client.signedIn ? t("Result kept on this phone: sign in under Profile to add it") : t("Result kept on this phone; it’s added when BeerMat Online can be reached"))
         } catch { say(error.localizedDescription, error: true) }
         outbox = client.outbox.count
     }
@@ -101,7 +101,7 @@ final class OnlineModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     func near() {
         switch location.authorizationStatus {
         case .notDetermined: location.requestWhenInUseAuthorization()
-        case .denied, .restricted: say("Search by town or postcode instead.")
+        case .denied, .restricted: say(t("Search by town or postcode instead."))
         default: location.requestLocation()
         }
     }
@@ -113,14 +113,14 @@ final class OnlineModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         Task { @MainActor in self.work { self.show(try await self.client.findEvents(lat: at.latitude, lon: at.longitude, radiusKm: 25)) } }
     }
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        Task { @MainActor in self.say("This phone doesn't know where it is yet. Search by town instead.", error: true) }
+        Task { @MainActor in self.say(t("This phone doesn’t know where it is yet. Search by town instead."), error: true) }
     }
 
     func loadVenues() {
         work {
             let r = try await self.client.venues()
             self.venues = r["venues"] as? [[String: Any]] ?? []
-            self.venuesNote = r["source"] as? String == "cache" ? "Offline: the venues as last seen." : r["source"] as? String == "list" ? "Offline: venues from BeerMat's venue list." : ""
+            self.venuesNote = r["source"] as? String == "cache" ? t("Offline: the venues as last seen.") : r["source"] as? String == "list" ? t("Offline: venues from BeerMat’s venue list.") : ""
         }
     }
     func open(_ id: String?) {
@@ -143,16 +143,16 @@ final class OnlineModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     func remind(_ e: [String: Any]) {
         let starts = (e["startsAt"] as? NSNumber)?.doubleValue ?? 0
         let at = Date(timeIntervalSince1970: starts / 1000 - 2 * 3600)
-        guard at > Date() else { return say("It starts within two hours!") }
+        guard at > Date() else { return say(t("It starts within two hours!")) }
         let center = UNUserNotificationCenter.current()
         Task {
-            guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return say("Notifications are off: add it to your calendar instead.") }
+            guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return say(t("Notifications are off: add it to your calendar instead.")) }
             let content = UNMutableNotificationContent()
-            content.title = "Quiz night in two hours"
-            content.body = "\(e["title"] as? String ?? "Quiz night") at \((e["venue"] as? [String: Any])?["name"] as? String ?? "")"
+            content.title = t("Quiz night in two hours")
+            content.body = t("{title} at {venue}", ["title": e["title"] as? String ?? t("Quiz night"), "venue": (e["venue"] as? [String: Any])?["name"] as? String ?? ""])
             let trigger = UNCalendarNotificationTrigger(dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: at), repeats: false)
             try? await center.add(UNNotificationRequest(identifier: "quiz-\(e["id"] ?? "")", content: content, trigger: trigger))
-            say("We'll remind you two hours before")
+            say(t("We’ll remind you two hours before"))
         }
     }
 
@@ -163,7 +163,7 @@ final class OnlineModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         let f = DateFormatter(); f.dateFormat = "yyyyMMdd'T'HHmmss'Z'"; f.timeZone = TimeZone(identifier: "UTC")
         let ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//BeerMat//EN", "BEGIN:VEVENT", "UID:\(e["id"] ?? UUID().uuidString)@beermat",
                    "DTSTAMP:\(f.string(from: Date()))", "DTSTART:\(f.string(from: start))", "DTEND:\(f.string(from: start.addingTimeInterval(7200)))",
-                   "SUMMARY:\(e["title"] as? String ?? "Quiz night") — \(v["name"] as? String ?? "")",
+                   "SUMMARY:\(e["title"] as? String ?? t("Quiz night")) — \(v["name"] as? String ?? "")",
                    "LOCATION:\([v["address"], v["town"], v["postcode"]].compactMap { $0 as? String }.filter { !$0.isEmpty }.joined(separator: "\\, "))",
                    "END:VEVENT", "END:VCALENDAR"].joined(separator: "\r\n")
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("beermat.ics")

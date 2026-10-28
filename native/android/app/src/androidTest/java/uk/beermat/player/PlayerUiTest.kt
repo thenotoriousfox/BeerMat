@@ -101,8 +101,15 @@ class PlayerUiTest {
         assumeTrue("needs the ui-test.sh servers", server.isNotEmpty())
         questions = call("/api/host/library").getJSONArray("rounds").let { r -> (0 until r.length()).flatMap { i -> r.getJSONObject(i).getJSONArray("questions").let { a -> (0 until a.length()).map(a::getJSONObject) } } }
         join(server.removePrefix("http://"), "Android Aces")
-        waitText("You're in!")
+        waitText("You’re in!")
         shot("01-lobby")
+
+        // The quizmaster switches the quiz to French: the app follows, as the TV and browsers do.
+        call("/api/host/settings", JSONObject().put("language", "fr"))
+        waitText("C’est bon, vous êtes inscrits !")
+        shot("01-french")
+        call("/api/host/settings", JSONObject().put("language", "en"))
+        waitText("You’re in!")
 
         // The team's buzzer sound and photo (the quizmaster approves photos first).
         rule.onNodeWithText("Picked from your team name").performScrollTo().performClick()
@@ -221,7 +228,7 @@ class PlayerUiTest {
         val rehearsal = args.getString("rehearsal") ?: ""
         assumeTrue("needs the ui-test.sh servers", rehearsal.isNotEmpty())
         join(rehearsal.removePrefix("http://"), "Test Phone")
-        waitText("You're connected")
+        waitText("You’re connected")
         waitText("This is a rehearsal")
         shot("20-rehearsal")
     }

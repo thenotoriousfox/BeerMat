@@ -13,25 +13,25 @@ struct PlayView: View {
             // Team bar: name, score, connection.
             HStack {
                 Circle().fill(model.connected ? Brand.good : Brand.bad).frame(width: 10, height: 10)
-                    .accessibilityLabel(model.connected ? "Connected" : "Reconnecting")
+                    .accessibilityLabel(model.connected ? t("Connected") : t("Reconnecting"))
                 Text(model.game?.team?.name ?? "").fontWeight(.bold).lineLimit(1)
                 Spacer()
                 if let game = model.game, game.settings.leaderboardVisible, let mine = game.teams.first(where: { $0.name == game.team?.name }), let score = mine.score {
-                    Text("\(format(score)) pts · #\(mine.rank)").fontWeight(.bold).foregroundStyle(Brand.goldHi)
+                    Text(t("#{rank} · {score} pts", ["rank": mine.rank, "score": format(score)])).fontWeight(.bold).foregroundStyle(Brand.goldHi)
                 }
-                Button(menu ? "Close" : "Team") { menu.toggle() }.foregroundStyle(Brand.muted)
+                Button(menu ? t("Close") : t("Team")) { menu.toggle() }.foregroundStyle(Brand.muted)
             }.padding(.horizontal, 18).padding(.vertical, 12).background(Brand.panel)
             if !model.connected {
-                Text("Connection lost — reconnecting…").fontWeight(.bold).foregroundStyle(Brand.onAccent).frame(maxWidth: .infinity).padding(6).background(Brand.bad)
+                Text(t("Connection lost — reconnecting…")).fontWeight(.bold).foregroundStyle(Brand.onAccent).frame(maxWidth: .infinity).padding(6).background(Brand.bad)
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     if menu { TeamMenu() } else if let game = model.game {
-                        if game.team?.waiting == true { Lobby(title: "You're in the waiting room", text: "The quizmaster will let you in shortly.") }
-                        else if game.settings.ended { Lobby(title: "That's the quiz!", text: "Thanks for playing. Final scores are on the TV."); KeepResult() }
+                        if game.team?.waiting == true { Lobby(title: t("You’re in the waiting room"), text: t("The quizmaster will let you in shortly.")) }
+                        else if game.settings.ended { Lobby(title: t("That’s the quiz!"), text: t("Thanks for playing. Final scores are on the TV.")); KeepResult() }
                         else if let q = game.question {
                             if nativeTypes.contains(q.type) { QuestionView(q: q).id(q.id) } else { BrowserRound(q: q) }
-                        } else { Lobby(title: "You're in!", text: "Waiting for the quiz to start. Keep this app open."); TeamSetup() }
+                        } else { Lobby(title: t("You’re in!"), text: t("Waiting for the quiz to start. Keep this app open.")); TeamSetup() }
                     }
                     MessageText()
                 }.padding(20)
@@ -57,15 +57,15 @@ private struct TeamMenu: View {
     @EnvironmentObject var model: PlayerModel
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Your team").font(Brand.display(26))
-            Text("Recovery code").foregroundStyle(Brand.muted)
+            Text(t("Your team")).font(Brand.display(26))
+            Text(t("Recovery code")).foregroundStyle(Brand.muted)
             Text(model.secret).font(.footnote.monospaced().bold()).textSelection(.enabled)
-            Text("Keep it to rejoin from another phone. The quizmaster can also give you a 4-digit code to move your team.").font(.footnote).foregroundStyle(Brand.faint)
+            Text(t("Keep it to rejoin from another phone. The quizmaster can also give you a 4-digit code to move your team.")).font(.footnote).foregroundStyle(Brand.faint)
             TeamSetup()
-            Toggle("Vibrate for new questions", isOn: Binding(get: { model.haptics }, set: { model.haptics = $0 }))
+            Toggle(t("Vibrate for new questions"), isOn: Binding(get: { model.haptics }, set: { model.haptics = $0 }))
             if let url = model.webPlayerURL { Link("Open in Safari instead", destination: url).buttonStyle(.bordered) }
-            Button("Switch team") { model.switchTeam() }.buttonStyle(.bordered)
-            Button("Other quizzes") { model.leave() }.buttonStyle(.bordered)
+            Button(t("Switch team")) { model.switchTeam() }.buttonStyle(.bordered)
+            Button(t("Other quizzes")) { model.leave() }.buttonStyle(.bordered)
         }
     }
 }
@@ -77,16 +77,16 @@ private struct TeamSetup: View {
     var body: some View {
         if let game = model.game, let team = game.team {
             let names = builtInBuzzers + game.buzzerNames
-            Text("Your buzzer sound").font(Brand.display(20, .headline)).padding(.top, 8)
-            Menu(team.sound.flatMap { names.indices.contains($0) ? names[$0] : nil } ?? "Picked from your team name") {
+            Text(t("Your buzzer sound")).font(Brand.display(20, .headline)).padding(.top, 8)
+            Menu(team.sound.flatMap { names.indices.contains($0) ? names[$0] : nil } ?? t("Picked from your team name")) {
                 ForEach(names.indices, id: \.self) { i in Button(names[i]) { model.setSound(i) } }
             }.buttonStyle(.bordered)
             if game.settings.teamPhotos {
-                Text("Team photo").font(Brand.display(20, .headline)).padding(.top, 8)
-                Text(team.photo.isEmpty ? "Add a team photo to appear on the big screen. The quizmaster approves it first."
-                     : team.photoStatus == "approved" ? "✓ Approved — showing on the TV" : "Waiting for the quizmaster to approve it").foregroundStyle(Brand.muted)
+                Text(t("Team photo")).font(Brand.display(20, .headline)).padding(.top, 8)
+                Text(team.photo.isEmpty ? t("Add a team photo to appear on the big screen. The quizmaster approves it first.")
+                     : team.photoStatus == "approved" ? t("✓ Approved — showing on the TV") : t("Waiting for the quizmaster to approve it")).foregroundStyle(Brand.muted)
                 // The system photo picker: no photo-library permission needed.
-                PhotosPicker(team.photo.isEmpty ? "Choose a photo" : "Change the photo", selection: $pick, matching: .images).buttonStyle(.bordered)
+                PhotosPicker(team.photo.isEmpty ? t("Choose a photo") : t("Change the photo"), selection: $pick, matching: .images).buttonStyle(.bordered)
                     .onChange(of: pick) { item in Task { if let data = try? await item?.loadTransferable(type: Data.self) { model.setPhoto(data) } } }
             }
         }
@@ -99,7 +99,7 @@ private struct KeepResult: View {
     @EnvironmentObject var online: OnlineModel
     var body: some View {
         if !online.client.baseUrl.isEmpty {
-            BigButton(title: "Keep this result", enabled: !model.busy) { Task { if let claim = await model.result() { await online.keep(claim) } } }
+            BigButton(title: t("Keep this result"), enabled: !model.busy) { Task { if let claim = await model.result() { await online.keep(claim) } } }
             if !online.message.isEmpty { Text(online.message).foregroundStyle(online.isError ? Brand.bad : Brand.goldHi) }
         }
     }
@@ -112,8 +112,8 @@ private struct BrowserRound: View {
     var body: some View {
         QuestionHead(q: q)
         Text("This round plays in Safari.").font(Brand.display(20, .headline)).padding(.top, 12)
-        Text("It opens as your team, and you can come back here after.").foregroundStyle(Brand.muted)
-        if let url = model.webPlayerURL { BigButton(title: "Open this round") { UIApplication.shared.open(url) } }
+        Text(t("It opens as your team, and you can come back here after.")).foregroundStyle(Brand.muted)
+        if let url = model.webPlayerURL { BigButton(title: t("Open this round")) { UIApplication.shared.open(url) } }
     }
 }
 
@@ -136,7 +136,7 @@ private struct Countdown: View {
             let left = q.paused ? q.remaining : max(0, q.deadline - now - offset)
             let low = q.open && !q.paused && left > 0 && left <= 10000
             VStack(alignment: .leading) {
-                Text(q.paused ? "Paused · \(Int(ceil(q.remaining / 1000)))s left" : !q.open || left <= 0 ? (q.revealed ? "Answer revealed" : "Answers closed") : "\(Int(ceil(left / 1000)))s left")
+                Text(q.paused ? t("Paused · {n}s remaining", ["n": Int(ceil(q.remaining / 1000))]) : !q.open || left <= 0 ? (q.revealed ? t("Answer revealed") : t("Answers closed")) : t("{n}s remaining", ["n": Int(ceil(left / 1000))]))
                     .font(Brand.display(22, .headline)).foregroundStyle(q.open ? (low ? Brand.bad : Brand.goldHi) : Brand.muted)
                     .animation(.easeInOut, value: low)
                 if q.open && q.seconds > 0 {
@@ -185,17 +185,17 @@ private struct QuestionView: View {
                         }
                     }
                 case "multi":
-                    Text("Tick every right answer — wrong ticks cost points").foregroundStyle(Brand.muted)
+                    Text(t("Tick every right answer — wrong ticks cost points")).foregroundStyle(Brand.muted)
                     Keys(keys: shuffle(q.options.count).map { ($0, "\(letters[$0]). \(q.options[$0])") }, colours: true, picked: { picks.contains(q.options[$0]) }, enabled: !locked) {
                         let o = q.options[$0]; if let at = picks.firstIndex(of: o) { picks.remove(at: at) } else { picks.append(o) }
                     }
                 case "sequence":
-                    Text("Tap the items in order").foregroundStyle(Brand.muted)
+                    Text(t("Tap the items in order")).foregroundStyle(Brand.muted)
                     Keys(keys: shuffle(q.order.count).map { q.order[$0] }.map { ($0, q.items[$0]) }, colours: false, picked: { order.contains($0) }, enabled: !locked) { if !order.contains($0) { order.append($0) } }
                     ForEach(Array(order.enumerated()), id: \.offset) { n, i in Text("\(n + 1). \(q.items[i])").fontWeight(.semibold) }
-                    if !locked && !order.isEmpty { Button("Undo last") { order.removeLast() } }
+                    if !locked && !order.isEmpty { Button(t("Undo last")) { order.removeLast() } }
                 case "tiles":
-                    Text("Tap the tiles in order to build the answer").foregroundStyle(Brand.muted)
+                    Text(t("Tap the tiles in order to build the answer")).foregroundStyle(Brand.muted)
                     Text(tileWord(order.map { q.pieces[$0] }.joined(), q.wordLengths)).font(Brand.display(30))
                     // Tiles are always in a different order on each team's phone.
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 5), spacing: 8) {
@@ -207,7 +207,7 @@ private struct QuestionView: View {
                             }.disabled(locked || used)
                         }
                     }
-                    if !locked && !order.isEmpty { Button("Undo last") { order.removeLast() } }
+                    if !locked && !order.isEmpty { Button(t("Undo last")) { order.removeLast() } }
                 case "pinpoint":
                     PinpointView(server: model.serverBase, q: q, taps: $points, enabled: !locked)
                 case "wordsnake":
@@ -218,7 +218,7 @@ private struct QuestionView: View {
                             .padding(12).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12)).disabled(locked)
                     }
                 default:
-                    TextField(q.type == "nearest" ? "Your number (closest wins)" : q.type == "number" ? "Your number" : "Your answer", text: $text)
+                    TextField(q.type == "nearest" ? t("Your number (closest wins)") : q.type == "number" ? t("Your number") : t("Your answer"), text: $text)
                         .keyboardType(q.type == "number" || q.type == "nearest" ? .numbersAndPunctuation : .default)
                         .padding(14).background(Brand.panel, in: RoundedRectangle(cornerRadius: 14)).disabled(locked)
                         .onChange(of: text) { text = String($0.prefix(300)) }
@@ -226,9 +226,9 @@ private struct QuestionView: View {
             }
             Spacer(minLength: 12)
             if let submitted { ResultView(points: submitted.points) }
-            else if !q.open { Text(q.revealed ? "Answer revealed" : "Answers closed").foregroundStyle(Brand.muted) }
-            else { BigButton(title: "Lock in answer", enabled: !model.busy && ready) { model.submit(value) } }
-            if q.revealed, let answer = q.answer { Text("Answer: \(answer)").font(.title3.bold()).foregroundStyle(Brand.good) }
+            else if !q.open { Text(q.revealed ? t("Answer revealed") : t("Answers closed")).foregroundStyle(Brand.muted) }
+            else { BigButton(title: t("Lock in answer"), enabled: !model.busy && ready) { model.submit(value) } }
+            if q.revealed, let answer = q.answer { Text(t("Answer: {answer}", ["answer": answer])).font(.title3.bold()).foregroundStyle(Brand.good) }
             if q.revealed && !q.answerNote.isEmpty { Text(q.answerNote).foregroundStyle(Brand.muted) }
         }
         Color.clear.frame(height: 0)
@@ -298,10 +298,10 @@ private struct ResultView: View {
     let points: Double?
     var body: some View {
         let (text, colour): (String, Color) = {
-            guard let p = points else { return ("Final answer received", Brand.goldHi) }
-            if p > 0 { return ("+\(format(p)) \(p == 1 ? "point" : "points")", Brand.good) }
-            if p < 0 { return ("\(format(p)) points", Brand.bad) }
-            return ("No points this time", Brand.muted)
+            guard let p = points else { return (t("Final answer received"), Brand.goldHi) }
+            if p > 0 { return (p == 1 ? t("+1 point") : t("+{n} points", ["n": format(p)]), Brand.good) }
+            if p < 0 { return (t("{n} points", ["n": format(p)]), Brand.bad) }
+            return (t("No points this time"), Brand.muted)
         }()
         Text(text).font(Brand.display(28)).foregroundStyle(colour).frame(maxWidth: .infinity)
             .scaleEffect(points ?? 0 > 0 ? 1.06 : 1).animation(.spring(response: 0.35, dampingFraction: 0.5), value: points)
@@ -318,27 +318,27 @@ private struct BuzzerView: View {
             let position = (b.queue.filter { $0.status == "active" || $0.status == "queued" }.firstIndex { $0.team == teamId } ?? -1) + 1
             let canBuzz = model.connected && q.open && !q.paused && mine == nil && !b.lockedOut && model.game?.settings.ended != true
             let status: String = {
-                if b.lockedOut { return "Locked out — wrong answer on the last buzzer question" }
+                if b.lockedOut { return t("Locked out — wrong answer on the last buzzer question") }
                 switch mine {
-                case "active": return "You buzzed first — give your answer!"
-                case "queued": return "Buzzed · you are #\(position) in the queue"
-                case "wrong": return "Ruled wrong"
-                case "passed": return "Passed"
-                case "correct": return "Correct!"
-                default: return b.activeName.map { "\($0) is answering" } ?? (q.open ? "Buzz when you know it!" : "Buzzing closed")
+                case "active": return t("You buzzed first — give your answer!")
+                case "queued": return t("Buzzed · you are #{n} in the queue", ["n": position])
+                case "wrong": return t("Ruled wrong")
+                case "passed": return t("Passed")
+                case "correct": return t("Correct!")
+                default: return b.activeName.map { t("{name} is answering", ["name": $0]) } ?? (q.open ? t("Buzz when you know it!") : t("Buzzing closed"))
                 }
             }()
             VStack(spacing: 16) {
                 Button { UIImpactFeedbackGenerator(style: .heavy).impactOccurred(); model.buzz() } label: {
-                    Text("BUZZ").font(Brand.display(52)).foregroundStyle(canBuzz ? Brand.text : Brand.faint)
+                    Text(t("BUZZ")).font(Brand.display(52)).foregroundStyle(canBuzz ? Brand.text : Brand.faint)
                         .frame(width: 240, height: 240).background(canBuzz ? Brand.pink : Brand.raised, in: Circle())
                         .overlay(Circle().stroke(mine == "active" ? Brand.goldHi : Color.white.opacity(0.15), lineWidth: 6))
                         .scaleEffect(canBuzz ? 1 : 0.94).animation(.spring(), value: canBuzz)
-                }.disabled(!canBuzz || model.busy).accessibilityLabel("Buzz")
+                }.disabled(!canBuzz || model.busy).accessibilityLabel(t("Buzz"))
                 Text(status).font(Brand.display(20, .headline)).multilineTextAlignment(.center)
                 if b.agreeOpen {
-                    Text("\(b.activeName ?? "") answered “\(b.announced.isEmpty ? "…" : b.announced)”. Do you agree?").foregroundStyle(Brand.muted).multilineTextAlignment(.center)
-                    BigButton(title: b.agreed ? "✓ You agreed" : "I agree", colour: Brand.teal, enabled: !["active", "passed", "wrong"].contains(mine ?? "") && !b.agreed && !model.busy) { model.agree() }
+                    Text(t("{name} answered “{answer}”. Do you agree?", ["name": b.activeName ?? "", "answer": b.announced.isEmpty ? "…" : b.announced])).foregroundStyle(Brand.muted).multilineTextAlignment(.center)
+                    BigButton(title: b.agreed ? t("✓ You agreed") : t("I agree"), colour: Brand.teal, enabled: !["active", "passed", "wrong"].contains(mine ?? "") && !b.agreed && !model.busy) { model.agree() }
                 }
             }.frame(maxWidth: .infinity).padding(.vertical, 20)
         }
@@ -353,7 +353,7 @@ private struct MediaView: View {
     var body: some View {
         if !media.isEmpty, let url = URL(string: media.hasPrefix("http") ? media : server + media) {
             if media.range(of: #"\.(mp3|ogg|wav)$"#, options: [.regularExpression, .caseInsensitive]) != nil {
-                Button(playing ? "❚❚  Pause the clip" : "▶  Play the clip") {
+                Button(playing ? t("❚❚  Pause the clip") : t("▶  Play the clip")) {
                     if player == nil { player = AVPlayer(url: url) }
                     if playing { player?.pause() } else { player?.play() }
                     playing.toggle()
@@ -361,7 +361,7 @@ private struct MediaView: View {
                 .onDisappear { player?.pause() }
             } else {
                 AsyncImage(url: url) { image in image.resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 14)) } placeholder: { ProgressView() }
-                    .accessibilityLabel("Quiz picture")
+                    .accessibilityLabel(t("Quiz picture"))
             }
         }
     }

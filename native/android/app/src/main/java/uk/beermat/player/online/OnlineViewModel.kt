@@ -1,5 +1,6 @@
 package uk.beermat.player.online
 
+import uk.beermat.player.ui.t
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -45,7 +46,7 @@ class OnlineViewModel(app: Application) : AndroidViewModel(app) {
         if (_ui.value.busy) return
         _ui.update { it.copy(busy = true, message = "", error = false) }
         viewModelScope.launch {
-            try { block() } catch (e: OnlineError) { say(e.message ?: "", true) } catch (e: Exception) { say(e.message ?: "Something went wrong", true) }
+            try { block() } catch (e: OnlineError) { say(e.message ?: "", true) } catch (e: Exception) { say(e.message ?: t("Something went wrong"), true) }
             finally { _ui.update { it.copy(busy = false, profile = client.profile, outbox = client.outbox().length()) } }
         }
     }
@@ -53,33 +54,33 @@ class OnlineViewModel(app: Application) : AndroidViewModel(app) {
     fun setService(url: String) { client.baseUrl = url; _ui.update { it.copy(service = client.baseUrl) } }
 
     // ---- profile ----
-    fun signIn(email: String, password: String) = work { client.signIn(email, password); loadProfile(); say("Signed in") }
-    fun signUp(email: String, password: String, name: String) = work { client.signUp(email, password, name); loadProfile(); say("Account created: check your email to confirm it") }
-    fun signOut() = work { client.signOut(); _ui.update { it.copy(stats = null) }; say("Signed out") }
+    fun signIn(email: String, password: String) = work { client.signIn(email, password); loadProfile(); say(t("Signed in")) }
+    fun signUp(email: String, password: String, name: String) = work { client.signUp(email, password, name); loadProfile(); say(t("Account created: check your email to confirm it")) }
+    fun signOut() = work { client.signOut(); _ui.update { it.copy(stats = null) }; say(t("Signed out")) }
     fun refresh() = work { if (client.signedIn) loadProfile() }
 
     private suspend fun loadProfile() {
         runCatching { client.refreshProfile() }
         val flushed = client.flush()
-        if (flushed.sent > 0) say("${flushed.sent} result${if (flushed.sent == 1) "" else "s"} added to your profile")
+        if (flushed.sent > 0) say(t("{n} result(s) added to your profile", "n" to flushed.sent))
         val stats = runCatching { client.stats() }.getOrNull()
         _ui.update { it.copy(stats = stats ?: it.stats) }
         runCatching { client.favourites() }.getOrNull()?.let { f -> _ui.update { it.copy(favourites = List(f.getJSONArray("venues").length()) { i -> f.getJSONArray("venues").getJSONObject(i).getString("id") }.toSet()) } }
     }
 
-    fun rename(name: String) = work { client.updateProfile(JSONObject().put("displayName", name)); say("Saved") }
-    fun privacy(key: String, on: Boolean) = work { client.updateProfile(JSONObject().put("privacy", JSONObject().put(key, on))); say("Privacy saved") }
-    fun resendVerify() = work { client.resendVerify(); say("We've sent the email again") }
-    fun deleteAccount() = work { client.deleteAccount(); _ui.update { it.copy(stats = null) }; say("Your account and everything in it are deleted") }
+    fun rename(name: String) = work { client.updateProfile(JSONObject().put("displayName", name)); say(t("Saved")) }
+    fun privacy(key: String, on: Boolean) = work { client.updateProfile(JSONObject().put("privacy", JSONObject().put(key, on))); say(t("Privacy saved")) }
+    fun resendVerify() = work { client.resendVerify(); say(t("We’ve sent the email again")) }
+    fun deleteAccount() = work { client.deleteAccount(); _ui.update { it.copy(stats = null) }; say(t("Your account and everything in it are deleted")) }
     suspend fun exportData(): String = client.exportData().toString(2)
 
     /** The team's signed result from the quiz laptop, kept in the profile (or waiting until signed in and online). */
     fun keepResult(claim: JSONObject) = work {
         val r = client.saveResult(claim)
         say(when {
-            r.sent > 0 -> "Result kept in your profile"
-            !client.signedIn -> "Result kept on this phone: sign in under Profile to add it"
-            else -> "Result kept on this phone; it's added when BeerMat Online can be reached"
+            r.sent > 0 -> t("Result kept in your profile")
+            !client.signedIn -> t("Result kept on this phone: sign in under Profile to add it")
+            else -> t("Result kept on this phone; it’s added when BeerMat Online can be reached")
         })
     }
 
@@ -95,7 +96,7 @@ class OnlineViewModel(app: Application) : AndroidViewModel(app) {
         val r = client.venues()
         val list = r.getJSONArray("venues")
         _ui.update { it.copy(venues = List(list.length()) { i -> list.getJSONObject(i) },
-            venuesNote = when (r.optString("source")) { "cache" -> "Offline: the venues as last seen."; "list" -> "Offline: venues from BeerMat's venue list."; else -> "" }) }
+            venuesNote = when (r.optString("source")) { "cache" -> t("Offline: the venues as last seen."); "list" -> t("Offline: venues from BeerMat’s venue list."); else -> "" }) }
     }
 
     fun openVenue(id: String?) {

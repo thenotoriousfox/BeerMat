@@ -88,27 +88,27 @@ fun PlayScreen(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.onlin
     Column(Modifier.fillMaxSize()) {
         // Team bar: name, score, connection.
         Row(Modifier.fillMaxWidth().background(Brand.panel).padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(10.dp).clip(CircleShape).background(if (ui.connected) Brand.good else Brand.bad).semantics { contentDescription = if (ui.connected) "Connected" else "Reconnecting" })
+            Box(Modifier.size(10.dp).clip(CircleShape).background(if (ui.connected) Brand.good else Brand.bad).semantics { contentDescription = if (ui.connected) t("Connected") else t("Reconnecting") })
             Text(game.team?.name ?: "", fontWeight = FontWeight.Bold, fontSize = 17.sp, maxLines = 1, modifier = Modifier.padding(start = 10.dp).weight(1f))
             val mine = game.teams.firstOrNull { it.name == game.team?.name }
-            if (mine?.score != null && game.settings.leaderboardVisible) Text("${fmt(mine.score)} pts · #${mine.rank}", color = Brand.goldHi, fontWeight = FontWeight.Bold)
-            TextButton({ menu = !menu }) { Text(if (menu) "Close" else "Team", color = Brand.muted) }
+            if (mine?.score != null && game.settings.leaderboardVisible) Text(t("#{rank} · {score} pts", "rank" to mine.rank, "score" to fmt(mine.score)), color = Brand.goldHi, fontWeight = FontWeight.Bold)
+            TextButton({ menu = !menu }) { Text(if (menu) t("Close") else t("Team"), color = Brand.muted) }
         }
-        if (!ui.connected) Text("Connection lost — reconnecting…", color = Brand.onAccent, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
+        if (!ui.connected) Text(t("Connection lost — reconnecting…"), color = Brand.onAccent, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().background(Brand.bad).padding(6.dp))
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
             if (menu) TeamMenu(vm, ui)
             else when {
-                game.team?.waiting == true -> Lobby("You're in the waiting room", "The quizmaster will let you in shortly.")
+                game.team?.waiting == true -> Lobby(t("You’re in the waiting room"), t("The quizmaster will let you in shortly."))
                 game.settings.ended -> {
-                    Lobby("That's the quiz!", "Thanks for playing. Final scores are on the TV.")
+                    Lobby(t("That’s the quiz!"), t("Thanks for playing. Final scores are on the TV."))
                     // A live quiz's result, signed by the quiz laptop, can be kept in a BeerMat Online profile.
                     val scope = androidx.compose.runtime.rememberCoroutineScope()
-                    if (online.client.baseUrl.isNotBlank()) BigButton("Keep this result", enabled = !ui.busy) { scope.launch { vm.result()?.let(online::keepResult) } }
+                    if (online.client.baseUrl.isNotBlank()) BigButton(t("Keep this result"), enabled = !ui.busy) { scope.launch { vm.result()?.let(online::keepResult) } }
                     val o = online.ui.collectAsStateWithLifecycle().value
-                    if (o.message.isNotEmpty()) Text(o.message, color = if (o.error) Brand.bad else Brand.goldHi, modifier = Modifier.padding(top = 8.dp))
+                    if (o.message.isNotEmpty()) Text(t(o.message), color = if (o.error) Brand.bad else Brand.goldHi, modifier = Modifier.padding(top = 8.dp))
                 }
-                q == null -> { Lobby("You're in!", "Waiting for the quiz to start. Keep this app open."); Spacer(Modifier.height(24.dp)); TeamSetup(vm, ui) }
+                q == null -> { Lobby(t("You’re in!"), t("Waiting for the quiz to start. Keep this app open.")); Spacer(Modifier.height(24.dp)); TeamSetup(vm, ui) }
                 q.type !in NATIVE_TYPES -> BrowserRound(vm, q)
                 else -> Question(vm, ui, q)
             }
@@ -128,17 +128,17 @@ private fun Lobby(title: String, text: String) {
 
 @Composable
 private fun TeamMenu(vm: PlayerViewModel, ui: UiState) {
-    Text("Your team", style = MaterialTheme.typography.headlineMedium)
-    Text("Recovery code", color = Brand.muted, modifier = Modifier.padding(top = 12.dp))
+    Text(t("Your team"), style = MaterialTheme.typography.headlineMedium)
+    Text(t("Recovery code"), color = Brand.muted, modifier = Modifier.padding(top = 12.dp))
     Text(ui.secret, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 4.dp))
-    Text("Keep it to rejoin from another phone. The quizmaster can also give you a 4-digit code to move your team.", color = Brand.faint, fontSize = 13.sp)
+    Text(t("Keep it to rejoin from another phone. The quizmaster can also give you a 4-digit code to move your team."), color = Brand.faint, fontSize = 13.sp)
     TeamSetup(vm, ui)
     Spacer(Modifier.height(16.dp))
     HapticsSwitch(vm)
     Spacer(Modifier.height(16.dp))
-    OutlinedButton({ openInBrowser(vmContext(vm), vm.webPlayerUrl()) }, modifier = Modifier.fillMaxWidth()) { Text("Open in the browser instead") }
-    OutlinedButton(vm::switchTeam, modifier = Modifier.fillMaxWidth()) { Text("Switch team") }
-    OutlinedButton(vm::leave, modifier = Modifier.fillMaxWidth()) { Text("Other quizzes") }
+    OutlinedButton({ openInBrowser(vmContext(vm), vm.webPlayerUrl()) }, modifier = Modifier.fillMaxWidth()) { Text(t("Open in the browser instead")) }
+    OutlinedButton(vm::switchTeam, modifier = Modifier.fillMaxWidth()) { Text(t("Switch team")) }
+    OutlinedButton(vm::leave, modifier = Modifier.fillMaxWidth()) { Text(t("Other quizzes")) }
 }
 
 private fun vmContext(vm: PlayerViewModel) = vm.getApplication<android.app.Application>()
@@ -150,20 +150,20 @@ private fun TeamSetup(vm: PlayerViewModel, ui: UiState) {
     val team = game.team ?: return
     val names = uk.beermat.player.net.BUILT_IN_BUZZERS + game.buzzerNames
     var open by remember { mutableStateOf(false) }
-    Text("Your buzzer sound", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
+    Text(t("Your buzzer sound"), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
     Box {
-        OutlinedButton({ open = true }, modifier = Modifier.fillMaxWidth()) { Text(team.sound?.let { names.getOrNull(it) } ?: "Picked from your team name") }
+        OutlinedButton({ open = true }, modifier = Modifier.fillMaxWidth()) { Text(team.sound?.let { names.getOrNull(it) } ?: t("Picked from your team name")) }
         androidx.compose.material3.DropdownMenu(open, { open = false }) {
             names.forEachIndexed { i, name -> androidx.compose.material3.DropdownMenuItem({ Text(name) }, { open = false; vm.setSound(i) }) }
         }
     }
     if (game.settings.teamPhotos) {
         val pick = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(vm::setPhoto) }
-        Text("Team photo", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 16.dp))
-        Text(when { team.photo.isEmpty() -> "Add a team photo to appear on the big screen. The quizmaster approves it first."
-                    team.photoStatus == "approved" -> "✓ Approved — showing on the TV"; else -> "Waiting for the quizmaster to approve it" }, color = Brand.muted)
+        Text(t("Team photo"), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 16.dp))
+        Text(when { team.photo.isEmpty() -> t("Add a team photo to appear on the big screen. The quizmaster approves it first.")
+                    team.photoStatus == "approved" -> t("✓ Approved — showing on the TV"); else -> t("Waiting for the quizmaster to approve it") }, color = Brand.muted)
         OutlinedButton({ pick.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-            modifier = Modifier.fillMaxWidth()) { Text(if (team.photo.isEmpty()) "Choose a photo" else "Change the photo") }
+            modifier = Modifier.fillMaxWidth()) { Text(if (team.photo.isEmpty()) t("Choose a photo") else t("Change the photo")) }
     }
 }
 
@@ -172,9 +172,9 @@ private fun TeamSetup(vm: PlayerViewModel, ui: UiState) {
 private fun BrowserRound(vm: PlayerViewModel, q: Question) {
     val context = LocalContext.current
     QuestionHead(q, 0)
-    Text("This round plays in your phone's browser.", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 16.dp))
-    Text("It opens as your team, and you can come back here after.", color = Brand.muted, modifier = Modifier.padding(vertical = 8.dp))
-    BigButton("Open this round") { openInBrowser(context, vm.webPlayerUrl()) }
+    Text(t("This round plays in your phone’s browser."), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 16.dp))
+    Text(t("It opens as your team, and you can come back here after."), color = Brand.muted, modifier = Modifier.padding(vertical = 8.dp))
+    BigButton(t("Open this round")) { openInBrowser(context, vm.webPlayerUrl()) }
 }
 
 @Composable
@@ -191,9 +191,9 @@ private fun Countdown(q: Question, offset: Long) {
     LaunchedEffect(q.id, q.open, q.paused) { while (q.open && !q.paused) { now = System.currentTimeMillis(); delay(200) } }
     val left = if (q.paused) q.remaining else maxOf(0L, q.deadline - now - offset)
     val text = when {
-        q.paused -> "Paused · ${(q.remaining + 999) / 1000}s left"
-        !q.open || left <= 0 -> if (q.revealed) "Answer revealed" else "Answers closed"
-        else -> "${(left + 999) / 1000}s left"
+        q.paused -> t("Paused · {n}s remaining", "n" to (q.remaining + 999) / 1000)
+        !q.open || left <= 0 -> if (q.revealed) t("Answer revealed") else t("Answers closed")
+        else -> t("{n}s remaining", "n" to (left + 999) / 1000)
     }
     val low = q.open && !q.paused && left in 1..10000
     val colour by animateColorAsState(if (low) Brand.bad else Brand.goldHi, label = "time")
@@ -228,26 +228,26 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
         "choice", "vote" -> Keys(order(q.options.size).map { it to "${LETTERS[it]}. ${q.options[it]}" }, colours = true, picked = { q.options[it] == value }, enabled = !locked) { value = q.options[it] }
         "letter" -> LetterPad(order(26), value as? String ?: "", enabled = !locked) { value = it }
         "multi" -> {
-            Text("Tick every right answer — wrong ticks cost points", color = Brand.muted, modifier = Modifier.padding(bottom = 8.dp))
+            Text(t("Tick every right answer — wrong ticks cost points"), color = Brand.muted, modifier = Modifier.padding(bottom = 8.dp))
             @Suppress("UNCHECKED_CAST") val picked = value as List<String>
             Keys(order(q.options.size).map { it to "${LETTERS[it]}. ${q.options[it]}" }, colours = true, picked = { q.options[it] in picked }, enabled = !locked) {
                 val o = q.options[it]; value = if (o in picked) picked - o else picked + o
             }
         }
         "sequence" -> {
-            Text("Tap the items in order", color = Brand.muted)
+            Text(t("Tap the items in order"), color = Brand.muted)
             @Suppress("UNCHECKED_CAST") val picked = value as List<Int>
             Keys(order(q.order.size).map { q.order[it] }.map { it to q.items[it] }, colours = false, picked = { it in picked }, enabled = !locked) { if (it !in picked) value = picked + it }
             picked.forEachIndexed { n, i -> Text("${n + 1}. ${q.items[i]}", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp)) }
-            if (!locked && picked.isNotEmpty()) TextButton({ value = picked.dropLast(1) }) { Text("Undo last") }
+            if (!locked && picked.isNotEmpty()) TextButton({ value = picked.dropLast(1) }) { Text(t("Undo last")) }
         }
         "tiles" -> {
-            Text("Tap the tiles in order to build the answer", color = Brand.muted)
+            Text(t("Tap the tiles in order to build the answer"), color = Brand.muted)
             @Suppress("UNCHECKED_CAST") val picked = value as List<Int>
             Text(tileWord(picked.joinToString("") { q.pieces[it] }, q.wordLengths), fontFamily = Display, fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp))
             // Tiles are always in a different order on each team's phone.
             LetterTiles(seededOrder(q.pieces.size, "$teamId:${q.id}"), q.pieces, picked, enabled = !locked) { value = picked + it }
-            if (!locked && picked.isNotEmpty()) TextButton({ value = picked.dropLast(1) }) { Text("Undo last") }
+            if (!locked && picked.isNotEmpty()) TextButton({ value = picked.dropLast(1) }) { Text(t("Undo last")) }
         }
         "pinpoint" -> {
             @Suppress("UNCHECKED_CAST") val taps = value as List<List<Double>>
@@ -266,7 +266,7 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
         }
         else -> OutlinedTextField(
             value as String, { value = it.take(300) }, enabled = !locked, singleLine = true,
-            label = { Text(when (q.type) { "nearest" -> "Your number (closest wins)"; "number" -> "Your number"; else -> "Your answer" }) },
+            label = { Text(when (q.type) { "nearest" -> t("Your number (closest wins)"); "number" -> t("Your number"); else -> t("Your answer") }) },
             keyboardOptions = KeyboardOptions(keyboardType = if (q.type == "number" || q.type == "nearest") KeyboardType.Decimal else KeyboardType.Text),
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("answer"),
         )
@@ -275,10 +275,10 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
     Spacer(Modifier.height(16.dp))
     when {
         submitted != null -> Result(q, submitted.points)
-        !q.open -> Text(if (q.revealed) "Answer revealed" else "Answers closed", color = Brand.muted)
-        else -> BigButton("Lock in answer", enabled = !ui.busy && ready(q, value)) { vm.submit(value) }
+        !q.open -> Text(if (q.revealed) t("Answer revealed") else t("Answers closed"), color = Brand.muted)
+        else -> BigButton(t("Lock in answer"), enabled = !ui.busy && ready(q, value)) { vm.submit(value) }
     }
-    if (q.revealed && q.answer != null) Text("Answer: ${q.answer}", color = Brand.good, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(top = 12.dp))
+    if (q.revealed && q.answer != null) Text(t("Answer: {answer}", "answer" to q.answer), color = Brand.good, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(top = 12.dp))
     if (q.revealed && q.answerNote.isNotEmpty()) Text(q.answerNote, color = Brand.muted)
 }
 
@@ -286,10 +286,10 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
 @Composable
 private fun Result(q: Question, points: Double?) {
     val (text, colour) = when {
-        points == null -> "Final answer received" to Brand.goldHi
-        points > 0 -> "+${fmt(points)} ${if (points == 1.0) "point" else "points"}" to Brand.good
-        points < 0 -> "${fmt(points)} points" to Brand.bad
-        else -> "No points this time" to Brand.muted
+        points == null -> t("Final answer received") to Brand.goldHi
+        points > 0 -> (if (points == 1.0) t("+1 point") else t("+{n} points", "n" to fmt(points))) to Brand.good
+        points < 0 -> t("{n} points", "n" to fmt(points)) to Brand.bad
+        else -> t("No points this time") to Brand.muted
     }
     val pop by animateFloatAsState(if (points != null && points > 0) 1.08f else 1f, label = "pop")
     Text(text, color = colour, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.scale(pop).fillMaxWidth(), textAlign = TextAlign.Center)
@@ -372,13 +372,13 @@ private fun Buzzer(vm: PlayerViewModel, ui: UiState, q: Question) {
     val position = b.queue.filter { it.status == "active" || it.status == "queued" }.indexOfFirst { it.team == ui.game?.team?.id } + 1
     val canBuzz = ui.connected && q.open && !q.paused && mine == null && !b.lockedOut && ui.game?.settings?.ended != true
     val status = when {
-        b.lockedOut -> "Locked out — wrong answer on the last buzzer question"
-        mine == "active" -> "You buzzed first — give your answer!"
-        mine == "queued" -> "Buzzed · you are #$position in the queue"
-        mine == "wrong" -> "Ruled wrong"; mine == "passed" -> "Passed"; mine == "correct" -> "Correct!"
-        b.activeName != null -> "${b.activeName} is answering"
-        q.open -> "Buzz when you know it!"
-        else -> "Buzzing closed"
+        b.lockedOut -> t("Locked out — wrong answer on the last buzzer question")
+        mine == "active" -> t("You buzzed first — give your answer!")
+        mine == "queued" -> t("Buzzed · you are #{n} in the queue", "n" to position)
+        mine == "wrong" -> t("Ruled wrong"); mine == "passed" -> t("Passed"); mine == "correct" -> t("Correct!")
+        b.activeName != null -> t("{name} is answering", "name" to b.activeName)
+        q.open -> t("Buzz when you know it!")
+        else -> t("Buzzing closed")
     }
     val press by animateFloatAsState(if (canBuzz) 1f else .94f, label = "buzz")
     Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
@@ -386,15 +386,15 @@ private fun Buzzer(vm: PlayerViewModel, ui: UiState, q: Question) {
             Modifier.size(240.dp).scale(press).clip(CircleShape).background(if (canBuzz) Brand.pink else Brand.raised)
                 .border(6.dp, if (mine == "active") Brand.goldHi else Color.White.copy(alpha = .15f), CircleShape)
                 .clickable(enabled = canBuzz && !ui.busy) { haptics.performHapticFeedback(HapticFeedbackType.LongPress); vm.buzz() }
-                .semantics { contentDescription = "Buzz" },
+                .semantics { contentDescription = t("Buzz") },
             contentAlignment = Alignment.Center,
-        ) { Text("BUZZ", fontFamily = Display, fontSize = 52.sp, fontWeight = FontWeight.Bold, color = if (canBuzz) Brand.text else Brand.faint) }
+        ) { Text(t("BUZZ"), fontFamily = Display, fontSize = 52.sp, fontWeight = FontWeight.Bold, color = if (canBuzz) Brand.text else Brand.faint) }
     }
     Text(status, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
     if (b.agreeOpen) {
-        Text("${b.activeName ?: ""} answered “${b.announced.ifEmpty { "…" }}”. Do you agree?", color = Brand.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp))
+        Text(t("{name} answered “{answer}”. Do you agree?", "name" to (b.activeName ?: ""), "answer" to b.announced.ifEmpty { "…" }), color = Brand.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp))
         val canAgree = mine !in setOf("active", "passed", "wrong") && !b.agreed
-        BigButton(if (b.agreed) "✓ You agreed" else "I agree", enabled = canAgree && !ui.busy, colour = Brand.teal) { vm.agree() }
+        BigButton(if (b.agreed) t("✓ You agreed") else t("I agree"), enabled = canAgree && !ui.busy, colour = Brand.teal) { vm.agree() }
     }
 }
 
@@ -408,7 +408,7 @@ private fun Media(server: String, q: Question) {
         DisposableEffect(player) { onDispose { player.release() } }
         var playing by remember(url) { mutableStateOf(false) }
         OutlinedButton({ if (playing) player.pause() else player.start(); playing = !playing }, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-            Text(if (playing) "❚❚  Pause the clip" else "▶  Play the clip")
+            Text(if (playing) t("❚❚  Pause the clip") else t("▶  Play the clip"))
         }
         return
     }
@@ -416,7 +416,7 @@ private fun Media(server: String, q: Question) {
         value = withContext(Dispatchers.IO) { try { URL(url).openStream().use { BitmapFactory.decodeStream(it) } } catch (_: Exception) { null } }
     }
     bitmap?.let {
-        Image(it.asImageBitmap(), "Quiz picture", contentScale = ContentScale.Fit,
+        Image(it.asImageBitmap(), t("Quiz picture"), contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxWidth().aspectRatio(it.width.toFloat() / it.height).clip(RoundedCornerShape(14.dp)).padding(vertical = 8.dp))
     }
 }

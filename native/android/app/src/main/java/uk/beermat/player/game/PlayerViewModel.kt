@@ -1,5 +1,6 @@
 package uk.beermat.player.game
 
+import uk.beermat.player.ui.t
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -67,17 +68,17 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         when (val s = Scanned.parse(text)) {
             is Scanned.Address -> connect(s.url)
             is Scanned.Wifi -> _ui.update { it.copy(wifi = s, message = "", error = false) }
-            Scanned.Unknown -> say("That code isn't a BeerMat quiz.", true)
+            Scanned.Unknown -> say(t("That code isn’t a BeerMat quiz."), true)
         }
     }
 
     fun dismissWifi() = _ui.update { it.copy(wifi = null) }
 
     fun connect(address: String) {
-        val quiz = try { QuizServer(address) } catch (_: Exception) { return say("That doesn't look like a quiz address.", true) }
+        val quiz = try { QuizServer(address) } catch (_: Exception) { return say(t("That doesn’t look like a quiz address."), true) }
         work {
             val hello = quiz.hello()
-            if (hello.protocol > PROTOCOL) throw QuizError("This quiz needs a newer BeerMat app. You can still play in the phone's browser.", 0)
+            if (hello.protocol > PROTOCOL) throw QuizError(t("This quiz needs a newer BeerMat app. You can still play in the phone’s browser."), 0)
             server = quiz
             identity.remember(quiz.base, hello.title)
             _ui.update { it.copy(server = quiz.base, hello = hello, recent = identity.recent(), wifi = null) }
@@ -92,7 +93,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         play(secret, state); true
     } catch (e: QuizError) {
         // The quiz moved on (a new quiz forgets every team) or the code was replaced.
-        if (e.status == 401) { identity.forgetTeam(server!!.base); say("A new quiz has started — pick your team name again.") } else say(e.message ?: "", true)
+        if (e.status == 401) { identity.forgetTeam(server!!.base); say(t("A new quiz has started — pick your team name again.")) } else say(e.message ?: "", true)
         false
     }
 
@@ -108,7 +109,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         val state = server!!.state(secret)
         identity.saveTeam(Identity.Saved(server!!.base, secret, state.team?.name ?: "", state.event))
         play(secret, state)
-        say("Welcome back")
+        say(t("Welcome back"))
     }
 
     fun leave() {
@@ -142,7 +143,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             try { show(secret, quiz.state(secret)) } catch (e: QuizError) {
                 if (e.status == 401) {
                     identity.forgetTeam(quiz.base); live?.cancel()
-                    _ui.update { it.copy(stage = Stage.Join, game = null, secret = "", message = "A new quiz has started — pick your team name again.", error = false) }
+                    _ui.update { it.copy(stage = Stage.Join, game = null, secret = "", message = t("A new quiz has started — pick your team name again."), error = false) }
                 } else say(e.message ?: "", true)
             } catch (_: Exception) { _ui.update { it.copy(connected = false) } }
         }
@@ -170,9 +171,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun buzz() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.buzz(_ui.value.secret, q.id); refresh() } }
 
     /** The signed result to keep (after the quiz ends); null with a message when there's none. */
-    suspend fun result(): org.json.JSONObject? = try { server?.result(_ui.value.secret) } catch (e: QuizError) { say(e.message ?: "", true); null } catch (_: Exception) { say("Can't reach the quiz", true); null }
+    suspend fun result(): org.json.JSONObject? = try { server?.result(_ui.value.secret) } catch (e: QuizError) { say(e.message ?: "", true); null } catch (_: Exception) { say(t("Can’t reach the quiz"), true); null }
 
-    fun setSound(index: Int) = work(quiet = true) { server!!.sound(_ui.value.secret, index); say("Buzzer sound saved"); refresh() }
+    fun setSound(index: Int) = work(quiet = true) { server!!.sound(_ui.value.secret, index); say(t("Buzzer sound saved")); refresh() }
 
     /** A picture from the phone, cropped square to 360 px and sent as a JPEG (as the browser player does). */
     fun setPhoto(uri: android.net.Uri) = work(quiet = true) {
@@ -184,12 +185,12 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             val small = android.graphics.Bitmap.createScaledBitmap(square, 360, 360, true)
             java.io.ByteArrayOutputStream().also { small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }.toByteArray()
         }
-        server!!.photo(_ui.value.secret, jpeg); say("Photo sent: the quizmaster approves it first"); refresh()
+        server!!.photo(_ui.value.secret, jpeg); say(t("Photo sent: the quizmaster approves it first")); refresh()
     }
 
-    fun claimBingo() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.bingo(_ui.value.secret, q.id); say("BINGO called — the quizmaster is checking"); refresh() } }
+    fun claimBingo() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.bingo(_ui.value.secret, q.id); say(t("BINGO called — the quizmaster is checking")); refresh() } }
 
-    fun tap() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.tap(_ui.value.secret, q.id); say("Tap recorded"); refresh() } }
+    fun tap() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.tap(_ui.value.secret, q.id); say(t("Tap recorded")); refresh() } }
 
     fun goWide() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.goWide(_ui.value.secret, q.id); refresh() } }
 
@@ -221,7 +222,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         _ui.update { it.copy(busy = true, message = if (quiet) it.message else "", error = false) }
         viewModelScope.launch {
             try { block() } catch (e: QuizError) { say(e.message ?: "", true) } catch (_: Exception) {
-                say("Can't reach the quiz. Check you're on the quiz Wi-Fi, then try again.", true)
+                say(t("Can’t reach the quiz. Check you’re on the quiz Wi-Fi, then try again."), true)
             } finally { _ui.update { it.copy(busy = false) } }
         }
     }

@@ -64,16 +64,16 @@ fun Pinpoint(server: String, q: Question, taps: List<List<Double>>, enabled: Boo
     }
     val most = if (q.raw.optBoolean("goWide")) 2 else 1
     val target = q.raw.optJSONObject("target")
-    Text(if (most == 2) "Tap the picture. Go wide: a second tap scores ${q.raw.optInt("goWidePoints")} if your first misses." else "Tap the picture to place your answer",
+    Text(if (most == 2) t("Tap the picture. Go wide: a second tap scores {n} if your first misses.", "n" to q.raw.optInt("goWidePoints")) else t("Tap the picture to place your answer"),
         color = Brand.muted, modifier = Modifier.padding(bottom = 8.dp))
-    val image = bitmap ?: return Text("Loading the picture…", color = Brand.faint)
+    val image = bitmap ?: return Text(t("Loading the picture…"), color = Brand.faint)
     Box(Modifier.fillMaxWidth().aspectRatio(image.width.toFloat() / image.height).clip(RoundedCornerShape(12.dp))
         .pointerInput(enabled, taps) {
             if (enabled) detectTapGestures { at ->
                 val point = listOf((at.x / size.width).toDouble().coerceIn(0.0, 1.0), (at.y / size.height).toDouble().coerceIn(0.0, 1.0))
                 onTaps(if (taps.size < most) taps + listOf(point) else taps.dropLast(1) + listOf(point))
             }
-        }.semantics { contentDescription = "Quiz picture: tap to place your answer" }) {
+        }.semantics { contentDescription = t("Quiz picture: tap to place your answer") }) {
         Image(image.asImageBitmap(), null, contentScale = ContentScale.FillBounds, modifier = Modifier.matchParentSize())
         Canvas(Modifier.matchParentSize()) {
             taps.forEachIndexed { i, t ->
@@ -87,7 +87,7 @@ fun Pinpoint(server: String, q: Question, taps: List<List<Double>>, enabled: Boo
             }
         }
     }
-    if (enabled && taps.isNotEmpty()) TextButton({ onTaps(taps.dropLast(1)) }) { Text("Undo tap") }
+    if (enabled && taps.isNotEmpty()) TextButton({ onTaps(taps.dropLast(1)) }) { Text(t("Undo tap")) }
 }
 
 /** Word snake: trace the answer, each letter touching the last (diagonals too); a letter that doesn't touch starts again. */
@@ -99,8 +99,8 @@ fun WordSnake(vm: PlayerViewModel, q: Question, path: List<Int>, enabled: Boolea
     val wide = q.raw.optJSONArray("wideCells")?.ints()
     val haptics = LocalHapticFeedback.current
     fun adjacent(a: Int, b: Int) = a != b && kotlin.math.abs(a / n - b / n) <= 1 && kotlin.math.abs(a % n - b % n) <= 1
-    Text("Trace the answer: each letter touches the last, diagonals too.", color = Brand.muted)
-    Text(path.joinToString("") { letters[it] }.ifEmpty { "Tap the first letter" }, fontFamily = Display, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp))
+    Text(t("Trace the answer: each letter touches the last, diagonals too."), color = Brand.muted)
+    Text(path.joinToString("") { letters[it] }.ifEmpty { t("Tap the first letter") }, fontFamily = Display, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp))
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (row in 0 until n) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (col in 0 until n) {
@@ -120,8 +120,8 @@ fun WordSnake(vm: PlayerViewModel, q: Question, path: List<Int>, enabled: Boolea
         }
     }
     Row {
-        if (enabled && path.isNotEmpty()) TextButton({ onPath(emptyList()) }) { Text("Start again") }
-        if (enabled && q.raw.optBoolean("goWide") && wide == null) TextButton({ vm.goWide() }) { Text("Go wide (scores ${q.raw.optInt("goWidePoints")})") }
+        if (enabled && path.isNotEmpty()) TextButton({ onPath(emptyList()) }) { Text(t("Start again")) }
+        if (enabled && q.raw.optBoolean("goWide") && wide == null) TextButton({ vm.goWide() }) { Text(t("Go wide (scores {n})", "n" to q.raw.optInt("goWidePoints"))) }
     }
 }
 
@@ -137,10 +137,10 @@ fun Bingo(vm: PlayerViewModel, ui: UiState, q: Question) {
     val checking = mine?.optString("status") == "pending"
     val turnedDown = mine?.optString("status") == "wrong" && mine.optInt("seq") == calls
     val claimed = b.optBoolean("claimed")
-    Text(if (music) "Music bingo · ${b.optInt("played")} played" else "${b.optInt("count")} called", color = Brand.muted)
-    Text(if (music) (if (b.optInt("played") > 0) "Song ${b.optInt("played")}" else "–") else (if (b.isNull("last")) "–" else b.optInt("last").toString()),
+    Text(if (music) t("Music bingo · {n} played", "n" to b.optInt("played")) else t("{n} called", "n" to b.optInt("count")), color = Brand.muted)
+    Text(if (music) (if (b.optInt("played") > 0) t("Song {n}", "n" to b.optInt("played")) else "–") else (if (b.isNull("last")) "–" else b.optInt("last").toString()),
         fontFamily = Display, fontSize = 64.sp, fontWeight = FontWeight.Bold, color = Brand.goldHi)
-    if (music) b.optJSONArray("titles").strings().lastOrNull()?.let { Text("Revealed: $it", color = Brand.muted) }
+    if (music) b.optJSONArray("titles").strings().lastOrNull()?.let { Text(t("Revealed: {title}", "title" to it), color = Brand.muted) }
     else if (!b.isNull("phrase")) Text(b.optString("phrase"), color = Brand.muted)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(vertical = 12.dp)) {
         for (r in 0 until (card?.length() ?: 0)) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -157,12 +157,12 @@ fun Bingo(vm: PlayerViewModel, ui: UiState, q: Question) {
             }
         }
     }
-    BigButton("BINGO!", enabled = ui.connected && q.live && !q.paused && !claimed && !b.optBoolean("over") && !checking && !turnedDown && !ui.busy, colour = Brand.pink) { vm.claimBingo() }
+    BigButton(t("BINGO!"), enabled = ui.connected && q.live && !q.paused && !claimed && !b.optBoolean("over") && !checking && !turnedDown && !ui.busy, colour = Brand.pink) { vm.claimBingo() }
     Text(when {
-        claimed -> "✓ Bingo! The quizmaster says yes."
-        checking -> "Your BINGO call is being checked…"
-        turnedDown -> "Not a bingo this time — keep playing"
-        else -> b.optJSONArray("winners").strings().takeIf { it.isNotEmpty() }?.let { "Winners: ${it.joinToString(", ")}" } ?: ""
+        claimed -> t("✓ Bingo! The quizmaster says yes.")
+        checking -> t("Your BINGO call is being checked…")
+        turnedDown -> t("Not a bingo this time — keep playing")
+        else -> b.optJSONArray("winners").strings().takeIf { it.isNotEmpty() }?.let { t("Winners: {names}", "names" to it.joinToString(", ")) } ?: ""
     }, color = Brand.goldHi, modifier = Modifier.padding(top = 8.dp))
 }
 
@@ -175,16 +175,16 @@ fun Clips(vm: PlayerViewModel, ui: UiState, q: Question) {
     val canTap = ui.connected && q.live && !q.paused && playing != null && tapped == null
     val haptics = LocalHapticFeedback.current
     Text(when {
-        tapped != null -> "You tapped: $tapped"
-        playing != null -> "🎵 Clip $playing of ${c.optInt("count")}"
-        q.live -> "Get ready — listen for the clips"
-        else -> "Clips finished"
+        tapped != null -> t("You tapped: {clip}", "clip" to tapped)
+        playing != null -> t("🎵 Clip {n} of {count}", "n" to playing, "count" to c.optInt("count"))
+        q.live -> t("Get ready — listen for the clips")
+        else -> t("Clips finished")
     }, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 12.dp))
     Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
         Box(Modifier.size(220.dp).clip(CircleShape).background(if (canTap) Brand.teal else Brand.raised).border(6.dp, Brand.text.copy(alpha = .15f), CircleShape)
             .clickable(enabled = canTap && !ui.busy) { haptics.performHapticFeedback(HapticFeedbackType.LongPress); vm.tap() }
-            .semantics { contentDescription = "Tap for this clip" }, contentAlignment = Alignment.Center) {
-            Text("TAP", fontFamily = Display, fontSize = 52.sp, fontWeight = FontWeight.Bold, color = if (canTap) Brand.onAccent else Brand.faint)
+            .semantics { contentDescription = t("Tap for this clip") }, contentAlignment = Alignment.Center) {
+            Text(t("TAP"), fontFamily = Display, fontSize = 52.sp, fontWeight = FontWeight.Bold, color = if (canTap) Brand.onAccent else Brand.faint)
         }
     }
 }

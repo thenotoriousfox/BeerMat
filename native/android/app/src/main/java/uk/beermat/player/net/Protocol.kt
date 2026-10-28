@@ -47,7 +47,7 @@ data class Question(
 
 data class Answer(val value: Any?, val points: Double?)
 
-data class Settings(val title: String, val ended: Boolean, val registrationOpen: Boolean, val scrambleKeypads: Boolean, val leaderboardVisible: Boolean, val teamPhotos: Boolean = false)
+data class Settings(val title: String, val ended: Boolean, val registrationOpen: Boolean, val scrambleKeypads: Boolean, val leaderboardVisible: Boolean, val teamPhotos: Boolean = false, val language: String = "en")
 
 data class PlayerState(
     val protocol: Int, val serverTime: Long, val build: String, val event: String,
@@ -73,7 +73,7 @@ object Parse {
             protocol = o.optInt("protocol", 0), serverTime = o.optLong("serverTime", System.currentTimeMillis()),
             build = o.str("build"), event = o.str("event"),
             settings = Settings(s.optString("title", "BeerMat"), s.optBoolean("ended"), s.optBoolean("registrationOpen", true),
-                s.optBoolean("scrambleKeypads"), s.optBoolean("leaderboardVisible", true), s.optBoolean("teamPhotos")),
+                s.optBoolean("scrambleKeypads"), s.optBoolean("leaderboardVisible", true), s.optBoolean("teamPhotos"), s.optString("language", "en")),
             team = o.optJSONObject("team")?.let { Team(it.str("id"), it.str("name"), it.optBoolean("waiting"), if (it.isNull("sound") || !it.has("sound")) null else it.optInt("sound"), it.str("photo"), it.str("photoStatus")) },
             buzzerNames = o.optJSONObject("sounds")?.optJSONArray("buzzers")?.let { a -> List(a.length()) { a.optJSONObject(it)?.optString("name") ?: "" } } ?: emptyList(),
             question = o.optJSONObject("question")?.let(::question),

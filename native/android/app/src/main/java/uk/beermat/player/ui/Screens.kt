@@ -71,6 +71,8 @@ import uk.beermat.player.game.UiState
 fun BeerMatApp(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.online.OnlineViewModel, scan: () -> Unit) {
     val o = online.ui.collectAsStateWithLifecycle().value
     var tab by rememberSaveable { mutableStateOf(0) }
+    // In a quiz, the quiz's language (the quizmaster chooses it, as for the TV and browsers); elsewhere the phone's.
+    I18n.lang = ui.game?.settings?.language ?: I18n.phone
     Box(
         Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF241046), Brand.bg, Brand.bg2)))
             .safeDrawingPadding().imePadding()
@@ -92,7 +94,7 @@ fun BeerMatApp(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.onlin
             }
             // The app's own screens around the quiz; a quiz in play has the whole screen (Team → Other quizzes leads back).
             if (ui.stage == Stage.Connect) Row(Modifier.fillMaxWidth().background(Brand.panel).padding(vertical = 6.dp)) {
-                listOf("🍺" to "Play", "🔎" to "Find a quiz", "🗺" to "Map", "👤" to "Profile").forEachIndexed { i, (icon, label) ->
+                listOf("🍺" to t("Play"), "🔎" to t("Find a quiz"), "🗺" to t("Map"), "👤" to t("Profile")).forEachIndexed { i, (icon, label) ->
                     Column(Modifier.weight(1f).clickable { tab = i }.padding(vertical = 4.dp).testTag("tab-$label"), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(icon, fontSize = 20.sp)
                         Text(label, fontSize = 12.sp, color = if (tab == i) Brand.gold else Brand.muted, fontWeight = if (tab == i) FontWeight.Bold else FontWeight.Normal)
@@ -108,7 +110,7 @@ fun BeerMatApp(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.onlin
 @Composable
 fun Message(ui: UiState) {
     if (ui.message.isNotEmpty()) Text(
-        ui.message, color = if (ui.error) Brand.bad else Brand.goldHi, fontWeight = FontWeight.SemiBold,
+        t(ui.message), color = if (ui.error) Brand.bad else Brand.goldHi, fontWeight = FontWeight.SemiBold,
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).semantics { liveRegion = LiveRegionMode.Polite },
     )
 }
@@ -141,22 +143,22 @@ fun ConnectScreen(vm: PlayerViewModel, ui: UiState, scan: () -> Unit) {
     val focus = androidx.compose.ui.platform.LocalFocusManager.current
     val connect = { focus.clearFocus(); vm.connect(address) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
-        Header("BeerMat", "Play the quiz")
-        Text("Scan the code on the TV", style = MaterialTheme.typography.displaySmall)
-        Text("No account, no internet: the quiz runs on the quizmaster's laptop.", color = Brand.muted, modifier = Modifier.padding(top = 6.dp, bottom = 20.dp))
-        BigButton("Scan the TV's code", enabled = !ui.busy, onClick = scan)
+        Header("BeerMat", t("Play the quiz"))
+        Text(t("Scan the code on the TV"), style = MaterialTheme.typography.displaySmall)
+        Text(t("No account, no internet: the quiz runs on the quizmaster’s laptop."), color = Brand.muted, modifier = Modifier.padding(top = 6.dp, bottom = 20.dp))
+        BigButton(t("Scan the TV’s code"), enabled = !ui.busy, onClick = scan)
         Spacer(Modifier.height(24.dp))
-        Text("Or type the address on the TV", color = Brand.muted)
+        Text(t("Or type the address on the TV"), color = Brand.muted)
         OutlinedTextField(
             address, { address = it }, singleLine = true, placeholder = { Text("10.42.0.1") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
             keyboardActions = KeyboardActions(onGo = { connect() }),
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("address"),
         )
-        OutlinedButton({ connect() }, enabled = address.isNotBlank() && !ui.busy, modifier = Modifier.fillMaxWidth()) { Text("Connect") }
+        OutlinedButton({ connect() }, enabled = address.isNotBlank() && !ui.busy, modifier = Modifier.fillMaxWidth()) { Text(t("Connect")) }
         Message(ui)
         if (ui.recent.isNotEmpty()) {
-            Text("Recent quizzes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
+            Text(t("Recent quizzes"), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
             ui.recent.forEach { r ->
                 Row(
                     Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(14.dp)).background(Brand.panel)
@@ -164,7 +166,7 @@ fun ConnectScreen(vm: PlayerViewModel, ui: UiState, scan: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(r.title.ifEmpty { "Quiz" }, fontWeight = FontWeight.Bold)
+                        Text(r.title.ifEmpty { t("Quiz") }, fontWeight = FontWeight.Bold)
                         Text(r.server.removePrefix("http://"), color = Brand.faint, fontSize = 13.sp)
                     }
                     Text("›", color = Brand.gold, fontSize = 28.sp)
@@ -184,21 +186,21 @@ fun JoinScreen(vm: PlayerViewModel, ui: UiState) {
     val hello = ui.hello
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
         Header(hello?.title ?: "BeerMat", ui.server.removePrefix("http://"))
-        if (hello?.rehearsal == true) Pill("REHEARSAL", Brand.teal)
-        Text("Pick a team name", style = MaterialTheme.typography.displaySmall, modifier = Modifier.padding(top = 12.dp))
+        if (hello?.rehearsal == true) Pill(t("REHEARSAL"), Brand.teal)
+        Text(t("Pick a team name"), style = MaterialTheme.typography.displaySmall, modifier = Modifier.padding(top = 12.dp))
         OutlinedTextField(
-            name, { if (it.length <= 40) name = it }, singleLine = true, label = { Text("Team name") },
+            name, { if (it.length <= 40) name = it }, singleLine = true, label = { Text(t("Team name")) },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (name.trim().length >= 2) join() }),
             modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).testTag("teamName"),
         )
-        BigButton("Join the quiz", enabled = name.trim().length >= 2 && !ui.busy && hello?.registrationOpen != false) { join() }
-        if (hello?.registrationOpen == false) Text("Registration is closed. Ask the quizmaster.", color = Brand.muted, modifier = Modifier.padding(top = 8.dp))
+        BigButton(t("Join the quiz"), enabled = name.trim().length >= 2 && !ui.busy && hello?.registrationOpen != false) { join() }
+        if (hello?.registrationOpen == false) Text(t("Registration is closed. Ask the quizmaster."), color = Brand.muted, modifier = Modifier.padding(top = 8.dp))
         Message(ui)
-        Text("Already playing?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 28.dp))
-        Text("Type your recovery code, or the 4-digit code the quizmaster gives you to move your team to this phone.", color = Brand.muted)
-        OutlinedTextField(code, { code = it.trim() }, singleLine = true, label = { Text("Recovery code") }, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
-        OutlinedButton({ vm.recover(code) }, enabled = code.isNotEmpty() && !ui.busy, modifier = Modifier.fillMaxWidth()) { Text("Continue as my team") }
-        TextButton(vm::leave, modifier = Modifier.padding(top = 16.dp)) { Text("‹ Other quizzes") }
+        Text(t("Already playing?"), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 28.dp))
+        Text(t("Type your recovery code, or the 4-digit code the quizmaster gives you to move your team to this phone."), color = Brand.muted)
+        OutlinedTextField(code, { code = it.trim() }, singleLine = true, label = { Text(t("Recovery code")) }, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
+        OutlinedButton({ vm.recover(code) }, enabled = code.isNotEmpty() && !ui.busy, modifier = Modifier.fillMaxWidth()) { Text(t("Continue as my team")) }
+        TextButton(vm::leave, modifier = Modifier.padding(top = 16.dp)) { Text(t("‹ Other quizzes")) }
     }
 }
 
@@ -209,14 +211,14 @@ fun RehearsalScreen(vm: PlayerViewModel, ui: UiState) {
         Box(Modifier.size(120.dp).clip(CircleShape).background(Brand.good.copy(alpha = .18f)).border(3.dp, Brand.good, CircleShape), contentAlignment = Alignment.Center) {
             Text("✓", color = Brand.good, fontSize = 64.sp, fontWeight = FontWeight.Bold)
         }
-        Text(if (ui.connected) "You're connected" else "Reconnecting…", style = MaterialTheme.typography.displaySmall, modifier = Modifier.padding(top = 24.dp))
+        Text(if (ui.connected) t("You’re connected") else t("Reconnecting…"), style = MaterialTheme.typography.displaySmall, modifier = Modifier.padding(top = 24.dp))
         Text(ui.game?.settings?.title ?: "", color = Brand.goldHi, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 4.dp))
         Text(
-            "This is a rehearsal. Your phone reached the quiz, so it'll work on the night, but playing is switched off: the quizmaster is testing with simulated teams.",
+            t("This is a rehearsal. Your phone reached the quiz, so it’ll work on the night, but playing is switched off: the quizmaster is testing with simulated teams."),
             color = Brand.muted, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 16.dp),
         )
-        Pill(if (ui.connected) "● CONNECTED" else "○ RECONNECTING…", if (ui.connected) Brand.good else Brand.bad, Modifier.padding(top = 24.dp))
-        TextButton(vm::leave, modifier = Modifier.padding(top = 24.dp)) { Text("‹ Other quizzes") }
+        Pill(if (ui.connected) t("● CONNECTED") else t("○ RECONNECTING…"), if (ui.connected) Brand.good else Brand.bad, Modifier.padding(top = 24.dp))
+        TextButton(vm::leave, modifier = Modifier.padding(top = 24.dp)) { Text(t("‹ Other quizzes")) }
     }
 }
 
@@ -234,14 +236,14 @@ fun WifiSheet(ssid: String, password: String, onDone: () -> Unit) {
     val context = LocalContext.current
     Box(Modifier.fillMaxSize().background(Color(0xCC000000)).clickable(onClick = onDone), contentAlignment = Alignment.BottomCenter) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)).background(Brand.panel).clickable(enabled = false) {}.padding(24.dp)) {
-            Text("Join the quiz Wi-Fi", style = MaterialTheme.typography.headlineMedium)
-            Text("Network: $ssid", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
-            if (password.isNotEmpty()) Text("Password: $password", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text("If your phone warns about “no internet”, choose “Use network as is” or “Stay connected”. Then scan the quiz code.", color = Brand.muted, modifier = Modifier.padding(vertical = 12.dp))
-            BigButton("Open Wi-Fi settings") {
+            Text(t("Join the quiz Wi-Fi"), style = MaterialTheme.typography.headlineMedium)
+            Text(t("Network: {ssid}", "ssid" to ssid), fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
+            if (password.isNotEmpty()) Text(t("Password: {password}", "password" to password), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(t("If your phone warns about “no internet”, choose “Use network as is” or “Stay connected”. Then scan the quiz code."), color = Brand.muted, modifier = Modifier.padding(vertical = 12.dp))
+            BigButton(t("Open Wi-Fi settings")) {
                 context.startActivity(Intent(Settings.Panel.ACTION_WIFI).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
-            TextButton(onDone, modifier = Modifier.fillMaxWidth()) { Text("Done") }
+            TextButton(onDone, modifier = Modifier.fillMaxWidth()) { Text(t("Done")) }
         }
     }
 }
@@ -254,7 +256,7 @@ fun openInBrowser(context: android.content.Context, url: String) {
 fun HapticsSwitch(vm: PlayerViewModel) {
     var on by remember { mutableStateOf(vm.haptics) }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Vibrate for new questions", color = Brand.muted, modifier = Modifier.weight(1f))
+        Text(t("Vibrate for new questions"), color = Brand.muted, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(8.dp))
         Switch(on, { on = it; vm.setHaptics(it) })
     }

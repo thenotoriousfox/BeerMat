@@ -43,12 +43,12 @@ final class PlayerModel: ObservableObject {
         switch Scanned.parse(text) {
         case .address(let url): connect(url)
         case .wifi(let ssid, let password): wifi = (ssid, password)
-        case .unknown: say("That code isn't a BeerMat quiz.", error: true)
+        case .unknown: say(t("That code isn’t a BeerMat quiz."), error: true)
         }
     }
 
     func connect(_ address: String) {
-        guard let quiz = try? QuizServer(address) else { return say("That doesn't look like a quiz address.", error: true) }
+        guard let quiz = try? QuizServer(address) else { return say(t("That doesn’t look like a quiz address."), error: true) }
         work {
             let hello = try await quiz.hello()
             if hello.proto > supportedProtocol { throw QuizError(message: "This quiz needs a newer BeerMat app. You can still play in Safari.", status: 0) }
@@ -61,7 +61,7 @@ final class PlayerModel: ObservableObject {
 
     private func resume(_ secret: String) async -> Bool {
         do { play(secret, try await server!.state(secret)); return true } catch let e as QuizError {
-            if e.status == 401 { identity.forget(server: server!.base); say("A new quiz has started — pick your team name again.") } else { say(e.message, error: true) }
+            if e.status == 401 { identity.forget(server: server!.base); say(t("A new quiz has started — pick your team name again.")) } else { say(e.message, error: true) }
             return false
         } catch { return false }
     }
@@ -78,7 +78,7 @@ final class PlayerModel: ObservableObject {
             let c = code.trimmingCharacters(in: .whitespaces)
             let secret = c.count == 4 && c.allSatisfy(\.isNumber) ? try await self.server!.transfer(c) : c
             self.play(secret, try await self.server!.state(secret))
-            self.say("Welcome back")
+            self.say(t("Welcome back"))
         }
     }
 
@@ -113,7 +113,7 @@ final class PlayerModel: ObservableObject {
         do { show(try await quiz.state(secret)) } catch let e as QuizError {
             if e.status == 401 {
                 identity.forget(server: quiz.base); live?.cancel(); game = nil; secret = ""; stage = .join
-                say("A new quiz has started — pick your team name again.")
+                say(t("A new quiz has started — pick your team name again."))
             } else { say(e.message, error: true) }
         } catch { connected = false }
     }
@@ -134,7 +134,7 @@ final class PlayerModel: ObservableObject {
 
     func submit(_ value: Any) {
         guard let q = game?.question else { return }
-        work(quiet: true) { try await self.server!.answer(self.secret, question: q.id, value: value); self.say("Final answer received"); await self.refresh() }
+        work(quiet: true) { try await self.server!.answer(self.secret, question: q.id, value: value); self.say(t("Final answer received")); await self.refresh() }
     }
 
     func saveDraft(_ value: Any) {
@@ -147,10 +147,10 @@ final class PlayerModel: ObservableObject {
     @Published var dabs: [Int: Set<String>] = [:]
     func dab(_ question: Int, _ cell: String) { var now = dabs[question] ?? []; if now.contains(cell) { now.remove(cell) } else { now.insert(cell) }; dabs[question] = now }
 
-    func claimBingo() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.bingo(self.secret, question: q.id); self.say("BINGO called — the quizmaster is checking"); await self.refresh() } }
-    func tap() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.tap(self.secret, question: q.id); self.say("Tap recorded"); await self.refresh() } }
+    func claimBingo() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.bingo(self.secret, question: q.id); self.say(t("BINGO called — the quizmaster is checking")); await self.refresh() } }
+    func tap() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.tap(self.secret, question: q.id); self.say(t("Tap recorded")); await self.refresh() } }
     func goWide() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.goWide(self.secret, question: q.id); await self.refresh() } }
-    func setSound(_ index: Int) { work(quiet: true) { try await self.server!.sound(self.secret, index: index); self.say("Buzzer sound saved"); await self.refresh() } }
+    func setSound(_ index: Int) { work(quiet: true) { try await self.server!.sound(self.secret, index: index); self.say(t("Buzzer sound saved")); await self.refresh() } }
 
     /// A picture from the phone, cropped square to 360 px and sent as a JPEG (as the browser player does).
     func setPhoto(_ data: Data) {
@@ -160,12 +160,12 @@ final class PlayerModel: ObservableObject {
         let jpeg = UIGraphicsImageRenderer(size: CGSize(width: 360, height: 360), format: { let f = UIGraphicsImageRendererFormat(); f.scale = 1; return f }()).jpegData(withCompressionQuality: 0.85) { _ in
             image.draw(in: CGRect(x: -crop.minX * 360 / side, y: -crop.minY * 360 / side, width: image.size.width * 360 / side, height: image.size.height * 360 / side))
         }
-        work(quiet: true) { try await self.server!.photo(self.secret, jpeg: jpeg); self.say("Photo sent: the quizmaster approves it first"); await self.refresh() }
+        work(quiet: true) { try await self.server!.photo(self.secret, jpeg: jpeg); self.say(t("Photo sent: the quizmaster approves it first")); await self.refresh() }
     }
 
     /// The signed result to keep (after the quiz ends).
     func result() async -> [String: Any]? {
-        do { return try await server?.result(secret) } catch let e as QuizError { say(e.message, error: true); return nil } catch { say("Can't reach the quiz", error: true); return nil }
+        do { return try await server?.result(secret) } catch let e as QuizError { say(e.message, error: true); return nil } catch { say(t("Can’t reach the quiz"), error: true); return nil }
     }
 
     func buzz() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.buzz(self.secret, question: q.id); await self.refresh() } }
@@ -188,7 +188,7 @@ final class PlayerModel: ObservableObject {
         if !quiet { message = "" }
         Task {
             do { try await block() } catch let e as QuizError { say(e.message, error: true) } catch {
-                say("Can't reach the quiz. Check you're on the quiz Wi-Fi, then try again.", error: true)
+                say(t("Can’t reach the quiz. Check you’re on the quiz Wi-Fi, then try again."), error: true)
             }
             busy = false
         }

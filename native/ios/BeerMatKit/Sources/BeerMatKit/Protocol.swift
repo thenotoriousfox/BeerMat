@@ -37,7 +37,7 @@ public struct Question: Equatable {
 }
 
 public struct Answer { public let value: Any?, points: Double? }
-public struct Settings: Equatable { public let title: String, ended: Bool, registrationOpen: Bool, scrambleKeypads: Bool, leaderboardVisible: Bool; public var teamPhotos = false }
+public struct Settings: Equatable { public let title: String, ended: Bool, registrationOpen: Bool, scrambleKeypads: Bool, leaderboardVisible: Bool; public var teamPhotos = false; public var language = "en" }
 
 public struct PlayerState {
     public let proto: Int, serverTime: Double, build: String, event: String
@@ -54,6 +54,7 @@ public struct PlayerState {
         var settings = Settings(title: s.str("title", "BeerMat"), ended: s.bool("ended"), registrationOpen: s.bool("registrationOpen", true),
                                 scrambleKeypads: s.bool("scrambleKeypads"), leaderboardVisible: s.bool("leaderboardVisible", true))
         settings.teamPhotos = s.bool("teamPhotos")
+        settings.language = s.str("language", "en")
         var state = PlayerState(
             proto: o.int("protocol"), serverTime: o.num("serverTime") ?? Date().timeIntervalSince1970 * 1000, build: o.str("build"), event: o.str("event"),
             settings: settings,

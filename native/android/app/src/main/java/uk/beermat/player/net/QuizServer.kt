@@ -1,5 +1,6 @@
 package uk.beermat.player.net
 
+import uk.beermat.player.ui.t
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -25,7 +26,7 @@ class QuizServer(base: String) {
 
     suspend fun hello(): Hello = withContext(Dispatchers.IO) {
         val o = request("GET", "/api/hello", null, "")
-        Hello.parse(o) ?: throw QuizError("That address isn't a BeerMat quiz.", 0)
+        Hello.parse(o) ?: throw QuizError(t("That address isn’t a BeerMat quiz."), 0)
     }
 
     suspend fun join(name: String): Joined = withContext(Dispatchers.IO) {

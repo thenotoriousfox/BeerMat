@@ -24,7 +24,7 @@ public final class QuizServer: @unchecked Sendable {
     }
 
     public func hello() async throws -> Hello {
-        guard let hello = Hello.parse(try await request("GET", "/api/hello")) else { throw QuizError(message: "That address isn't a BeerMat quiz.", status: 0) }
+        guard let hello = Hello.parse(try await request("GET", "/api/hello")) else { throw QuizError(message: "That address isn’t a BeerMat quiz.", status: 0) }
         return hello
     }
 
@@ -105,7 +105,7 @@ public final class QuizServer: @unchecked Sendable {
         var s = input.trimmingCharacters(in: .whitespacesAndNewlines)
         while s.hasSuffix("/") { s.removeLast() }
         if !s.hasPrefix("http://") && !s.hasPrefix("https://") { s = "http://" + s }
-        guard let url = URLComponents(string: s), let scheme = url.scheme, let host = url.host, !host.isEmpty else { throw QuizError(message: "That doesn't look like a quiz address.", status: 0) }
+        guard let url = URLComponents(string: s), let scheme = url.scheme, let host = url.host, !host.isEmpty else { throw QuizError(message: "That doesn’t look like a quiz address.", status: 0) }
         return "\(scheme)://\(host)\(url.port.map { ":\($0)" } ?? "")"
     }
 }

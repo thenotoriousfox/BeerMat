@@ -73,6 +73,8 @@ CASES = {
     'halloween': state(q=question(), look='halloween'),
     'rehearsal': state('join', rehearsal=True),
     'blank': state('blank'),
+    'french': state('join', settings={**SETTINGS, 'language': 'fr'}),
+    'spanish-question': state(q=question(), settings={**SETTINGS, 'language': 'es'}),
 }
 
 
@@ -101,6 +103,15 @@ class TvStageTest(unittest.TestCase):
             problems.clear()
             self.show(s, name)
             self.assertEqual(problems, [], f'{name}: {problems}')
+
+    def test_speaks_the_quiz_language(self):
+        texts = lambda: [o.property('text') for o in self.stage.findChildren(QObject) if isinstance(o.property('text'), str) and o.property('visible')]
+        self.show(CASES['french'], 'french')
+        self.assertIn('Rejoignez le quiz sur votre téléphone', ' '.join(texts()))
+        self.show(CASES['spanish-question'])
+        self.assertTrue(any(t.startswith('quedan ') for t in texts()), texts())
+        self.show(CASES['join'])
+        self.assertIn('Join the quiz on your phone', ' '.join(texts()))
 
     def test_spotlight_only_for_a_reveal_seen_happening(self):
         spotlight = self.stage.findChild(QObject, 'spotlight')

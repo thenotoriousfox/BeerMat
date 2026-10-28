@@ -1,5 +1,6 @@
 package uk.beermat.player.online
 
+import uk.beermat.player.ui.t
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -37,15 +38,15 @@ class OnlineClient(context: Context, private val identity: Identity = Identity(c
     val profile: JSONObject? get() = read("profile")?.let(::JSONObject)
 
     private suspend fun api(method: String, route: String, body: Any? = null, headers: Map<String, String> = emptyMap()): JSONObject = withContext(Dispatchers.IO) {
-        if (baseUrl.isBlank()) throw OnlineError("BeerMat Online is not set up in this app", 0, offline = true)
-        val c = try { URL(baseUrl + route).openConnection() as HttpURLConnection } catch (e: Exception) { throw OnlineError("No connection to BeerMat Online", 0, true) }
+        if (baseUrl.isBlank()) throw OnlineError(t("BeerMat Online is not set up in this app"), 0, offline = true)
+        val c = try { URL(baseUrl + route).openConnection() as HttpURLConnection } catch (e: Exception) { throw OnlineError(t("No connection to BeerMat Online"), 0, true) }
         try {
             c.requestMethod = method; c.connectTimeout = 10000; c.readTimeout = 10000
             c.setRequestProperty("Content-Type", "application/json")
             token?.let { c.setRequestProperty("Authorization", "Bearer $it") }
             headers.forEach { (k, v) -> c.setRequestProperty(k, v) }
             if (body != null) { c.doOutput = true; c.outputStream.use { it.write(body.toString().toByteArray()) } }
-            val status = try { c.responseCode } catch (_: IOException) { throw OnlineError("No connection to BeerMat Online", 0, true) }
+            val status = try { c.responseCode } catch (_: IOException) { throw OnlineError(t("No connection to BeerMat Online"), 0, true) }
             val text = (if (status < 300) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
             val json = try { JSONObject(text.ifBlank { "{}" }) } catch (_: Exception) { JSONObject() }
             if (status == 401 && route != "/v1/sessions") token = null

@@ -10,6 +10,7 @@
 		FF5E16F046D4BF0E71C5EFEB /* BeerMatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57EAF66B708E34FCF15A44F8 /* BeerMatApp.swift */; };
 		C6193F0B53662AE07838EDB3 /* ConnectViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 983FB6B68D71B84AF357938B /* ConnectViews.swift */; };
 		86CD39DFA85E55D121D00E9A /* Formats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CB69126E2F32F9C8879DA53 /* Formats.swift */; };
+		ACDC76E2E3844154338E47CE /* I18n.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10A0F5012C2FF3DF1617082 /* I18n.swift */; };
 		C97D075D8CAAA1412B8FD8FA /* Identity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 880272B1232EBE55D66D0866 /* Identity.swift */; };
 		A36810B70118DEA9A5E7CDBB /* OnlineModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 333674E85BC10D10F3826376 /* OnlineModel.swift */; };
 		359E324CD44711321EC0B2A7 /* OnlineViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F261B4C2477303B1C946D6D4 /* OnlineViews.swift */; };
@@ -24,6 +25,7 @@
 		1BC78985E0E9CAB836A5C41D /* Fredoka.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3B50F7CF233B3E0A87753B66 /* Fredoka.ttf */; };
 		221AA84B12270184964716B0 /* Fredoka-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = AEF4CAACD9DAA77FD4E5CF6D /* Fredoka-OFL.txt */; };
 		D66D76482ACFB8B351FCF3C7 /* badges.json in Resources */ = {isa = PBXBuildFile; fileRef = 433FD896311AAF7DEE0FF434 /* badges.json */; };
+		B1B5226B380628390405703F /* i18n.json in Resources */ = {isa = PBXBuildFile; fileRef = 21D1011C8BD9CAB1BD31DD38 /* i18n.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +34,7 @@
 		57EAF66B708E34FCF15A44F8 /* BeerMatApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerMatApp.swift; sourceTree = "<group>"; };
 		983FB6B68D71B84AF357938B /* ConnectViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectViews.swift; sourceTree = "<group>"; };
 		3CB69126E2F32F9C8879DA53 /* Formats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formats.swift; sourceTree = "<group>"; };
+		D10A0F5012C2FF3DF1617082 /* I18n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = I18n.swift; sourceTree = "<group>"; };
 		880272B1232EBE55D66D0866 /* Identity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Identity.swift; sourceTree = "<group>"; };
 		333674E85BC10D10F3826376 /* OnlineModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineModel.swift; sourceTree = "<group>"; };
 		F261B4C2477303B1C946D6D4 /* OnlineViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineViews.swift; sourceTree = "<group>"; };
@@ -46,6 +49,7 @@
 		3B50F7CF233B3E0A87753B66 /* Fredoka.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Fredoka.ttf; sourceTree = "<group>"; };
 		AEF4CAACD9DAA77FD4E5CF6D /* Fredoka-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Fredoka-OFL.txt; sourceTree = "<group>"; };
 		433FD896311AAF7DEE0FF434 /* badges.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = badges.json; sourceTree = "<group>"; };
+		21D1011C8BD9CAB1BD31DD38 /* i18n.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = i18n.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +79,7 @@
 				57EAF66B708E34FCF15A44F8 /* BeerMatApp.swift */,
 				983FB6B68D71B84AF357938B /* ConnectViews.swift */,
 				3CB69126E2F32F9C8879DA53 /* Formats.swift */,
+				D10A0F5012C2FF3DF1617082 /* I18n.swift */,
 				880272B1232EBE55D66D0866 /* Identity.swift */,
 				333674E85BC10D10F3826376 /* OnlineModel.swift */,
 				F261B4C2477303B1C946D6D4 /* OnlineViews.swift */,
@@ -85,6 +90,7 @@
 				3B50F7CF233B3E0A87753B66 /* Fredoka.ttf */,
 				AEF4CAACD9DAA77FD4E5CF6D /* Fredoka-OFL.txt */,
 				433FD896311AAF7DEE0FF434 /* badges.json */,
+				21D1011C8BD9CAB1BD31DD38 /* i18n.json */,
 				9C06A4676F6928C0F2B0C4D4 /* Info.plist */,
 			);
 			path = BeerMat;
@@ -166,6 +172,7 @@
 				1BC78985E0E9CAB836A5C41D /* Fredoka.ttf in Resources */,
 				221AA84B12270184964716B0 /* Fredoka-OFL.txt in Resources */,
 				D66D76482ACFB8B351FCF3C7 /* badges.json in Resources */,
+				B1B5226B380628390405703F /* i18n.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -179,6 +186,7 @@
 				FF5E16F046D4BF0E71C5EFEB /* BeerMatApp.swift in Sources */,
 				C6193F0B53662AE07838EDB3 /* ConnectViews.swift in Sources */,
 				86CD39DFA85E55D121D00E9A /* Formats.swift in Sources */,
+				ACDC76E2E3844154338E47CE /* I18n.swift in Sources */,
 				C97D075D8CAAA1412B8FD8FA /* Identity.swift in Sources */,
 				A36810B70118DEA9A5E7CDBB /* OnlineModel.swift in Sources */,
 				359E324CD44711321EC0B2A7 /* OnlineViews.swift in Sources */,
