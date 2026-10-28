@@ -108,7 +108,8 @@ class TvStageTest(unittest.TestCase):
         texts = lambda: [o.property('text') for o in self.stage.findChildren(QObject) if isinstance(o.property('text'), str) and o.property('visible')]
         self.show(CASES['french'], 'french')
         self.assertIn('Rejoignez le quiz sur votre téléphone', ' '.join(texts()))
-        self.show(CASES['spanish-question'])
+        # A fresh deadline: the crafted states are made when the file loads, and other tests may run first.
+        self.show(state(q=question(deadline=time.time() * 1000 + 20000), settings={**SETTINGS, 'language': 'es'}))
         self.assertTrue(any(t.startswith('quedan ') for t in texts()), texts())
         self.show(CASES['join'])
         self.assertIn('Join the quiz on your phone', ' '.join(texts()))
