@@ -913,7 +913,7 @@ function renderNetwork() {
   if (!$('lanSsid').value && document.activeElement !== $('lanSsid') && lan) $('lanSsid').value = s.joinSsid;
 }
 $('joinMode').onchange = () => {
-  if ($('joinMode').value === 'hotspot') return action(() => request('settings', {joinMode: 'hotspot', joinUrl: 'http://10.42.0.1'}), 'Players join on the quiz Wi-Fi');
+  if ($('joinMode').value === 'hotspot') return action(() => request('settings', {joinMode: 'hotspot', joinUrl: `http://${laptop?.wifi?.address || (laptop?.platform === 'windows' ? '192.168.137.1' : '10.42.0.1')}${laptop?.platform === 'windows' ? ':' + (location.port || '3000') : ''}`}), 'Players join on the quiz Wi-Fi');
   renderNetwork();
 };
 $('useLan').onclick = () => action(async () => {
@@ -939,9 +939,9 @@ function renderLaptop() {
   const w = laptop.wifi, job = laptop.jobs.wifi, working = !!job?.running, on = w.running;
   const where = c => c.connected ? `on ${c.network}, shares it` : c.hosting ? 'hosting the quiz Wi-Fi' : 'free';
   $('wifiControls').hidden = !w.available || !laptop.local;
-  $('wifiState').textContent = !w.available ? '' : working ? '⏳ Working…' : on ? `● “${on.ssid}” is on` : '○ Quiz Wi-Fi off';
-  $('wifiInfo').textContent = !laptop.local ? (on ? `The quiz Wi-Fi “${on.ssid}” is on. It can only be changed at the laptop.` : 'The quiz Wi-Fi can only be started at the laptop (it isn’t needed for online quizzes).') : !w.available ? 'This laptop has no Wi-Fi control (NetworkManager), so use ./scripts/quiz-night.sh or your own hotspot.'
-    : on ? `Phones join “${on.ssid}” and open http://10.42.0.1. Hosted on ${on.interface === 'bm0' ? 'the Wi-Fi card beside your home Wi-Fi' : on.interface}.`
+  $('wifiState').textContent = !w.available ? '' : working ? '⏳ Working…' : on?.ssid ? `● “${on.ssid}” is on` : '○ Quiz Wi-Fi off';
+  $('wifiInfo').textContent = !laptop.local ? (on?.ssid ? `The quiz Wi-Fi “${on.ssid}” is on. It can only be changed at the laptop.` : 'The quiz Wi-Fi can only be started at the laptop (it isn’t needed for online quizzes).') : !w.available ? 'This laptop has no Wi-Fi control (NetworkManager), so use ./scripts/quiz-night.sh or your own hotspot.'
+    : on?.ssid ? `Phones join “${on.ssid}” and open http://${w.address || '10.42.0.1'}${w.platform === 'windows' ? ':' + (location.port || '3000') : ''}. Hosted on ${on.interface === 'bm0' ? 'the Wi-Fi card beside your home Wi-Fi' : on.interface}.`
     : !w.wifiOn ? 'Wi-Fi is switched off on this laptop.'
     : w.cards.length ? 'Wi-Fi cards: ' + w.cards.map(c => `${c.name} (${c.ap ? where(c) : 'can’t host'})`).join(' · ') : 'No Wi-Fi card found.';
   const chosen = $('wifiCard').value || 'auto';

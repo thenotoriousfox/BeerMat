@@ -13,7 +13,7 @@
 # - Phones get addresses on 192.168.137.x and reach the laptop at 192.168.137.1.
 # - No administrator rights are needed. Nothing else on the network is changed, and "down" turns it off again.
 # The settings come in as base64 JSON so that a Wi-Fi name starting with "-" is never read as a PowerShell option.
-param([Parameter(Mandatory = $true)][ValidateSet('status', 'up', 'down')][string]$Action, [string]$Config = '')
+param([Parameter(Mandatory = $true)][ValidateSet('status', 'up', 'down')][string]$Action, [string]$ConfigBase64 = '')
 $ErrorActionPreference = 'Stop'
 
 function Out-Json($value) { $value | ConvertTo-Json -Compress -Depth 5; }
@@ -56,8 +56,8 @@ $manager = $found.manager
 if ($Action -eq 'status') {
   $running = $null
   if ($manager -and $manager.TetheringOperationalState -eq 'On') {
-    $config = $manager.GetCurrentAccessPointConfiguration()
-    $running = @{interface = 'Mobile Hotspot'; ssid = $config.Ssid; password = $config.Passphrase; address = '192.168.137.1'; clients = $manager.ClientCount; keepWifi = $true}
+    $apConfig = $manager.GetCurrentAccessPointConfiguration()
+    $running = @{interface = 'Mobile Hotspot'; ssid = $apConfig.Ssid; password = $apConfig.Passphrase; address = '192.168.137.1'; clients = $manager.ClientCount; keepWifi = $true}
   }
   $pick = if ($manager) { @{interface = 'Mobile Hotspot'; keepWifi = $true; shares = $found.shares} } else { $null }
   Out-Json @{available = $true; platform = 'windows'; needsPassword = $true; wifiOn = $cards.Count -gt 0; cards = $cards; pick = $pick; running = $running; reason = $found.reason}
@@ -74,12 +74,12 @@ if ($Action -eq 'down') {
   exit 0
 }
 
-$settings = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Config)) | ConvertFrom-Json
+$settings = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($ConfigBase64)) | ConvertFrom-Json
 if ($manager.TetheringOperationalState -ne 'Off') { $null = Await ($manager.StopTetheringAsync()) ([Windows.Networking.NetworkOperators.NetworkOperatorTetheringOperationResult]) }
-$config = $manager.GetCurrentAccessPointConfiguration()
-$config.Ssid = $settings.ssid
-$config.Passphrase = $settings.password
-AwaitAction ($manager.ConfigureAccessPointAsync($config))
+$apConfig = $manager.GetCurrentAccessPointConfiguration()
+$apConfig.Ssid = $settings.ssid
+$apConfig.Passphrase = $settings.password
+AwaitAction ($manager.ConfigureAccessPointAsync($apConfig))
 $result = Await ($manager.StartTetheringAsync()) ([Windows.Networking.NetworkOperators.NetworkOperatorTetheringOperationResult])
 if ($result.Status -ne 'Success') { [Console]::Error.WriteLine("Windows could not start Mobile Hotspot: $($result.Status) $($result.AdditionalErrorMessage)"); exit 1 }
 Write-Output "Quiz Wi-Fi '$($settings.ssid)' is on (Windows Mobile Hotspot, sharing $($found.shares)). Phones open http://192.168.137.1"
