@@ -86,6 +86,8 @@ class PlayerUiTest {
         return live
     }
 
+    private fun team(): JSONObject = call("/api/host/state").getJSONArray("teams").let { t -> (0 until t.length()).map(t::getJSONObject).first { it.getString("name") == "Android Aces" } }
+
     private fun answers(): JSONArray = call("/api/host/state").getJSONArray("answers")
 
     private fun lockIn(name: String) {
@@ -101,6 +103,18 @@ class PlayerUiTest {
         join(server.removePrefix("http://"), "Android Aces")
         waitText("You're in!")
         shot("01-lobby")
+
+        // The team's buzzer sound and photo (the quizmaster approves photos first).
+        rule.onNodeWithText("Picked from your team name").performScrollTo().performClick()
+        rule.onNodeWithText("Siren").performClick()
+        rule.waitUntil(10000) { team().optInt("sound", -1) == 2 }
+        call("/api/host/settings", JSONObject().put("teamPhotos", true))
+        val picture = File(rule.activity.cacheDir, "team.png").apply {
+            outputStream().use { Bitmap.createBitmap(640, 480, Bitmap.Config.ARGB_8888).apply { eraseColor(android.graphics.Color.MAGENTA) }.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        androidx.lifecycle.ViewModelProvider(rule.activity)[uk.beermat.player.game.PlayerViewModel::class.java].setPhoto(android.net.Uri.fromFile(picture))
+        rule.waitUntil(10000) { team().optString("photo_status") == "pending" }
+        waitText("Waiting for the quizmaster to approve it")
 
         open { it.getString("type") == "choice" && it.getString("answer") == "Mars" }
         rule.onNode(hasText("Mars", substring = true)).performClick()
@@ -118,7 +132,20 @@ class PlayerUiTest {
         lockIn("05-sequence")
 
         open { it.getString("type") == "text" && it.optString("answer") == "Canberra" }
-        rule.onNodeWithTag("answer").performTextInput("Canberra")
+        // A draft survives the phone being turned: it's saved on the server and comes back.
+        rule.onNodeWithTag("answer").performTextInput("Canb")
+        Thread.sleep(1500)
+        rule.activityRule.scenario.onActivity { it.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
+        waitText("Canb")
+        shot("06a-rotated")
+        rule.activityRule.scenario.onActivity { it.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+        waitText("Canb")
+        // Leaving the app during an open question is reported to the quizmaster, as a browser tab is.
+        rule.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        Thread.sleep(1000)
+        rule.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        rule.waitUntil(10000) { call("/api/host/state").getJSONArray("away").length() == 1 }
+        rule.onNodeWithTag("answer").performTextInput("erra")
         lockIn("06-text")
 
         val pin = open { it.getString("type") == "pinpoint" }

@@ -172,11 +172,30 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     /** The signed result to keep (after the quiz ends); null with a message when there's none. */
     suspend fun result(): org.json.JSONObject? = try { server?.result(_ui.value.secret) } catch (e: QuizError) { say(e.message ?: "", true); null } catch (_: Exception) { say("Can't reach the quiz", true); null }
 
+    fun setSound(index: Int) = work(quiet = true) { server!!.sound(_ui.value.secret, index); say("Buzzer sound saved"); refresh() }
+
+    /** A picture from the phone, cropped square to 360 px and sent as a JPEG (as the browser player does). */
+    fun setPhoto(uri: android.net.Uri) = work(quiet = true) {
+        val jpeg = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            val resolver = getApplication<Application>().contentResolver
+            val source = resolver.openInputStream(uri)!!.use { android.graphics.BitmapFactory.decodeStream(it) }
+            val side = minOf(source.width, source.height)
+            val square = android.graphics.Bitmap.createBitmap(source, (source.width - side) / 2, (source.height - side) / 2, side, side)
+            val small = android.graphics.Bitmap.createScaledBitmap(square, 360, 360, true)
+            java.io.ByteArrayOutputStream().also { small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }.toByteArray()
+        }
+        server!!.photo(_ui.value.secret, jpeg); say("Photo sent: the quizmaster approves it first"); refresh()
+    }
+
     fun claimBingo() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.bingo(_ui.value.secret, q.id); say("BINGO called — the quizmaster is checking"); refresh() } }
 
     fun tap() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.tap(_ui.value.secret, q.id); say("Tap recorded"); refresh() } }
 
     fun goWide() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.goWide(_ui.value.secret, q.id); refresh() } }
+
+    /** What the team has put but not locked in, per question: survives the phone being turned (as the browser keeps
+     *  it in its storage); also saved to the server as a draft. */
+    val localDrafts = mutableMapOf<Long, Any>()
 
     /** Bingo dabs stay on the phone, as on paper (the server checks the ticket against the calls). */
     val dabs = androidx.compose.runtime.mutableStateMapOf<Long, Set<String>>()

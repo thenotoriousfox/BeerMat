@@ -108,7 +108,7 @@ fun PlayScreen(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.onlin
                     val o = online.ui.collectAsStateWithLifecycle().value
                     if (o.message.isNotEmpty()) Text(o.message, color = if (o.error) Brand.bad else Brand.goldHi, modifier = Modifier.padding(top = 8.dp))
                 }
-                q == null -> Lobby("You're in!", "Waiting for the quiz to start. Keep this app open.")
+                q == null -> { Lobby("You're in!", "Waiting for the quiz to start. Keep this app open."); Spacer(Modifier.height(24.dp)); TeamSetup(vm, ui) }
                 q.type !in NATIVE_TYPES -> BrowserRound(vm, q)
                 else -> Question(vm, ui, q)
             }
@@ -132,6 +132,7 @@ private fun TeamMenu(vm: PlayerViewModel, ui: UiState) {
     Text("Recovery code", color = Brand.muted, modifier = Modifier.padding(top = 12.dp))
     Text(ui.secret, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 4.dp))
     Text("Keep it to rejoin from another phone. The quizmaster can also give you a 4-digit code to move your team.", color = Brand.faint, fontSize = 13.sp)
+    TeamSetup(vm, ui)
     Spacer(Modifier.height(16.dp))
     HapticsSwitch(vm)
     Spacer(Modifier.height(16.dp))
@@ -141,6 +142,30 @@ private fun TeamMenu(vm: PlayerViewModel, ui: UiState) {
 }
 
 private fun vmContext(vm: PlayerViewModel) = vm.getApplication<android.app.Application>()
+
+/** The team's buzzer sound (heard on the TV when it buzzes first) and its photo for the big screen. */
+@Composable
+private fun TeamSetup(vm: PlayerViewModel, ui: UiState) {
+    val game = ui.game ?: return
+    val team = game.team ?: return
+    val names = uk.beermat.player.net.BUILT_IN_BUZZERS + game.buzzerNames
+    var open by remember { mutableStateOf(false) }
+    Text("Your buzzer sound", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
+    Box {
+        OutlinedButton({ open = true }, modifier = Modifier.fillMaxWidth()) { Text(team.sound?.let { names.getOrNull(it) } ?: "Picked from your team name") }
+        androidx.compose.material3.DropdownMenu(open, { open = false }) {
+            names.forEachIndexed { i, name -> androidx.compose.material3.DropdownMenuItem({ Text(name) }, { open = false; vm.setSound(i) }) }
+        }
+    }
+    if (game.settings.teamPhotos) {
+        val pick = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(vm::setPhoto) }
+        Text("Team photo", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 16.dp))
+        Text(when { team.photo.isEmpty() -> "Add a team photo to appear on the big screen. The quizmaster approves it first."
+                    team.photoStatus == "approved" -> "✓ Approved — showing on the TV"; else -> "Waiting for the quizmaster to approve it" }, color = Brand.muted)
+        OutlinedButton({ pick.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            modifier = Modifier.fillMaxWidth()) { Text(if (team.photo.isEmpty()) "Choose a photo" else "Change the photo") }
+    }
+}
 
 /** A round format this app doesn't draw: the quiz's own player page plays it, already signed in as this team. */
 @Composable
@@ -191,8 +216,11 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
     // What the team has put: the submitted answer, else the draft saved on the server.
     val submitted = game.answer
     val locked = submitted != null || !q.open
-    var value by remember(q.id) { mutableStateOf(initial(q, submitted?.value ?: game.draft)) }
-    LaunchedEffect(value) { if (!locked && value != initial(q, null)) { delay(500); vm.saveDraft(value) } }
+    // Kept through the phone being turned (Compose's saved state), and in the view model as a second copy.
+    var value by androidx.compose.runtime.saveable.rememberSaveable(q.id) {
+        mutableStateOf(if (submitted != null) initial(q, submitted.value) else vm.localDrafts[q.id] ?: initial(q, game.draft))
+    }
+    LaunchedEffect(value) { if (!locked && value != initial(q, null)) { vm.localDrafts[q.id] = value; delay(500); vm.saveDraft(value) } }
     val teamId = game.team?.id ?: ""
     val order: (Int) -> List<Int> = { n -> if (game.settings.scrambleKeypads) seededOrder(n, "$teamId:${q.id}") else List(n) { it } }
 

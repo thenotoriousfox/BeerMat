@@ -50,6 +50,11 @@ class QuizServer(base: String) {
 
     suspend fun buzz(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/buzz", JSONObject().put("question", question), secret) }
 
+    suspend fun sound(secret: String, index: Int) = withContext(Dispatchers.IO) { request("POST", "/api/team/sound", JSONObject().put("sound", index), secret) }
+
+    /** The team's photo for the TV: a square JPEG; the quizmaster approves it first. */
+    suspend fun photo(secret: String, jpeg: ByteArray) = withContext(Dispatchers.IO) { request("POST", "/api/team/photo", null, secret, jpeg) }
+
     /** The team's result after a live quiz, signed by the quiz laptop, for the player to keep in a profile. */
     suspend fun result(secret: String): JSONObject = withContext(Dispatchers.IO) { request("POST", "/api/team/result", JSONObject(), secret).getJSONObject("claim") }
 
@@ -99,7 +104,7 @@ class QuizServer(base: String) {
         awaitClose { }
     }.flowOn(Dispatchers.IO)
 
-    private fun request(method: String, route: String, body: JSONObject?, secret: String): JSONObject {
+    private fun request(method: String, route: String, body: JSONObject?, secret: String, raw: ByteArray? = null): JSONObject {
         val connection = URL(base + route).openConnection() as HttpURLConnection
         try {
             connection.requestMethod = method
@@ -110,6 +115,10 @@ class QuizServer(base: String) {
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.outputStream.use { it.write(body.toString().toByteArray()) }
+            } else if (raw != null) {
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "image/jpeg")
+                connection.outputStream.use { it.write(raw) }
             }
             val status = connection.responseCode
             val text = (if (status in 200..299) connection.inputStream else connection.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
