@@ -6,7 +6,7 @@ import pkg from '../../../package.json';
 // rebuilt with the new version.
 const v = pkg.version, file = (name: string) => `${DOWNLOADS}/${v}/${name}`;
 const desktop = [
-	['Windows 10 and 11', 'Installer', `BeerMat.Setup.${v}.exe`, 'Installs BeerMat with a Start menu entry. Recommended.'],
+	['Windows 10 and 11', 'Installer', `BeerMat-Setup-${v}.exe`, 'Installs BeerMat with a Start menu entry. Recommended.'],
 	['Windows 10 and 11', 'Portable', `BeerMat-${v}-portable.exe`, 'Runs from a USB stick or any folder, nothing installed.'],
 	['Linux', 'AppImage', `BeerMat-${v}.AppImage`, 'One file: make it executable and open it. Tested on CachyOS.'],
 	['Linux', 'tar.gz', `beermat-${v}.tar.gz`, 'The app as a folder, for packaging it yourself.'],

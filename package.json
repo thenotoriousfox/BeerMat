@@ -98,7 +98,8 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "BeerMat"
+      "shortcutName": "BeerMat",
+    "artifactName": "BeerMat-Setup-${version}.${ext}"
     },
     "portable": {
       "artifactName": "BeerMat-${version}-portable.exe"
