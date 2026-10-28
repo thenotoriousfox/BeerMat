@@ -1,7 +1,7 @@
 ---
 import Page from '../layouts/Page.astro';
 import Shot from '../components/Shot.astro';
-import {PRICE, FREE_LIMITS} from '../consts';
+import {PRICE} from '../consts';
 
 // Screenshots are of the real app running a demo quiz (scripts/site-screenshots.mjs makes them again).
 const TV = {width: 1600, height: 900}, DESK = {width: 1600, height: 1000}, PHONE = {width: 780, height: 1688};
@@ -52,7 +52,7 @@ const reasons = [
 				<a href="/download" class="btn btn-primary">Try it free</a>
 				<a href="#how" class="btn btn-ghost">See how it works</a>
 			</div>
-			<p class="mt-4 text-sm text-muted">Free to try with {FREE_LIMITS.questions} questions and {FREE_LIMITS.teams} teams. Players never pay.</p>
+			<p class="mt-4 text-sm text-muted">Create for free. Rehearse without limits. Go Pro when you’re ready to host. Players never pay.</p>
 			<p class="mt-6 text-sm text-muted">Playing, not hosting? <a href="/find" class="font-semibold">Find a quiz near you →</a></p>
 		</div>
 		<div class="relative pb-10 sm:pb-14 lg:pb-0">
@@ -145,21 +145,39 @@ const reasons = [
 		</ul>
 	</section>
 
+	<!-- Rehearsal: what Free does, so nobody's first quiz night is their first go. -->
+	<section class="wrap py-20">
+		<div class="card grid gap-10 !p-8 lg:grid-cols-[.9fr_1.1fr] lg:!p-10">
+			<div>
+				<p class="eyebrow">Free, with no limits</p>
+				<h2 class="text-3xl text-balance sm:text-4xl">Rehearse the whole quiz before the room fills</h2>
+				<p class="mb-0 text-muted">Build your quiz, then run it start to finish with simulated teams answering on the real quiz engine. Every format, every timer, the marking, the buzzers and the leaderboard, on the TV.</p>
+			</div>
+			<ul class="grid gap-5 sm:grid-cols-2">
+				<li class="list-none"><h3 class="text-lg">Simulated teams</h3><p class="mb-0 text-muted">Up to thirty, right or wrong as often as you like, answering by themselves or when you tell them.</p></li>
+				<li class="list-none"><h3 class="text-lg">Test the Wi-Fi with real phones</h3><p class="mb-0 text-muted">Scan the code with your own phones: they connect and show “Connection successful”, but can’t play.</p></li>
+				<li class="list-none"><h3 class="text-lg">Try what goes wrong</h3><p class="mb-0 text-muted">Late answers, double taps, teams dropping out and coming back, buzzer races.</p></li>
+				<li class="list-none"><h3 class="text-lg">A preflight check</h3><p class="mb-0 text-muted">Missing pictures, a full disk, the Wi-Fi and the network, checked in plain English.</p></li>
+			</ul>
+		</div>
+	</section>
+
 	<section id="pricing" class="scroll-mt-6 border-t border-white/10 py-20">
 		<div class="wrap">
 			<p class="eyebrow">Pricing</p>
-			<h2 class="text-3xl sm:text-4xl">One simple price for your venue</h2>
-			<p class="max-w-2xl text-muted">No per-night credits and no per-player charges. Players always play free.</p>
+			<h2 class="text-3xl sm:text-4xl">Create for free. Go Pro to host.</h2>
+			<p class="max-w-2xl text-muted">Build and rehearse your whole quiz for nothing, phones and TV included. One simple price for your venue when real teams play: no per-night credits and no per-player charges. Players always play free.</p>
 			<div class="mt-10 grid gap-6 md:grid-cols-2">
 				<div class="card flex flex-col !p-7">
 					<h3 class="text-2xl">BeerMat Free</h3>
 					<p class="mb-1 font-display text-4xl font-bold text-white">£0</p>
-					<p class="text-muted">Try every format before your first quiz night.</p>
-					<p class="mb-5 rounded-xl border border-white/15 bg-white/[.04] px-4 py-3 text-sm"><strong class="text-cream">Trial limit:</strong> {FREE_LIMITS.questions} questions and {FREE_LIMITS.teams} teams per quiz.</p>
-					<ul class="mb-8 space-y-3">
-						<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg>Every round format, the TV and phones</li>
-						<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg>Quiz Wi-Fi from the laptop, or the pub’s Wi-Fi</li>
+					<p class="text-muted">Create, prepare and rehearse.</p>
+					<ul class="mb-5 space-y-3">
+						{['Unlimited quizzes, questions and rounds', 'Every round format', 'Rehearsals with simulated teams and real scoring', 'The TV and projector, to test the show', 'Real phones join to test the Wi-Fi and the QR code'].map(item => (
+							<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg>{item}</li>
+						))}
 					</ul>
+					<p class="mb-8 rounded-xl border border-white/15 bg-white/[.04] px-4 py-3 text-sm"><strong class="text-cream">Not included:</strong> live quizzes with real teams playing. Phones can connect in a rehearsal, but can’t play.</p>
 					<a href="/download" class="btn btn-ghost mt-auto w-full">Download free</a>
 				</div>
 				<div class="card relative flex flex-col border-amber/60 !p-7 shadow-2xl shadow-amber/10">
@@ -168,7 +186,7 @@ const reasons = [
 					<p class="mb-1 font-display text-4xl font-bold text-amber">{PRICE.monthly}<span class="text-lg text-muted"> a month</span></p>
 					<p class="text-muted">or {PRICE.yearly} a year (two months free)</p>
 					<ul class="mb-8 space-y-3">
-						{['Everything in Free', 'As many questions and teams as you like', 'Your pub and quiz nights on the BeerMat map', 'The shared buzzer library', 'Help by email when you need it', 'Works offline once activated; cancel any time from the desk'].map(item => (
+						{['Everything in Free', 'Host live quizzes: real teams, real answers and buzzers', 'Live scoring and leaderboards, as many teams as the room holds', 'Your pub and quiz nights on the BeerMat map', 'The shared buzzer library', 'Help by email when you need it', 'Works offline once activated; cancel any time from the desk'].map(item => (
 							<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg>{item}</li>
 						))}
 					</ul>

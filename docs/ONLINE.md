@@ -89,8 +89,9 @@ Players never pay. A venue has a plan, **free** or **pro** (with an end date, or
 
 | | BeerMat Free | BeerMat Pro |
 |---|---|---|
-| Questions played per quiz | 3 | no limit |
-| Teams per quiz | 3 (a 4th is told the quiz is full) | no limit |
+| Make, save, import and export quizzes, every round format | ✓ no limits | ✓ |
+| Rehearse with simulated teams; real phones join only to test the connection | ✓ | ✓ |
+| Host a live quiz with real teams playing | — | ✓ (up to 250 teams, the laptop's technical ceiling) |
 | Spotify music rounds | — | ✓ |
 | Shared buzzer library: see what's in it | ✓ | ✓ |
 | Shared buzzer library: play, add, share and report clips | — | ✓ |
@@ -113,7 +114,7 @@ Players never pay. A venue has a plan, **free** or **pro** (with an end date, or
 * **The signing key** is kept off the repository: `~/.local/share/beermat/licence-key.txt` on the developer's machine
   and `/etc/beermat-online/licence-key.txt` on the server (`online/deploy.sh` copies it). Losing it means a new key
   pair and an app update with the new public key; anyone holding it can make Pro licences.
-* The desktop app is plain JavaScript, so a determined user can edit it to skip the limits. The licence keeps honest
+* The desktop app is plain JavaScript, so a determined user can edit it to host live without Pro. The licence keeps honest
   venues honest; what only the service provides (listings, verified leaderboards, shared results) can't be faked.
 
 ## The shared buzzer library

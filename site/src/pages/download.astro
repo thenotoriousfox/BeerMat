@@ -1,6 +1,6 @@
 ---
 import Page from '../layouts/Page.astro';
-import {DOWNLOADS, DOWNLOADS_READY, CONTACT, FREE_LIMITS} from '../consts';
+import {DOWNLOADS, DOWNLOADS_READY, CONTACT} from '../consts';
 import pkg from '../../../package.json';
 // Each release is copied to downloads.beermatquiz.co.uk/<version>/ (.github/workflows/release.yml), and the site is
 // rebuilt with the new version.
@@ -16,7 +16,7 @@ const desktop = [
 	<section class="wrap py-10">
 		<p class="eyebrow">Version {v}</p>
 		<h1 class="text-4xl sm:text-5xl">Download BeerMat</h1>
-		<p class="max-w-2xl text-lg text-muted">For the quizmaster’s laptop. It starts on BeerMat Free ({FREE_LIMITS.questions} questions, {FREE_LIMITS.teams} teams) so you can try everything; BeerMat Pro lifts the limits.</p>
+		<p class="max-w-2xl text-lg text-muted">For the quizmaster’s laptop. BeerMat Free makes and rehearses whole quizzes, with simulated teams, the TV and real phones testing the connection. BeerMat Pro hosts them live.</p>
 		{!DOWNLOADS_READY && <div class="card mt-8 border-amber/60"><h2 class="text-xl">Downloads open soon</h2><p class="mb-0 text-muted">BeerMat is in a private beta with a few pubs. Want to run your quiz with it? Email <a href={`mailto:${CONTACT}?subject=BeerMat%20beta`}>{CONTACT}</a> and we’ll send you a copy.</p></div>}
 		{DOWNLOADS_READY && <>
 		<div class="mt-8 grid gap-4 md:grid-cols-2">

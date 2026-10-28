@@ -1,6 +1,6 @@
 ---
 import Page from '../../layouts/Page.astro';
-import {ONLINE, PRICE, FREE_LIMITS} from '../../consts';
+import {ONLINE, PRICE} from '../../consts';
 // Buying BeerMat Pro: the pub's details here, then Stripe's own payment page (BeerMat Online starts the checkout and
 // sets the venue up when Stripe says it's paid).
 ---
@@ -10,7 +10,8 @@ import {ONLINE, PRICE, FREE_LIMITS} from '../../consts';
 			<p class="eyebrow">BeerMat Pro</p>
 			<h1 class="text-4xl sm:text-5xl">Get BeerMat Pro for your pub</h1>
 			<ul class="mt-6 space-y-3 text-lg text-muted">
-				<li>✓ As many questions and teams as you like (Free stops at {FREE_LIMITS.questions} questions and {FREE_LIMITS.teams} teams)</li>
+				<li>✓ Host live quizzes: real teams playing on their phones, with real answers, buzzers, scoring and leaderboards</li>
+				<li>✓ As many teams as the room holds (Free rehearses with simulated teams, and real phones only test the connection)</li>
 				<li>✓ Your pub and its quiz nights on the BeerMat map, in the app and on this website</li>
 				<li>✓ The shared buzzer library: add buzzer sounds other BeerMat pubs have shared, and share your own</li>
 				<li>✓ Works offline on quiz night once it’s set up</li>

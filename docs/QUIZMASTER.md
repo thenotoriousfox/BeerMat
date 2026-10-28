@@ -21,10 +21,24 @@ Five tabs, in the order a night uses them:
   options, waiting room, TV language), the quiz Wi-Fi and online mode, screens, how players join, past quizzes and
   BeerMat Online, sounds and bingo calls, Spotify, and the keyboard shortcuts.
 
-**Plans.** BeerMat Free plays 3 questions and lets 3 teams in per quiz, enough to try everything; Spotify is Pro only.
-BeerMat Pro (for venues) has no limits. When your venue has Pro: register this laptop with the venue (**Venue** tab),
+**Plans.** BeerMat Free makes and rehearses quizzes with no limits (see **Rehearsals** below); hosting a live quiz with
+real teams, Spotify and adding from the shared buzzer library are BeerMat Pro. When your venue has Pro: register this laptop with the venue (**Venue** tab),
 then **Settings → Plan → Check my plan**. That needs the internet once; the plan then holds offline and renews itself
 whenever the laptop is online. Players never need a plan.
+
+**Rehearsals.** **Tonight → Rehearse this quiz** (or **Quizzes → Rehearse quiz**) plays the quiz with simulated teams
+on the real quiz engine: timers, marking, scores, buzzers, the leaderboard and the TV, which shows a small Rehearsal
+label. Choose how many teams (up to 30), how often they're right, whether they answer by themselves or only when told,
+fast timers (a third of each question's time), buzzing, and teams dropping out. The Rehearsal panel makes a chosen team
+answer right or wrong, twice, with nonsense, for an old question, buzz, agree, drop out or come back, and shows whether
+the quiz server accepted it. Real phones can scan the code too: they show **Rehearsal mode — Connection successful**
+and are listed as test phones, but can't play. Nothing from a rehearsal is kept or shared. **End rehearsal** clears it;
+**Host live quiz** (Pro) clears it and lets real teams play. Rehearsing over a live quiz in progress saves that quiz's
+results first and asks before going ahead. If the venue's Pro lapses during a live quiz, the quiz carries on for up to
+a day; after that the laptop can rehearse but not go live.
+
+**Preflight check** (Tonight) checks the quiz, its pictures and sounds, the database, disk space, the network, the quiz
+Wi-Fi, and in the app the screens and sound, and says plainly what it couldn't check.
 
 ## Before the room fills
 

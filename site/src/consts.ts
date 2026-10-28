@@ -7,4 +7,4 @@ export const DOWNLOADS = 'https://downloads.beermatquiz.co.uk';
 export const DOWNLOADS_READY = false;
 export const CONTACT = 'hello@beermatquiz.co.uk';
 export const PRICE = {monthly: '£19.99', yearly: '£199'};
-export const FREE_LIMITS = {questions: 3, teams: 3};
+// Free makes and rehearses quizzes with no limits; hosting a live quiz with real teams is Pro (server/edition.js).

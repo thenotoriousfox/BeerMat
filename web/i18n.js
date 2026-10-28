@@ -2,6 +2,18 @@
 // The host desk stays in English. Bingo call phrases are British idioms and are not translated.
 export const languages = {en: 'English', fr: 'Français', es: 'Español'};
 const T = {
+  // Rehearsals: a phone that joined to test its connection
+  'Connected': ['Connecté', 'Conectado'],
+  'Reconnecting…': ['Reconnexion…', 'Reconectando…'],
+  'Rehearsal mode': ['Mode répétition', 'Modo ensayo'],
+  'Rehearsal': ['Répétition', 'Ensayo'],
+  'Connection successful': ['Connexion réussie', 'Conexión correcta'],
+  'This phone reached the quiz. The quizmaster is rehearsing, so playing is switched off: this is only a connection test.': ['Ce téléphone a rejoint le quiz. Le maître du quiz fait une répétition, le jeu est donc désactivé : ce n’est qu’un test de connexion.', 'Este teléfono ha llegado al quiz. El presentador está ensayando, así que el juego está desactivado: es solo una prueba de conexión.'],
+  'Test name': ['Nom du test', 'Nombre de prueba'],
+  'Connection': ['Connexion', 'Conexión'],
+  'Last checked': ['Dernière vérification', 'Última comprobación'],
+  'Keep this page open: the quizmaster sees this phone stay connected. Refreshing or switching Wi-Fi off and on tests reconnecting.': ['Gardez cette page ouverte : le maître du quiz voit que ce téléphone reste connecté. Actualiser ou couper puis rallumer le Wi-Fi teste la reconnexion.', 'Mantén esta página abierta: el presentador ve que este teléfono sigue conectado. Recargar o apagar y encender el Wi-Fi prueba la reconexión.'],
+  'Connected: this is a rehearsal, so this phone only tests the connection.': ['Connecté : c’est une répétition, ce téléphone ne fait que tester la connexion.', 'Conectado: es un ensayo, así que este teléfono solo prueba la conexión.'],
   // Page text
   'QUIZ NIGHT': ['SOIRÉE QUIZ', 'NOCHE DE QUIZ'],
   'Connecting…': ['Connexion…', 'Conectando…'],
