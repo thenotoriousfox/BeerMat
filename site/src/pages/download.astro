@@ -2,7 +2,8 @@
 import Page from '../layouts/Page.astro';
 import {DOWNLOADS, DOWNLOADS_READY, CONTACT} from '../consts';
 import pkg from '../../../package.json';
-// Each release is copied to downloads.beermatquiz.co.uk/<version>/ (.github/workflows/release.yml), and the site is
+// Each release is copied to downloads.beermatquiz.co.uk/<version>/ (.github/workflows/release.yml), which keeps only
+// the latest (earlier ones stay with their GitHub releases), and the site is
 // rebuilt with the new version.
 const v = pkg.version, file = (name: string) => `${DOWNLOADS}/${v}/${name}`;
 // BeerMat Desk, the native app (native/beermat_desk), is the download; the previous desk (Electron) stays in each

@@ -347,7 +347,8 @@ $('themeAdd').onsubmit = guarded(async () => {
   const id = folder.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'theme';
   await api('POST', '/v1/admin/themes', {bundle: {id, files}, previews: await pictures($('themeTvPicture').files[0], $('themeAppPicture').files[0])});
   $('themeAdd').reset(); await loadThemes();
-}, 'Added to the library');
+  setTimeout(() => loadThemes().catch(() => {}), 8000);   // its pictures, once BeerMat Online has drawn them
+}, 'Added to the library: its pictures follow in a few seconds');
 // A new picture of a theme on the TV or in the app, for one shared without it (or with a poor one).
 function pickPicture(t, kind) {
   return new Promise((resolve, reject) => {

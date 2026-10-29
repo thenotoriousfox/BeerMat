@@ -160,10 +160,14 @@ because a theme's stylesheet runs on other venues' TVs and phones.
   the bundle as a JSON string beside the request, its `sha256` and `rights: true` in it; `previews: {tv, app}`
   optional, 1 MB each), `beermat.theme-get` (`POST /v1/themes/:id/bundle`), `beermat.theme-report` and
   `beermat.theme-remove` (the sharing venue only, whatever its plan now). Ten themes a day per venue.
-* **Pictures**: the desk that shares a theme sends pictures of it on BeerMat Desk's TV and in the app (drawn with their
-  own code). The service adds one of a phone's browser when it has Chromium (`online/preview.js` runs the quiz engine
+* **Pictures**: every theme gets a picture of it on BeerMat Desk's TV and one in the app, however it was added. The
+  desk that shares a theme sends them; for any theme without them (one an admin added) the service draws them itself
+  after answering, one theme at a time, with the desk's own TV and app mock (`online/qt-preview.js` runs
+  `native/beermat_desk/previews.py` with PySide6, off screen, about 3 s a theme). `deploy.sh` installs PySide6 (Qt
+  without a browser engine, about 250 MB) in `/opt/beermat-qt`; without it the service runs, and those pictures are
+  left out. The service adds one of a phone's browser when it has Chromium (`online/preview.js` runs the quiz engine
   with the theme installed and photographs a phone-sized page); deploy with `THEME_PREVIEWS=1` for that (about 400 MB
-  more on the server). Without it the service runs as before, and themes have the desk's two pictures.
+  more on the server).
 * **Review**: `ADMIN_EMAIL` is told when a theme waits. In the admin console (**Themes**) an admin sees each theme's
   pictures and opens any of its files (pictures and sounds as they are, the stylesheet and `tv.json` as text, in a
   sandbox), then approves it or turns it down with a note for the venue; hides, shows or removes one. Three venues
@@ -171,8 +175,8 @@ because a theme's stylesheet runs on other venues' TVs and phones.
 * **BeerMat's own themes**: an admin adds one in the console (**Themes → Add one of BeerMat's own themes**) by
   choosing its folder, as in the app's `themes/` (other files in it, such as scripts, are left out). It's checked as a
   venue's, gets a library id and goes straight into the library, shared by "BeerMat" (`POST /v1/admin/themes` with
-  `{bundle, previews?}`). TV and app pictures are optional there, and an admin can add or replace either later on any
-  theme (**TV picture… / App picture…**, `PUT /v1/admin/themes/:id/previews`).
+  `{bundle, previews?}`). Its TV and app pictures are drawn by the service (see Pictures); an admin can replace either
+  on any theme (**TV picture… / App picture…**, `PUT /v1/admin/themes/:id/previews`).
 
 ## Data model
 
