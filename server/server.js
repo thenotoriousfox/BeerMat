@@ -1088,6 +1088,13 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const track = running => {hotspotOnly = onlyOn(running); hotspotNow = running || null;};
   const localAddress = req => (req.socket.localAddress || '').replace(/^::ffff:/, '');
   const localAllowed = req => {const only = allowedAddresses || hotspotOnly; return !only || only.includes(localAddress(req));};
+  // The TV page is the exception: a smart TV or TV stick is usually on the venue's own Wi-Fi, which the laptop stays on
+  // beside its quiz Wi-Fi, so the TV page (/tv, /display), what it loads and its live updates answer on every network
+  // the laptop is on. Only reading, and only what the room sees on the TV anyway: playing, joining and the desk stay on
+  // the quiz Wi-Fi.
+  const tvFiles = new Set(['/tv', '/display', '/client.js', '/app.js', '/qr.js', '/soundnames.js', '/i18n.js', '/style.css', '/themes.css', '/api/leaderboard', '/api/hello']);
+  const tvOnly = (req, url) => (req.method === 'GET' || req.method === 'HEAD') && (tvFiles.has(url.pathname)
+    || /^\/(themes|brand|media|sounds|pack)\//.test(url.pathname) || (url.pathname === '/api/events' && !url.searchParams.get('key')));
   // Windows: whether players are kept off the internet. The script says whether its filters are on ("configured");
   // "verified" needs phones on the quiz Wi-Fi to have tried the internet and failed. Players' browsers try once each
   // (web/client.js, isolationCheck); their answers are kept until the quiz Wi-Fi is started again.
@@ -1116,8 +1123,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const handle = async (req, res) => {
     const send = (status, data) => {res.writeHead(status, {...security, 'Content-Type': 'application/json'}); res.end(JSON.stringify(data));};
     try {
-      if (!localAllowed(req)) return send(403, {error: 'Not available on this network'});
       const url = new URL(req.url, 'http://quiz.local'); const p = url.pathname;
+      if (!localAllowed(req) && !tvOnly(req, url)) return send(403, {error: 'Not available on this network'});
       // The online link reaches the players' and TV pages; the desk only while the quizmaster allows it (Desk on the
       // online link), and Spotify sign-in never.
       if (req.viaTunnel && (p === '/spotify/callback' || (!settings().deskOnline && (['/host', '/host.js', '/api/login'].includes(p) || p.startsWith('/api/host/'))))) return send(404, {error: 'Not found'});

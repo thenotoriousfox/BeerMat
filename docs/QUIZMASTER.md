@@ -44,14 +44,16 @@ Wi-Fi, and in the app the screens and sound, and says plainly what it couldn't c
 
 A smart TV, or a Fire TV or Google TV stick, can show the quiz without an HDMI cable to the laptop: its own web browser
 opens the TV page from the laptop. **TV without a cable…** (Live, under the TV preview) shows the address, a QR code and
-the steps: connect the TV to the quiz Wi-Fi (or the venue network, if players use that), open its browser, go to the
-address (the join address with `/tv` on the end, e.g. `http://10.42.0.1/tv`) and press OK on **Start the TV**, which
-goes full screen with sound. The TV draws the quiz itself, so it's as sharp as the TV and barely uses the Wi-Fi. Keep
+the steps. The TV stays on the venue's own Wi-Fi, the one the laptop is on beside the quiz Wi-Fi: the quiz server
+answers the TV page on every network the laptop is on (only the TV page: playing, joining and the desk stay on the
+quiz Wi-Fi). Open the TV's browser, go to the address (the laptop's address on the venue network with `/tv` on the
+end, e.g. `http://192.168.1.20:3000/tv`; if the laptop is on no other network, the quiz Wi-Fi's, `http://10.42.0.1/tv`)
+and press OK on **Start the TV**, which goes full screen with sound. The TV draws the quiz itself, so it's as sharp as the TV and barely uses the Wi-Fi. Keep
 the desk's own TV window closed, or on another screen.
 
 On an **Android TV, Google TV or Fire TV** (most TV sticks), install the BeerMat app (the Android download on the
 website; on a Fire TV, sideload it) and open **BeerMat TV** from the TV's apps: on the quiz Wi-Fi it finds the quiz by
-itself, with no address to type, and starts full screen with sound.
+itself (on the venue's Wi-Fi or the quiz Wi-Fi), with no address to type, and starts full screen with sound.
 
 ## Before the room fills
 

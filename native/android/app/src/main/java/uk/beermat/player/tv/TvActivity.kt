@@ -75,7 +75,7 @@ class TvActivity : ComponentActivity() {
             BeerMatTheme {
                 var showing by remember { mutableStateOf<String?>(null) }
                 val current = showing
-                if (current == null) Connect(saved = prefs.getString("address", null), gateway = { TvFinder.gateway(this) }) { base ->
+                if (current == null) Connect(saved = prefs.getString("address", null), gateway = { TvFinder.gateway(this) }, own = { TvFinder.ownAddress(this) }) { base ->
                     prefs.edit().putString("address", base).apply(); showing = base
                 } else {
                     BackHandler { showing = null }
@@ -88,7 +88,7 @@ class TvActivity : ComponentActivity() {
 
 /** Finding the quiz: automatically on the TV's network, or the address the quizmaster types. */
 @Composable
-private fun Connect(saved: String?, gateway: () -> String?, open: (String) -> Unit) {
+private fun Connect(saved: String?, gateway: () -> String?, own: () -> String?, open: (String) -> Unit) {
     var status by remember { mutableStateOf(t("Looking for the quiz on this Wi-Fi…")) }
     var looking by remember { mutableIntStateOf(1) }
     var typed by remember { mutableStateOf(saved?.removePrefix("http://") ?: "") }
@@ -96,9 +96,12 @@ private fun Connect(saved: String?, gateway: () -> String?, open: (String) -> Un
     val button = remember { FocusRequester() }
     LaunchedEffect(looking) {
         status = t("Looking for the quiz on this Wi-Fi…")
-        val found = TvFinder.find(TvFinder.candidates(saved, gateway()))
+        val found = TvFinder.find(TvFinder.candidates(saved, gateway())) ?: run {
+            status = t("Looking for the quiz laptop on this network…")
+            TvFinder.find(TvFinder.neighbours(own()))
+        }
         if (found != null) { status = t("Found “{title}”", "title" to found.second); delay(800); open(found.first) }
-        else status = t("No quiz found on this Wi-Fi. Is the TV on the quiz Wi-Fi? Or type the address on the laptop’s TV screen.")
+        else status = t("No quiz found on this network. Is the TV on the same Wi-Fi as the laptop? Or type the address from the desk (TV without a cable…).")
     }
     LaunchedEffect(checking) {
         if (!checking) return@LaunchedEffect

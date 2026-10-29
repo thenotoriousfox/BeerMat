@@ -23,10 +23,17 @@ ColumnLayout {
         id: cableFree
         objectName: "cableFree"
         readonly property var settings: desk.tv.settings || {}
-        readonly property string address: settings.joinUrl ? settings.joinUrl.replace(/\/$/, "") + "/tv" : ""
-        readonly property bool hotspot: !settings.online && settings.joinMode !== "lan"
+        // The TV is usually on the venue's own Wi-Fi, which the laptop stays on beside its quiz Wi-Fi: the laptop's
+        // address there (the quiz server answers the TV page on every network). Without one, the quiz Wi-Fi's.
+        readonly property var venue: ((desk.network || {}).addresses || []).find(a => a.kind === "lan") || null
+        readonly property int port: (desk.network || {}).port || 0
+        readonly property string venueUrl: venue && port ? `http://${venue.address}${port === 80 ? "" : ":" + port}` : ""
+        readonly property string address: settings.online ? (settings.joinUrl || "").replace(/\/$/, "") + "/tv"
+                                        : venueUrl ? venueUrl + "/tv" : settings.joinUrl ? settings.joinUrl.replace(/\/$/, "") + "/tv" : ""
+        readonly property bool hotspot: !settings.online && !venueUrl
         parent: Overlay.overlay; anchors.centerIn: parent; modal: true; padding: 24
         width: Math.min(parent.width - 80, 860)
+        onAboutToShow: desk.loadNetwork()
         background: Rectangle { color: Theme.panel; radius: Theme.radius; border.color: Theme.lineStrong }
         contentItem: ColumnLayout {
             spacing: 14
@@ -43,8 +50,9 @@ ColumnLayout {
                     Layout.fillWidth: true; spacing: 10
                     Repeater {
                         model: [
-                            cableFree.hotspot ? `Connect the TV to the “${cableFree.settings.joinSsid || "BeerMat"}” Wi-Fi${cableFree.settings.joinPassword ? " (password " + cableFree.settings.joinPassword + ")" : ""}, as the phones do.`
-                                              : cableFree.settings.online ? "The TV only needs the internet: the quiz has a web address tonight." : "Connect the TV to the venue’s Wi-Fi, the one the phones use.",
+                            cableFree.settings.online ? "The TV only needs the internet: the quiz has a web address tonight."
+                                : cableFree.hotspot ? `Connect the TV to the “${cableFree.settings.joinSsid || "BeerMat"}” Wi-Fi${cableFree.settings.joinPassword ? " (password " + cableFree.settings.joinPassword + ")" : ""}, as the phones do (this laptop isn’t on another network).`
+                                : "Leave the TV on the venue’s Wi-Fi or network, the one this laptop is on (not the quiz Wi-Fi).",
                             "Open the TV’s web browser (on a Fire TV stick: Silk; on Google TV: any browser from its app store).",
                             "Go to the address below (or scan the code with a phone and send it to the TV).",
                             "Press OK on “Start the TV”: full screen, with sound."

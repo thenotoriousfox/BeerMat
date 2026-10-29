@@ -22,5 +22,21 @@ class TvFinderTest {
         assertNull(TvFinder.find(listOf("http://192.168.1.1")) { null })
     }
 
+    @Test fun theRestOfTheTvsNetworkAtTheDesksPort() {
+        val all = TvFinder.neighbours("192.168.1.57")
+        assertEquals(253, all.size, "every other address on the /24")
+        assertEquals("http://192.168.1.1:3000", all.first(), "starting at .1")
+        assertEquals(false, "http://192.168.1.57:3000" in all, "not the TV itself")
+        assertEquals("http://192.168.1.254:3000", all.last(), "to .254")
+        assertEquals(emptyList<String>(), TvFinder.neighbours(null), "no network")
+    }
+
+    @Test fun aBatchAtATimeStoppingAtTheFirst() = runBlocking {
+        val asked = mutableListOf<String>()
+        val found = TvFinder.find((1..10).map { "http://h$it" }, batch = 4) { asked += it; if (it == "http://h6") "Pub" else null }
+        assertEquals("http://h6" to "Pub", found, "found in the second batch")
+        assertEquals(8, asked.size, "the third batch isn’t asked")
+    }
+
     private fun assertEquals(expected: Any?, actual: Any?, message: String) = org.junit.Assert.assertEquals(message, expected, actual)
 }

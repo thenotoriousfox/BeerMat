@@ -267,9 +267,13 @@
   "« {title} » trouvé",
   "«{title}» encontrado"
  ],
- "No quiz found on this Wi-Fi. Is the TV on the quiz Wi-Fi? Or type the address on the laptop’s TV screen.": [
-  "Aucun quiz trouvé sur ce Wi-Fi. La télé est-elle sur le Wi-Fi du quiz ? Ou tapez l’adresse affichée par l’ordinateur.",
-  "No se ha encontrado ningún quiz en esta wifi. ¿Está la tele en la wifi del quiz? O escribe la dirección que muestra el portátil."
+ "Looking for the quiz laptop on this network…": [
+  "Recherche de l’ordinateur du quiz sur ce réseau…",
+  "Buscando el portátil del quiz en esta red…"
+ ],
+ "No quiz found on this network. Is the TV on the same Wi-Fi as the laptop? Or type the address from the desk (TV without a cable…).": [
+  "Aucun quiz trouvé sur ce réseau. La télé est-elle sur le même Wi-Fi que l’ordinateur ? Ou tapez l’adresse affichée sur le pupitre (TV without a cable…).",
+  "No se ha encontrado ningún quiz en esta red. ¿Está la tele en la misma wifi que el portátil? O escribe la dirección que muestra el panel (TV without a cable…)."
  ],
  "Nothing at {address} answers as a BeerMat quiz.": [
   "Rien à {address} ne répond comme un quiz BeerMat.",

@@ -121,9 +121,14 @@ class QuizShelfTest(DeskCase):
         cable = w.findChild(QObject, 'cableFree')
         cable.metaObject().invokeMethod(cable, 'open')
         pump(10)
-        join = (desk.tv.get('settings') or {}).get('joinUrl', '')
-        self.assertTrue(join)
-        self.assertEqual(cable.property('address'), join.rstrip('/') + '/tv')
+        # The laptop's address on the venue network (the TV's usual Wi-Fi); without one, the quiz Wi-Fi's.
+        wait(lambda: desk.network.get('port'), what='the network')
+        pump(5)
+        venue = next((a for a in desk.network.get('addresses', []) if a.get('kind') == 'lan'), None)
+        port = desk.network['port']
+        expected = f"http://{venue['address']}:{port}/tv" if venue else (desk.tv.get('settings') or {}).get('joinUrl', '').rstrip('/') + '/tv'
+        self.assertEqual(cable.property('address'), expected)
+        self.assertEqual(cable.property('hotspot'), venue is None)
         self.shot('2-tv-without-cable')
         cable.metaObject().invokeMethod(cable, 'close')
         banner = w.findChild(QObject, 'shareFinished')
