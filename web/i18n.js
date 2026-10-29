@@ -12,6 +12,7 @@ const T = {
   'Allow BeerMat to install apps, then tap Update again.': ['Autorisez BeerMat à installer des applis, puis touchez de nouveau Mettre à jour.', 'Permite que BeerMat instale apps y vuelve a tocar Actualizar.'],
   'The update didn’t download': ['La mise à jour n’a pas été téléchargée', 'La actualización no se ha descargado'],
   'My location': ['Ma position', 'Mi ubicación'],
+  'Finding where you are…': ['Recherche de votre position…', 'Buscando dónde estás…'],
   // The TV's recap after a secret round.
   'SECRET ROUND': ['MANCHE SECRÈTE', 'RONDA SECRETA'],
   'Question {n} of {count}': ['Question {n} sur {count}', 'Pregunta {n} de {count}'],

@@ -163,15 +163,17 @@ fun FindScreen(vm: OnlineViewModel, ui: OnlineState) {
     val context = LocalContext.current
     // Location is asked for only when the player taps the button, once; only the position rounded to ~100 m is sent.
     val locate = { ->
-        val fix = lastFix(context)
-        if (fix != null) vm.near(fix.latitude, fix.longitude) else vm.say(t("This phone doesn’t know where it is yet. Search by town instead."), true)
+        vm.say(t("Finding where you are…"))
+        currentFix(context) { fix ->
+            if (fix != null) vm.near(fix.latitude, fix.longitude) else vm.say(t("This phone doesn’t know where it is yet. Search by town instead."), true)
+        }
     }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) locate() else vm.say(t("Search by town or postcode instead.")) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted -> if (granted.values.any { it }) locate() else vm.say(t("Search by town or postcode instead.")) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
         Text(t("Find a quiz"), style = MaterialTheme.typography.displaySmall)
         OutlinedTextField(q, { q = it }, label = { Text(t("Town or postcode")) }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("search"))
         BigButton(t("Search"), enabled = q.isNotBlank() && !ui.busy) { vm.search(q) }
-        OutlinedButton({ permission.launch(Manifest.permission.ACCESS_COARSE_LOCATION) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text(t("Quizzes near me")) }
+        OutlinedButton({ if (precise(context)) locate() else permission.launch(LOCATION) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text(t("Quizzes near me")) }
         OnlineMessage(ui)
         ui.eventsStale?.let { Text(t("Offline: these are the results from {date}; they may be out of date.", "date" to date(it)), color = Brand.faint) }
         if (ui.searched && ui.events.isEmpty()) Text(t("No quiz nights found there yet."), color = Brand.muted, modifier = Modifier.padding(top = 12.dp))
@@ -211,12 +213,50 @@ fun EventCard(vm: OnlineViewModel, e: JSONObject) {
     }
 }
 
-/** The phone's newest known position (network, GPS or fused), without waiting for a new one. */
+// Precise location is asked for with approximate (Android lets the player choose either).
+private val LOCATION = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+
+private fun granted(context: android.content.Context, permission: String) =
+    androidx.core.content.ContextCompat.checkSelfPermission(context, permission) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+// Asked again until it's precise (Android offers the upgrade from approximate); the player can keep approximate.
+private fun precise(context: android.content.Context) = granted(context, Manifest.permission.ACCESS_FINE_LOCATION)
+
+/** The phone's newest stored position (network, GPS or fused), without waiting for a new one: it can be old, and a
+ *  phone mast's position miles out, so only good for a first guess. */
 @android.annotation.SuppressLint("MissingPermission")
 private fun lastFix(context: android.content.Context): android.location.Location? {
     val lm = context.getSystemService(LocationManager::class.java)
     return listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER, "fused")
         .mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }.maxByOrNull { it.time }
+}
+
+/** Where the phone is now: a fresh fix from the best source it may use (fused at high accuracy, else GPS with precise
+ *  location, else the network), then done(fix) on the main thread; the stored one if no fresh fix comes within 20 s.
+ *  High accuracy matters: the balanced default answers from phone masts and Wi-Fi, which can be miles out. */
+@android.annotation.SuppressLint("MissingPermission")
+private fun currentFix(context: android.content.Context, done: (android.location.Location?) -> Unit) {
+    val lm = context.getSystemService(LocationManager::class.java)
+    val precise = precise(context)
+    val provider = listOfNotNull(
+        if (android.os.Build.VERSION.SDK_INT >= 31) LocationManager.FUSED_PROVIDER else null,
+        if (precise) LocationManager.GPS_PROVIDER else null,
+        LocationManager.NETWORK_PROVIDER,
+    ).firstOrNull { runCatching { lm.isProviderEnabled(it) }.getOrDefault(false) }
+        ?: return done(lastFix(context))
+    val main = android.os.Handler(android.os.Looper.getMainLooper())
+    var answered = false
+    val answer = { fix: android.location.Location? -> if (!answered) { answered = true; done(fix ?: lastFix(context)) } }
+    val cancel = android.os.CancellationSignal()
+    main.postDelayed({ cancel.cancel(); answer(null) }, 20_000)
+    runCatching {
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            val request = android.location.LocationRequest.Builder(0).setDurationMillis(20_000)
+                .setQuality(if (precise) android.location.LocationRequest.QUALITY_HIGH_ACCURACY else android.location.LocationRequest.QUALITY_BALANCED_POWER_ACCURACY).build()
+            lm.getCurrentLocation(provider, request, cancel, context.mainExecutor) { main.post { answer(it) } }
+        } else if (android.os.Build.VERSION.SDK_INT >= 30) lm.getCurrentLocation(provider, cancel, context.mainExecutor) { main.post { answer(it) } }
+        else @Suppress("DEPRECATION") lm.requestSingleUpdate(provider, { fix: android.location.Location -> answer(fix) }, android.os.Looper.getMainLooper())
+    }.onFailure { answer(null) }
 }
 
 // ---- Map ----
@@ -237,12 +277,15 @@ fun MapScreen(vm: OnlineViewModel, ui: OnlineState) {
         var map by remember { mutableStateOf<MapView?>(null) }
         var me by remember { mutableStateOf<GeoPoint?>(null) }
         // My location: asked for only when the player taps it; the position stays on the phone (the map is centred on it).
+        // The stored position straight away if there is one, then the fresh one when it comes.
         val locate = { ->
-            val fix = lastFix(context)
-            if (fix == null) vm.say(t("This phone doesn’t know where it is yet. Search by town instead."), true)
-            else GeoPoint(fix.latitude, fix.longitude).let { me = it; map?.controller?.animateTo(it, 12.0, 800L) }
+            lastFix(context)?.let { GeoPoint(it.latitude, it.longitude).let { here -> me = here; map?.controller?.animateTo(here, 12.0, 800L) } }
+            currentFix(context) { fix ->
+                if (fix == null) { if (me == null) vm.say(t("This phone doesn’t know where it is yet. Search by town instead."), true) }
+                else GeoPoint(fix.latitude, fix.longitude).let { me = it; map?.controller?.animateTo(it, 14.0, 800L) }
+            }
         }
-        val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) locate() else vm.say(t("Search by town or postcode instead.")) }
+        val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted -> if (granted.values.any { it }) locate() else vm.say(t("Search by town or postcode instead.")) }
         // The map is a classic Android view: kept inside its own space (it would otherwise draw over the day filters and
         // the status bar while it's dragged), and let go of when the screen closes.
         Box(Modifier.fillMaxSize().clipToBounds()) {
@@ -275,8 +318,7 @@ fun MapScreen(vm: OnlineViewModel, ui: OnlineState) {
             Text("◎  " + t("My location"), fontWeight = FontWeight.Bold, color = Brand.onAccent,
                 modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).clip(RoundedCornerShape(50)).background(Brand.gold)
                     .clickable {
-                        if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED) locate()
-                        else permission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                        if (precise(context)) locate() else permission.launch(LOCATION)
                     }.padding(horizontal = 18.dp, vertical = 12.dp).testTag("my-location"))
         }
         DisposableEffect(Unit) { onDispose { map?.onDetach(); map = null } }
