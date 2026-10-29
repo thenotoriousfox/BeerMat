@@ -400,11 +400,14 @@ Item {
 
             // Leaderboard, revealed from the bottom when the quizmaster steps through it.
             Item {
+                id: boardView
+                objectName: "boardView"
                 anchors.fill: parent
                 opacity: root.view === "leaderboard" ? 1 : 0; visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 300 } }
-                readonly property var reveal: root.tv.reveal || null
-                readonly property int shownFromBottom: reveal && !reveal.done ? reveal.shown : 100000
+                // Not "reveal": that name is the answer box's id, which wins, and every row then stayed hidden.
+                readonly property var steps: root.tv.reveal || null
+                readonly property int shownFromBottom: steps && !steps.done ? steps.shown : 100000
                 Text { id: boardTitle; text: root.t("Leaderboard"); color: root.pal.text; font.family: Theme.display; font.pixelSize: 72; font.weight: Font.Bold }
                 Text {
                     anchors.left: boardTitle.right; anchors.leftMargin: 30; anchors.baseline: boardTitle.baseline
@@ -422,7 +425,8 @@ Item {
                     delegate: Item {
                         required property var modelData
                         required property int index
-                        readonly property bool shown: root.teams.length - index <= parent.parent.shownFromBottom
+                        // By id: a delegate's parent is the grid's content item, not the board.
+                        readonly property bool shown: root.teams.length - index <= boardView.shownFromBottom
                         width: board.cellWidth; height: board.cellHeight
                         Rectangle {
                             anchors.fill: parent; anchors.margins: 6; anchors.rightMargin: board.twoColumns ? 18 : 6

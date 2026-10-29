@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+os.environ.setdefault('BEERMAT_MUTE', '1')   # tests make the TV's sounds without playing them aloud
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from PySide6.QtCore import QObject, Property, QUrl, qInstallMessageHandler, QtMsgType   # noqa: E402
 from PySide6.QtGui import QGuiApplication                                             # noqa: E402
@@ -148,6 +149,28 @@ class TvStageTest(unittest.TestCase):
         texts = [o.property('text') for o in items(reveal) if isinstance(o.property('text'), str)]
         self.assertIn('2.3s · +2', texts, 'the fastest team\'s time and points')
         self.assertIn('10 teams scored — fastest first', texts)
+
+    def test_the_leaderboard_shows_and_reveals_from_the_bottom(self):
+        teams = [{'name': n, 'rank': i + 1, 'score': 10 - i} for i, n in enumerate(['Bears', 'Owls', 'Foxes', 'Cats'])]
+
+        def items(item):
+            yield item
+            for child in item.childItems():
+                yield from items(child)
+
+        def shown():
+            for _ in range(40):     # rows fade in
+                app.processEvents(); time.sleep(0.02)
+            board = self.stage.findChild(QObject, 'boardView')
+            rows = [o for o in items(board) if o.metaObject().className().startswith('QQuickRectangle') and o.property('radius') == 18]
+            return [next(c.property('text') for c in items(r) if c.property('text') in [t['name'] for t in teams]) for r in rows if r.property('opacity') > 0.9]
+        self.show(state('leaderboard', teams=teams))
+        self.assertEqual(shown(), ['Bears', 'Owls', 'Foxes', 'Cats'], 'no reveal: the whole board')
+        for n, expected in ((0, []), (1, ['Cats']), (3, ['Owls', 'Foxes', 'Cats'])):
+            self.show(state('leaderboard', teams=teams, reveal={'question': 1, 'shown': n, 'rest': 3, 'done': False}))
+            self.assertEqual(shown(), expected, f'{n} revealed from the bottom')
+        self.show(state('leaderboard', teams=teams, reveal={'question': 1, 'shown': 4, 'rest': 3, 'done': True}))
+        self.assertEqual(shown(), ['Bears', 'Owls', 'Foxes', 'Cats'], 'first place last')
 
     def test_wheel_spins_once_for_a_spin_seen_happening(self):
         spin = self.stage.findChild(QObject, 'wheelSpin')
