@@ -23,8 +23,10 @@ class DeskApi(QObject):
     def use(self, port):
         self.base = f'http://127.0.0.1:{port}'
 
-    def call(self, route, body=None, done=None, failed=None, timeout_ms=15000):
-        """POST /api/<route> with the desk session; done(json) or failed(message) on the UI thread."""
+    def call(self, route, body=None, done=None, failed=None, timeout_ms=15000, retry=True):
+        """POST /api/<route> with the desk session; done(json) or failed(message) on the UI thread. Sent once more if
+        the server closed the connection before answering: Qt reuses idle connections, and one the server has just
+        timed out fails with "Connection closed" before the request reached it."""
         request = QNetworkRequest(QUrl(f'{self.base}/api/{route}'))
         request.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader, 'application/json')
         # The server only accepts desk calls from its own origin (or none), like the web desk's.
@@ -44,6 +46,8 @@ class DeskApi(QObject):
             if reply.error() == QNetworkReply.NetworkError.NoError and 200 <= status < 300:
                 if done:
                     done(data)
+            elif retry and not status and reply.error() == QNetworkReply.NetworkError.RemoteHostClosedError:
+                self.call(route, body, done, failed, timeout_ms, retry=False)
             elif failed:
                 failed(data.get('error') or (reply.errorString() if not status else f'The quiz server said {status}'))
             reply.deleteLater()
