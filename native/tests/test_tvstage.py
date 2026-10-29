@@ -28,7 +28,9 @@ qInstallMessageHandler(lambda kind, _context, message: problems.append(message) 
 class FakeDesk(QObject):
     def __init__(self):
         super().__init__()
-        self._palettes, self._scenes = looks.load(ROOT / 'themes'), looks.scenes(ROOT / 'themes')
+        # BeerMat's own looks and the library's (Halloween), as a laptop that installed it has.
+        self._palettes = {**looks.load(ROOT / 'library'), **looks.load(ROOT / 'themes')}
+        self._scenes = {**looks.scenes(ROOT / 'library'), **looks.scenes(ROOT / 'themes')}
 
     @Property('QVariantMap', constant=True)
     def lookPalettes(self):

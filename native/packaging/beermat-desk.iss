@@ -21,6 +21,10 @@ CloseApplications=force
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"
 
+[InstallDelete]
+; The previous version's files go first, so nothing it had and this one doesn't (a theme no longer shipped) is left behind.
+Type: filesandordirs; Name: "{app}\_internal"
+
 [Files]
 Source: "{#Source}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 

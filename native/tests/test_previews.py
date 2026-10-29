@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class PreviewsTest(unittest.TestCase):
     def test_draws_a_theme_on_the_tv_and_in_the_app(self):
         # Its own process, as BeerMat Online runs it.
-        out = subprocess.run([sys.executable, '-m', 'beermat_desk.previews', str(ROOT / 'themes'), 'halloween', 'Halloween Pub Quiz'], cwd=ROOT / 'native',
+        out = subprocess.run([sys.executable, '-m', 'beermat_desk.previews', str(ROOT / 'library'), 'halloween', 'Halloween Pub Quiz'], cwd=ROOT / 'native',
                              capture_output=True, text=True, timeout=120, env={**os.environ, 'QT_QPA_PLATFORM': 'offscreen'})
         self.assertEqual(out.returncode, 0, out.stderr)
         pictures = json.loads(out.stdout)

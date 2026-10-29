@@ -105,7 +105,7 @@ Dialog {
             spacing: 10
             Text {
                 Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 13
-                text: "Your own themes live in the My themes folder: one folder each, as BeerMat’s own (themes/README.md tells you what goes in one; copying Halloween is a good start). They’re looks on this laptop straight away. Share one and, once BeerMat has looked at it, other venues can install it."
+                text: "Your own themes live in the My themes folder: one folder each, as BeerMat’s own (themes/README.md tells you what goes in one; installing Halloween from the library and copying it is a good start). They’re looks on this laptop straight away. Share one and, once BeerMat has looked at it, other venues can install it."
             }
             RowLayout {
                 DeskButton { text: "Open My themes folder"; implicitHeight: 34; onClicked: desk.prefs.openMyThemes() }

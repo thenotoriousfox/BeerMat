@@ -3,13 +3,15 @@
 // and stops when its input closes.
 //   node tests/fixtures/serve.mjs pro|free [full] [--bind 0.0.0.0] [--port n]
 // `full` loads scripts/load-test-quiz.mjs instead: six rounds using every format.
-import {mkdtempSync, rmSync} from 'node:fs';
+import {mkdtempSync, rmSync, cpSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import {createQuiz} from '../../server/server.js';
 
 const plan = process.argv[2] === 'pro' ? 'pro' : 'free', hostKey = 'native-client-test-key-0123';
 const dir = mkdtempSync(path.join(os.tmpdir(), 'beermat-native-'));
+// The library's themes (Halloween) installed on this laptop, as a quizmaster would from the theme library.
+cpSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'library'), path.join(dir, 'my-themes'), {recursive: true});
 const quiz = createQuiz({plan, hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: path.join(dir, 'media'), packDir: dir, soundsDir: dir});
 const arg = name => process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : null;
 await new Promise(r => quiz.server.listen(Number(arg('--port') || 0), arg('--bind') || '127.0.0.1', r));

@@ -7,15 +7,14 @@ import path from 'node:path';
 import {checkTheme, renameTheme, bundleOf, LIMITS} from '../shared/theme-bundle.js';
 import {bundleFolder} from '../server/themes.js';
 
-const root = path.join(path.dirname(new URL(import.meta.url).pathname), '..'), themes = path.join(root, 'themes');
+const root = path.join(path.dirname(new URL(import.meta.url).pathname), '..'), themes = path.join(root, 'themes'), library = path.join(root, 'library');
 const b64 = text => Buffer.from(text).toString('base64');
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]).toString('base64');
 const theme = (css, extra = {}) => ({id: 'pub-glow', files: {'theme.json': b64('{"name": "Pub glow", "order": 3, "evil": "<script>"}'), 'look.css': b64(css), ...extra}});
 const ok = ':root[data-look=pub-glow] { --gold: #ffcc00; }\n:root[data-look=pub-glow] .decor { display: block; background: url(/themes/pub-glow/art/glow.png); }\n';
 
-test('every theme BeerMat ships passes, as a shared theme would', () => {
+test('every theme BeerMat ships or offers in the library passes, as a shared theme would', () => {
   const ids = readdirSync(themes, {withFileTypes: true}).filter(e => e.isDirectory()).map(e => e.name);
-  assert.ok(ids.includes('halloween'));
   // stage is the default look itself: nothing of its own to share.
   assert.throws(() => checkTheme(bundleFolder(themes, 'stage')), /needs a look/);
   for (const id of ids.filter(i => i !== 'stage')) {
@@ -23,6 +22,9 @@ test('every theme BeerMat ships passes, as a shared theme would', () => {
     assert.equal(checked.id, id);
     assert.ok(!checked.files.has('make-sounds.mjs'), `${id}: only pictures, fonts, sounds and its look`);
   }
+  const offered = readdirSync(library, {withFileTypes: true}).filter(e => e.isDirectory()).map(e => e.name);
+  assert.ok(offered.includes('halloween'));
+  for (const id of offered) assert.ok(!checkTheme(bundleFolder(library, id)).files.has('make-sounds.mjs'), id);
 });
 
 test('a theme is cleaned up and checked file by file', () => {
@@ -85,7 +87,7 @@ test('renamed under its library id, a theme keeps working and its fonts and anim
   // The renamed theme passes the same checks under its new id, and survives the wire.
   assert.equal(checkTheme(bundleOf(renamed)).id, 's-7k2q9x');
   // Halloween too, with its scenery and many animations.
-  const halloween = renameTheme(checkTheme(bundleFolder(themes, 'halloween')), 's-hallo1');
+  const halloween = renameTheme(checkTheme(bundleFolder(library, 'halloween')), 's-hallo1');
   assert.equal(checkTheme(bundleOf(halloween)).id, 's-hallo1');
   assert.match(halloween.files.get('look.css').toString(), /animation: s-hallo1--hw-/);
 });
@@ -112,6 +114,6 @@ test('tv.json: what the native TV draws, checked key by key', () => {
     [{phone: {scene: [{image: 'art/a.svg', width: 10, height: 10}]}}, /\.png, \.webp or \.jpg/],
     [{phone: {scene: [{image: 'art/glow.png', width: 10, height: 10, motion: {}}]}}, /motion isn’t a known setting/],
   ]) assert.throws(() => checkTheme(tv(value)), reason);
-  // Halloween's, as shipped.
-  assert.ok(checkTheme(bundleFolder(themes, 'halloween')).files.has('tv.json'));
+  // Halloween's, as offered in the library.
+  assert.ok(checkTheme(bundleFolder(library, 'halloween')).files.has('tv.json'));
 });
