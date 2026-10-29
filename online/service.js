@@ -64,7 +64,7 @@ const venuesTable = name => `CREATE TABLE IF NOT EXISTS ${name}(id TEXT PRIMARY 
   verified INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, quiz_nights TEXT NOT NULL DEFAULT '[]', listed INTEGER NOT NULL DEFAULT 0, edited TEXT NOT NULL DEFAULT '[]',
   plan TEXT NOT NULL DEFAULT 'free', plan_until INTEGER);`;
 
-export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), adminDir = path.join(here, 'admin'), backupDir = '', trustProxy = false, licenceKey = '', publicUrl = '', mail = null, pagesDir = path.join(here, 'pages'), stripe = null, adminEmail = '', fetchImpl = globalThis.fetch, ffmpeg = 'ffmpeg'} = {}) {
+export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), adminDir = path.join(here, 'admin'), backupDir = '', trustProxy = false, licenceKey = '', publicUrl = '', mail = null, pagesDir = path.join(here, 'pages'), stripe = null, adminEmail = '', fetchImpl = globalThis.fetch, ffmpeg = 'ffmpeg', renderPreview = null} = {}) {
   const startedAt = now();
   const db = new DatabaseSync(database);
   // Before the venue list, every venue had to have an owner: rebuild that table once (foreign keys off, so nothing
@@ -96,6 +96,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     CREATE TABLE IF NOT EXISTS shared_themes(id TEXT PRIMARY KEY, name TEXT NOT NULL, venue TEXT REFERENCES venues(id) ON DELETE SET NULL, venue_key TEXT NOT NULL,
       bundle TEXT, bytes INTEGER NOT NULL, look INTEGER NOT NULL, tv INTEGER NOT NULL, sounds INTEGER NOT NULL, created INTEGER NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending', reviewed INTEGER, note TEXT NOT NULL DEFAULT '', hidden INTEGER NOT NULL DEFAULT 0, removed INTEGER);
+    CREATE TABLE IF NOT EXISTS shared_theme_previews(theme TEXT NOT NULL REFERENCES shared_themes(id) ON DELETE CASCADE, kind TEXT NOT NULL, type TEXT NOT NULL, image BLOB NOT NULL,
+      PRIMARY KEY(theme, kind));
   `);
   // Email addresses are confirmed by a link. Accounts made before that existed count as confirmed.
   if (!db.prepare('PRAGMA table_info(accounts)').all().some(c => c.name === 'email_verified')) db.exec('ALTER TABLE accounts ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0; UPDATE accounts SET email_verified=1');
@@ -111,6 +113,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   // A venue an admin has stopped from sharing buzzers (it shared clips it had no right to).
   if (!db.prepare('PRAGMA table_info(venues)').all().some(c => c.name === 'library_banned')) db.exec('ALTER TABLE venues ADD COLUMN library_banned INTEGER NOT NULL DEFAULT 0');
   const one = (sql, ...a) => db.prepare(sql).get(...a), rows = (sql, ...a) => db.prepare(sql).all(...a), run = (sql, ...a) => db.prepare(sql).run(...a);
+  const transaction = fn => {db.exec('BEGIN'); try {const result = fn(); db.exec('COMMIT'); return result;} catch (e) {db.exec('ROLLBACK'); throw e;}};
   const attempts = new Map();
   // Ten tries a minute per address (and per email for sign-in), then a pause.
   function limit(name) {
@@ -332,7 +335,30 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   // The theme library: as the buzzer library, but every theme waits for an admin before anyone sees it (its look.css
   // runs on other venues' TVs and phones), and it's checked twice (shared/theme-bundle.js) as well: here, under the
   // library id it gets, and on the laptop that installs it.
-  const themeOut = t => ({id: t.id, name: t.name, look: !!t.look, tv: !!t.tv, sounds: !!t.sounds, bytes: t.bytes, added: t.created});
+  const themeOut = t => ({id: t.id, name: t.name, look: !!t.look, tv: !!t.tv, sounds: !!t.sounds, bytes: t.bytes, added: t.created,
+    previews: rows('SELECT kind FROM shared_theme_previews WHERE theme=? ORDER BY kind', t.id).map(r => r.kind)});
+  // Previews: pictures of the theme on the TV and on a phone in the app (drawn by the desk that shared it, with
+  // BeerMat Desk's own TV and the app's look), and in a phone's browser (drawn here, see renderBrowserPreview).
+  // JPEG, PNG or WebP, 1 MB each.
+  const PREVIEW_KINDS = ['tv', 'app', 'browser'];
+  const pictureType = b => b[0] === 0xff && b[1] === 0xd8 ? 'image/jpeg' : b.subarray(0, 4).toString('latin1') === '\x89PNG' ? 'image/png'
+    : b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP' ? 'image/webp' : null;
+  // The browser preview: a phone's browser playing a quiz in the theme, drawn by renderPreview (online/preview.js,
+  // a headless browser) when this service has one. A theme still works without it.
+  async function renderBrowserPreview(themeId) {
+    if (!renderPreview) return;
+    const t = one('SELECT bundle FROM shared_themes WHERE id=? AND removed IS NULL', themeId);
+    const image = t?.bundle && await renderPreview(JSON.parse(t.bundle));
+    if (image && pictureType(image)) run('INSERT OR REPLACE INTO shared_theme_previews VALUES(?,?,?,?)', themeId, 'browser', pictureType(image), image);
+  }
+  function savePreviews(themeId, previews) {
+    for (const [kind, data] of Object.entries(previews || {})) {
+      check(['tv', 'app'].includes(kind) && typeof data === 'string' && data.length <= 1.4 * 1024 * 1024, 'Previews are a TV and an app picture, 1 MB each');
+      const image = Buffer.from(data, 'base64'), type = pictureType(image);
+      check(type, `The ${kind} preview isn’t a picture`);
+      run('INSERT OR REPLACE INTO shared_theme_previews VALUES(?,?,?,?)', themeId, kind, type, image);
+    }
+  }
   const sharedTheme = themeId => {const t = one('SELECT * FROM shared_themes WHERE id=? AND removed IS NULL', themeId); check(t, 'That theme isn’t in the library any more', 404); return t;};
   const themeLibrary = {what: 'The theme library'};
   const sharedBuzzer = buzzerId => {const b = one('SELECT * FROM shared_buzzers WHERE id=? AND removed IS NULL', buzzerId); check(b, 'That buzzer isn’t in the library any more', 404); return b;};
@@ -416,7 +442,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return send(200, {received: true});
       }
       // A shared buzzer arrives as base64 audio: up to 2 MB of it.
-      const input = ['POST', 'PATCH', 'PUT'].includes(method) ? await body(req, method === 'POST' && (p === '/v1/buzzers' || p === '/v1/admin/buzzers') ? 3 * 1024 * 1024 : method === 'POST' && p === '/v1/themes' ? 22 * 1024 * 1024 : undefined) : {};
+      const input = ['POST', 'PATCH', 'PUT'].includes(method) ? await body(req, method === 'POST' && (p === '/v1/buzzers' || p === '/v1/admin/buzzers') ? 3 * 1024 * 1024 : method === 'POST' && p === '/v1/themes' ? 26 * 1024 * 1024 : undefined) : {};
       const parts = p.split('/').slice(2);
 
       // ---- Accounts ----
@@ -587,11 +613,25 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         const themeId = 's-' + randomBytes(5).toString('hex'), theme = renameTheme(checkTheme(bundle), themeId);
         checkTheme(bundleOf(theme));
         const stored = JSON.stringify(bundleOf(theme)), files = [...theme.files.keys()];
-        run('INSERT INTO shared_themes(id,name,venue,venue_key,bundle,bytes,look,tv,sounds,created) VALUES(?,?,?,?,?,?,?,?,?,?)', themeId, theme.name, v.id, request.venueKey, stored,
-          [...theme.files.values()].reduce((n, b) => n + b.length, 0), Number(files.includes('look.css')), Number(files.includes('tv.json')), Number(files.some(f => f.startsWith('sounds/'))), now());
+        if (input.previews !== undefined) check(input.previews && typeof input.previews === 'object' && !Array.isArray(input.previews), 'Previews are a TV and an app picture, 1 MB each');
+        transaction(() => {
+          run('INSERT INTO shared_themes(id,name,venue,venue_key,bundle,bytes,look,tv,sounds,created) VALUES(?,?,?,?,?,?,?,?,?,?)', themeId, theme.name, v.id, request.venueKey, stored,
+            [...theme.files.values()].reduce((n, b) => n + b.length, 0), Number(files.includes('look.css')), Number(files.includes('tv.json')), Number(files.some(f => f.startsWith('sounds/'))), now());
+          savePreviews(themeId, input.previews);
+        });
+        renderBrowserPreview(themeId).catch(e => console.error('Browser preview failed:', e.message));
         if (mail && adminEmail) mail({to: adminEmail, subject: `Theme waiting for a look: ${theme.name}`,
           text: `${v.name} shared “${theme.name}” (${files.length} files). It isn’t in the library until you approve it.\n\n${publicUrl.replace(/\/$/, '')}/admin/#themes\n`}).catch(e => console.error('Mail failed:', e.message));
         return send(201, {...themeOut(one('SELECT * FROM shared_themes WHERE id=?', themeId)), review: 'pending'});
+      }
+      // A preview of an approved theme (anyone may see it, as its name); an admin sees any theme's.
+      if (method === 'GET' && parts[0] === 'themes' && parts.length === 4 && parts[2] === 'previews' && PREVIEW_KINDS.includes(parts[3])) {
+        const t = one('SELECT * FROM shared_themes WHERE id=? AND removed IS NULL', parts[1]);
+        const adminViewing = (() => {try {return !!me().admin;} catch {return false;}})();
+        check(t && (adminViewing || (t.status === 'approved' && !t.hidden)), 'No such preview', 404);
+        const picture = one('SELECT type,image FROM shared_theme_previews WHERE theme=? AND kind=?', t.id, parts[3]); check(picture, 'No such preview', 404);
+        res.writeHead(200, {'Content-Type': picture.type, 'Cache-Control': adminViewing ? 'no-store' : 'public, max-age=3600', 'X-Content-Type-Options': 'nosniff', 'Access-Control-Allow-Origin': '*'});
+        return res.end(Buffer.from(picture.image));
       }
       if (method === 'POST' && parts[0] === 'themes' && parts.length === 3 && parts[2] === 'bundle') {
         const request = input.request; proLaptop(request, 'beermat.theme-get', themeLibrary); check(request.theme === parts[1], 'Not a request for this theme');
@@ -980,7 +1020,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     backupDir: process.env.BACKUP_DIR || '', trustProxy: process.env.TRUST_PROXY === '1', licenceKey: process.env.LICENCE_KEY_FILE && existsSync(process.env.LICENCE_KEY_FILE) ? readFileSync(process.env.LICENCE_KEY_FILE, 'utf8').trim() : '',
     publicUrl: process.env.PUBLIC_URL || '', adminEmail: process.env.ADMIN_EMAIL || '',
     stripe: process.env.STRIPE_SECRET_KEY ? {secretKey: process.env.STRIPE_SECRET_KEY, webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '', siteUrl: process.env.SITE_URL || '',
-      prices: {monthly: process.env.STRIPE_PRICE_MONTHLY, yearly: process.env.STRIPE_PRICE_YEARLY}} : null, mail: process.env.RESEND_API_KEY ? resendMail(process.env.RESEND_API_KEY, process.env.MAIL_FROM || 'BeerMat <noreply@example.com>') : null});
+      prices: {monthly: process.env.STRIPE_PRICE_MONTHLY, yearly: process.env.STRIPE_PRICE_YEARLY}} : null, mail: process.env.RESEND_API_KEY ? resendMail(process.env.RESEND_API_KEY, process.env.MAIL_FROM || 'BeerMat <noreply@example.com>') : null,
+    // Shared themes' browser previews, when this server has Playwright's Chromium (online/preview.js); none otherwise.
+    renderPreview: await import('./preview.js').then(m => m.browserPreview()).catch(e => {console.log('Theme browser previews off:', e.message); return null;})});
   service.server.listen(Number(process.env.PORT || 8080), process.env.BIND || '127.0.0.1', () => console.log(`BeerMat Online on http://${process.env.BIND || '127.0.0.1'}:${process.env.PORT || 8080} (put HTTPS in front before going public)`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => service.close().then(() => process.exit(0)));
 }

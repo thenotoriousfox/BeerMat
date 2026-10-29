@@ -224,9 +224,11 @@ ScrollView {
     }
 
     // ---- looks and sound themes ----
+    ThemeLibraryDialog { id: themeLibrary }
     Panel {
         Layout.fillWidth: true; implicitHeight: 420
         title: "Looks & sound themes"
+        headerExtra: DeskButton { text: "Theme library…"; implicitHeight: 32; onClicked: themeLibrary.open() }
         RowLayout {
             anchors.fill: parent; spacing: 20
             ColumnLayout {

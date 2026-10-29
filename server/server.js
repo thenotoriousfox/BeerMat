@@ -1230,11 +1230,15 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         // here too before anything is written (shared/theme-bundle.js).
         if (p === '/api/host/theme-library') {
           const q = typeof body.q === 'string' ? body.q.trim().slice(0, 60) : '';
-          const {themes: listed} = await onlineApi('GET', '/v1/themes' + (q ? '?q=' + encodeURIComponent(q) : ''));
+          // After a theme in my-themes/ was edited by hand.
+          if (body.reload === true) reloadThemes();
+          // This laptop's own themes show without the internet; the library needs BeerMat Online.
+          let listed = [], onlineError = '';
+          try {({themes: listed} = await onlineApi('GET', '/v1/themes' + (q ? '?q=' + encodeURIComponent(q) : '')));} catch (e) {onlineError = e.message;}
           const sharedThemes = getMeta('sharedThemes', []);
           const statuses = await Promise.all(sharedThemes.map(t => onlineApi('GET', `/v1/themes/${encodeURIComponent(t.id)}`).catch(() => ({status: 'unknown'}))));
           const mine = loadThemes(myThemesDir).themes;
-          return send(200, {themes: listed, pro: plan().has('themeLibrary'), folder: myThemesDir,
+          return send(200, {themes: listed, onlineError, pro: plan().has('themeLibrary'), folder: myThemesDir, previews: `${onlineBase().replace(/\/$/, '')}/v1/themes/`,
             installed: mine.filter(t => /^s-[0-9a-f]{10}$/.test(t.id)).map(t => ({id: t.id, name: t.name})),
             mine: mine.filter(t => !/^s-[0-9a-f]{10}$/.test(t.id)).map(t => ({id: t.id, name: t.name, builtIn: !!loadThemes(themesDir).themes.some(b => b.id === t.id)})),
             shared: sharedThemes.map((t, i) => ({...t, status: statuses[i].status, note: statuses[i].note || ''}))});
@@ -1272,7 +1276,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             const bundle = bundleFolder(myThemesDir, theme);
             try {checkTheme(bundle);} catch (e) {throw new QuizError(e.message, 400);}
             const text = JSON.stringify(bundle);
-            const added = await libraryApi('/v1/themes', {kind: 'beermat.theme-upload', rights: true, sha256: createHash('sha256').update(text).digest('hex')}, {bundle: text}, 120000);
+            // Pictures of it on BeerMat Desk's TV and in the app, when the desk drew them (the native desk does).
+            const previews = Object.fromEntries(['tv', 'app'].filter(k => typeof body.previews?.[k] === 'string' && body.previews[k].length < 1.4 * 1024 * 1024).map(k => [k, body.previews[k]]));
+            const added = await libraryApi('/v1/themes', {kind: 'beermat.theme-upload', rights: true, sha256: createHash('sha256').update(text).digest('hex')}, {bundle: text, previews}, 120000);
             setMeta('sharedThemes', [...getMeta('sharedThemes', []).filter(t => t.local !== theme), {id: added.id, local: theme, name: added.name}]);
             return send(200, added);
           }

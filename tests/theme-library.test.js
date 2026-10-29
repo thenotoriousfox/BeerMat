@@ -12,11 +12,15 @@ import {newVenueKey, signClaim} from '../shared/claims.js';
 
 const day = 86400000;
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1]);
 
 test('theme library: shared by Pro, approved by BeerMat, installed by Pro as a look, hidden after three reports', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-themes-lib-')), mails = [];
   let time = Date.now();
-  const service = createService({database: path.join(dir, 'online.sqlite'), now: () => time, mail: async m => {mails.push(m);}, adminEmail: 'hello@beermat.test', publicUrl: 'https://online.test'});
+  // The browser preview: a stand-in for online/preview.js's headless browser.
+  const rendered = [];
+  const service = createService({database: path.join(dir, 'online.sqlite'), now: () => time, mail: async m => {mails.push(m);}, adminEmail: 'hello@beermat.test', publicUrl: 'https://online.test',
+    renderPreview: async bundle => {rendered.push(bundle.id); return JPEG;}});
   await new Promise(r => service.server.listen(0, '127.0.0.1', r));
   const online = `http://127.0.0.1:${service.server.address().port}`;
   const desk = async (name, plan) => {
@@ -60,14 +64,18 @@ test('theme library: shared by Pro, approved by BeerMat, installed by Pro as a l
     mkdirSync(path.join(blue.folder, 'pub-glow'), {recursive: true}); writeFileSync(path.join(blue.folder, 'pub-glow', 'theme.json'), '{"name": "Copy"}');
     assert.equal((await blue.call('theme-library/share', {id: 'pub-glow', rights: true})).status, 403, 'Free can’t share');
     writeFileSync(path.join(mine, 'bad.css'), 'body {}');
-    const shared = await red.call('theme-library/share', {id: 'pub-glow', rights: true});
+    // The desk sends its pictures of the theme on the TV and in the app.
+    const shared = await red.call('theme-library/share', {id: 'pub-glow', rights: true, previews: {tv: JPEG.toString('base64'), app: PNG.toString('base64')}});
     assert.equal(shared.status, 200, JSON.stringify(shared));
     assert.equal(shared.status === 200 && shared.name, 'Pub glow');
     assert.match(shared.id, /^s-[0-9a-f]{10}$/);
     const id = shared.id;
 
-    // Nobody sees it until BeerMat approves it; the laptop that shared it sees that it's waiting.
+    // Nobody sees it until BeerMat approves it, not even its pictures; the laptop that shared it sees that it's waiting.
     assert.equal((await api('GET', '/v1/themes')).themes.length, 0);
+    await new Promise(r => setTimeout(r, 50));
+    assert.deepEqual(rendered, [id], 'BeerMat Online drew its browser preview');
+    assert.equal((await fetch(`${online}/v1/themes/${id}/previews/tv`)).status, 404);
     assert.deepEqual((await red.call('theme-library')).shared.map(t => [t.id, t.local, t.status]), [[id, 'pub-glow', 'pending']]);
     assert.match(mails.at(-1).subject, /Theme waiting for a look: Pub glow/);
     const admin = (await api('POST', '/v1/accounts', {email: 'admin@example.com', password: 'correct horse battery', displayName: 'Admin'})).token;
@@ -76,6 +84,9 @@ test('theme library: shared by Pro, approved by BeerMat, installed by Pro as a l
     const [row] = (await api('GET', '/v1/admin/themes', undefined, admin)).themes;
     assert.deepEqual([row.name, row.status, row.venueName, row.files.map(f => f.name).sort()], ['Pub glow', 'pending', 'The Red Lion', ['art/glow.png', 'look.css', 'theme.json', 'tv.json']]);
     assert.equal((await api('GET', '/v1/admin/overview', undefined, admin)).pendingThemes, 1);
+    assert.deepEqual(row.previews, ['app', 'browser', 'tv']);
+    const seen = await fetch(`${online}/v1/themes/${id}/previews/tv`, {headers: {Authorization: 'Bearer ' + admin}});
+    assert.deepEqual([seen.status, seen.headers.get('content-type')], [200, 'image/jpeg'], 'the admin sees its pictures');
     // The admin reads its files, safely: its stylesheet as text, under a sandbox, renamed to its library id.
     const css = await fetch(`${online}/v1/admin/themes/${id}/files/look.css`, {headers: {Authorization: 'Bearer ' + admin}});
     assert.match(css.headers.get('content-type'), /text\/plain/);
@@ -89,7 +100,11 @@ test('theme library: shared by Pro, approved by BeerMat, installed by Pro as a l
     assert.deepEqual((await red.call('theme-library')).shared.map(t => [t.status, t.note]), [['rejected', 'The glow picture is blank.']]);
     await api('PATCH', `/v1/admin/themes/${id}`, {status: 'approved'}, admin);
     listed = await blue.call('theme-library');
-    assert.deepEqual([listed.pro, listed.themes.map(t => [t.id, t.name, t.look, t.tv, t.sounds])], [false, [[id, 'Pub glow', true, true, false]]]);
+    assert.deepEqual([listed.pro, listed.themes.map(t => [t.id, t.name, t.look, t.tv, t.sounds, t.previews])], [false, [[id, 'Pub glow', true, true, false, ['app', 'browser', 'tv']]]]);
+    // Its pictures, for everyone now, from where the desks are told to look.
+    const picture = await fetch(`${listed.previews}${id}/previews/app`);
+    assert.deepEqual([picture.status, picture.headers.get('content-type')], [200, 'image/png']);
+    assert.equal((await fetch(`${listed.previews}${id}/previews/nonsense`)).status, 404);
 
     // Free can't install it; Pro can, and it becomes a look, served from this laptop, checked again on the way in.
     assert.equal((await blue.call('theme-library/install', {id})).status, 403);
