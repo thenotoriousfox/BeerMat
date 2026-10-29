@@ -95,3 +95,8 @@ td.pro { color: var(--gold); font-weight: 800; }
 .theme-files .link { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
 .theme-file { max-height: 420px; overflow: auto; white-space: pre-wrap; background: rgba(0, 0, 0, .35); color: inherit; border: 1px solid rgba(255, 255, 255, .12); border-radius: 10px; padding: 12px; font-size: .85rem; }
 .theme-file img { max-width: 100%; }
+.quiz-read { border: 1px solid var(--line, #ddd); border-radius: 12px; padding: 14px; margin-top: 14px; }
+.quiz-read ol { padding-left: 1.4em; display: grid; gap: 10px; }
+.quiz-read li { display: grid; gap: 3px; }
+.quiz-read img { max-width: 320px; max-height: 220px; border-radius: 6px; }
+.quiz-read .answer { color: #15803d; font-weight: 600; }

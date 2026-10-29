@@ -16,6 +16,7 @@ import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from '../web
 import {typeGroups} from './looks.js';
 import {loadThemes, bundleFolder} from './themes.js';
 import {checkTheme, themeId as themeIdPattern} from '../shared/theme-bundle.js';
+import {checkQuizFile} from '../shared/quiz-file.js';
 import {fetchDriveQuiz} from './drive.js';
 import {createUpdates} from './updates.js';
 import {createSimulator, cleanOptions, fastSeconds} from './rehearsal.js';
@@ -233,6 +234,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // Events saved before the automatic TV existed start on it once.
   if (!getMeta('autoTv', false)) {const saved = getMeta('settings', null); if (saved) setMeta('settings', {...saved, displayMode: 'auto'}); setMeta('autoTv', true);}
   const library = () => getMeta('library', {revision: 0, title: 'My quiz', rounds: []});
+  // Quizzes downloaded from the quiz library, one file each, for the desk to load.
+  const quizLibraryDir = path.join(path.dirname(path.resolve(database)), 'quiz-library');
   const spotify = createSpotify({getMeta, setMeta, now, accountsUrl: spotifyAccountsUrl, apiUrl: spotifyApiUrl});
   // Spotify only accepts loopback redirect addresses written as an IP, so sign-in returns to 127.0.0.1 on this port.
   const spotifyRedirect = () => `http://127.0.0.1:${server.address().port}/spotify/callback`;
@@ -1346,6 +1349,65 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             return send(200, {reported: true});
           }
           requireValue(false, 'Unknown theme library action', 404);
+        }
+        // The quiz library (BeerMat Online): browse it; with Pro, download a quiz (saved in quiz-library/ in the data
+        // folder, for the desk to load), share the quiz on this desk (its pictures and sounds inside it), report one;
+        // take back a quiz this laptop shared, whatever its plan now. Every quiz is checked here too (shared/quiz-file.js).
+        if (p === '/api/host/quiz-library') {
+          const q = typeof body.q === 'string' ? body.q.trim().slice(0, 60) : '';
+          let listed = [], onlineError = '';
+          try {({quizzes: listed} = await onlineApi('GET', '/v1/quizzes' + (q ? '?q=' + encodeURIComponent(q) : '')));} catch (e) {onlineError = e.message;}
+          const sharedQuizzes = getMeta('sharedQuizzes', []);
+          const statuses = await Promise.all(sharedQuizzes.map(s => onlineApi('GET', `/v1/quizzes/${encodeURIComponent(s.id)}`).catch(() => ({status: 'unknown'}))));
+          const current = library(), questions = current.rounds.reduce((n, r) => n + r.questions.length, 0);
+          return send(200, {quizzes: listed, onlineError, pro: plan().has('quizLibrary'), folder: quizLibraryDir,
+            downloaded: existsSync(quizLibraryDir) ? readdirSync(quizLibraryDir).filter(f => /^q-[0-9a-f]{10}\.json$/.test(f)).map(f => f.slice(0, -5)) : [],
+            current: {title: current.title, rounds: current.rounds.length, questions},
+            shared: sharedQuizzes.map((s, i) => ({...s, status: statuses[i].status, note: statuses[i].note || ''}))});
+        }
+        if (p.startsWith('/api/host/quiz-library/')) {
+          const what = p.slice('/api/host/quiz-library/'.length);
+          if (what === 'remove' || what === 'report' || what === 'download') requireValue(typeof body.id === 'string' && /^q-[0-9a-f]{10}$/.test(body.id), 'Choose a quiz');
+          if (what === 'remove') {
+            const shared = getMeta('sharedQuizzes', []);
+            requireValue(shared.some(s => s.id === body.id), 'Only quizzes this laptop shared can be taken out');
+            await libraryApi(`/v1/quizzes/${body.id}/remove`, {kind: 'beermat.quiz-remove', quiz: body.id}).catch(e => {if (e.status !== 404) throw e;});
+            setMeta('sharedQuizzes', shared.filter(s => s.id !== body.id)); return send(200, {removed: true});
+          }
+          requireValue(plan().has('quizLibrary'), 'Downloading and sharing quizzes is part of BeerMat Pro', 403);
+          if (what === 'download') {
+            const got = await libraryApi(`/v1/quizzes/${body.id}/file`, {kind: 'beermat.quiz-get', quiz: body.id}, {}, 120000);
+            let checked;
+            try {checked = checkQuizFile(JSON.parse(got.quiz));} catch (e) {throw new QuizError(`That quiz didn’t pass this laptop’s checks: ${e.message}`, 502);}
+            mkdirSync(quizLibraryDir, {recursive: true});
+            const file = path.join(quizLibraryDir, `${body.id}.json`);
+            writeFileSync(file + '.part', JSON.stringify(checked.quiz)); renameSync(file + '.part', file);
+            return send(200, {id: body.id, title: checked.title, path: file});
+          }
+          if (what === 'share') {
+            requireValue(body.rights === true, 'Tick the box: you have the right to share everything in this quiz');
+            const description = typeof body.description === 'string' ? body.description.trim().slice(0, 300) : '';
+            // The quiz on this desk, its pictures and sounds put inside it, as Download quiz does.
+            const quiz = structuredClone(library()); delete quiz.revision;
+            const kinds = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav'};
+            const questions = quiz.rounds.flatMap(r => r.questions);
+            for (const holder of [...questions, ...questions.flatMap(q => [...(q.clips || []), ...(q.songs || [])])]) {
+              if (typeof holder.media !== 'string' || !holder.media.startsWith('/media/')) continue;
+              const file = path.join(mediaDir, path.basename(holder.media)), type = kinds[path.extname(file).toLowerCase()];
+              if (type && existsSync(file)) holder.media = `data:${type};base64,${readFileSync(file).toString('base64')}`;
+            }
+            try {checkQuizFile(quiz);} catch (e) {throw new QuizError(e.message, 400);}
+            const text = JSON.stringify(quiz);
+            const added = await libraryApi('/v1/quizzes', {kind: 'beermat.quiz-upload', rights: true, sha256: createHash('sha256').update(text).digest('hex')}, {quiz: text, description}, 180000);
+            setMeta('sharedQuizzes', [...getMeta('sharedQuizzes', []), {id: added.id, title: added.title}]);
+            return send(200, added);
+          }
+          if (what === 'report') {
+            requireValue(typeof body.reason === 'string' && body.reason.trim(), 'Say what’s wrong with it');
+            await libraryApi(`/v1/quizzes/${body.id}/report`, {kind: 'beermat.quiz-report', quiz: body.id, reason: body.reason.trim().slice(0, 500)});
+            return send(200, {reported: true});
+          }
+          requireValue(false, 'Unknown quiz library action', 404);
         }
         if (p === '/api/host/buzzer-library') {
           const q = typeof body.q === 'string' ? body.q.trim().slice(0, 60) : '';

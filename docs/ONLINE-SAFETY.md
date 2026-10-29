@@ -24,6 +24,8 @@ features:
 | Team names in results a venue shares | Teams at a quiz night (checked by the desk's offensive-name filter) | Admins only |
 | Shared buzzer library: clip names | Pro venues | Anyone using the quiz desk |
 | Shared buzzer library: the clips | Pro venues | Pro venues' quiz desks |
+| Quiz library: titles, descriptions, round titles | Pro venues (and BeerMat) | Anyone using the quiz desk, after an admin approves the quiz |
+| Quiz library: the questions, pictures and sounds | Pro venues (and BeerMat) | Admins before approval; Pro venues' quiz desks after |
 
 There is **no** private messaging, chat, comments, posts, livestreaming, groups, or search across users, and no way
 for a player to send anything to another player through BeerMat Online.

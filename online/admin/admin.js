@@ -1,4 +1,4 @@
-// BeerMat Online's admin console: venues, accounts, reports, shared buzzers and an overview, through the admin API (online/service.js).
+// BeerMat Online's admin console: venues, accounts, reports, shared buzzers, themes and quizzes, and an overview, through the admin API (online/service.js).
 // The session token is kept for this browser tab only.
 const $ = id => document.getElementById(id);
 const el = (tag, text, className) => {const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (className) e.className = className; return e;};
@@ -44,11 +44,11 @@ $('signOut').onclick = guarded(async () => {await api('DELETE', '/v1/sessions').
 
 // ---- Tabs ----
 function show(tab) {
-  if (!['overview', 'venues', 'accounts', 'reports', 'buzzers', 'themes'].includes(tab)) tab = 'overview';
+  if (!['overview', 'venues', 'accounts', 'reports', 'buzzers', 'themes', 'quizzes'].includes(tab)) tab = 'overview';
   for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   for (const s of document.querySelectorAll('.tab')) s.hidden = s.id !== tab;
   history.replaceState(null, '', '#' + tab);
-  ({overview: loadOverview, venues: loadVenues, accounts: loadAccounts, reports: loadReports, buzzers: loadBuzzers, themes: loadThemes})[tab]().catch(e => toast(e.message, true));
+  ({overview: loadOverview, venues: loadVenues, accounts: loadAccounts, reports: loadReports, buzzers: loadBuzzers, themes: loadThemes, quizzes: loadQuizzes})[tab]().catch(e => toast(e.message, true));
 }
 for (const b of document.querySelectorAll('.tabs button')) b.onclick = () => show(b.dataset.tab);
 
@@ -66,8 +66,10 @@ async function loadOverview() {
     tile(o.results, 'results kept by players'),
     tile(o.laptops, 'quiz laptops registered', `${o.venueResults} quizzes shared`),
     tile(o.sharedBuzzers, 'shared buzzers', o.hiddenBuzzers ? `${o.hiddenBuzzers} hidden after reports` : undefined),
-    tile(o.sharedThemes, 'shared themes', o.pendingThemes ? `${o.pendingThemes} waiting for you` : undefined));
+    tile(o.sharedThemes, 'shared themes', o.pendingThemes ? `${o.pendingThemes} waiting for you` : undefined),
+    tile(o.sharedQuizzes, 'shared quizzes', o.pendingQuizzes ? `${o.pendingQuizzes} waiting for you` : undefined));
   $('pendingThemes').textContent = String(o.pendingThemes); $('pendingThemes').hidden = !o.pendingThemes;
+  $('pendingQuizzes').textContent = String(o.pendingQuizzes); $('pendingQuizzes').hidden = !o.pendingQuizzes;
   $('reportCount').textContent = String(o.openReports); $('reportCount').hidden = !o.openReports;
   $('hiddenCount').textContent = String(o.hiddenBuzzers); $('hiddenCount').hidden = !o.hiddenBuzzers;
   const backupOld = !o.lastBackup || Date.now() - o.lastBackup > 36 * 3600000;
@@ -369,5 +371,75 @@ function pickPicture(t, kind) {
     input.click();
   });
 }
+
+// ---- Shared quizzes ----
+let quizzes = [];
+async function loadQuizzes() {
+  quizzes = (await api('GET', '/v1/admin/quizzes')).quizzes;
+  const pending = quizzes.filter(q => q.status === 'pending').length;
+  $('pendingQuizzes').textContent = String(pending); $('pendingQuizzes').hidden = !pending;
+  renderQuizzes();
+}
+function renderQuizzes() {
+  const find = $('quizSearch').value.trim().toLowerCase(), shown = quizzes.filter(q => !find || `${q.title} ${q.by} ${q.description}`.toLowerCase().includes(find));
+  $('quizTotal').textContent = `${quizzes.filter(q => q.status === 'approved').length} in the library · ${quizzes.filter(q => q.status === 'pending').length} waiting`;
+  const button = (label, fn, done, cls = 'ghost small') => {const b = el('button', label, cls); b.type = 'button'; b.onclick = guarded(async () => {if (await fn() === false) return false; await loadQuizzes();}, done); return b;};
+  $('quizCards').replaceChildren(...shown.map(q => {
+    const card = el('article', undefined, 'theme-card'), head = el('header'), actions = el('div', undefined, 'actions');
+    head.append(el('strong', q.title), el('span', {pending: 'waiting', approved: 'in the library', rejected: 'turned down'}[q.status], `badge ${q.status === 'pending' ? 'warn' : ''}`));
+    if (q.hidden) head.append(el('span', 'hidden after reports', 'badge warn'));
+    head.append(el('span', ` ${q.by} · ${date(q.added)} · ${q.rounds} rounds · ${q.questions} questions · ${Math.round(q.bytes / 1024)} KB${q.reports ? ` · ${q.reports} reports` : ''}`, 'muted'));
+    const about = el('p', q.description || 'No description.', q.description ? '' : 'muted');
+    const outline = el('p', q.outline.map(r => `${r.title} (${r.questions})`).join(' · ') + ` — ${q.formats.join(', ')}`, 'muted');
+    actions.append(button('Read it', () => readQuiz(q), undefined, 'primary small'));
+    if (q.status !== 'approved') actions.append(button('Approve', () => api('PATCH', `/v1/admin/quizzes/${q.id}`, {status: 'approved'}), 'In the library', 'primary small'));
+    if (q.status !== 'rejected') actions.append(button('Turn down…', () => {const note = prompt(`Why is “${q.title}” turned down? The venue sees this.`); return note === null ? false : api('PATCH', `/v1/admin/quizzes/${q.id}`, {status: 'rejected', note});}, 'Turned down'));
+    actions.append(button('Description…', () => {const d = prompt('The line venues see about this quiz:', q.description); return d === null ? false : api('PATCH', `/v1/admin/quizzes/${q.id}`, {description: d});}, 'Saved'));
+    if (q.status === 'approved') actions.append(button(q.hidden ? 'Show again' : 'Hide', () => api('PATCH', `/v1/admin/quizzes/${q.id}`, {hidden: !q.hidden}), q.hidden ? 'Back in the library' : 'Hidden'));
+    actions.append(button('Remove', () => confirm(`Remove “${q.title}” for good?`) ? api('DELETE', `/v1/admin/quizzes/${q.id}`) : false, 'Removed', 'danger small'));
+    if (q.venue) actions.append(button('Stop venue sharing…', () => prompt(`Stop ${q.by} sharing, and remove every buzzer, theme and quiz it has shared? Type the venue’s name to confirm.`) === q.by ? api('POST', `/v1/admin/venues/${q.venue}/library`, {banned: true}) : false, 'Venue stopped from sharing', 'danger small'));
+    card.append(head, about, outline, actions);
+    return card;
+  }));
+  if (!shown.length) $('quizCards').append(el('p', quizzes.length ? 'No quizzes match.' : 'Nothing shared yet.', 'muted'));
+}
+$('quizSearch').oninput = renderQuizzes;
+// The whole quiz, every question with its answer, pictures shown and sounds playable, all as text (never run).
+async function readQuiz(q) {
+  const {quiz} = await api('GET', `/v1/admin/quizzes/${q.id}`), view = $('quizRead');
+  const media = m => {
+    if (typeof m !== 'string' || !m.startsWith('data:')) return null;
+    // Made into a blob here: the console's policy lets it show blobs, not fetch data: URLs.
+    const [head, data] = m.split(','), bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], {type: head.slice(5, head.indexOf(';'))}));
+    if (m.startsWith('data:image/')) {const img = el('img'); img.src = url; return img;}
+    const audio = el('audio'); audio.controls = true; audio.src = url; return audio;
+  };
+  const answerOf = x => [x.answer, x.correct?.length && `correct: ${x.correct.join(', ')}`, x.items?.length && `items: ${x.items.join(' → ')}`,
+    x.itemAnswers?.length && `answers: ${x.itemAnswers.join(' · ')}`, x.aliases?.length && `also: ${x.aliases.join(', ')}`].filter(Boolean).join(' · ');
+  view.replaceChildren(el('h3', `${quiz.title} — read before approving`), ...quiz.rounds.map(r => {
+    const round = el('section'); round.append(el('h4', r.title + (r.secret ? ' (secret round)' : '')));
+    const list = el('ol');
+    for (const x of r.questions) {
+      const li = el('li'); li.append(el('strong', x.text), el('span', ` [${x.type}, ${x.points ?? ''} pt]`, 'muted'));
+      if (x.options?.length) li.append(el('div', 'Options: ' + x.options.join(' / ')));
+      const answer = answerOf(x); if (answer) li.append(el('div', 'Answer: ' + answer, 'answer'));
+      if (x.answerNote) li.append(el('div', x.answerNote, 'muted'));
+      const m = media(x.media); if (m) li.append(m);
+      for (const c of [...(x.clips || []), ...(x.songs || [])]) {li.append(el('div', c.label || c.title || 'clip', 'muted')); const cm = media(c.media); if (cm) li.append(cm);}
+      list.append(li);
+    }
+    round.append(list); return round;
+  }));
+  view.hidden = false; view.scrollIntoView({behavior: 'smooth'});
+  return false;
+}
+$('quizAdd').onsubmit = guarded(async () => {
+  const file = $('quizFile').files[0];
+  if (!file) throw Error('Choose a quiz file');
+  let quiz; try {quiz = JSON.parse(await file.text());} catch {throw Error(`${file.name} isn’t a BeerMat quiz file`);}
+  await api('POST', '/v1/admin/quizzes', {quiz, description: $('quizDescription').value});
+  $('quizAdd').reset(); await loadQuizzes();
+}, 'Added to the library');
 
 start();

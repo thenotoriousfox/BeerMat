@@ -5,7 +5,7 @@
 
 export const editions = {
   free: {name: 'BeerMat Free', features: []},
-  pro: {name: 'BeerMat Pro', features: ['live', 'spotify', 'buzzerLibrary', 'themeLibrary']},
+  pro: {name: 'BeerMat Pro', features: ['live', 'spotify', 'buzzerLibrary', 'themeLibrary', 'quizLibrary']},
 };
 
 export function edition(plan = 'free') {

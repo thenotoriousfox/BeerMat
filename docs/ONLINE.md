@@ -95,6 +95,8 @@ Players never pay. A venue has a plan, **free** or **pro** (with an end date, or
 | Spotify music rounds | — | ✓ |
 | Shared buzzer library: see what's in it | ✓ | ✓ |
 | Shared buzzer library: play, add, share and report clips | — | ✓ |
+| Quiz library: see what's in it (titles, descriptions, rounds, formats) | ✓ | ✓ |
+| Quiz library: download, share and report quizzes | — | ✓ |
 | On the map, in quiz listings and with a public venue page (app and website) | — | ✓ |
 | Every round format, the TV, phones, hotspot, online quizzes, results | ✓ | ✓ |
 
@@ -177,6 +179,36 @@ because a theme's stylesheet runs on other venues' TVs and phones.
   venue's, gets a library id and goes straight into the library, shared by "BeerMat" (`POST /v1/admin/themes` with
   `{bundle, previews?}`). Its TV and app pictures are drawn by the service (see Pictures); an admin can replace either
   on any theme (**TV picture… / App picture…**, `PUT /v1/admin/themes/:id/previews`).
+
+## The quiz library
+
+Venues on Pro share whole quizzes with each other from the desk (**Library → Quizzes**), and BeerMat adds its own from
+the admin console. As with themes, **nothing a venue shares is in the library until an admin approves it**: an admin
+reads every question and answer first.
+
+* **One file**: a shared quiz is a BeerMat quiz file with its pictures and sounds inside it (`data:` URLs), as the
+  desk's Download quiz writes it, 25 MB at most (8 MB a picture or sound). `shared/quiz-file.js` checks it here on
+  upload and again on the laptop that downloads it: every question through the quiz engine's own checks
+  (`server/model.js validateLibrary`, which the service ships for this), every picture and sound inside the file and
+  really what its type says (PNG, JPEG, WebP, MP3, Ogg, WAV). Spotify tracks stay links.
+* **Seeing it is public**: `GET /v1/quizzes?q=` lists approved quizzes (title, description, who shared it, rounds with
+  their titles and question counts, formats; never the questions), searching titles and descriptions; `GET
+  /v1/quizzes/:id` tells a laptop where a quiz it shared has got to (`pending`, `approved`, `rejected` with the admin's
+  note, `hidden`, `removed`).
+* **Everything else is Pro, by laptop** (signed requests, as for buzzers): `beermat.quiz-upload` (`POST /v1/quizzes`,
+  the quiz as a JSON string beside the request, its `sha256` and `rights: true` in it, and a `description` up to 300
+  characters), `beermat.quiz-get` (`POST /v1/quizzes/:id/file`), `beermat.quiz-report` (`POST /v1/quizzes/:id/report`)
+  and `beermat.quiz-remove` (`POST /v1/quizzes/:id/remove`, the sharing venue only, whatever its plan now). The desk
+  shares the quiz it has (the last saved one), its pictures and sounds packed in by the quiz server; a venue shares up
+  to 10 quizzes a day.
+* **On the laptop**: Download and load saves the quiz in `quiz-library/` in the data folder and loads it as Load quiz
+  file does (asking first if a quiz is under way). The quiz server's routes are `/api/host/quiz-library` (the list,
+  this laptop's shared quizzes and where they've got to, the quiz on the desk) and `/api/host/quiz-library/download`,
+  `share`, `remove` and `report`.
+* **Moderation**: the admin console's **Quizzes** shows waiting quizzes first; **Read it** shows every question, its
+  answer and note, its pictures and sounds. Approve, turn down with a note the venue sees, edit the description, hide,
+  show or remove; one report per venue per quiz, and three venues' reports hide it and tell `ADMIN_EMAIL`. Stopping a
+  venue sharing removes its quizzes too. BeerMat's own (`POST /v1/admin/quizzes {quiz, description}`) go straight in.
 
 ## Data model
 
