@@ -9,6 +9,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -158,8 +163,7 @@ fun FindScreen(vm: OnlineViewModel, ui: OnlineState) {
     val context = LocalContext.current
     // Location is asked for only when the player taps the button, once; only the position rounded to ~100 m is sent.
     val locate = { ->
-        val lm = context.getSystemService(LocationManager::class.java)
-        val fix = runCatching { lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) ?: lm.getLastKnownLocation(LocationManager.GPS_PROVIDER) }.getOrNull()
+        val fix = lastFix(context)
         if (fix != null) vm.near(fix.latitude, fix.longitude) else vm.say(t("This phone doesn’t know where it is yet. Search by town instead."), true)
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) locate() else vm.say(t("Search by town or postcode instead.")) }
@@ -182,6 +186,7 @@ fun FindScreen(vm: OnlineViewModel, ui: OnlineState) {
     LaunchedEffect(Unit) { if (ui.venues.isEmpty()) vm.loadVenues() }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EventCard(vm: OnlineViewModel, e: JSONObject) {
     val context = LocalContext.current
@@ -196,13 +201,22 @@ fun EventCard(vm: OnlineViewModel, e: JSONObject) {
             modifier = Modifier.clickable { vm.openVenue(v.optString("id")) })
         Text(date(e.optLong("startsAt")) + (if (e.optString("entry").isNotEmpty()) " · ${e.optString("entry")}" else ""), color = Brand.goldHi)
         if (e.optString("format").isNotEmpty()) Text(e.optString("format"), color = Brand.faint, fontSize = 13.sp)
-        Row {
+        // Wraps onto a second line on a narrow phone, rather than squeezing the last button.
+        FlowRow {
             TextButton({ if (Reminders.canNotify(context)) { if (Reminders.schedule(context, e.optString("id"), e.optString("title"), v.optString("name"), e.optLong("startsAt"))) vm.say(t("We’ll remind you two hours before")) else vm.say(t("It starts within two hours!")) }
                          else notify.launch(Manifest.permission.POST_NOTIFICATIONS) }) { Text(t("⏰ Remind me")) }
             TextButton({ context.startActivity(Reminders.calendarIntent(e.optString("title"), v.optString("name"), listOf(v.optString("address"), v.optString("town")).filter { it.isNotEmpty() }.joinToString(", "), e.optLong("startsAt"))) }) { Text(t("📅 Calendar")) }
             TextButton({ openInBrowser(context, v.optString("directions")) }) { Text(t("Directions")) }
         }
     }
+}
+
+/** The phone's newest known position (network, GPS or fused), without waiting for a new one. */
+@android.annotation.SuppressLint("MissingPermission")
+private fun lastFix(context: android.content.Context): android.location.Location? {
+    val lm = context.getSystemService(LocationManager::class.java)
+    return listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER, "fused")
+        .mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }.maxByOrNull { it.time }
 }
 
 // ---- Map ----
@@ -219,27 +233,58 @@ fun MapScreen(vm: OnlineViewModel, ui: OnlineState) {
         }
         if (ui.venuesNote.isNotEmpty()) Text(ui.venuesNote, color = Brand.faint, modifier = Modifier.padding(horizontal = 12.dp))
         val shown = ui.venues.filter { !it.isNull("lat") && (day.isEmpty() || (it.optJSONArray("quizNights")?.let { n -> (0 until n.length()).any { i -> n.getJSONObject(i).optString("day") == day } } == true)) }
-        Box(Modifier.fillMaxSize()) {
+        val context = LocalContext.current
+        var map by remember { mutableStateOf<MapView?>(null) }
+        var me by remember { mutableStateOf<GeoPoint?>(null) }
+        // My location: asked for only when the player taps it; the position stays on the phone (the map is centred on it).
+        val locate = { ->
+            val fix = lastFix(context)
+            if (fix == null) vm.say(t("This phone doesn’t know where it is yet. Search by town instead."), true)
+            else GeoPoint(fix.latitude, fix.longitude).let { me = it; map?.controller?.animateTo(it, 12.0, 800L) }
+        }
+        val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) locate() else vm.say(t("Search by town or postcode instead.")) }
+        // The map is a classic Android view: kept inside its own space (it would otherwise draw over the day filters and
+        // the status bar while it's dragged), and let go of when the screen closes.
+        Box(Modifier.fillMaxSize().clipToBounds()) {
             // OpenStreetMap's tiles, loaded only while the map is open; the map never sends the player's location anywhere.
             AndroidView(factory = { ctx ->
                 Configuration.getInstance().userAgentValue = "BeerMat/${BuildConfig.VERSION_NAME} (Android)"
-                MapView(ctx).apply { setTileSource(TileSourceFactory.MAPNIK); setMultiTouchControls(true); controller.setZoom(6.0); controller.setCenter(GeoPoint(54.0, -2.5)) }
-            }, update = { map ->
-                map.overlays.clear()
+                Configuration.getInstance().osmdroidBasePath = java.io.File(ctx.cacheDir, "osmdroid")
+                Configuration.getInstance().osmdroidTileCache = java.io.File(ctx.cacheDir, "osmdroid/tiles")
+                MapView(ctx).apply {
+                    setTileSource(TileSourceFactory.MAPNIK); setMultiTouchControls(true); controller.setZoom(6.0); controller.setCenter(GeoPoint(54.0, -2.5))
+                    isTilesScaledToDpi = true; minZoomLevel = 4.0; maxZoomLevel = 18.0
+                    map = this
+                }
+            }, update = { view ->
+                view.overlays.clear()
                 shown.forEach { v ->
-                    map.overlays.add(Marker(map).apply {
+                    view.overlays.add(Marker(view).apply {
                         position = GeoPoint(v.optDouble("lat"), v.optDouble("lon")); title = v.optString("name")
                         subDescription = v.optJSONObject("next")?.let { t("Next: {title}, {date}", "title" to it.optString("title"), "date" to date(it.optLong("startsAt"))) } ?: v.optString("town")
                         setOnMarkerClickListener { _, _ -> vm.openVenue(v.optString("id")); true }
                     })
                 }
-                map.invalidate()
-            }, modifier = Modifier.fillMaxSize().testTag("map"))
+                me?.let { here -> view.overlays.add(Marker(view).apply {
+                    position = here; title = t("You are here"); setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                    icon = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(0xFF3B82F6.toInt()); setStroke(6, android.graphics.Color.WHITE); setSize(48, 48) }
+                    setOnMarkerClickListener { _, _ -> true }
+                }) }
+                view.invalidate()
+            }, modifier = Modifier.fillMaxSize().clipToBounds().testTag("map"))
+            Text("◎  " + t("My location"), fontWeight = FontWeight.Bold, color = Brand.onAccent,
+                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).clip(RoundedCornerShape(50)).background(Brand.gold)
+                    .clickable {
+                        if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED) locate()
+                        else permission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                    }.padding(horizontal = 18.dp, vertical = 12.dp).testTag("my-location"))
         }
+        DisposableEffect(Unit) { onDispose { map?.onDetach(); map = null } }
     }
 }
 
 // ---- A venue's page ----
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun VenueSheet(vm: OnlineViewModel, ui: OnlineState) {
     val v = ui.venue ?: return
@@ -251,7 +296,7 @@ fun VenueSheet(vm: OnlineViewModel, ui: OnlineState) {
             Text(v.optString("name"), style = MaterialTheme.typography.headlineMedium)
             Text(listOf(v.optString("address"), v.optString("town"), v.optString("postcode")).filter { it.isNotEmpty() }.joinToString(", "), color = Brand.muted)
             v.optJSONArray("quizNights")?.let { n -> if (n.length() > 0) Text(t("Quiz nights: {nights}", "nights" to (0 until n.length()).joinToString(", ") { i -> n.getJSONObject(i).let { "${it.optString("day").replaceFirstChar(Char::uppercase)} ${it.optString("time")}" } }), color = Brand.goldHi, modifier = Modifier.padding(top = 8.dp)) }
-            Row {
+            FlowRow {
                 TextButton({ vm.favourite(id, id !in ui.favourites) }) { Text(if (id in ui.favourites) t("★ Saved") else t("☆ Save venue")) }
                 TextButton({ openInBrowser(context, v.optString("directions")) }) { Text(t("Directions")) }
                 if (v.optString("website").startsWith("https://")) TextButton({ openInBrowser(context, v.optString("website")) }) { Text(t("Website")) }

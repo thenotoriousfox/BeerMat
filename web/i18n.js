@@ -11,6 +11,8 @@ const T = {
   'Downloading… {percent}%': ['Téléchargement… {percent} %', 'Descargando… {percent} %'],
   'Allow BeerMat to install apps, then tap Update again.': ['Autorisez BeerMat à installer des applis, puis touchez de nouveau Mettre à jour.', 'Permite que BeerMat instale apps y vuelve a tocar Actualizar.'],
   'The update didn’t download': ['La mise à jour n’a pas été téléchargée', 'La actualización no se ha descargado'],
+  'My location': ['Ma position', 'Mi ubicación'],
+  'You are here': ['Vous êtes ici', 'Estás aquí'],
   'Reconnecting…': ['Reconnexion…', 'Reconectando…'],
   'Rehearsal mode': ['Mode répétition', 'Modo ensayo'],
   'Rehearsal': ['Répétition', 'Ensayo'],
