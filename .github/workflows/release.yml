@@ -1,6 +1,8 @@
 name: Release
 # Push a tag like v0.4.0 (matching package.json's version) to build the Windows and Linux apps and the Android
 # BeerMat app (APK), and publish them as a GitHub release: https://github.com/DTJW92/BeerMat/releases/latest.
+# The main downloads are the native ones: BeerMat Desk (Qt, native/beermat_desk) and the native Android app
+# (native/android). The Electron desk and the Capacitor app are still built, as a fallback ("classic").
 # They're also copied to https://downloads.beermatquiz.co.uk/<version>/ (Cloudflare R2), where the website's download
 # page links, and the website is redeployed to show the new version. Run it by hand to build without publishing.
 on:
@@ -82,15 +84,89 @@ jobs:
           node scripts/build-web.mjs
           npx cap sync android
           cd android && ./gradlew assembleRelease
-          mkdir -p ../../dist && cp app/build/outputs/apk/release/app-release.apk "../../dist/BeerMat-$(node -p 'require("../package.json").version').apk"
+          mkdir -p ../../dist && cp app/build/outputs/apk/release/app-release.apk "../../dist/BeerMat-$(node -p 'require("../package.json").version')-classic.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: Android
           path: dist/*.apk
           if-no-files-found: error
 
+  # BeerMat Desk, the native (Qt) desk: Python, Qt and Node.js in one download (native/packaging/build.py). Its tests
+  # run first on Linux, offscreen.
+  desk:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Tag matches package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: test "${GITHUB_REF_NAME#v}" = "$(node -p 'require("./package.json").version')" || { echo "Tag $GITHUB_REF_NAME does not match package.json version"; exit 1; }
+      - run: python -m pip install PySide6-Essentials==6.11.1 PySide6-Addons==6.11.1 keyring pyinstaller
+      - name: Tests (offscreen)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libglib2.0-0 >/dev/null
+          npm install -g npm@12 && npm ci
+          cd native && QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests
+      - name: AppImage tool
+        if: runner.os == 'Linux'
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/appimagetool" https://github.com/AppImage/appimagetool/releases/download/1.9.0/appimagetool-x86_64.AppImage
+          chmod +x "$RUNNER_TEMP/appimagetool" && echo "APPIMAGETOOL=$RUNNER_TEMP/appimagetool" >> "$GITHUB_ENV" && echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"
+      - run: python native/packaging/build.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desk-${{ runner.os }}
+          path: |
+            dist/native/*.tar.gz
+            dist/native/*.AppImage
+            dist/native/*.zip
+            dist/native/*.exe
+          if-no-files-found: error
+
+  # The native Android app (Kotlin, native/android): the same app id and signing key as the Capacitor app, with a
+  # higher version code, so it installs over it.
+  android-native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Signing key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE" && test -n "$PASSWORD" || { echo "ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD secrets are missing"; exit 1; }
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=upload\nkeyPassword=%s\n' "$RUNNER_TEMP/upload.jks" "$PASSWORD" "$PASSWORD" > native/android/keystore.properties
+      - name: Build
+        working-directory: native/android
+        run: |
+          ./gradlew testReleaseUnitTest assembleRelease
+          mkdir -p ../../dist && cp app/build/outputs/apk/release/app-release.apk "../../dist/BeerMat-$(node -p 'require("../../package.json").version').apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android-native
+          path: dist/*.apk
+          if-no-files-found: error
+
   release:
-    needs: [build, android]
+    needs: [build, android, desk, android-native]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

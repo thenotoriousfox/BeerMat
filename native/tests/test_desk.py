@@ -31,7 +31,8 @@ app = QGuiApplication.instance() or QGuiApplication(['test'])
 # Tests keep their own preferences (screens, sound output, first run), away from the real desk's.
 app.setOrganizationName('BeerMat-test')
 QQuickStyle.setStyle('Basic')
-QFontDatabase.addApplicationFont(str(ROOT / 'brand' / 'fredoka.woff2'))
+for font in ('fredoka.woff2', 'fredoka-regular.ttf', 'fredoka-medium.ttf', 'fredoka-semibold.ttf', 'fredoka-bold.ttf'):
+    QFontDatabase.addApplicationFont(str(ROOT / 'brand' / font))
 
 
 def wait(condition, timeout=15, what='condition', log=None):

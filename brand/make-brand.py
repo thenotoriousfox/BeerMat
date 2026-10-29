@@ -106,3 +106,12 @@ files['icon-foreground.svg'] = svg(432, 432,
 for name, content in files.items():
     with open(os.path.join(HERE, name), 'w') as out: out.write(content)
 print('wrote', ', '.join(files))
+
+# Fredoka's weights as separate fonts for the native desk: Qt registers only the variable font's default (Light) and
+# fakes bold from it, so the headings came out thin. Each named weight, at normal width, as its own TTF (OFL: no
+# reserved font name, and Fredoka-OFL.txt goes with them).
+for wght, style in ((400, 'Regular'), (500, 'Medium'), (600, 'SemiBold'), (700, 'Bold')):
+    static = instantiateVariableFont(TTFont(os.path.join(HERE, 'fredoka.woff2')), {'wght': wght, 'wdth': 100}, updateFontNames=True)
+    static.flavor = None
+    static.save(os.path.join(HERE, f'fredoka-{style.lower()}.ttf'))
+print('wrote fredoka-regular.ttf … fredoka-bold.ttf')

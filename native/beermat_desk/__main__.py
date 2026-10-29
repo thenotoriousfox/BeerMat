@@ -74,7 +74,8 @@ def main(argv=None):
     app = QGuiApplication([sys.argv[0], *qt_args])
     app.setWindowIcon(QIcon(str(ROOT / 'brand' / 'icon.svg')))
     QQuickStyle.setStyle('Basic')
-    for font in ('fredoka.woff2',):
+    # Fredoka's static weights too: Qt only takes the variable font's lightest (brand/make-brand.py).
+    for font in ('fredoka.woff2', 'fredoka-regular.ttf', 'fredoka-medium.ttf', 'fredoka-semibold.ttf', 'fredoka-bold.ttf'):
         QFontDatabase.addApplicationFont(str(ROOT / 'brand' / font))
 
     data_dir = Path(args.data) if args.data else Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
