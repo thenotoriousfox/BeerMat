@@ -1088,6 +1088,13 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const track = running => {hotspotOnly = onlyOn(running); hotspotNow = running || null;};
   const localAddress = req => (req.socket.localAddress || '').replace(/^::ffff:/, '');
   const localAllowed = req => {const only = allowedAddresses || hotspotOnly; return !only || only.includes(localAddress(req));};
+  // The TV page is the exception: a smart TV or TV stick is usually on the venue's own Wi-Fi, which the laptop stays on
+  // beside its quiz Wi-Fi, so the TV page (/tv; /display leads there), what it loads and its live updates answer on every network
+  // the laptop is on. Only reading, and only what the room sees on the TV anyway: playing, joining and the desk stay on
+  // the quiz Wi-Fi.
+  const tvFiles = new Set(['/tv', '/display', '/client.js', '/app.js', '/qr.js', '/soundnames.js', '/i18n.js', '/style.css', '/themes.css', '/api/leaderboard', '/api/hello']);
+  const tvOnly = (req, url) => (req.method === 'GET' || req.method === 'HEAD') && (tvFiles.has(url.pathname)
+    || /^\/(themes|brand|media|sounds|pack)\//.test(url.pathname) || (url.pathname === '/api/events' && !url.searchParams.get('key')));
   // Windows: whether players are kept off the internet. The script says whether its filters are on ("configured");
   // "verified" needs phones on the quiz Wi-Fi to have tried the internet and failed. Players' browsers try once each
   // (web/client.js, isolationCheck); their answers are kept until the quiz Wi-Fi is started again.
@@ -1116,8 +1123,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const handle = async (req, res) => {
     const send = (status, data) => {res.writeHead(status, {...security, 'Content-Type': 'application/json'}); res.end(JSON.stringify(data));};
     try {
-      if (!localAllowed(req)) return send(403, {error: 'Not available on this network'});
       const url = new URL(req.url, 'http://quiz.local'); const p = url.pathname;
+      if (!localAllowed(req) && !tvOnly(req, url)) return send(403, {error: 'Not available on this network'});
       // The online link reaches the players' and TV pages; the desk only while the quizmaster allows it (Desk on the
       // online link), and Spotify sign-in never.
       if (req.viaTunnel && (p === '/spotify/callback' || (!settings().deskOnline && (['/host', '/host.js', '/api/login'].includes(p) || p.startsWith('/api/host/'))))) return send(404, {error: 'Not found'});
@@ -1127,7 +1134,10 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       // Discovery: what a native app checks before joining (is this a BeerMat quiz server, which protocol, rehearsing?).
       if (req.method === 'GET' && p === '/api/hello') return send(200, {app: 'BeerMat', protocol: PROTOCOL, build, title: settings().title, rehearsal: !liveNow(), registrationOpen: !!settings().registrationOpen && !settings().ended});
       if ((req.method === 'GET' || req.method === 'HEAD') && !p.startsWith('/api/')) {
-        const routes = {'/host': 'host.html', '/display': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
+        // /tv: the TV page (short to type with a remote; client.js shows a start button). /display, its old address,
+        // still leads there.
+        if (p === '/display') {res.writeHead(301, {...security, Location: '/tv' + url.search}); return res.end();}
+        const routes = {'/host': 'host.html', '/tv': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
         if (p.startsWith('/media/')) {
           requireValue(mediaPattern.test(p), 'Media not found', 404);
           const file = path.join(mediaDir, path.basename(p));

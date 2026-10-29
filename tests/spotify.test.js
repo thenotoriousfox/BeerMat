@@ -144,5 +144,5 @@ test('Build quiz previews a track from its start point on the chosen player, for
 test('only the desk page may load Spotify\'s player; phones and the TV stay local-only', () => fixture(async ({base}) => {
   const policy = async route => (await fetch(base + route)).headers.get('content-security-policy');
   assert.match(await policy('/host'), /script-src 'self' https:\/\/sdk\.scdn\.co/); assert.match(await policy('/host'), /frame-src https:\/\/sdk\.scdn\.co/);
-  for (const route of ['/', '/display']) {const p = await policy(route); assert.doesNotMatch(p, /spotify|scdn/); assert.match(p, /connect-src 'self';/);}
+  for (const route of ['/', '/tv']) {const p = await policy(route); assert.doesNotMatch(p, /spotify|scdn/); assert.match(p, /connect-src 'self';/);}
 }));

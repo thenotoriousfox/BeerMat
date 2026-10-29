@@ -97,7 +97,7 @@ Rows are features; columns are the existing client and its native replacement.
 | Blank, rehearsal badge | yes | **done** | |
 | Full screen on chosen display, preview on desk | Electron | **built** (window + live preview tested offscreen) | needs a real second screen to verify |
 
-Until this is done the web TV stays the fallback: the native desk can open `http://127.0.0.1:<port>/display` in
+Until this is done the web TV stays the fallback: the native desk can open `http://127.0.0.1:<port>/tv` in
 the system browser on the TV screen.
 
 ### 2.3 Phone apps: Capacitor → Kotlin/Compose and SwiftUI

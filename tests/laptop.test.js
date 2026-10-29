@@ -248,7 +248,7 @@ test('the online link reaches the players\' and TV pages, the desk only when all
     assert.equal((await post('login', {key: hostKey})).status, 404);
     const desk = (await call('login', {key: hostKey})).key;
     assert.equal((await post('host/state', {}, desk)).status, 404); // not even with a valid desk session
-    assert.equal((await online('/')).status, 200); assert.equal((await online('/display')).status, 200);
+    assert.equal((await online('/')).status, 200); assert.equal((await online('/tv')).status, 200);
     const team = await (await post('join', {name: 'Online Owls'})).json();
     assert.ok(team.secret);
     assert.equal((await (await online('/api/leaderboard')).json()).settings.joinUrl, 'http://10.42.0.1');

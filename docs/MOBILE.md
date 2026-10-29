@@ -23,6 +23,23 @@ browser, and app and browser teams play the same quiz side by side.
 
 The same screens are also BeerMat Online's web app (`/app/`), for browser players who want a profile.
 
+## BeerMat TV (Android TV, Google TV, Fire TV)
+
+The same app is **BeerMat TV** on a TV: it's listed in TV launchers (`LEANBACK_LAUNCHER`, a 320×180 banner) and
+needs no touchscreen, camera or location. It shows the quiz on a TV with no cable to the laptop
+(`tv/TvActivity.kt`):
+
+* **Finding the quiz** (`tv/TvFinder.kt`): the last address that worked, the Wi-Fi's gateway (on the quiz Wi-Fi the
+  laptop is the router), BeerMat's hotspot address, then every address on the TV's own network (its /24) at the desk's
+  port, 3000: a TV is usually on the venue's Wi-Fi, where the laptop also is and the quiz server answers the TV page.
+  Each is asked `/api/hello` (a quick check: 0.8 s to connect), 64 at a time, the first to answer as BeerMat winning;
+  or the address typed with the remote.
+* **Showing it**: the quiz's own TV page (`/tv?app=1`, the page a TV's browser opens) in a full-screen WebView, sized
+  before it loads (a WebView measured at nothing gives the page a 0 `100vh`). Sound plays without a press of OK,
+  the screen stays on, and the page itself reconnects; if the laptop can't be reached at all, it tries every few
+  seconds. Back returns to the address. Debug builds let `chrome://inspect` inspect the page and log its console.
+* It draws the same TV as the browser page, so looks and scenery come with it; it isn't a second native TV.
+
 ## How it is built
 
 [Capacitor](https://capacitorjs.com) 8 wraps `mobile/www` (plain HTML/JS, no framework) in native Android and iOS

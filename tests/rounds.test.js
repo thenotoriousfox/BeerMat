@@ -138,8 +138,17 @@ test('live updates stream to clients and host sessions survive a restart', () =>
   await restart(); assert.equal((await call('host/state')).status, 200);
 }));
 
-test('allowed local addresses refuse other interfaces', () => fixture(async ({url}) => {
-  assert.equal((await fetch(url() + '/')).status, 403);
+test('allowed local addresses refuse other interfaces, except the TV page (a TV on the venue Wi-Fi)', () => fixture(async ({url}) => {
+  // Players, joining and the desk: only on the quiz Wi-Fi.
+  for (const [method, p] of [['GET', '/'], ['GET', '/host'], ['GET', '/host.js'], ['POST', '/api/join'], ['POST', '/api/login'], ['POST', '/api/host/state'], ['POST', '/api/state'], ['POST', '/api/leaderboard']])
+    assert.equal((await fetch(url() + p, {method, ...(method === 'POST' && {body: '{}'})})).status, 403, `${method} ${p}`);
+  assert.equal((await fetch(url() + '/api/events?key=' + 'a'.repeat(22) + '==')).status, 403, 'a team’s live updates');
+  // The TV page, what it loads and the room's live updates: on every network.
+  for (const p of ['/tv', '/client.js', '/app.js', '/style.css', '/themes.css', '/i18n.js', '/qr.js', '/brand/mark.svg', '/api/leaderboard', '/api/hello'])
+    assert.equal((await fetch(url() + p)).status, 200, p);
+  const events = await fetch(url() + '/api/events', {signal: AbortSignal.timeout(1500)});
+  assert.equal(events.status, 200, 'the TV’s live updates');
+  await events.body.cancel();
 }, {allowedAddresses: ['10.42.0.1']}));
 
 test('multi-tap scores right ticks minus wrong ticks; pinpoint scores taps and go-wide', () => fixture(async ({call, teams, score, url}) => {

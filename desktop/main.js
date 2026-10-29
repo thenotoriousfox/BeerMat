@@ -133,12 +133,12 @@ function run() {
     tv.webContents.on('did-finish-load', () => {for (const type of ['mouseDown', 'mouseUp']) tv.webContents.sendInputEvent({type, x: 1, y: 1, button: 'left', clickCount: 1});});
     tv.webContents.on('dom-ready', () => soundSoon());
     tv.webContents.on('render-process-gone', (_, details) => {log('TV page stopped', details); if (!tv.isDestroyed()) setTimeout(() => tv.reload(), 1000);});
-    tv.loadURL(`${origin()}/display`);
+    tv.loadURL(`${origin()}/tv?app=1`);
     return tv;
   }
   async function reloadWindows() {
     if (desk && !desk.isDestroyed()) await openDesk();
-    for (const w of BrowserWindow.getAllWindows()) if (w !== desk && !w.isDestroyed()) w.loadURL(`${origin()}/display`);
+    for (const w of BrowserWindow.getAllWindows()) if (w !== desk && !w.isDestroyed()) w.loadURL(`${origin()}/tv?app=1`);
   }
 
   // Every page: stays on the quiz server; other links open in the normal browser; the desk's Projector link opens the TV.
@@ -146,7 +146,7 @@ function run() {
     contents.on('will-navigate', (event, url) => {if (!sameOrigin(url)) {event.preventDefault(); external(url);}});
     contents.on('will-attach-webview', event => event.preventDefault());
     contents.setWindowOpenHandler(({url}) => {
-      if (sameOrigin(url) && new URL(url).pathname === '/display') screens?.open(); else external(url);
+      if (sameOrigin(url) && ['/tv', '/display'].includes(new URL(url).pathname)) screens?.open(); else external(url);
       return {action: 'deny'};
     });
   });

@@ -75,7 +75,10 @@ test('the server serves /themes.css and theme files, nothing else from the folde
     for (const p of ['/themes/halloween/../../server/server.js', '/themes/halloween/%2e%2e/%2e%2e/server%2fserver.js', '/themes/halloween/art/..%2f..%2ftheme.json', '/themes/halloween/art/%2e%2e/theme.json']) {
       const body = await raw(p); assert.doesNotMatch(body, /export function createQuiz|"seasonal"/, p);
     }
-    for (const page of ['/display', '/']) assert.match(await (await fetch(base + page)).text(), /href="\/themes.css"/);
+    for (const page of ['/tv', '/']) assert.match(await (await fetch(base + page)).text(), /href="\/themes.css"/);
+    assert.match(await (await fetch(base + '/tv')).text(), /id="tvStart"/, 'the TV page, with its start button');
+    const old = await fetch(base + '/display?app=1', {redirect: 'manual'});
+    assert.deepEqual([old.status, old.headers.get('location')], [301, '/tv?app=1'], '/display, the old address, leads to /tv');
   } finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
 });
 

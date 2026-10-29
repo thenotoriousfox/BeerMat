@@ -17,7 +17,7 @@ about 1,300 lines of dense JavaScript), which becomes QML.
 | BeerMat Online, licences, Stripe, the website | | **Unchanged** |
 | Window, menus, dialogs, single instance, first run, crash restart (`desktop/main.js`) | Electron | Rewrite in Python: mostly Qt one-liners (~300 lines) |
 | Screens: which screen is the TV, swap, blank, hot-plug (`screens.js`, `displays.js`) | Electron | Port: `displays.js` is plain logic (port as is); the window side maps to `QScreen` and `QGuiApplication.screenAdded/Removed` |
-| TV window | Electron `BrowserWindow` | A **QtWebEngine** window showing the same `/display` page (the brief allows the TV to stay web-based). The desk itself never uses a web view |
+| TV window | Electron `BrowserWindow` | A **QtWebEngine** window showing the same `/tv` page (the brief allows the TV to stay web-based). The desk itself never uses a web view |
 | TV sound output (`sound.js`) | Chromium `setSinkId` | Same script injected into the TV's web page; the desk's own sounds through `QMediaDevices` |
 | Quizmaster key storage (`store.js`) | Electron `safeStorage` | `keyring` (Windows Credential Manager, Secret Service). The key is only the desk password and can be regenerated, so no migration risk |
 | Logs (`log.js`) | | Python `logging` with rotation |
