@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+os.environ.setdefault('BEERMAT_MUTE', '1')   # tests make the TV's sounds without playing them aloud
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from PySide6.QtCore import QSettings                     # noqa: E402
 from PySide6.QtGui import QGuiApplication                # noqa: E402

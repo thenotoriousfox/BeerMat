@@ -5,6 +5,7 @@ Everything goes to one output, the TV's sound (chosen in Settings), as Electron'
 
 The moments follow soundCues() in web/client.js exactly, so a native TV and a web TV sound the same."""
 import math
+import os
 import re
 import struct
 import tempfile
@@ -23,6 +24,8 @@ FANFARE = [(523, 0), (659, 0.15), (784, 0.3), (1047, 0.45), (784, 0.7), (1047, 0
 WHEEL_MS, WHEEL_EASING = 6000, (0.12, 0.6, 0.15, 1)
 QUIET_TYPES = {'audio', 'clips', 'musicbingo', 'buzzer', 'bingo'}
 AUDIO_FILE = ('.mp3', '.ogg', '.wav')
+# BEERMAT_MUTE=1 (the tests): everything plays as usual, silently.
+MUTED = os.environ.get('BEERMAT_MUTE') == '1'
 # A TV's own sound: the output on its HDMI or DisplayPort cable (desktop/sound.js pickOutput).
 TV_OUTPUT = re.compile(r'HDMI|DisplayPort|\bDP\b', re.I)
 
@@ -183,6 +186,7 @@ class TvSound(QObject):
         if src not in self._players:
             player, out = QMediaPlayer(self), QAudioOutput(self)
             out.setDevice(self._device())
+            out.setMuted(MUTED)
             player.setAudioOutput(out)
             player.setSource(self._url(src))
             self._players[src] = (player, out)
@@ -247,6 +251,7 @@ class TvSound(QObject):
                 effect = QSoundEffect(self._device(), self)
                 effect.setSource(QUrl.fromLocalFile(str(path)))
                 effect.setVolume(0.6)
+                effect.setMuted(MUTED)
                 self._pegs.append(effect)
         return self._pegs
 
