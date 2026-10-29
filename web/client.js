@@ -298,7 +298,7 @@ function sharedState(s) {
   build = s.build;
   useSounds(s.sounds);
   // The quizmaster's look for this question (colours only; see style.css).
-  document.documentElement.dataset.look = s.look || 'stage';
+  document.documentElement.dataset.look = s.look || 'stage'; themeStyles(s.look || 'stage');
   $('title').textContent = s.settings.title; document.title = s.settings.title + ' — ' + (role === 'player' ? 'Team' : 'Projector');
   renderBoard($('leaderboard'), s.teams); if (role === 'display') applyReveal(s);
   $('boardStatus').textContent = s.settings.secretRound ? t('Secret round: the scores stay hidden until the end of the quiz.') : !s.settings.leaderboardVisible ? t('The quizmaster has hidden scores for now.') : s.settings.ended ? t('Final standings') : s.teams.length ? t('Ties share the same rank.') : t('Waiting for teams');
@@ -568,6 +568,18 @@ function renderWinner(s) {
       piece.style.animationDuration = `${2.5 + Math.random() * 2}s`; piece.className = 'c' + (i % 5); return piece;
     }));
   }
+}
+// A look installed on the laptop after this page opened (from the theme library, or My themes) isn't in the
+// /themes.css it loaded: asked for one it has no styles for, the page loads the stylesheet again, once per look.
+const styledLooks = new Set(['stage']);
+function themeStyles(look) {
+  if (styledLooks.has(look)) return;
+  const link = document.querySelector('link[href^="/themes.css"]');
+  const has = sheet => {try {return [...sheet.cssRules].some(r => r.cssText?.includes(`data-look="${look}"`) || r.cssText?.includes(`data-look=${look}`));} catch {return false;}};
+  styledLooks.add(look);
+  if (!link || (link.sheet && has(link.sheet))) return;
+  const fresh = link.cloneNode(); fresh.href = `/themes.css?${Date.now()}`;
+  fresh.onload = () => link.remove(); link.after(fresh);
 }
 async function publicState() {
   const response = await fetch('/api/leaderboard', {signal: AbortSignal.timeout(8000)}); if (!response.ok) throw Error(t('Cannot reach quiz server')); return response.json();

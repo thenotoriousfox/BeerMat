@@ -385,6 +385,19 @@ try {
   await waitFor(player, () => !document.getElementById('join').hidden && document.getElementById('message').textContent === 'A new quiz has started — pick your team name again.');
   await visible(projector, '#joinSection'); await waitFor(projector, () => document.getElementById('title').textContent === 'Second night');
   log('end quiz & start next: results downloaded, phones asked to join again, TV back on the join screen');
+  // A theme installed on the laptop while the TV page is open (as from the theme library), then chosen: the open page
+  // loads the theme stylesheet again and takes its colours, with no reload.
+  {
+    const {cpSync} = await import('node:fs');
+    cpSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'library', 'halloween'), path.join(dir, 'my-themes', 'halloween'), {recursive: true});
+    const {key} = await (await fetch(base + '/api/login', {method: 'POST', body: JSON.stringify({key: 'browser-test-private-key'})})).json();
+    const hostCall = (route, body) => fetch(base + '/api/host/' + route, {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: JSON.stringify(body)});
+    await hostCall('theme-library', {reload: true});
+    assert.equal((await hostCall('settings', {look: 'halloween'})).status, 200);
+    await waitFor(projector, () => getComputedStyle(document.documentElement).getPropertyValue('--gold').trim() === '#ff7a1a');
+    await hostCall('settings', {look: 'stage'});
+    log('a theme installed while the TV page is open takes effect when chosen');
+  }
   assert.deepEqual(errors, []); assert.deepEqual(external, []);
   log('no browser JavaScript errors and no external network requests');
 } catch (error) {
