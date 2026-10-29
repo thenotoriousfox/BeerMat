@@ -87,6 +87,16 @@ class DeskCase(unittest.TestCase):
             (window or self.window).grabWindow().save(str(Path(self.shots) / f'native-{name}.png'))
 
 
+class ClosingTest(DeskCase):
+    def test_closing_the_desk_quits_even_with_the_tv_open(self):
+        quits = []
+        self.engine.quit.connect(lambda: quits.append(True))
+        self.screens.setOpen(True)
+        wait(lambda: self.window.findChild(QObject, 'tv').property('visible'), what='the TV window')
+        self.window.close()
+        wait(lambda: quits, what='BeerMat to quit')
+
+
 class QuizzesPageTest(DeskCase):
     def test_loading_a_quiz_replaces_the_quizzes_page(self):
         desk, lib = self.desk, self.desk.quizzes

@@ -49,6 +49,9 @@ ApplicationWindow {
     Shortcut { sequence: "F8"; onActivated: screens.setBlank(!screens.blanked) }
 
     TvWindow { id: tvWindow; objectName: "tv" }
+    // Closing the desk closes BeerMat, the TV and the quiz server with it: an open TV window would otherwise keep it
+    // running unseen, and opening BeerMat again would only find that.
+    onClosing: Qt.quit()
 
     // First run: how players join (as the Electron app's welcome); the TV screen is automatic.
     Dialog {

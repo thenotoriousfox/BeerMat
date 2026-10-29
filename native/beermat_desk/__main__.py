@@ -80,7 +80,8 @@ def main(argv=None):
     data_dir = Path(args.data) if args.data else Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
     log = start_logging(data_dir)
     windows = []
-    instance = single_instance(data_dir, lambda: [w.raise_() or w.requestActivate() for w in windows])
+    # Opening BeerMat again while it runs brings the desk back, even if its window was closed or minimised.
+    instance = single_instance(data_dir, lambda: [(w.showNormal() if w.visibility() == w.Visibility.Minimized else w.show(), w.raise_(), w.requestActivate()) for w in windows])
     if instance is None:
         log.info('BeerMat Desk is already running for %s; brought it to the front', data_dir)
         return 0
