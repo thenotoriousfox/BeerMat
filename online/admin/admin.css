@@ -80,3 +80,18 @@ td.pro { color: var(--gold); font-weight: 800; }
 #planForm { align-items: center; flex-wrap: wrap; } #planForm label { flex-direction: row; align-items: center; gap: 8px; margin: 0; } #planForm select { width: auto; }
 .tabs .count { display: inline-block; min-width: 1.4em; padding: 0 6px; margin-left: 4px; border-radius: 99px; background: var(--bad); color: #fff; font-size: .75rem; line-height: 1.4em; text-align: center; }
 .tabs .count[hidden] { display: none; }
+
+/* Shared themes: a card each, its pictures, its files, and a viewer for the one opened. */
+.theme-cards { display: grid; gap: 14px; }
+.theme-card { border: 1px solid var(--line, #ddd); border-radius: 12px; padding: 14px; display: grid; gap: 10px; }
+.theme-card header { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.theme-previews { display: flex; gap: 10px; align-items: flex-end; }
+.theme-previews img { border-radius: 8px; background: #140b2e; object-fit: contain; }
+.theme-previews .preview-tv { width: 320px; aspect-ratio: 16 / 9; }
+.theme-previews .preview-app, .theme-previews .preview-browser { height: 180px; aspect-ratio: 390 / 844; }
+.theme-previews .no-picture { display: grid; place-items: center; text-align: center; padding: 8px; box-sizing: border-box; border: 1px dashed rgba(255, 255, 255, .2); border-radius: 8px; color: #a99bc4; font-size: 12px; }
+.theme-previews .preview-tv.no-picture { height: auto; }
+.theme-files { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .9rem; }
+.theme-files .link { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
+.theme-file { max-height: 420px; overflow: auto; white-space: pre-wrap; background: rgba(0, 0, 0, .35); color: inherit; border: 1px solid rgba(255, 255, 255, .12); border-radius: 10px; padding: 12px; font-size: .85rem; }
+.theme-file img { max-width: 100%; }

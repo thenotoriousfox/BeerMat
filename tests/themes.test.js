@@ -65,3 +65,22 @@ test('the server serves /themes.css and theme files, nothing else from the folde
     for (const page of ['/display', '/']) assert.match(await (await fetch(base + page)).text(), /href="\/themes.css"/);
   } finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
 });
+
+test('the native apps get a look as data: its colours and its phone scenery', async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-looks-'));
+  const quiz = createQuiz({plan: 'pro', hostKey: 'a-secure-quiz-test-key', database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'none'), soundsDir: path.join(dir, 'none')});
+  await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${quiz.server.address().port}`;
+  try {
+    const halloween = await (await fetch(base + '/api/looks/halloween')).json();
+    assert.equal(halloween.name, 'Halloween');
+    assert.equal(halloween.colours['--gold'], '#ff7a1a');
+    assert.equal(halloween.colours['--line'], 'rgba(255, 150, 70, .2)');
+    assert.equal(halloween.colours['--scene'], undefined, 'only colours');
+    assert.deepEqual(halloween.phone.scene.map(l => l.image), ['/themes/halloween/art/phone-moon.webp', '/themes/halloween/art/phone-hill.webp']);
+    assert.equal((await fetch(base + halloween.phone.scene[0].image)).status, 200, 'the app can load its pictures');
+    const stage = await (await fetch(base + '/api/looks/stage')).json();
+    assert.deepEqual([stage.colours, stage.phone], [{}, null], 'the default look: BeerMat’s own colours');
+    assert.equal((await fetch(base + '/api/looks/nope')).status, 404);
+  } finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
+});

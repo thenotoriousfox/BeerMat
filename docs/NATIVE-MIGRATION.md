@@ -176,8 +176,19 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * Desk: the quizmaster key in the system keychain (file fallback), swapping desk and TV screens (checked on real
   screens), wheel tick sounds, the Halloween look's scenery, printing blank answer sheets (PDF).
 
+* **Release 0.5.5** builds BeerMat Desk (Linux tar.gz and AppImage, Windows installer and zip, its tests first) and the
+  native Android app as the main downloads; Electron and Capacitor stay in each release as the fallback ("classic").
+  The Windows desk build now runs in CI on Windows; it hasn't been installed on a real Windows laptop yet.
+* **Themes everywhere**: a theme's `tv.json` says what BeerMat Desk's TV draws beyond colours (Halloween's full web
+  design: gradient title, eyebrow, question panel, scenery, all from data, `ThemeScene.qml`), and what the app draws
+  on phones (its `phone` section); the Android app takes the look's colours and phone scenery (`GET /api/looks/<id>`).
+  The iOS app doesn't yet (written code only, as the rest of it).
+* **Theme library** (BeerMat Online): share, approve (admin), install, report, with pictures of each theme on the TV,
+  in the app (both drawn by the desk that shares it) and in a phone's browser (drawn by the service).
+
 ### Still to do
 
+* iOS: the quiz's look (colours and phone scenery) as the Android app has it.
 * Hardware only: unplugging and replugging a TV (`native/tests/display_check.py --wait 60`), a real Android phone on a
   quiz Wi-Fi, any iPhone build, a Windows build and install, and the keychain on a real desktop session (the packaged
   test ran without one and used the file fallback, as designed).

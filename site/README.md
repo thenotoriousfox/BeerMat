@@ -8,6 +8,8 @@ online.beermatquiz.co.uk; `/app`, `/admin`, `/reset` and `/verify` redirect ther
     npm run dev       # http://localhost:4321
     npm run deploy    # build and publish (needs CLOUDFLARE_API_TOKEN with Workers access)
 
-The logos and font come from `../brand` at build time. Screenshots in `public/shots` are of a demo quiz. Prices, the
+The logos and font come from `../brand` at build time. Screenshots in `public/shots` are of a demo quiz: the desk and TV from BeerMat Desk
+(`python3 scripts/site-screenshots-native.py`), the phones and `og.png` from the browser (`node scripts/site-screenshots.mjs`;
+run it first, as it also writes desk and TV shots of the previous desk). Prices, the
 contact address and whether downloads are open are in `src/consts.ts`. The terms and privacy pages are
 written for BeerMat as a sole trader with payments by Stripe; worth having reviewed.

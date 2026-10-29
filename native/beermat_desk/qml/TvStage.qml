@@ -12,11 +12,18 @@ Item {
     property var tv: ({})
     property string serverUrl: ""
     property bool blanked: false
-    // The question's look (themes/<id>/look.css): its colours over BeerMat's own.
+    // The question's look (themes/<id>/look.css): its colours over BeerMat's own. Keyed on the look's id, a string, so the
+    // TV's many updates leave the look alone and its background, lettering and scenery aren't redrawn or restarted.
+    readonly property string lookId: tv.look || "stage"
     property var palettes: desk.lookPalettes
     readonly property var pal: Object.assign({bg: Theme.bg, bg2: Theme.bg2, text: Theme.text, muted: Theme.muted, faint: Theme.faint, gold: Theme.gold,
         goldHi: Theme.goldHi, pink: Theme.pink, teal: Theme.teal, violet: Theme.violet, good: Theme.good, bad: Theme.bad, onAccent: Theme.onAccent,
-        line: Theme.line, lineStrong: Theme.lineStrong, panel: Theme.panel}, palettes[tv.look || "stage"] || {})
+        line: Theme.line, lineStrong: Theme.lineStrong, panel: Theme.panel}, palettes[lookId] || {})
+    // What the look draws beyond colours (themes/<id>/tv.json): background, title, eyebrow, panel and scenery.
+    readonly property var look: (desk.lookScenes || {})[lookId] || null
+    readonly property var lookTitle: look && look.title && look.title.gradient ? look.title : null
+    // A gradient's colour at stop i (repeating the last stop when it has fewer).
+    function stop(stops, i) { return stops[Math.min(i, stops.length - 1)] }
     readonly property var settings: tv.settings || {}
     // The quiz's language (the quizmaster chooses it); English if it's one the dictionary doesn't have.
     readonly property int langIndex: ({fr: 0, es: 1})[settings.language] ?? -1
@@ -46,15 +53,39 @@ Item {
 
         Rectangle {
             anchors.fill: parent
+            visible: !(root.look && root.look.background)
             gradient: Gradient {
                 GradientStop { position: 0; color: root.pal.panel }
                 GradientStop { position: 0.55; color: root.pal.bg2 }
                 GradientStop { position: 1; color: root.pal.bg }
             }
         }
+        // The look's own background: a gradient top to bottom, and soft coloured glows ([x, y, width, height, colour]).
+        Canvas {
+            id: lookBackground
+            objectName: "lookBackground"
+            anchors.fill: parent
+            visible: !!(root.look && root.look.background)
+            readonly property var background: root.look ? root.look.background || null : null
+            onBackgroundChanged: requestPaint()
+            onPaint: {
+                const ctx = getContext("2d"), b = background
+                ctx.reset()
+                if (!b) return
+                const g = ctx.createLinearGradient(0, 0, 0, height)
+                for (const [at, colour] of b.gradient || []) g.addColorStop(at, colour)
+                ctx.fillStyle = g; ctx.fillRect(0, 0, width, height)
+                for (const [cx, cy, w, h, colour] of b.glows || []) {
+                    ctx.save(); ctx.translate(cx, cy); ctx.scale(1, h / w)
+                    const r = ctx.createRadialGradient(0, 0, 0, 0, 0, w / 2), c = Qt.color(colour)
+                    r.addColorStop(0, colour); r.addColorStop(0.6, Qt.rgba(c.r, c.g, c.b, 0))
+                    ctx.fillStyle = r; ctx.fillRect(-w / 2, -w / 2, w, w); ctx.restore()
+                }
+            }
+        }
         // Soft lights in the corners, as the web TV's decor.
         Repeater {
-            model: [[160, 140, root.pal.gold], [1760, 220, root.pal.pink], [300, 960, root.pal.violet], [1650, 930, root.pal.teal]]
+            model: root.look && root.look.background ? [] : [[160, 140, root.pal.gold], [1760, 220, root.pal.pink], [300, 960, root.pal.violet], [1650, 930, root.pal.teal]]
             delegate: Rectangle {
                 required property var modelData
                 x: modelData[0] - 260; y: modelData[1] - 260; width: 520; height: 520; radius: 260
@@ -62,8 +93,12 @@ Item {
             }
         }
 
-        // The Halloween look's scenery, behind everything.
-        Loader { anchors.fill: parent; active: root.tv.look === "halloween"; sourceComponent: HalloweenScene {} }
+        // The look's scenery (tv.json's scene), behind everything.
+        Loader {
+            anchors.fill: parent
+            active: !!(root.look && root.look.scene && root.look.scene.length)
+            sourceComponent: ThemeScene { layers: root.look.scene; base: root.look.base }
+        }
 
         // ---- header ----
         RowLayout {
@@ -73,8 +108,41 @@ Item {
             Image { source: brand + "mark.svg"; sourceSize: Qt.size(88, 88); Layout.preferredWidth: 88; Layout.preferredHeight: 88 }
             ColumnLayout {
                 spacing: 0; Layout.fillWidth: true
-                Text { text: root.t("QUIZ NIGHT"); color: root.pal.gold; font.family: Theme.display; font.pixelSize: 22; font.weight: Font.Bold; font.letterSpacing: 6 }
-                Text { text: root.settings.title || "BeerMat"; color: root.pal.text; font.family: Theme.display; font.pixelSize: 56; font.weight: Font.Bold; elide: Text.ElideRight; Layout.fillWidth: true }
+                // "QUIZ NIGHT" and the quiz's name: plain, or in the look's style (tv.json's eyebrow and title).
+                readonly property var eyebrowStyle: root.look && root.look.eyebrow ? root.look.eyebrow : null
+                Text {
+                    visible: !parent.eyebrowStyle
+                    text: root.t("QUIZ NIGHT"); color: root.pal.gold; font.family: Theme.display; font.pixelSize: 22; font.weight: Font.Bold; font.letterSpacing: 6
+                }
+                GlowText {
+                    visible: !!parent.eyebrowStyle; Layout.preferredHeight: 30; Layout.fillWidth: true
+                    text: root.t("QUIZ NIGHT"); family: Theme.display; pixelSize: 22; letterSpacing: 6
+                    color: parent.eyebrowStyle && parent.eyebrowStyle.color ? parent.eyebrowStyle.color : root.pal.gold
+                    glow: parent.eyebrowStyle && parent.eyebrowStyle.glow ? parent.eyebrowStyle.glow : "transparent"
+                }
+                Text {
+                    visible: !root.lookTitle
+                    text: root.settings.title || "BeerMat"; color: root.pal.text; font.family: Theme.display; font.pixelSize: 56; font.weight: Font.Bold; elide: Text.ElideRight; Layout.fillWidth: true
+                }
+                GlowText {
+                    id: fancyTitle
+                    visible: !!root.lookTitle; Layout.fillWidth: true; Layout.preferredHeight: implicitHeight
+                    text: root.settings.title || "BeerMat"; family: Theme.display; pixelSize: 56
+                    stops: root.lookTitle ? root.lookTitle.gradient : null
+                    glow: root.lookTitle && root.lookTitle.glow ? root.lookTitle.glow : "transparent"
+                    // A flicker ([at, opacity] keys over its duration), as the web TV's.
+                    property real flick: 0
+                    readonly property var flicker: root.lookTitle && root.lookTitle.flicker ? root.lookTitle.flicker : null
+                    NumberAnimation on flick { running: !!fancyTitle.flicker && fancyTitle.visible; from: 0; to: 1; loops: Animation.Infinite; duration: fancyTitle.flicker ? fancyTitle.flicker.duration : 1000 }
+                    opacity: {
+                        const k = flicker ? flicker.keys : null
+                        if (!k || k.length < 2) return 1
+                        let i = 0
+                        while (i < k.length - 2 && flick > k[i + 1][0]) i++
+                        const f = Math.max(0, Math.min(1, (flick - k[i][0]) / Math.max(1e-6, k[i + 1][0] - k[i][0])))
+                        return k[i][1] + (k[i + 1][1] - k[i][1]) * f
+                    }
+                }
             }
             // The TV countdown the quizmaster set (Tools).
             Rectangle {
@@ -152,6 +220,18 @@ Item {
             Item {
                 id: questionView
                 anchors.fill: parent
+                // The look's panel behind the question (tv.json's panel), as the web TV's card.
+                Rectangle {
+                    id: lookPanel
+                    readonly property var style: root.look && root.look.panel ? root.look.panel : null
+                    visible: !!style
+                    x: -36; y: -28; width: parent.width + 72; height: Math.min(parent.height + 28, questionColumn.implicitHeight + 64)
+                    radius: 28; border.width: 2; border.color: style && style.border ? style.border : "transparent"
+                    gradient: Gradient {
+                        GradientStop { position: 0; color: lookPanel.style ? root.stop(lookPanel.style.gradient, 0)[1] : "transparent" }
+                        GradientStop { position: 1; color: lookPanel.style ? root.stop(lookPanel.style.gradient, 9)[1] : "transparent" }
+                    }
+                }
                 opacity: root.view === "question" ? 1 : 0; visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 300 } }
                 readonly property var q: root.q
@@ -164,6 +244,7 @@ Item {
                 readonly property bool isAudio: !!q && !!q.media && /\.(mp3|ogg|wav)$/i.test(q.media)
 
                 ColumnLayout {
+                    id: questionColumn
                     anchors.fill: parent
                     spacing: 22
                     Text { text: questionView.q ? (questionView.q.round || "").toUpperCase() : ""; color: root.pal.gold; font.pixelSize: 30; font.weight: Font.Bold; font.letterSpacing: 4 }

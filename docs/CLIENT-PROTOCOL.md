@@ -111,6 +111,23 @@ sees it), `/api/team/sound`, `/api/team/photo` (JPEG body), `/api/team/result` (
 
 The server checks every answer against the question and its timing; clients only shape the value.
 
+## Looks
+
+Every state carries `look`: the id of the theme the quiz shows now (`stage` is BeerMat's own; it can change with each
+question). A native app dresses itself in it as the TV and the browser do:
+
+`GET /api/looks/<id>` (no authentication) → `{id, name, colours, phone}`:
+
+* `colours`: the look's colour tokens as `look.css` names them (`--bg`, `--bg-2`, `--surface-solid`, `--text`,
+  `--muted`, `--gold`, `--gold-hi`, `--pink`, `--cyan`, `--violet`, `--good`, `--bad`, `--on-accent`, `--line`), each
+  `#rgb`, `#rrggbb`, `#rrggbbaa` or `rgb(a)(…)`. Tokens a look doesn't set keep the app's own; answer colours never
+  change. Empty for `stage`.
+* `phone`: `null`, or `{background: {gradient: [[at, colour], …]}, scene: [{image, x, bottom, width, height, opacity}]}`:
+  a top-to-bottom background and pictures (`.png`, `.webp` or `.jpg` addresses on the quiz server) on a stage 390
+  wide, scaled to the screen's width and placed from its bottom, behind the quiz.
+
+Fetch it when `look` changes, not with every state. 404 means the look isn't on this laptop: keep the app's own.
+
 ## Handing a team to the browser
 
 A native app that doesn't draw a round format opens the server's player page as `<server>/#team=<recovery code>`.

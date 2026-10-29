@@ -20,12 +20,14 @@ AUDIO = {'.mp3', '.ogg', '.wav'}
 class Prefs(QObject):
     spotifyChanged = Signal()
     libraryChanged = Signal()
+    themesChanged = Signal()
 
     def __init__(self, desk):
         super().__init__(desk)
         self.desk, self.api = desk, desk.api
         self._spotify = {}
         self._library = {}
+        self._themes = {}
         # After "Connect Spotify" the sign-in finishes in the browser, which the desk can't see: it asks the server every
         # two seconds until Spotify says connected (or three minutes pass).
         self._waiting = QTimer(self, interval=2000)
@@ -174,6 +176,82 @@ class Prefs(QObject):
             'buzzer-library/share', {'name': (name.strip() or stem)[:60], 'media': media, 'rights': True},
             lambda r: (self.desk.toast.emit(f'“{r["name"]}” shared with other BeerMat venues', False), self.searchLibrary(self._library.get('query', ''))),
             self._fail, timeout_ms=30000))
+
+    # ---- the theme library (BeerMat Online), and this laptop's own themes (my-themes/ in its data folder) ----
+    @Property('QVariantMap', notify=themesChanged)
+    def themes(self):
+        return self._themes
+
+    @Slot(str)
+    def searchThemes(self, query):
+        self._themes = {**self._themes, 'loading': True, 'query': query, 'error': ''}
+        self.themesChanged.emit()
+
+        def got(reply):
+            self._themes = {**reply, 'query': query, 'loading': False, 'error': ''}
+            self.themesChanged.emit()
+
+        def failed(error):
+            self._themes = {**self._themes, 'loading': False, 'error': error}
+            self.themesChanged.emit()
+        self.api.host('theme-library', {'q': query}, got, failed, timeout_ms=30000)
+
+    def _themes_changed(self, message):
+        """After installing or removing: the desk's looks (the TV's colours and scenery) and the list, read again."""
+        self.desk.toast.emit(message, False)
+        self.desk.reload_looks()
+        self.desk.refresh()
+        self.searchThemes(self._themes.get('query', ''))
+
+    @Slot(str)
+    def installTheme(self, theme):
+        self.api.host('theme-library/install', {'id': theme}, lambda r: self._themes_changed(f'“{r["name"]}” installed: choose it under Looks'), self._fail, timeout_ms=90000)
+
+    @Slot(str)
+    def uninstallTheme(self, theme):
+        self.api.host('theme-library/uninstall', {'id': theme}, lambda _: self._themes_changed('Theme removed from this laptop'), self._fail)
+
+    @Slot(str, result=str)
+    def previewFile(self, kind):
+        """Where the share dialog saves its picture of a theme (a JPEG in the temporary folder)."""
+        import tempfile
+        return str(Path(tempfile.gettempdir()) / f'beermat-theme-preview-{kind}.jpg')
+
+    @Slot(str, bool, str, str)
+    def shareTheme(self, theme, rights, tv, app):
+        """Shares one of this laptop's themes, with the pictures the share dialog drew of it (the TV, the app)."""
+        import base64
+        previews = {}
+        for kind, path in (('tv', tv), ('app', app)):
+            try:
+                previews[kind] = base64.b64encode(Path(path).read_bytes()).decode()
+            except OSError:
+                pass
+        self.api.host('theme-library/share', {'id': theme, 'rights': rights, 'previews': previews},
+                      lambda r: (self.desk.toast.emit(f'“{r["name"]}” sent: BeerMat looks at every theme before it’s in the library', False), self.searchThemes(self._themes.get('query', ''))),
+                      self._fail, timeout_ms=150000)
+
+    @Slot(str)
+    def removeSharedTheme(self, theme):
+        self.api.host('theme-library/remove', {'id': theme}, lambda _: (self.desk.toast.emit('Taken out of the library', False), self.searchThemes(self._themes.get('query', ''))), self._fail)
+
+    @Slot(str, str)
+    def reportTheme(self, theme, reason):
+        if reason.strip():
+            self.api.host('theme-library/report', {'id': theme, 'reason': reason.strip()},
+                          lambda _: self.desk.toast.emit('Reported: thanks. BeerMat will look at it.', False), self._fail, timeout_ms=20000)
+
+    @Slot()
+    def openMyThemes(self):
+        """The My themes folder, made if it isn't there yet, in the file manager."""
+        folder = Path(self._themes.get('folder') or (self.desk.server.data_dir / 'my-themes'))
+        folder.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+    @Slot()
+    def reloadThemes(self):
+        """After editing a theme in My themes by hand: the server and the desk read it again."""
+        self.api.host('theme-library', {'q': self._themes.get('query', ''), 'reload': True}, lambda r: (self._themes.update(r), self.desk.reload_looks(), self.themesChanged.emit()), self._fail)
 
     # ---- bingo calls ----
     @Slot(QUrl)

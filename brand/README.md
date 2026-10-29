@@ -33,6 +33,8 @@ effects to it. On light backgrounds use the print version.
 **Fredoka** (bold for the name and headings, medium for the tagline), by the Fredoka Project Authors, under the SIL
 Open Font License 1.1 (`Fredoka-OFL.txt`): free to use, embed and ship with the apps. `fredoka.woff2` is the variable
 font (weights 300–700) that the pages load; the logos have their lettering as outlines, so they need no font.
+`fredoka-regular/medium/semibold/bold.ttf` are its named weights as separate fonts, for the native desk (Qt only
+registers a variable font's default weight); `make-brand.py` writes them.
 
 ## Making them
 

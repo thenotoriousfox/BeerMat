@@ -224,6 +224,26 @@ class PlayerUiTest {
         waitText("being checked"); shot("12-bingo")
     }
 
+    /** The quiz's look dresses the app as it does the TV: Halloween's colours and its phone scenery, and back again. */
+    @Test fun dressesItselfInTheQuizsLook() {
+        assumeTrue("needs the ui-test.sh servers", server.isNotEmpty())
+        val before = call("/api/host/state").getJSONObject("settings").optString("look", "stage")
+        call("/api/host/settings", JSONObject().put("look", "halloween"))
+        try {
+            join(server.removePrefix("http://"), "Look Larks")
+            rule.waitUntilAtLeastOneExists(androidx.compose.ui.test.hasTestTag("look-scene"), 20000)
+            rule.waitUntil(15000) { uk.beermat.player.ui.Brand.gold == androidx.compose.ui.graphics.Color(0xFFFF7A1A) }
+            Thread.sleep(1500)
+            shot("30-look-halloween")
+            call("/api/host/settings", JSONObject().put("look", "stage"))
+            rule.waitUntil(15000) { uk.beermat.player.ui.Brand.gold == androidx.compose.ui.graphics.Color(0xFFFFB21A) }
+            rule.waitUntil(15000) { rule.onAllNodes(androidx.compose.ui.test.hasTestTag("look-scene")).fetchSemanticsNodes().isEmpty() }
+            shot("31-look-stage")
+        } finally {
+            call("/api/host/settings", JSONObject().put("look", before))
+        }
+    }
+
     @Test fun rehearsalShowsConnectedOnly() {
         val rehearsal = args.getString("rehearsal") ?: ""
         assumeTrue("needs the ui-test.sh servers", rehearsal.isNotEmpty())

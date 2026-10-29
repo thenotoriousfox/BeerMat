@@ -57,6 +57,8 @@ data class PlayerState(
     val buzzerNames: List<String> = emptyList(),
     /** A real phone in a rehearsal: connected, never playing. */
     val testDevice: Boolean,
+    /** The question's look (its theme's id), for the app's colours and scenery (GET /api/looks/<id>). */
+    val look: String = "stage",
 )
 
 private fun JSONArray?.strings(): List<String> = if (this == null) emptyList() else List(length()) { optString(it) }
@@ -66,6 +68,21 @@ private fun JSONObject.strOrNull(name: String): String? = if (!has(name) || isNu
 private fun JSONObject.numOrNull(name: String): Double? = if (!has(name) || isNull(name)) null else optDouble(name).takeUnless { it.isNaN() }
 
 object Parse {
+    /** GET /api/looks/<id>: the look's colour tokens and what phones draw; picture addresses made whole with [base]. */
+    fun look(o: JSONObject, base: String): uk.beermat.player.ui.PhoneLook {
+        val colours = o.optJSONObject("colours")?.let { c -> c.keys().asSequence().associateWith { c.optString(it) } } ?: emptyMap()
+        val phone = o.optJSONObject("phone")
+        val stops = phone?.optJSONObject("background")?.optJSONArray("gradient")
+        val background = if (stops == null) emptyList() else List(stops.length()) { stops.getJSONArray(it) }
+            .mapNotNull { s -> uk.beermat.player.ui.cssColour(s.optString(1))?.let { s.optDouble(0).toFloat() to it } }
+        val layers = phone?.optJSONArray("scene")
+        val scene = if (layers == null) emptyList() else List(layers.length()) { layers.getJSONObject(it) }.map { l ->
+            uk.beermat.player.ui.PhoneLayer(base + l.optString("image"), l.optDouble("x", 0.0).toFloat(), l.optDouble("bottom", 0.0).toFloat(),
+                l.optDouble("width", 0.0).toFloat(), l.optDouble("height", 0.0).toFloat(), l.optDouble("opacity", 1.0).toFloat())
+        }
+        return uk.beermat.player.ui.PhoneLook(o.optString("id"), colours, background, scene)
+    }
+
     fun state(o: JSONObject): PlayerState {
         val s = o.optJSONObject("settings") ?: JSONObject()
         val rehearsal = o.optJSONObject("rehearsal")
@@ -81,6 +98,7 @@ object Parse {
             draft = o.optJSONObject("draft")?.opt("value"),
             teams = o.optJSONArray("teams")?.let { a -> List(a.length()) { a.getJSONObject(it) }.map { Standing(it.str("name"), it.numOrNull("score"), it.optInt("rank")) } } ?: emptyList(),
             testDevice = rehearsal?.optBoolean("device") == true,
+            look = o.optString("look", "stage").ifBlank { "stage" },
         )
     }
 

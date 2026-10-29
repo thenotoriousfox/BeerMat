@@ -28,11 +28,15 @@ qInstallMessageHandler(lambda kind, _context, message: problems.append(message) 
 class FakeDesk(QObject):
     def __init__(self):
         super().__init__()
-        self._palettes = looks.load(ROOT / 'themes')
+        self._palettes, self._scenes = looks.load(ROOT / 'themes'), looks.scenes(ROOT / 'themes')
 
     @Property('QVariantMap', constant=True)
     def lookPalettes(self):
         return self._palettes
+
+    @Property('QVariantMap', constant=True)
+    def lookScenes(self):
+        return self._scenes
 
 
 SETTINGS = {'title': 'Quiz night', 'joinUrl': 'http://10.42.0.1', 'joinSsid': 'BeerMat', 'registrationOpen': True, 'leaderboardVisible': True, 'displayMode': 'auto'}
@@ -133,6 +137,40 @@ class TvStageTest(unittest.TestCase):
         self.show(opened)
         self.show(CASES['choice-revealed'], 'spotlight')
         self.assertEqual(shown().property('kind').toString(), 'FASTEST FINGERS')
+
+    def test_a_looks_tv_json_styles_the_tv(self):
+        def items(item):
+            yield item
+            for child in item.childItems():
+                yield from items(child)
+        def shown(kind):
+            return [o for o in items(self.stage) if o.metaObject().className().startswith(kind) and o.property('visible')]
+        self.show(state(q=question()), 'look-stage')
+        self.assertEqual(shown('GlowText'), [], 'the default look: plain lettering')
+        self.show(state(q=question(), look='halloween'), 'look-halloween')
+        self.assertEqual(sorted(o.property('text') for o in shown('GlowText')), ['QUIZ NIGHT', 'Quiz night'], 'its eyebrow and title')
+        scene = [o for o in items(self.stage) if o.metaObject().className().startswith('ThemeScene')]
+        self.assertEqual(len(scene), 1)
+        self.assertEqual(len(scene[0].property('layers')), 14, 'moon, hill, four bats, two fogs, web, spider, four embers')
+
+    def test_updates_in_the_same_look_leave_its_scenery_alone(self):
+        from shiboken6 import getCppPointer
+
+        def items(item):
+            yield item
+            for child in item.childItems():
+                yield from items(child)
+        def drawn():
+            return sorted(getCppPointer(o)[0] for o in items(self.stage) if o.metaObject().className().startswith(('ThemeScene', 'GlowText', 'QQuickImage')))
+        self.show(state(q=question(), look='halloween'))
+        before = drawn()
+        painted = []
+        background = self.stage.findChild(QObject, 'lookBackground')
+        background.paint.connect(lambda *_: painted.append(1))
+        for _ in range(3):   # the server's updates: new objects, the same look
+            self.show(state(q=question(), look='halloween', serverTime=time.time() * 1000))
+        self.assertEqual(drawn(), before, 'the scenery and lettering are the same items, not rebuilt')
+        self.assertEqual(painted, [], 'the background is not repainted')
 
     def test_the_answer_box_fits_its_answer_note_and_scorers(self):
         reveal, content = self.stage.findChild(QObject, 'reveal'), self.stage.findChild(QObject, 'revealContent')

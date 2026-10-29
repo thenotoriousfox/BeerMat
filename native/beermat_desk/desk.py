@@ -78,12 +78,30 @@ class Desk(QObject):
     def view(self):
         return self._view
 
-    @Property('QVariantMap', constant=True)
+    looksChanged = Signal()
+
+    def reload_looks(self, announce=True):
+        """The looks from BeerMat's own themes and this laptop's (my-themes/: made here or installed from the theme
+        library); a theme of its own can't take a shipped one's id. Read again when a theme is installed or removed."""
+        mine = self.server.data_dir / 'my-themes'
+        self._palettes = {**looks.load(mine), **looks.load(ROOT / 'themes')}
+        self._scenes = {**looks.scenes(mine), **looks.scenes(ROOT / 'themes')}
+        if announce:
+            self.looksChanged.emit()
+
+    @Property('QVariantMap', notify=looksChanged)
     def lookPalettes(self):
-        """Each look's colours for the native TV (themes/<id>/look.css)."""
+        """Each look's colours for the native TV (its look.css)."""
         if not hasattr(self, '_palettes'):
-            self._palettes = looks.load(ROOT / 'themes')
+            self.reload_looks(announce=False)    # the first read: nothing to tell yet
         return self._palettes
+
+    @Property('QVariantMap', notify=looksChanged)
+    def lookScenes(self):
+        """What each look draws on the native TV beyond colours (its tv.json)."""
+        if not hasattr(self, '_scenes'):
+            self.reload_looks(announce=False)
+        return self._scenes
 
     @Property(QObject, constant=True)
     def prefs(self):

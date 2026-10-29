@@ -1,0 +1,50 @@
+{
+  "background": {
+    "gradient": [[0, "#0c0618"], [0.45, "#1b0b30"], [0.75, "#3a1648"], [1, "#5a2140"]],
+    "glows": [[1344, 1080, 1440, 720, "rgba(255, 122, 40, 0.22)"], [192, -108, 960, 600, "rgba(120, 50, 200, 0.35)"]]
+  },
+  "title": {
+    "gradient": [[0, "#ffe7c2"], [0.45, "#ffa552"], [0.7, "#ff6a12"], [1, "#b8360a"]],
+    "glow": "rgba(255, 110, 20, 0.55)",
+    "flicker": {"duration": 6000, "keys": [[0, 1], [0.41, 1], [0.42, 0.82], [0.43, 1], [0.77, 1], [0.78, 0.88], [0.8, 1], [1, 1]]}
+  },
+  "eyebrow": {"color": "#9dff5a", "glow": "rgba(157, 255, 90, 0.45)"},
+  "panel": {"gradient": [[0, "rgba(44, 20, 68, 0.9)"], [1, "rgba(16, 7, 28, 0.93)"]], "border": "rgba(255, 140, 60, 0.3)"},
+  "phone": {
+    "background": {"gradient": [[0, "#0c0618"], [0.45, "#1b0b30"], [0.75, "#3a1648"], [1, "#5a2140"]]},
+    "scene": [
+      {"image": "art/phone-moon.webp", "x": 140, "bottom": 120, "width": 257, "height": 257},
+      {"image": "art/phone-hill.webp", "x": -648, "bottom": 0, "width": 1266, "height": 343}
+    ]
+  },
+  "scene": [
+    {"image": "art/moon.svg", "x": 1129, "y": 508, "width": 468, "height": 468,
+     "motion": {"duration": 18000, "alternate": true, "easing": "sine", "keys": [[0, 0, 0, 1], [1, 0, 0, 0.92]]}},
+    {"image": "art/scene.svg", "x": 0, "y": 560, "width": 1920, "height": 520, "fit": "crop", "align": "bottom"},
+    {"image": "art/bat.svg", "x": -154, "y": 550, "width": 54, "height": 36, "opacity": 0.95,
+     "motion": {"duration": 19000, "keys": [[0, 0, 0], [0.25, 576, -43], [0.5, 1152, 22], [0.75, 1728, -32], [1, 2304, 11]]}},
+    {"image": "art/bat.svg", "x": -154, "y": 457, "width": 37, "height": 25, "opacity": 0.95,
+     "motion": {"duration": 27000, "offset": 9000, "keys": [[0, 0, 0], [0.25, 576, -43], [0.5, 1152, 22], [0.75, 1728, -32], [1, 2304, 11]]}},
+    {"image": "art/bat.svg", "x": -154, "y": 22, "width": 32, "height": 22, "opacity": 0.95,
+     "motion": {"duration": 34000, "offset": 20000, "keys": [[0, 0, 0], [0.25, 576, -43], [0.5, 1152, 22], [0.75, 1728, -32], [1, 2304, 11]]}},
+    {"image": "art/bat.svg", "x": -154, "y": 635, "width": 43, "height": 29, "opacity": 0.95, "mirror": true,
+     "motion": {"duration": 23000, "offset": 6000, "keys": [[0, 2304, 0], [0.5, 1152, -54], [1, -192, 0]]}},
+    {"x": -960, "y": 868, "width": 3840, "height": 234, "opacity": 0.5, "color": "#dcc8ff",
+     "blobs": [[0.2, 0.7, 0.3, 0.6, 0.32], [0.55, 0.8, 0.25, 0.5, 0.26], [0.85, 0.75, 0.3, 0.55, 0.3]],
+     "motion": {"duration": 120000, "alternate": true, "easing": "sine", "keys": [[0, 0, 0], [1, 576, 0]]}},
+    {"x": -960, "y": 900, "width": 3840, "height": 234, "opacity": 0.35, "color": "#dcc8ff", "mirror": true,
+     "blobs": [[0.2, 0.7, 0.3, 0.6, 0.32], [0.55, 0.8, 0.25, 0.5, 0.26], [0.85, 0.75, 0.3, 0.55, 0.3]],
+     "motion": {"duration": 90000, "alternate": true, "easing": "sine", "keys": [[0, 0, 0], [1, -480, 0]]}},
+    {"image": "art/web.svg", "x": 0, "y": 0, "width": 259, "height": 259, "opacity": 0.8},
+    {"image": "art/spider.svg", "x": 6, "y": -432, "width": 35, "height": 648, "align": "bottom",
+     "motion": {"duration": 7000, "alternate": true, "easing": "sine", "keys": [[0, 0, 0], [1, 0, 65]]}},
+    {"dot": true, "x": 144, "y": 1021, "width": 6.5, "height": 6.5, "color": "#ffb347", "glow": "#ff7a1a",
+     "motion": {"duration": 6000, "easing": "out", "keys": [[0, 0, 0, 0], [0.15, 3, -36, 0.9], [1, 22, -238, 0]]}},
+    {"dot": true, "x": 230, "y": 1021, "width": 6.5, "height": 6.5, "color": "#ffb347", "glow": "#ff7a1a",
+     "motion": {"duration": 6000, "offset": 2000, "easing": "out", "keys": [[0, 0, 0, 0], [0.15, 3, -36, 0.9], [1, 22, -238, 0]]}},
+    {"dot": true, "x": 1786, "y": 1021, "width": 6.5, "height": 6.5, "color": "#ffb347", "glow": "#ff7a1a",
+     "motion": {"duration": 6000, "offset": 4000, "easing": "out", "keys": [[0, 0, 0, 0], [0.15, 3, -36, 0.9], [1, 22, -238, 0]]}},
+    {"dot": true, "x": 1690, "y": 1021, "width": 6.5, "height": 6.5, "color": "#ffb347", "glow": "#ff7a1a",
+     "motion": {"duration": 6000, "offset": 1000, "easing": "out", "keys": [[0, 0, 0, 0], [0.15, 3, -36, 0.9], [1, 22, -238, 0]]}}
+  ]
+}

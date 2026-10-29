@@ -621,6 +621,45 @@ $('libraryShare').onsubmit = e => {
     return `“${added.name}” shared with other BeerMat venues`;
   });
 };
+// The theme library (BeerMat Online): themes other venues shared, with pictures (fetched through this laptop); with
+// Pro, install one as a look here, or share one of this laptop's own (my-themes/). BeerMat looks at each first.
+async function loadThemeLibrary() {
+  const lib = await request('theme-library', {q: $('themeSearch').value});
+  $('themeNote').textContent = lib.onlineError ? `The library can’t be reached: ${lib.onlineError}` : lib.pro ? 'Themes other BeerMat venues shared, each looked at by BeerMat first: on the TV, in the app and in a phone’s browser. Install one to use it as a look.'
+    : 'Themes BeerMat venues shared. Installing and sharing them is part of BeerMat Pro.';
+  $('themeFolder').textContent = lib.folder;
+  const button = (label, fn, cls = 'subtle') => {const b = element('button', label, cls); b.type = 'button'; b.onclick = fn; return b;};
+  const installed = new Set(lib.installed.map(t => t.id));
+  $('themeList').replaceChildren(...lib.themes.map(t => {
+    const li = element('li'), pictures = element('span', undefined, 'theme-pictures');
+    for (const kind of ['tv', 'app', 'browser']) if (t.previews.includes(kind)) {
+      const img = element('img', undefined, `theme-${kind}`); img.alt = `${t.name}: ${kind}`; pictures.append(img);
+      // As a blob: the desk's page shows only pictures from this laptop or blobs.
+      request('theme-library/preview', {id: t.id, kind}).then(r => {img.src = URL.createObjectURL(new Blob([Uint8Array.from(atob(r.image), c => c.charCodeAt(0))], {type: r.type}));}).catch(() => img.remove());
+    }
+    li.append(pictures, element('strong', t.name), element('span', [t.look && 'a look', t.tv && 'TV scenery', t.sounds && 'a sound theme'].filter(Boolean).join(' · '), 'muted'));
+    if (installed.has(t.id)) li.append(element('span', '✓ installed', 'good'), button('Remove', () => action(async () => {await request('theme-library/uninstall', {id: t.id}); await loadThemeLibrary();}, 'Removed from this laptop')));
+    else if (lib.pro) li.append(button('Install', () => action(async () => {const r = await request('theme-library/install', {id: t.id}); await loadThemeLibrary(); return `“${r.name}” installed: choose it under Look`;})));
+    if (lib.pro) li.append(button('Report', () => {const reason = prompt(`What’s wrong with “${t.name}”?`); if (reason?.trim()) action(() => request('theme-library/report', {id: t.id, reason}), 'Reported: thanks. BeerMat will look at it.');}));
+    return li;
+  }));
+  if (!lib.themes.length) $('themeList').append(element('li', $('themeSearch').value ? 'Nothing matches.' : 'No themes shared yet.', 'muted'));
+  const shared = new Map(lib.shared.map(t => [t.local, t]));
+  $('myThemes').replaceChildren(...lib.mine.map(t => {
+    const li = element('li'), mine = shared.get(t.id);
+    li.append(element('strong', t.name), element('span', t.builtIn ? `same name as one of BeerMat’s own themes (${t.id}): rename its folder to use it`
+      : !mine ? `${t.id}, on this laptop only` : {pending: 'shared: waiting for BeerMat to look at it', approved: 'shared: in the library', rejected: `shared, and turned down: ${mine.note || 'no reason given'}`}[mine.status] || `shared (${mine.status})`, 'muted'));
+    if (lib.pro && !t.builtIn) li.append(button(mine ? 'Share again' : 'Share', () => {
+      if (!$('themeRights').checked) return message('Tick the box below first: you have the right to share everything in it', true);
+      action(async () => {const r = await request('theme-library/share', {id: t.id, rights: true}); await loadThemeLibrary(); return `“${r.name}” sent: BeerMat looks at every theme before it’s in the library`;});
+    }));
+    if (mine) li.append(button('Take out', () => action(async () => {await request('theme-library/remove', {id: mine.id}); await loadThemeLibrary();}, 'Taken out of the library')));
+    return li;
+  }));
+  if (!lib.mine.length) $('myThemes').append(element('li', 'No themes of your own yet.', 'muted'));
+}
+$('themePanel').ontoggle = () => {if ($('themePanel').open) loadThemeLibrary().catch(e => message(e.message, true));};
+$('themeSearchForm').onsubmit = e => {e.preventDefault(); loadThemeLibrary().catch(e2 => message(e2.message, true));};
 $('clearBuzzers').onclick = () => action(async () => {if (confirm('Remove all added buzzer sounds? Teams using one go back to a built-in sound.')) await request('sounds', {buzzers: []});}, 'Buzzer sounds updated');
 // JSON ({"1": "…", …, "90": "…"}), or a plain list of 90 lines (optionally "4: …").
 function parseCalls(text) {

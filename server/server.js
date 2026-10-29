@@ -1,7 +1,7 @@
 import http from 'node:http';
 import {DatabaseSync} from 'node:sqlite';
 import {randomBytes, randomInt, timingSafeEqual, createHash} from 'node:crypto';
-import {existsSync, mkdirSync, writeFileSync, statSync, statfsSync, createReadStream, unlinkSync, readdirSync, readFileSync} from 'node:fs';
+import {existsSync, mkdirSync, writeFileSync, statSync, statfsSync, createReadStream, unlinkSync, readdirSync, readFileSync, rmSync, renameSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {offensive} from './names.js';
@@ -14,7 +14,8 @@ import {readLicence, licencePublicKey} from '../shared/licence.js';
 import {edition} from './edition.js';
 import {slotFiles, skippedBuzzerPacks, bingoCallsFile, callColours} from '../web/soundnames.js';
 import {typeGroups} from './looks.js';
-import {loadThemes} from './themes.js';
+import {loadThemes, bundleFolder} from './themes.js';
+import {checkTheme, themeId as themeIdPattern} from '../shared/theme-bundle.js';
 import {fetchDriveQuiz} from './drive.js';
 import {createSimulator, cleanOptions, fastSeconds} from './rehearsal.js';
 import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern, sheetPoints, spotifyTrack} from './model.js';
@@ -69,7 +70,7 @@ function loadPack(dir, prefix) {
 // runs their venue from the desk.
 export const onlineDefault = 'https://online.beermatquiz.co.uk';
 
-export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), themesDir = path.join(root, 'themes'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose, reachProbe = fetchProbe, fetchImpl = globalThis.fetch, plan: fixedPlan = null, licenceKey = licencePublicKey} = {}) {
+export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), themesDir = path.join(root, 'themes'), myThemesDir = path.join(path.dirname(path.resolve(database)), 'my-themes'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose, reachProbe = fetchProbe, fetchImpl = globalThis.fetch, plan: fixedPlan = null, licenceKey = licencePublicKey} = {}) {
   if (typeof hostKey !== 'string' || hostKey.length < 12) throw Error('HOST_KEY must contain at least 12 characters');
   const db = new DatabaseSync(database);
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
@@ -143,8 +144,18 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // A sound theme (the pack's Themes/<name>) replaces the moments it has a sound for. Desk choices, stored
   // separately for moments and buzzers, override the defaults. Reloaded after the bingo caller is recorded.
   // Themes in themes/<id>/ (themes.js) bring a look and, with a sounds/ folder, a sound theme under the theme's name.
-  let shipped, local, themes;
-  const folders = loadThemes(themesDir);
+  // Themes come from two folders: the ones BeerMat ships (themes/) and this laptop's own, made here or installed from
+  // the theme library (my-themes/ in its data folder). A theme of its own can't take a shipped theme's id.
+  let shipped, local, themes, folders, looks, lookIds;
+  function reloadThemes() {
+    const builtIn = loadThemes(themesDir), mine = loadThemes(myThemesDir), extra = mine.themes.filter(t => !builtIn.themes.some(b => b.id === t.id));
+    folders = {themes: [...builtIn.themes, ...extra],
+      css: [builtIn.css, ...extra.filter(t => t.css).map(t => `/* ---- my-themes/${t.id}/look.css ---- */\n${t.css}`)].filter(Boolean).join('\n'),
+      file: (id, file) => builtIn.file(id, file) || (extra.some(t => t.id === id) ? mine.file(id, file) : null)};
+    looks = folders.themes.map(t => [t.id, t.name]); lookIds = looks.map(([id]) => id);
+    if (shipped) reloadPack();
+  }
+  reloadThemes();
   const reloadPack = () => {
     shipped = loadPack(soundsDir, '/sounds/'); local = loadPack(packDir, '/pack/');
     themes = {...shipped.themes, ...Object.fromEntries(folders.themes.filter(t => Object.keys(t.sounds).length).map(t => [t.name, t.sounds])), ...local.themes};
@@ -152,7 +163,6 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   reloadPack();
   // Seasonal themes (Halloween) are only used when chosen.
   const seasonal = name => folders.themes.some(t => t.seasonal && (t.id === name || t.name === name));
-  const looks = folders.themes.map(t => [t.id, t.name]);
   const defaults = theme => ({slots: {...shipped.slots, ...local.slots, ...themes[theme]}, buzzers: [...local.buzzers, ...shipped.buzzers].slice(0, 200)});
   // The theme can be fixed, random for each question (stable per question) or chosen by question type.
   // By type, the default spreads the themes over groups of formats; the desk can change any type.
@@ -176,7 +186,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     let h = Math.imul(id ^ salt, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
     return (h >>> 0) % count;
   };
-  const lookIds = looks.map(([id]) => id), groupLooks = ['stage', 'ocean', 'sunset', 'neon', 'emerald'].filter(id => lookIds.includes(id));
+  const groupLooks = ['stage', 'ocean', 'sunset', 'neon', 'emerald'].filter(id => lookIds.includes(id));
   const looksByType = () => ({...Object.fromEntries(typeGroups.flatMap((types, i) => types.map(type => [type, groupLooks[i % groupLooks.length] ?? 'stage']))), ...settings().lookByType});
   function lookFor(q) {
     const mode = settings().look;
@@ -1070,6 +1080,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         return sendFile(req, res, path.join(web, routes[p] || 'player.html'), p === '/host' ? deskSecurity : security);
       }
       if (req.method === 'GET' && p === '/api/leaderboard') return send(200, publicState());
+      // A look for the native apps: its colours and what phones draw (docs/CLIENT-PROTOCOL.md).
+      if (req.method === 'GET' && p.startsWith('/api/looks/')) {
+        const look = folders.themes.find(t => t.id === p.slice('/api/looks/'.length));
+        requireValue(look, 'No such look', 404);
+        return send(200, {id: look.id, name: look.name, colours: look.colours, phone: look.phone});
+      }
       requireValue(req.method === 'POST', 'POST required', 405);
       requireValue(originOk(req), 'Origin rejected', 403);
       if (!readOnly.has(p)) res.on('finish', () => {if (res.statusCode < 400) notify();});
@@ -1208,6 +1224,79 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           // Registering this laptop always sends this laptop's own key.
           const sent = body.path.endsWith('/keys') ? {publicKey: venueKey().publicKey} : body.body;
           return send(200, await onlineApi(body.method, body.path, sent));
+        }
+        // The theme library (BeerMat Online): browse it; with Pro, install a theme into my-themes/, share one of this
+        // laptop's own, report one; take back a theme this laptop shared, whatever its plan now. Every theme is checked
+        // here too before anything is written (shared/theme-bundle.js).
+        if (p === '/api/host/theme-library') {
+          const q = typeof body.q === 'string' ? body.q.trim().slice(0, 60) : '';
+          // After a theme in my-themes/ was edited by hand.
+          if (body.reload === true) reloadThemes();
+          // This laptop's own themes show without the internet; the library needs BeerMat Online.
+          let listed = [], onlineError = '';
+          try {({themes: listed} = await onlineApi('GET', '/v1/themes' + (q ? '?q=' + encodeURIComponent(q) : '')));} catch (e) {onlineError = e.message;}
+          const sharedThemes = getMeta('sharedThemes', []);
+          const statuses = await Promise.all(sharedThemes.map(t => onlineApi('GET', `/v1/themes/${encodeURIComponent(t.id)}`).catch(() => ({status: 'unknown'}))));
+          const mine = loadThemes(myThemesDir).themes;
+          return send(200, {themes: listed, onlineError, pro: plan().has('themeLibrary'), folder: myThemesDir, previews: `${onlineBase().replace(/\/$/, '')}/v1/themes/`,
+            installed: mine.filter(t => /^s-[0-9a-f]{10}$/.test(t.id)).map(t => ({id: t.id, name: t.name})),
+            mine: mine.filter(t => !/^s-[0-9a-f]{10}$/.test(t.id)).map(t => ({id: t.id, name: t.name, builtIn: !!loadThemes(themesDir).themes.some(b => b.id === t.id)})),
+            shared: sharedThemes.map((t, i) => ({...t, status: statuses[i].status, note: statuses[i].note || ''}))});
+        }
+        if (p.startsWith('/api/host/theme-library/')) {
+          const what = p.slice('/api/host/theme-library/'.length), theme = typeof body.id === 'string' && themeIdPattern.test(body.id) ? body.id : null;
+          requireValue(theme, 'Choose a theme');
+          // A preview picture for the web desk, which shows only pictures from this laptop (its page's policy).
+          if (what === 'preview') {
+            requireValue(['tv', 'app', 'browser'].includes(body.kind), 'No such preview');
+            const base = onlineBase().replace(/\/$/, ''), response = await fetchImpl(`${base}/v1/themes/${theme}/previews/${body.kind}`, {signal: AbortSignal.timeout(15000)}).catch(() => null);
+            requireValue(response?.ok, 'No preview', 404);
+            const type = response.headers.get('content-type') || '';
+            requireValue(/^image\/(jpeg|png|webp)$/.test(type), 'No preview', 404);
+            return send(200, {type, image: Buffer.from(await response.arrayBuffer()).toString('base64')});
+          }
+          if (what === 'uninstall') {
+            requireValue(/^s-[0-9a-f]{10}$/.test(theme) && existsSync(path.join(myThemesDir, theme)), 'Only themes installed from the library can be removed here');
+            rmSync(path.join(myThemesDir, theme), {recursive: true, force: true});
+            if (settings().look === theme) setMeta('settings', {...settings(), look: 'stage'});
+            reloadThemes(); return send(200, {ok: true});
+          }
+          if (what === 'remove') {
+            const shared = getMeta('sharedThemes', []);
+            requireValue(shared.some(t => t.id === theme), 'Only themes this laptop shared can be taken out');
+            await libraryApi(`/v1/themes/${theme}/remove`, {kind: 'beermat.theme-remove', theme}).catch(e => {if (e.status !== 404) throw e;});
+            setMeta('sharedThemes', shared.filter(t => t.id !== theme)); return send(200, {removed: true});
+          }
+          requireValue(plan().has('themeLibrary'), 'Installing and sharing themes is part of BeerMat Pro', 403);
+          if (what === 'install') {
+            const got = await libraryApi(`/v1/themes/${theme}/bundle`, {kind: 'beermat.theme-get', theme}, {}, 60000);
+            let checked;
+            try {checked = checkTheme(JSON.parse(got.bundle));} catch (e) {throw new QuizError(`That theme didn’t pass this laptop’s checks: ${e.message}`, 502);}
+            requireValue(checked.id === theme, 'That theme came back under another name', 502);
+            const folder = path.join(myThemesDir, theme), temp = folder + '.installing';
+            rmSync(temp, {recursive: true, force: true});
+            for (const [file, bytes] of checked.files) {mkdirSync(path.dirname(path.join(temp, file)), {recursive: true}); writeFileSync(path.join(temp, file), bytes);}
+            rmSync(folder, {recursive: true, force: true}); renameSync(temp, folder);
+            reloadThemes(); return send(200, {id: theme, name: checked.name});
+          }
+          if (what === 'share') {
+            requireValue(body.rights === true, 'Tick the box: you have the right to share everything in this theme');
+            requireValue(existsSync(path.join(myThemesDir, theme, 'theme.json')) && !/^s-[0-9a-f]{10}$/.test(theme), 'Share one of your own themes (in My themes)');
+            const bundle = bundleFolder(myThemesDir, theme);
+            try {checkTheme(bundle);} catch (e) {throw new QuizError(e.message, 400);}
+            const text = JSON.stringify(bundle);
+            // Pictures of it on BeerMat Desk's TV and in the app, when the desk drew them (the native desk does).
+            const previews = Object.fromEntries(['tv', 'app'].filter(k => typeof body.previews?.[k] === 'string' && body.previews[k].length < 1.4 * 1024 * 1024).map(k => [k, body.previews[k]]));
+            const added = await libraryApi('/v1/themes', {kind: 'beermat.theme-upload', rights: true, sha256: createHash('sha256').update(text).digest('hex')}, {bundle: text, previews}, 120000);
+            setMeta('sharedThemes', [...getMeta('sharedThemes', []).filter(t => t.local !== theme), {id: added.id, local: theme, name: added.name}]);
+            return send(200, added);
+          }
+          if (what === 'report') {
+            requireValue(typeof body.reason === 'string' && body.reason.trim(), 'Say what’s wrong with it');
+            await libraryApi(`/v1/themes/${theme}/report`, {kind: 'beermat.theme-report', theme, reason: body.reason.trim().slice(0, 500)});
+            return send(200, {reported: true});
+          }
+          requireValue(false, 'Unknown theme library action', 404);
         }
         if (p === '/api/host/buzzer-library') {
           const q = typeof body.q === 'string' ? body.q.trim().slice(0, 60) : '';
