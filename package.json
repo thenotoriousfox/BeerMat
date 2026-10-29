@@ -1,6 +1,6 @@
 {
   "name": "beermat",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "private": true,
   "type": "module",
   "engines": {
@@ -38,7 +38,7 @@
   "build": {
     "appId": "uk.beermat.desktop",
     "productName": "BeerMat",
-    "copyright": "Copyright \u00a9 2026 Daniel Weatherall",
+    "copyright": "Copyright © 2026 Daniel Weatherall",
     "asar": false,
     "electronDownload": {
       "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
@@ -101,7 +101,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "shortcutName": "BeerMat",
-    "artifactName": "BeerMat-Setup-${version}.${ext}"
+      "artifactName": "BeerMat-Setup-${version}.${ext}"
     },
     "portable": {
       "artifactName": "BeerMat-${version}-portable.exe"
