@@ -168,6 +168,11 @@ because a theme's stylesheet runs on other venues' TVs and phones.
   pictures and opens any of its files (pictures and sounds as they are, the stylesheet and `tv.json` as text, in a
   sandbox), then approves it or turns it down with a note for the venue; hides, shows or removes one. Three venues
   reporting an approved theme hide it again and tell `ADMIN_EMAIL`. Stopping a venue sharing removes its themes too.
+* **BeerMat's own themes**: an admin adds one in the console (**Themes → Add one of BeerMat's own themes**) by
+  choosing its folder, as in the app's `themes/` (other files in it, such as scripts, are left out). It's checked as a
+  venue's, gets a library id and goes straight into the library, shared by "BeerMat" (`POST /v1/admin/themes` with
+  `{bundle, previews?}`). TV and app pictures are optional there, and an admin can add or replace either later on any
+  theme (**TV picture… / App picture…**, `PUT /v1/admin/themes/:id/previews`).
 
 ## Data model
 

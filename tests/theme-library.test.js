@@ -147,6 +147,23 @@ test('theme library: shared by Pro, approved by BeerMat, installed by Pro as a l
     assert.equal((await api('GET', '/v1/themes')).themes.length, 0);
     assert.equal((await red.call('theme-library/share', {id: 'pub-glow', rights: true})).status, 403);
     assert.ok(readFileSync(path.join(mine, 'look.css'), 'utf8').includes('pub-glow'), 'the venue’s own folder is untouched');
+
+    // BeerMat's own theme, added by an admin: checked as a venue's, under a library id, and in the library at once.
+    const own = {id: 'harvest', files: {'theme.json': Buffer.from('{"name": "Harvest"}').toString('base64'), 'look.css': Buffer.from(':root[data-look=harvest] { --gold: #e0a030; }\n').toString('base64')}};
+    assert.equal((await api('POST', '/v1/admin/themes', {bundle: own})).status, 401);
+    assert.match((await api('POST', '/v1/admin/themes', {bundle: {...own, files: {...own.files, 'run.js': 'eA=='}}}, admin)).error, /run\.js/);
+    const added = await api('POST', '/v1/admin/themes', {bundle: own, previews: {tv: JPEG.toString('base64')}}, admin);
+    assert.equal(added.status, 201, JSON.stringify(added));
+    assert.match(added.id, /^s-[0-9a-f]{10}$/);
+    assert.deepEqual((await api('GET', '/v1/themes')).themes.map(t => [t.id, t.name, t.previews]), [[added.id, 'Harvest', ['browser', 'tv']]]);
+    const ownRow = (await api("GET", "/v1/admin/themes", undefined, admin)).themes.find(t => t.id === added.id);
+    assert.deepEqual([ownRow.status, ownRow.venue, ownRow.venueName], ['approved', null, 'BeerMat']);
+    assert.match(await (await fetch(`${online}/v1/admin/themes/${added.id}/files/look.css`, {headers: {Authorization: 'Bearer ' + admin}})).text(), new RegExp(`data-look=${added.id}\\]`));
+    // An app picture later; only pictures.
+    assert.equal((await api('PUT', `/v1/admin/themes/${added.id}/previews`, {previews: {app: PNG.toString('base64')}}, admin)).status, 200);
+    assert.deepEqual((await api('GET', '/v1/themes')).themes[0].previews, ['app', 'browser', 'tv']);
+    assert.equal((await api('PUT', `/v1/admin/themes/${added.id}/previews`, {previews: {app: Buffer.from('not a picture').toString('base64')}}, admin)).status, 400);
+    assert.equal((await api('PUT', `/v1/admin/themes/${added.id}/previews`, {previews: {app: PNG.toString('base64')}})).status, 401);
   } finally {
     await red.quiz.close(); await blue.quiz.close(); await service.close();
     rmSync(dir, {recursive: true, force: true});

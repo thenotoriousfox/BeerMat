@@ -359,6 +359,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       run('INSERT OR REPLACE INTO shared_theme_previews VALUES(?,?,?,?)', themeId, kind, type, image);
     }
   }
+  // A theme that fails the checks is the sender's mistake (400, saying what's wrong), not a server error.
+  const checkedTheme = (bundle, themeId) => {try {return renameTheme(checkTheme(bundle), themeId);} catch (e) {check(false, e.message);}};
   const sharedTheme = themeId => {const t = one('SELECT * FROM shared_themes WHERE id=? AND removed IS NULL', themeId); check(t, 'That theme isn’t in the library any more', 404); return t;};
   const themeLibrary = {what: 'The theme library'};
   const sharedBuzzer = buzzerId => {const b = one('SELECT * FROM shared_buzzers WHERE id=? AND removed IS NULL', buzzerId); check(b, 'That buzzer isn’t in the library any more', 404); return b;};
@@ -442,7 +444,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return send(200, {received: true});
       }
       // A shared buzzer arrives as base64 audio: up to 2 MB of it.
-      const input = ['POST', 'PATCH', 'PUT'].includes(method) ? await body(req, method === 'POST' && (p === '/v1/buzzers' || p === '/v1/admin/buzzers') ? 3 * 1024 * 1024 : method === 'POST' && p === '/v1/themes' ? 26 * 1024 * 1024 : undefined) : {};
+      const input = ['POST', 'PATCH', 'PUT'].includes(method) ? await body(req, method === 'POST' && (p === '/v1/buzzers' || p === '/v1/admin/buzzers') ? 3 * 1024 * 1024 : method === 'POST' && (p === '/v1/themes' || p === '/v1/admin/themes') ? 26 * 1024 * 1024 : method === 'PUT' && /^\/v1\/admin\/themes\/[^/]+\/previews$/.test(p) ? 3 * 1024 * 1024 : undefined) : {};
       const parts = p.split('/').slice(2);
 
       // ---- Accounts ----
@@ -610,7 +612,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         check(typeof input.bundle === 'string' && sha(input.bundle) === request.sha256, 'The theme doesn’t match what the laptop signed');
         check(one('SELECT COUNT(*) n FROM shared_themes WHERE venue=? AND created>?', v.id, now() - 86400000).n < 10, 'That’s 10 themes shared today: share more tomorrow', 429);
         let bundle; try {bundle = JSON.parse(input.bundle);} catch {check(false, 'Not a theme');}
-        const themeId = 's-' + randomBytes(5).toString('hex'), theme = renameTheme(checkTheme(bundle), themeId);
+        const themeId = 's-' + randomBytes(5).toString('hex'), theme = checkedTheme(bundle, themeId);
         checkTheme(bundleOf(theme));
         const stored = JSON.stringify(bundleOf(theme)), files = [...theme.files.keys()];
         if (input.previews !== undefined) check(input.previews && typeof input.previews === 'object' && !Array.isArray(input.previews), 'Previews are a TV and an app picture, 1 MB each');
@@ -794,8 +796,32 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return send(200, {themes: rows(`SELECT t.id,t.name,t.look,t.tv,t.sounds,t.bytes,t.created,t.status,t.note,t.hidden,t.venue,t.venue_key,v.name venue_name,t.bundle,
             (SELECT COUNT(*) FROM reports r WHERE r.kind='theme' AND r.target=t.id AND r.resolved IS NULL) reports
           FROM shared_themes t LEFT JOIN venues v ON v.id=t.venue WHERE t.removed IS NULL ORDER BY t.status='pending' DESC, t.hidden DESC, reports DESC, t.created DESC LIMIT 500`)
-          .map(t => ({...themeOut(t), status: t.status, note: t.note, hidden: !!t.hidden, venue: t.venue, venueName: t.venue_name || '(venue removed)', reports: t.reports,
+          .map(t => ({...themeOut(t), status: t.status, note: t.note, hidden: !!t.hidden, venue: t.venue, venueName: t.venue_key === 'beermat' ? 'BeerMat' : t.venue_name || '(venue removed)', reports: t.reports,
             files: t.bundle ? Object.entries(JSON.parse(t.bundle).files).map(([name, data]) => ({name, bytes: Math.floor(data.length * 3 / 4)})) : []}))});
+      }
+      // BeerMat's own themes, added by an admin: a theme folder (checked as a venue's is, under a library id) that goes
+      // straight into the library, with pictures of it on the TV and in the app if the admin has them.
+      if (method === 'POST' && p === '/v1/admin/themes') {
+        admin();
+        const themeId = 's-' + randomBytes(5).toString('hex'), theme = checkedTheme(input.bundle, themeId);
+        checkTheme(bundleOf(theme));
+        if (input.previews !== undefined) check(input.previews && typeof input.previews === 'object' && !Array.isArray(input.previews), 'Previews are a TV and an app picture, 1 MB each');
+        const files = [...theme.files.keys()];
+        transaction(() => {
+          run("INSERT INTO shared_themes(id,name,venue,venue_key,bundle,bytes,look,tv,sounds,created,status,reviewed) VALUES(?,?,NULL,'beermat',?,?,?,?,?,?,'approved',?)", themeId, theme.name,
+            JSON.stringify(bundleOf(theme)), [...theme.files.values()].reduce((n, b) => n + b.length, 0), Number(files.includes('look.css')), Number(files.includes('tv.json')),
+            Number(files.some(f => f.startsWith('sounds/'))), now(), now());
+          savePreviews(themeId, input.previews);
+        });
+        renderBrowserPreview(themeId).catch(e => console.error('Browser preview failed:', e.message));
+        return send(201, themeOut(one('SELECT * FROM shared_themes WHERE id=?', themeId)));
+      }
+      // New pictures of a theme on the TV or in the app, for one shared without them.
+      if (method === 'PUT' && parts[0] === 'admin' && parts[1] === 'themes' && parts.length === 4 && parts[3] === 'previews') {
+        admin(); const t = sharedTheme(parts[2]);
+        if (input.previews !== undefined) check(input.previews && typeof input.previews === 'object' && !Array.isArray(input.previews), 'Previews are a TV and an app picture, 1 MB each');
+        savePreviews(t.id, input.previews);
+        return send(200, themeOut(t));
       }
       if (method === 'GET' && parts[0] === 'admin' && parts[1] === 'themes' && parts.length >= 5 && parts[3] === 'files') {
         admin(); const t = sharedTheme(parts[2]), name = parts.slice(4).join('/'), data = JSON.parse(t.bundle || '{"files":{}}').files[name];

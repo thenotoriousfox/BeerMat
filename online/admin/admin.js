@@ -289,8 +289,10 @@ function renderThemes() {
     if (t.hidden) head.append(el('span', 'hidden after reports', 'badge warn'));
     head.append(el('span', ` ${t.venueName} · ${date(t.added)} · ${Math.round(t.bytes / 1024)} KB${t.reports ? ` · ${t.reports} reports` : ''}`, 'muted'));
     for (const kind of ['tv', 'app', 'browser']) {
-      const img = el('img', undefined, `preview-${kind}`); img.alt = `${kind} preview`;
-      if (t.previews.includes(kind)) authed(`/v1/themes/${t.id}/previews/${kind}`).then(r => r.blob()).then(b => {img.src = URL.createObjectURL(b);}).catch(() => {});
+      const label = {tv: 'TV', app: 'app', browser: 'browser'}[kind];
+      if (!t.previews.includes(kind)) {pictures.append(el('span', `No ${label} picture`, `preview-${kind} no-picture`)); continue;}
+      const img = el('img', undefined, `preview-${kind}`); img.alt = `The theme in the ${label}`;
+      authed(`/v1/themes/${t.id}/previews/${kind}`).then(r => r.blob()).then(b => {img.src = URL.createObjectURL(b);}).catch(() => {});
       pictures.append(img);
     }
     for (const f of t.files) {
@@ -309,6 +311,7 @@ function renderThemes() {
     if (t.status !== 'rejected') actions.append(button('Turn down…', () => {const note = prompt(`Why is “${t.name}” turned down? The venue sees this.`); return note === null ? false : api('PATCH', `/v1/admin/themes/${t.id}`, {status: 'rejected', note});}, 'Turned down'));
     if (t.status === 'approved') actions.append(button(t.hidden ? 'Show again' : 'Hide', () => api('PATCH', `/v1/admin/themes/${t.id}`, {hidden: !t.hidden}), t.hidden ? 'Back in the library' : 'Hidden'));
     actions.append(button('Remove', () => confirm(`Remove “${t.name}” for good?`) ? api('DELETE', `/v1/admin/themes/${t.id}`) : false, 'Removed', 'danger small'));
+    actions.append(button('TV picture…', () => pickPicture(t, 'tv'), 'Picture saved'), button('App picture…', () => pickPicture(t, 'app'), 'Picture saved'));
     if (t.venue) actions.append(button('Stop venue sharing…', () => prompt(`Stop ${t.venueName} sharing, and remove every buzzer and theme it has shared? Type the venue’s name to confirm.`) === t.venueName ? api('POST', `/v1/admin/venues/${t.venue}/library`, {banned: true}) : false, 'Venue stopped from sharing', 'danger small'));
     card.append(head, pictures, files, actions);
     return card;
@@ -316,5 +319,46 @@ function renderThemes() {
   if (!shown.length) $('themeCards').append(el('p', themes.length ? 'No themes match.' : 'Nothing shared yet.', 'muted'));
 }
 $('themeSearch').oninput = renderThemes;
+// BeerMat's own themes: a folder from the file picker, sent as a theme bundle ({id, files: {path: base64}}) as the
+// desk shares one, keeping only the files a theme may have (shared/theme-bundle.js checks them again on the server).
+const base64 = async file => {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = ''; for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+};
+const themeFile = /^(theme\.json|look\.css|tv\.json|CREDITS\.md|[a-zA-Z0-9_-]+(\/[a-zA-Z0-9_-]+)*\.(png|webp|jpg|svg|woff2|mp3|ogg|wav))$/;
+async function pictures(tv, app) {
+  const previews = {};
+  for (const [kind, file] of [['tv', tv], ['app', app]]) if (file) {
+    if (file.size > 1024 * 1024) throw Error(`The ${kind === 'tv' ? 'TV' : 'app'} picture is over 1 MB`);
+    previews[kind] = await base64(file);
+  }
+  return previews;
+}
+$('themeAdd').onsubmit = guarded(async () => {
+  const chosen = [...$('themeFolder').files];
+  if (!chosen.length) throw Error('Choose a theme folder');
+  const folder = chosen[0].webkitRelativePath.split('/')[0], files = {};
+  for (const file of chosen) {
+    const path = file.webkitRelativePath.split('/').slice(1).join('/');
+    if (themeFile.test(path)) files[path] = await base64(file);
+  }
+  if (!files['theme.json']) throw Error(`${folder} has no theme.json: choose the theme’s own folder`);
+  const id = folder.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'theme';
+  await api('POST', '/v1/admin/themes', {bundle: {id, files}, previews: await pictures($('themeTvPicture').files[0], $('themeAppPicture').files[0])});
+  $('themeAdd').reset(); await loadThemes();
+}, 'Added to the library');
+// A new picture of a theme on the TV or in the app, for one shared without it (or with a poor one).
+function pickPicture(t, kind) {
+  return new Promise((resolve, reject) => {
+    const input = el('input'); input.type = 'file'; input.accept = 'image/jpeg,image/png,image/webp';
+    input.onchange = async () => {
+      try {resolve(await api('PUT', `/v1/admin/themes/${t.id}/previews`, {previews: await pictures(kind === 'tv' && input.files[0], kind === 'app' && input.files[0])}));}
+      catch (e) {reject(e);}
+    };
+    input.oncancel = () => resolve(false);
+    input.click();
+  });
+}
 
 start();
