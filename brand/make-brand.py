@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # BeerMat's logos, drawn as SVG with the lettering as outlines (Fredoka, brand/fredoka.woff2, SIL OFL), so they look
 # the same everywhere without the font. Writes brand/*.svg; then `node brand/render.mjs` makes every PNG and icon.
-#   python3 brand/make-brand.py        (needs fontTools and brotli: pip install fonttools brotli)
+#   python3 brand/make-brand.py        (needs fontTools, brotli and skia-pathops: pip install fonttools brotli skia-pathops)
 #
 #   mark.svg          the neon beer mat with its glowing question mark: the main logo, for screens and the app icon
 #   mark-print.svg    the gold marquee beer mat: the pub and print version
@@ -14,6 +14,7 @@
 import math, os
 from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
+from fontTools.ttLib.removeOverlaps import removeOverlaps
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.boundsPen import BoundsPen
@@ -109,9 +110,11 @@ print('wrote', ', '.join(files))
 
 # Fredoka's weights as separate fonts for the native desk: Qt registers only the variable font's default (Light) and
 # fakes bold from it, so the headings came out thin. Each named weight, at normal width, as its own TTF (OFL: no
-# reserved font name, and Fredoka-OFL.txt goes with them).
+# reserved font name, and Fredoka-OFL.txt goes with them). Overlapping outlines are merged: a Qt canvas fills text
+# even-odd, so where a letter's strokes cross (h, t, b, o) the overlap came out as a hole in the TV's title.
 for wght, style in ((400, 'Regular'), (500, 'Medium'), (600, 'SemiBold'), (700, 'Bold')):
     static = instantiateVariableFont(TTFont(os.path.join(HERE, 'fredoka.woff2')), {'wght': wght, 'wdth': 100}, updateFontNames=True)
+    removeOverlaps(static)
     static.flavor = None
     static.save(os.path.join(HERE, f'fredoka-{style.lower()}.ttf'))
 print('wrote fredoka-regular.ttf … fredoka-bold.ttf')
