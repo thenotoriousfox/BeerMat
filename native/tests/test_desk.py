@@ -89,13 +89,16 @@ class DeskCase(unittest.TestCase):
 
 
 class ClosingTest(DeskCase):
-    def test_closing_the_desk_quits_even_with_the_tv_open(self):
-        quits = []
-        self.engine.quit.connect(lambda: quits.append(True))
+    def test_closing_the_desk_ends_beermat_even_with_the_tv_open(self):
+        """In Qt 6 a quit asks each window first, and the TV window refuses (its ✕ only hides it): closing the desk with
+        the TV open used to leave BeerMat running unseen. The event loop must really end."""
+        from PySide6.QtCore import QTimer
+        tv = self.window.findChild(QObject, 'tv')
         self.screens.setOpen(True)
-        wait(lambda: self.window.findChild(QObject, 'tv').property('visible'), what='the TV window')
-        self.window.close()
-        wait(lambda: quits, what='BeerMat to quit')
+        wait(lambda: tv.property('visible'), what='the TV window')
+        QTimer.singleShot(200, self.window.close)
+        QTimer.singleShot(4000, lambda: app.exit(99))     # still running: the bug
+        self.assertEqual(app.exec(), 0, 'closing the desk ended BeerMat')
 
 
 class QuizzesPageTest(DeskCase):

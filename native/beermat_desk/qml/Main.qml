@@ -49,9 +49,10 @@ ApplicationWindow {
     Shortcut { sequence: "F8"; onActivated: screens.setBlank(!screens.blanked) }
 
     TvWindow { id: tvWindow; objectName: "tv" }
-    // Closing the desk closes BeerMat, the TV and the quiz server with it: an open TV window would otherwise keep it
-    // running unseen, and opening BeerMat again would only find that.
-    onClosing: Qt.quit()
+    // Closing the desk closes BeerMat, the TV and the quiz server with it. Qt.exit, not Qt.quit: in Qt 6 a quit first
+    // asks every window to close, and the TV window refuses (its ✕ only hides it), which cancelled the whole quit and
+    // left BeerMat running unseen.
+    onClosing: Qt.exit(0)
 
     // First run: how players join (as the Electron app's welcome); the TV screen is automatic.
     Dialog {
@@ -123,7 +124,7 @@ ApplicationWindow {
                        () => desk.loadQuizConfirmed(path))
         }
         function onConfirmFinish(text) { window.ask("Finish the quiz?", text, () => desk.finishConfirmed()) }
-        function onQuitRequested() { Qt.quit() }
+        function onQuitRequested() { Qt.exit(0) }
         function onTransferCode(code) {
             transferNote.text = `On the team's new phone: open the quiz, then under “Get it back” (or “Already playing?” in the app) type ${code}. The code works for 5 minutes.`
             transferNote.open()

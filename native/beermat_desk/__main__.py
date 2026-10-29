@@ -108,7 +108,7 @@ def main(argv=None):
     # Ctrl+C in a terminal, or being asked to stop (a logout, kill), closes it properly, server and all. Python only
     # runs signal handlers between its own lines, and Qt's event loop isn't one: a timer lets it look in now and then.
     for sig in (signal.SIGINT, signal.SIGTERM):
-        signal.signal(sig, lambda *_: app.quit())
+        signal.signal(sig, lambda *_: app.exit(0))   # exit, not quit: see Main.qml's onClosing
     wake = QTimer(app, interval=300)
     wake.timeout.connect(lambda: None)
     wake.start()
