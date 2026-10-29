@@ -12,13 +12,15 @@ Item {
     property var tv: ({})
     property string serverUrl: ""
     property bool blanked: false
-    // The question's look (themes/<id>/look.css): its colours over BeerMat's own.
+    // The question's look (themes/<id>/look.css): its colours over BeerMat's own. Keyed on the look's id, a string, so the
+    // TV's many updates leave the look alone and its background, lettering and scenery aren't redrawn or restarted.
+    readonly property string lookId: tv.look || "stage"
     property var palettes: desk.lookPalettes
     readonly property var pal: Object.assign({bg: Theme.bg, bg2: Theme.bg2, text: Theme.text, muted: Theme.muted, faint: Theme.faint, gold: Theme.gold,
         goldHi: Theme.goldHi, pink: Theme.pink, teal: Theme.teal, violet: Theme.violet, good: Theme.good, bad: Theme.bad, onAccent: Theme.onAccent,
-        line: Theme.line, lineStrong: Theme.lineStrong, panel: Theme.panel}, palettes[tv.look || "stage"] || {})
+        line: Theme.line, lineStrong: Theme.lineStrong, panel: Theme.panel}, palettes[lookId] || {})
     // What the look draws beyond colours (themes/<id>/tv.json): background, title, eyebrow, panel and scenery.
-    readonly property var look: (desk.lookScenes || {})[tv.look || "stage"] || null
+    readonly property var look: (desk.lookScenes || {})[lookId] || null
     readonly property var lookTitle: look && look.title && look.title.gradient ? look.title : null
     // A gradient's colour at stop i (repeating the last stop when it has fewer).
     function stop(stops, i) { return stops[Math.min(i, stops.length - 1)] }
@@ -61,6 +63,7 @@ Item {
         // The look's own background: a gradient top to bottom, and soft coloured glows ([x, y, width, height, colour]).
         Canvas {
             id: lookBackground
+            objectName: "lookBackground"
             anchors.fill: parent
             visible: !!(root.look && root.look.background)
             readonly property var background: root.look ? root.look.background || null : null

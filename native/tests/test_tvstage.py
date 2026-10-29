@@ -153,6 +153,25 @@ class TvStageTest(unittest.TestCase):
         self.assertEqual(len(scene), 1)
         self.assertEqual(len(scene[0].property('layers')), 14, 'moon, hill, four bats, two fogs, web, spider, four embers')
 
+    def test_updates_in_the_same_look_leave_its_scenery_alone(self):
+        from shiboken6 import getCppPointer
+
+        def items(item):
+            yield item
+            for child in item.childItems():
+                yield from items(child)
+        def drawn():
+            return sorted(getCppPointer(o)[0] for o in items(self.stage) if o.metaObject().className().startswith(('ThemeScene', 'GlowText', 'QQuickImage')))
+        self.show(state(q=question(), look='halloween'))
+        before = drawn()
+        painted = []
+        background = self.stage.findChild(QObject, 'lookBackground')
+        background.paint.connect(lambda *_: painted.append(1))
+        for _ in range(3):   # the server's updates: new objects, the same look
+            self.show(state(q=question(), look='halloween', serverTime=time.time() * 1000))
+        self.assertEqual(drawn(), before, 'the scenery and lettering are the same items, not rebuilt')
+        self.assertEqual(painted, [], 'the background is not repainted')
+
     def test_the_answer_box_fits_its_answer_note_and_scorers(self):
         reveal, content = self.stage.findChild(QObject, 'reveal'), self.stage.findChild(QObject, 'revealContent')
         for name in ('text-revealed-long', 'text-revealed', 'nearest-revealed', 'choice-revealed'):
