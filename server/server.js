@@ -1442,10 +1442,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           }
           requireValue(false, 'Unknown quiz library action', 404);
         }
+        // A library clip already in this laptop's buzzer sounds: added with its library id, or (added before ids were
+        // kept) under its name. Each clip is added once.
+        const libraryBuzzerAdded = (id, name) => soundPack().buzzers.some(b => b.library ? b.library === id : name && b.name.toLowerCase() === String(name).toLowerCase());
         if (p === '/api/host/buzzer-library') {
           const q = typeof body.q === 'string' ? body.q.trim().slice(0, 60) : '';
           const {buzzers} = await onlineApi('GET', '/v1/buzzers' + (q ? '?q=' + encodeURIComponent(q) : ''));
-          return send(200, {buzzers, pro: plan().has('buzzerLibrary'), admin: await onlineAdmin(), shared: getMeta('sharedBuzzers', [])});
+          return send(200, {buzzers, pro: plan().has('buzzerLibrary'), admin: await onlineAdmin(), shared: getMeta('sharedBuzzers', []),
+            added: buzzers.filter(b => libraryBuzzerAdded(b.id, b.name)).map(b => b.id)});
         }
         if (p.startsWith('/api/host/buzzer-library/')) {
           const buzzer = typeof body.id === 'string' && /^[\w-]{1,40}$/.test(body.id) ? body.id : null, what = p.slice('/api/host/buzzer-library/'.length);
@@ -1460,7 +1464,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           if (what === 'play') {requireValue(buzzer, 'Choose a buzzer'); const clip = await libraryClip(buzzer); return send(200, {name: clip.name, audio: clip.audio});}
           if (what === 'add') {
             requireValue(buzzer, 'Choose a buzzer');
+            requireValue(!libraryBuzzerAdded(buzzer), 'That buzzer is already in your buzzer sounds', 409);
             const clip = await libraryClip(buzzer), current = soundPack().buzzers;
+            requireValue(!libraryBuzzerAdded(buzzer, clip.name), 'That buzzer is already in your buzzer sounds', 409);
             requireValue(current.length < 200, 'That’s 200 buzzer sounds already: remove some first');
             const taken = new Set(current.map(b => b.name.toLowerCase()));
             let name = clip.name.slice(0, 60);
@@ -1468,7 +1474,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             mkdirSync(mediaDir, {recursive: true});
             const file = `${token()}.mp3`; writeFileSync(path.join(mediaDir, file), Buffer.from(clip.audio, 'base64'), {flag: 'wx', mode: 0o600});
             const saved = getMeta('soundPack', {});
-            setMeta('soundPack', {...saved, buzzers: [...current, {name, media: '/media/' + file}]});
+            setMeta('soundPack', {...saved, buzzers: [...current, {name, media: '/media/' + file, library: buzzer}]});
             return send(200, {name, sounds: soundPack()});
           }
           if (what === 'share') {
@@ -1681,7 +1687,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           }
           if (Object.hasOwn(body, 'buzzers')) {
             requireValue(Array.isArray(body.buzzers) && body.buzzers.length <= 200 && body.buzzers.every(b => b && typeof b.name === 'string' && b.name.trim() && b.name.length <= 60 && exists(b.media)), 'Buzzer sounds need a name (up to 60 characters) and an uploaded audio file; 200 at most');
-            pack.buzzers = body.buzzers.map(b => ({name: b.name.trim(), media: b.media}));
+            // A clip from the library keeps its library id (it's added once), when the desk sends it back.
+            pack.buzzers = body.buzzers.map(b => ({name: b.name.trim(), media: b.media, ...(typeof b.library === 'string' && /^[\w-]{1,40}$/.test(b.library) && {library: b.library})}));
             // Teams whose custom sound no longer exists go back to the default.
             run('UPDATE teams SET sound=NULL WHERE sound>=?', SOUNDS + pack.buzzers.length); run('UPDATE regulars SET sound=NULL WHERE sound>=?', SOUNDS + pack.buzzers.length);
           }
