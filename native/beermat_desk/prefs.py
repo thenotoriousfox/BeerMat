@@ -19,11 +19,13 @@ AUDIO = {'.mp3', '.ogg', '.wav'}
 
 class Prefs(QObject):
     spotifyChanged = Signal()
+    libraryChanged = Signal()
 
     def __init__(self, desk):
         super().__init__(desk)
         self.desk, self.api = desk, desk.api
         self._spotify = {}
+        self._library = {}
         # After "Connect Spotify" the sign-in finishes in the browser, which the desk can't see: it asks the server every
         # two seconds until Spotify says connected (or three minutes pass).
         self._waiting = QTimer(self, interval=2000)
@@ -109,6 +111,69 @@ class Prefs(QObject):
         self.desk.tvSound.enabled = True
         self.desk.tvSound.play_file(media)
         self.desk.tvSound.enabled = on
+
+    # ---- the shared buzzer library (BeerMat Online), as the web desk's: everyone sees what's in it; BeerMat Pro
+    # plays, adds and shares clips. The server talks to BeerMat Online. ----
+    @Property('QVariantMap', notify=libraryChanged)
+    def library(self):
+        return self._library
+
+    @Slot(str)
+    def searchLibrary(self, query):
+        self._library = {**self._library, 'loading': True, 'query': query}
+        self.libraryChanged.emit()
+
+        def got(reply):
+            self._library = {**reply, 'query': query, 'loading': False}
+            self.libraryChanged.emit()
+
+        def failed(error):
+            self._library = {**self._library, 'loading': False, 'error': error}
+            self.libraryChanged.emit()
+        self.api.host('buzzer-library', {'q': query}, got, failed, timeout_ms=20000)
+
+    @Slot(str)
+    def playLibraryBuzzer(self, buzzer):
+        """Heard on the TV's output (as the desk's other previews), from a temporary copy of the clip."""
+        import base64
+        import tempfile
+
+        def got(clip):
+            path = Path(tempfile.gettempdir()) / f'beermat-library-{buzzer}.mp3'
+            path.write_bytes(base64.b64decode(clip['audio']))
+            self._preview_anyway(QUrl.fromLocalFile(str(path)).toString())
+        self.api.host('buzzer-library/play', {'id': buzzer}, got, self._fail, timeout_ms=20000)
+
+    @Slot(str)
+    def addLibraryBuzzer(self, buzzer):
+        self.api.host('buzzer-library/add', {'id': buzzer},
+                      lambda r: (self.desk.toast.emit(f'“{r["name"]}” added: teams can pick it in their phone menu', False), self.desk.refresh()), self._fail, timeout_ms=20000)
+
+    @Slot(str, str)
+    def reportLibraryBuzzer(self, buzzer, reason):
+        if reason.strip():
+            self.api.host('buzzer-library/report', {'id': buzzer, 'reason': reason.strip()},
+                          lambda _: self.desk.toast.emit('Reported: thanks. BeerMat will look at it.', False), self._fail, timeout_ms=20000)
+
+    @Slot(str)
+    def removeLibraryBuzzer(self, buzzer):
+        self.api.host('buzzer-library/remove', {'id': buzzer},
+                      lambda _: (self.desk.toast.emit('Taken out of the library', False), self.searchLibrary(self._library.get('query', ''))), self._fail, timeout_ms=20000)
+
+    @Slot(QUrl, str, bool)
+    def shareLibraryBuzzer(self, url, name, rights):
+        path = Path(url.toLocalFile() if isinstance(url, QUrl) else str(url))
+        if not rights:
+            return self._fail('Tick that you have the right to share this clip')
+        try:
+            if path.stat().st_size > 2 * 1024 * 1024:
+                return self._fail('Clips up to 2 MB can be shared: use a shorter one')
+        except OSError as e:
+            return self._fail(f'Could not read {path.name}: {e}')
+        self._upload(url, lambda media, stem: self.api.host(
+            'buzzer-library/share', {'name': (name.strip() or stem)[:60], 'media': media, 'rights': True},
+            lambda r: (self.desk.toast.emit(f'“{r["name"]}” shared with other BeerMat venues', False), self.searchLibrary(self._library.get('query', ''))),
+            self._fail, timeout_ms=30000))
 
     # ---- bingo calls ----
     @Slot(QUrl)

@@ -22,6 +22,81 @@ ScrollView {
 
     FileDialog { id: soundFile; property string slot: ""; title: "Choose a sound (MP3, Ogg or WAV)"; nameFilters: ["Sounds (*.mp3 *.ogg *.wav)"]
                  onAccepted: slot === "buzzer" ? desk.prefs.addBuzzer(buzzerName.text, selectedFile) : desk.prefs.setSound(slot, selectedFile) }
+    // ---- the shared buzzer library (BeerMat Online), as the web desk's ----
+    FileDialog { id: shareFile; title: "Choose a buzzer clip to share (MP3, Ogg or WAV)"; nameFilters: ["Sounds (*.mp3 *.ogg *.wav)"]
+                 onAccepted: if (!shareName.text) shareName.text = String(selectedFile).split("/").pop().replace(/\.[^.]+$/, "").replace(/_+/g, " ").slice(0, 60) }
+    Dialog {
+        id: libraryDialog
+        readonly property var lib: desk.prefs.library
+        property string reporting: ""
+        parent: Overlay.overlay; anchors.centerIn: parent; modal: true
+        width: Math.min(760, parent.width - 80); height: Math.min(720, parent.height - 80)
+        title: "Shared buzzer library"
+        background: Rectangle { color: Theme.panel; radius: Theme.radius; border.color: Theme.lineStrong }
+        header: Text { text: libraryDialog.title; color: Theme.text; font.family: Theme.display; font.pixelSize: 22; font.weight: Font.Bold; padding: 20 }
+        footer: RowLayout {
+            Item { Layout.fillWidth: true }
+            DeskButton { text: "Close"; Layout.margins: 16; onClicked: libraryDialog.close() }
+        }
+        ColumnLayout {
+            anchors.fill: parent; spacing: 10
+            Text {
+                Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 13
+                text: libraryDialog.lib.pro ? "Buzzers other BeerMat venues have shared. Play one, then add it to this laptop’s buzzer sounds. Report anything that shouldn’t be here."
+                    : "Buzzers BeerMat venues have shared. Playing, adding and sharing them is part of BeerMat Pro."
+            }
+            RowLayout {
+                Field { id: librarySearch; placeholderText: "Name of a buzzer"; maximumLength: 60; Layout.fillWidth: true; onAccepted: desk.prefs.searchLibrary(text) }
+                DeskButton { text: "Search"; implicitHeight: 38; onClicked: desk.prefs.searchLibrary(librarySearch.text) }
+            }
+            Text { visible: !!libraryDialog.lib.error; text: libraryDialog.lib.error || ""; color: Theme.bad; font.pixelSize: 13; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+            ListView {
+                Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 4
+                ScrollBar.vertical: ScrollBar {}
+                model: libraryDialog.lib.buzzers || []
+                delegate: ColumnLayout {
+                    required property var modelData
+                    width: ListView.view.width; spacing: 4
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text { text: `${modelData.name} · ${modelData.seconds}s`; color: Theme.text; font.pixelSize: 14; elide: Text.ElideRight; Layout.fillWidth: true }
+                        DeskButton { visible: !!libraryDialog.lib.pro; text: "▶ Play"; implicitHeight: 32; onClicked: desk.prefs.playLibraryBuzzer(modelData.id) }
+                        DeskButton { visible: !!libraryDialog.lib.pro; text: "Add"; implicitHeight: 32; onClicked: desk.prefs.addLibraryBuzzer(modelData.id) }
+                        DeskButton { text: "Report"; implicitHeight: 32; onClicked: libraryDialog.reporting = libraryDialog.reporting === modelData.id ? "" : modelData.id }
+                        DeskButton { visible: (libraryDialog.lib.shared || []).includes(modelData.id); text: "Take it out"; kind: "danger"; implicitHeight: 32
+                                     onClicked: desk.prefs.removeLibraryBuzzer(modelData.id) }
+                    }
+                    RowLayout {
+                        visible: libraryDialog.reporting === modelData.id; Layout.fillWidth: true
+                        Field { id: reason; Layout.fillWidth: true; maximumLength: 300
+                                placeholderText: `What’s wrong with “${modelData.name}”? (offensive, copied without permission…)` }
+                        DeskButton { text: "Send report"; implicitHeight: 34; enabled: reason.text.trim().length > 0
+                                     onClicked: { desk.prefs.reportLibraryBuzzer(modelData.id, reason.text); libraryDialog.reporting = ""; reason.text = "" } }
+                    }
+                }
+                Text { visible: parent.count === 0; anchors.centerIn: parent; color: Theme.muted; font.pixelSize: 13
+                       text: libraryDialog.lib.loading ? "Looking…" : libraryDialog.lib.query ? "Nothing matches." : "Nothing shared yet." }
+            }
+            // Pro: share a clip of this laptop's with other venues (BeerMat Online keeps 10 seconds at most).
+            ColumnLayout {
+                visible: !!libraryDialog.lib.pro; Layout.fillWidth: true; spacing: 6
+                Text { text: "Share a clip with other venues (10 seconds at most is kept)"; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
+                RowLayout {
+                    Layout.fillWidth: true
+                    DeskButton { text: shareFile.selectedFile.toString() ? String(shareFile.selectedFile).split("/").pop() : "Choose a clip…"; implicitHeight: 34; onClicked: shareFile.open() }
+                    Field { id: shareName; placeholderText: "Buzzer name"; maximumLength: 60; Layout.fillWidth: true }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    CheckBox { id: shareRights; palette.windowText: Theme.text
+                               text: "I have the right to share this clip with other BeerMat venues (beermatquiz.co.uk/terms)" }
+                    Item { Layout.fillWidth: true }
+                    DeskButton { text: "Share"; kind: "primary"; implicitHeight: 34; enabled: !!shareFile.selectedFile.toString() && shareName.text.trim() !== "" && shareRights.checked
+                                 onClicked: { desk.prefs.shareLibraryBuzzer(shareFile.selectedFile, shareName.text, shareRights.checked); shareName.text = ""; shareRights.checked = false } }
+                }
+            }
+        }
+    }
     FileDialog { id: callsFile; title: "Bingo calls: 90 lines, one per number"; nameFilters: ["Text or JSON (*.txt *.json)", "All files (*)"]; onAccepted: desk.prefs.importCalls(selectedFile) }
 
   ColumnLayout {
@@ -137,6 +212,7 @@ ScrollView {
                 RowLayout {
                     Field { id: buzzerName; placeholderText: "Name"; Layout.fillWidth: true; maximumLength: 60 }
                     DeskButton { text: "Add…"; implicitHeight: 34; onClicked: { soundFile.slot = "buzzer"; soundFile.open() } }
+                    DeskButton { text: "Shared buzzer library…"; implicitHeight: 34; onClicked: { libraryDialog.open(); desk.prefs.searchLibrary("") } }
                 }
                 Text { text: "Bingo calls"; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold; Layout.topMargin: 8 }
                 RowLayout {
