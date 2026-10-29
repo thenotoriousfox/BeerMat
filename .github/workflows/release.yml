@@ -121,6 +121,7 @@ jobs:
       - name: AppImage tool
         if: runner.os == 'Linux'
         run: |
+          sudo apt-get install -y -qq desktop-file-utils >/dev/null   # appimagetool stops without desktop-file-validate
           curl -fsSL -o "$RUNNER_TEMP/appimagetool" https://github.com/AppImage/appimagetool/releases/download/1.9.0/appimagetool-x86_64.AppImage
           chmod +x "$RUNNER_TEMP/appimagetool" && echo "APPIMAGETOOL=$RUNNER_TEMP/appimagetool" >> "$GITHUB_ENV" && echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"
       - run: python native/packaging/build.py
