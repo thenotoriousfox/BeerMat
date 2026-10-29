@@ -12,7 +12,7 @@
 </main>
 
 <div id="console" hidden>
-  <nav class="tabs" role="tablist"><button data-tab="overview" aria-selected="true">Overview</button><button data-tab="venues">Venues</button><button data-tab="accounts">Accounts</button><button data-tab="reports">Reports <span id="reportCount" class="count" hidden></span></button><button data-tab="buzzers">Buzzers <span id="hiddenCount" class="count" hidden></span></button></nav>
+  <nav class="tabs" role="tablist"><button data-tab="overview" aria-selected="true">Overview</button><button data-tab="venues">Venues</button><button data-tab="accounts">Accounts</button><button data-tab="reports">Reports <span id="reportCount" class="count" hidden></span></button><button data-tab="buzzers">Buzzers <span id="hiddenCount" class="count" hidden></span></button><button data-tab="themes">Themes <span id="pendingThemes" class="count" hidden></span></button></nav>
 
   <section id="overview" class="tab">
     <div id="stats" class="stats"></div>
@@ -36,6 +36,12 @@
     <table class="list"><thead><tr><th>What</th><th>What’s wrong</th><th>From</th><th>When</th><th></th></tr></thead><tbody id="reportRows"></tbody></table>
   </section>
 
+  <section id="themes" class="tab" hidden>
+    <div class="toolbar"><input id="themeSearch" type="search" placeholder="Find a theme or venue" aria-label="Find a theme"><span id="themeTotal" class="muted"></span></div>
+    <p class="muted">Themes Pro venues shared, waiting ones first. Nothing is in the library until you approve it: its stylesheet runs on other venues’ TVs and phones. Look at its pictures and files (BeerMat already checked they keep to the theme: no scripts, nothing from the internet), and turn it down, with a note the venue sees, if anything isn’t theirs to share or isn’t fit for a pub. Three venues reporting an approved theme hide it again.</p>
+    <div id="themeCards" class="theme-cards"></div>
+    <pre id="themeFile" class="theme-file" hidden></pre>
+  </section>
   <section id="buzzers" class="tab" hidden>
     <div class="toolbar"><input id="buzzerSearch" type="search" placeholder="Find a buzzer or venue" aria-label="Find a buzzer"><span id="buzzerTotal" class="muted"></span></div>
     <form id="buzzerAdd" class="toolbar"><label>Add BeerMat’s own clips<input id="buzzerFiles" type="file" accept="audio/mpeg,audio/ogg,audio/wav,audio/mp4" multiple required></label><button class="primary">＋ Add to the library</button><span class="muted">Each file’s name becomes the buzzer’s name. Only clips BeerMat has the right to share: CC0, public domain or your own recordings (and credit any that need it on the website’s Credits page).</span></form>

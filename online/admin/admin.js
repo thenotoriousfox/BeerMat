@@ -44,11 +44,11 @@ $('signOut').onclick = guarded(async () => {await api('DELETE', '/v1/sessions').
 
 // ---- Tabs ----
 function show(tab) {
-  if (!['overview', 'venues', 'accounts', 'reports', 'buzzers'].includes(tab)) tab = 'overview';
+  if (!['overview', 'venues', 'accounts', 'reports', 'buzzers', 'themes'].includes(tab)) tab = 'overview';
   for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   for (const s of document.querySelectorAll('.tab')) s.hidden = s.id !== tab;
   history.replaceState(null, '', '#' + tab);
-  ({overview: loadOverview, venues: loadVenues, accounts: loadAccounts, reports: loadReports, buzzers: loadBuzzers})[tab]().catch(e => toast(e.message, true));
+  ({overview: loadOverview, venues: loadVenues, accounts: loadAccounts, reports: loadReports, buzzers: loadBuzzers, themes: loadThemes})[tab]().catch(e => toast(e.message, true));
 }
 for (const b of document.querySelectorAll('.tabs button')) b.onclick = () => show(b.dataset.tab);
 
@@ -65,7 +65,9 @@ async function loadOverview() {
     tile(o.accounts, 'accounts', `${o.newAccounts} new this week · ${o.admins} admin${o.admins === 1 ? '' : 's'}`),
     tile(o.results, 'results kept by players'),
     tile(o.laptops, 'quiz laptops registered', `${o.venueResults} quizzes shared`),
-    tile(o.sharedBuzzers, 'shared buzzers', o.hiddenBuzzers ? `${o.hiddenBuzzers} hidden after reports` : undefined));
+    tile(o.sharedBuzzers, 'shared buzzers', o.hiddenBuzzers ? `${o.hiddenBuzzers} hidden after reports` : undefined),
+    tile(o.sharedThemes, 'shared themes', o.pendingThemes ? `${o.pendingThemes} waiting for you` : undefined));
+  $('pendingThemes').textContent = String(o.pendingThemes); $('pendingThemes').hidden = !o.pendingThemes;
   $('reportCount').textContent = String(o.openReports); $('reportCount').hidden = !o.openReports;
   $('hiddenCount').textContent = String(o.hiddenBuzzers); $('hiddenCount').hidden = !o.hiddenBuzzers;
   const backupOld = !o.lastBackup || Date.now() - o.lastBackup > 36 * 3600000;
@@ -265,5 +267,54 @@ $('buzzerAdd').onsubmit = guarded(async () => {
   $('buzzerAdd').reset(); await loadBuzzers();
   return files.length;
 }, 'Added to the library');
+
+// ---- Shared themes ----
+// Pictures and files are fetched with the admin's session (an <img> can't send it) and shown as blobs; text files
+// as text, never run.
+let themes = [];
+const authed = async url => {const res = await fetch(url, {headers: {Authorization: 'Bearer ' + token}}); if (!res.ok) throw Error('That file can’t be opened'); return res;};
+async function loadThemes() {
+  themes = (await api('GET', '/v1/admin/themes')).themes;
+  const pending = themes.filter(t => t.status === 'pending').length;
+  $('pendingThemes').textContent = String(pending); $('pendingThemes').hidden = !pending;
+  renderThemes();
+}
+function renderThemes() {
+  const find = $('themeSearch').value.trim().toLowerCase(), shown = themes.filter(t => !find || `${t.name} ${t.venueName}`.toLowerCase().includes(find));
+  $('themeTotal').textContent = `${themes.filter(t => t.status === 'approved').length} in the library · ${themes.filter(t => t.status === 'pending').length} waiting`;
+  const button = (label, fn, done, cls = 'ghost small') => {const b = el('button', label, cls); b.type = 'button'; b.onclick = guarded(async () => {if (await fn() === false) return false; await loadThemes();}, done); return b;};
+  $('themeCards').replaceChildren(...shown.map(t => {
+    const card = el('article', undefined, 'theme-card'), head = el('header'), pictures = el('div', undefined, 'theme-previews'), files = el('ul', undefined, 'theme-files'), actions = el('div', undefined, 'actions');
+    head.append(el('strong', t.name), el('span', {pending: 'waiting', approved: 'in the library', rejected: 'turned down'}[t.status], `badge ${t.status === 'pending' ? 'warn' : ''}`));
+    if (t.hidden) head.append(el('span', 'hidden after reports', 'badge warn'));
+    head.append(el('span', ` ${t.venueName} · ${date(t.added)} · ${Math.round(t.bytes / 1024)} KB${t.reports ? ` · ${t.reports} reports` : ''}`, 'muted'));
+    for (const kind of ['tv', 'app', 'browser']) {
+      const img = el('img', undefined, `preview-${kind}`); img.alt = `${kind} preview`;
+      if (t.previews.includes(kind)) authed(`/v1/themes/${t.id}/previews/${kind}`).then(r => r.blob()).then(b => {img.src = URL.createObjectURL(b);}).catch(() => {});
+      pictures.append(img);
+    }
+    for (const f of t.files) {
+      const li = el('li'), open = el('button', f.name, 'link'); open.type = 'button';
+      open.onclick = guarded(async () => {
+        const res = await authed(`/v1/admin/themes/${t.id}/files/${f.name}`), view = $('themeFile');
+        if (/\.(png|webp|jpg|svg)$/.test(f.name)) {const img = el('img'); img.src = URL.createObjectURL(await res.blob()); view.replaceChildren(img);}
+        else if (/\.(mp3|ogg|wav)$/.test(f.name)) {const audio = el('audio'); audio.controls = true; audio.src = URL.createObjectURL(await res.blob()); view.replaceChildren(audio); audio.play().catch(() => {});}
+        else if (/\.woff2$/.test(f.name)) view.textContent = `${f.name}: a font (${f.bytes} bytes)`;
+        else view.textContent = await res.text();
+        view.hidden = false; view.scrollIntoView({behavior: 'smooth'});
+      });
+      li.append(open, el('span', ` ${Math.round(f.bytes / 1024 * 10) / 10} KB`, 'muted')); files.append(li);
+    }
+    if (t.status !== 'approved') actions.append(button('Approve', () => api('PATCH', `/v1/admin/themes/${t.id}`, {status: 'approved'}), 'In the library', 'primary small'));
+    if (t.status !== 'rejected') actions.append(button('Turn down…', () => {const note = prompt(`Why is “${t.name}” turned down? The venue sees this.`); return note === null ? false : api('PATCH', `/v1/admin/themes/${t.id}`, {status: 'rejected', note});}, 'Turned down'));
+    if (t.status === 'approved') actions.append(button(t.hidden ? 'Show again' : 'Hide', () => api('PATCH', `/v1/admin/themes/${t.id}`, {hidden: !t.hidden}), t.hidden ? 'Back in the library' : 'Hidden'));
+    actions.append(button('Remove', () => confirm(`Remove “${t.name}” for good?`) ? api('DELETE', `/v1/admin/themes/${t.id}`) : false, 'Removed', 'danger small'));
+    if (t.venue) actions.append(button('Stop venue sharing…', () => prompt(`Stop ${t.venueName} sharing, and remove every buzzer and theme it has shared? Type the venue’s name to confirm.`) === t.venueName ? api('POST', `/v1/admin/venues/${t.venue}/library`, {banned: true}) : false, 'Venue stopped from sharing', 'danger small'));
+    card.append(head, pictures, files, actions);
+    return card;
+  }));
+  if (!shown.length) $('themeCards').append(el('p', themes.length ? 'No themes match.' : 'Nothing shared yet.', 'muted'));
+}
+$('themeSearch').oninput = renderThemes;
 
 start();

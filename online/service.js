@@ -413,7 +413,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         const base = path.resolve(adminDir), file = path.resolve(base, decodeURIComponent(p.slice(7)) || 'index.html');
         check(file.startsWith(base + path.sep) && existsSync(file) && statSync(file).isFile() && staticTypes[path.extname(file)], 'Not found', 404);
         res.writeHead(200, {'Content-Type': staticTypes[path.extname(file)], 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-cache',
-          'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; media-src blob:; connect-src 'self' https://api.postcodes.io; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"});
+          'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; media-src blob:; connect-src 'self' https://api.postcodes.io; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"});
         return res.end(readFileSync(file));
       }
       // The venue list, in venues.json's format: copied nightly into the repository (.github/workflows/venues-backup.yml).
