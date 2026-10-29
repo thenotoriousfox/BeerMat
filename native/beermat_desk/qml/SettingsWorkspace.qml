@@ -17,6 +17,8 @@ ScrollView {
     signal swapScreens()
     contentWidth: availableWidth
     onVisibleChanged: if (visible) desk.prefs.loadSpotify()
+    // Back from the browser (Spotify's sign-in) or the Spotify app: check again, as the web desk does on focus.
+    Connections { target: Qt.application; function onStateChanged() { if (settings.visible && Qt.application.state === Qt.ApplicationActive) desk.prefs.loadSpotify() } }
 
     FileDialog { id: soundFile; property string slot: ""; title: "Choose a sound (MP3, Ogg or WAV)"; nameFilters: ["Sounds (*.mp3 *.ogg *.wav)"]
                  onAccepted: slot === "buzzer" ? desk.prefs.addBuzzer(buzzerName.text, selectedFile) : desk.prefs.setSound(slot, selectedFile) }
@@ -207,7 +209,7 @@ ScrollView {
                 text: "Spotify music rounds come with BeerMat Pro (Plan, above)."
             }
             ColumnLayout {
-                visible: !settings.spotify.locked && !settings.spotify.error
+                visible: !settings.spotify.locked
                 Layout.fillWidth: true; spacing: 6
                 Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 12
                        text: `One-time setup: create an app at developer.spotify.com/dashboard (tick Web API), add the Redirect URI ${settings.spotify.redirectUri || ""}, and paste its Client ID here. The music plays in the Spotify app on this laptop (Spotify Connect): open it and play any song once so it appears below.` }
@@ -230,7 +232,11 @@ ScrollView {
                     DeskButton { text: "Refresh players"; implicitHeight: 34; onClicked: desk.prefs.loadSpotify() }
                 }
             }
-            Text { visible: !!settings.spotify.error; text: settings.spotify.error || ""; color: Theme.bad; font.pixelSize: 13 }
+            RowLayout {
+                visible: !!settings.spotify.error
+                Text { text: settings.spotify.error || ""; color: Theme.bad; font.pixelSize: 13; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                DeskButton { text: "Check again"; implicitHeight: 34; onClicked: desk.prefs.loadSpotify() }
+            }
         }
     }
 

@@ -5,7 +5,7 @@ what; private quizzes only, see the warning on the panel)."""
 import json
 from pathlib import Path
 
-from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
+from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 
 # The moments a sound pack covers (web/soundnames.js slotFiles), with the desk's names for them.
@@ -24,6 +24,11 @@ class Prefs(QObject):
         super().__init__(desk)
         self.desk, self.api = desk, desk.api
         self._spotify = {}
+        # After "Connect Spotify" the sign-in finishes in the browser, which the desk can't see: it asks the server every
+        # two seconds until Spotify says connected (or three minutes pass).
+        self._waiting = QTimer(self, interval=2000)
+        self._waiting.timeout.connect(self._check_connected)
+        self._wait_until = 0
 
     def _fail(self, error):
         self.desk.toast.emit(error, True)
@@ -131,13 +136,36 @@ class Prefs(QObject):
     @Slot()
     def loadSpotify(self):
         if self.api.session:
-            self.api.host('spotify/status', {}, lambda s: (setattr(self, '_spotify', s), self.spotifyChanged.emit()),
-                          lambda e: (setattr(self, '_spotify', {'error': e}), self.spotifyChanged.emit()), timeout_ms=20000)
+            # A failed check keeps what was known (and the panel's buttons), with the error beside it.
+            self.api.host('spotify/status', {}, self._got_spotify,
+                          lambda e: self._got_spotify({**{k: v for k, v in self._spotify.items() if k != 'error'}, 'error': e}), timeout_ms=20000)
+
+    def _got_spotify(self, status):
+        was = bool(self._spotify.get('connected'))
+        self._spotify = status
+        self.spotifyChanged.emit()
+        if status.get('connected') and self._waiting.isActive():
+            self._waiting.stop()
+            if not was:
+                self.desk.toast.emit(f'Spotify connected{" as " + status["user"] if status.get("user") else ""}', False)
+
+    def _check_connected(self):
+        import time
+        if time.monotonic() > self._wait_until:
+            self._waiting.stop()
+        else:
+            self.loadSpotify()
 
     @Slot(str)
     def connectSpotify(self, client_id):
         """Spotify's sign-in opens in the browser and returns to this quiz server (its redirect address)."""
-        self.api.host('spotify/connect', {'clientId': client_id.strip()}, lambda r: QDesktopServices.openUrl(QUrl(r['url'])), self._fail)
+        import time
+
+        def opened(reply):
+            QDesktopServices.openUrl(QUrl(reply['url']))
+            self._wait_until = time.monotonic() + 180
+            self._waiting.start()
+        self.api.host('spotify/connect', {'clientId': client_id.strip()}, opened, self._fail)
 
     @Slot()
     def disconnectSpotify(self):
