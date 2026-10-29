@@ -18,9 +18,11 @@ test('theme library: shared by Pro, approved by BeerMat, installed by Pro as a l
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-themes-lib-')), mails = [];
   let time = Date.now();
   // The browser preview: a stand-in for online/preview.js's headless browser.
-  const rendered = [];
+  const rendered = [], drawn = [];
   const service = createService({database: path.join(dir, 'online.sqlite'), now: () => time, mail: async m => {mails.push(m);}, adminEmail: 'hello@beermat.test', publicUrl: 'https://online.test',
-    renderPreview: async bundle => {rendered.push(bundle.id); return JPEG;}});
+    renderPreview: async bundle => {rendered.push(bundle.id); return JPEG;},
+    // The TV and app pictures: a stand-in for online/qt-preview.js (the desk's Qt TV and app mock).
+    drawPreviews: async bundle => {drawn.push(bundle.id); return {tv: JPEG, app: PNG};}});
   await new Promise(r => service.server.listen(0, '127.0.0.1', r));
   const online = `http://127.0.0.1:${service.server.address().port}`;
   const desk = async (name, plan) => {
@@ -75,6 +77,7 @@ test('theme library: shared by Pro, approved by BeerMat, installed by Pro as a l
     assert.equal((await api('GET', '/v1/themes')).themes.length, 0);
     await new Promise(r => setTimeout(r, 50));
     assert.deepEqual(rendered, [id], 'BeerMat Online drew its browser preview');
+    assert.deepEqual(drawn, [], 'the desk sent its TV and app pictures, so none are drawn here');
     assert.equal((await fetch(`${online}/v1/themes/${id}/previews/tv`)).status, 404);
     assert.deepEqual((await red.call('theme-library')).shared.map(t => [t.id, t.local, t.status]), [[id, 'pub-glow', 'pending']]);
     assert.match(mails.at(-1).subject, /Theme waiting for a look: Pub glow/);
@@ -155,13 +158,18 @@ test('theme library: shared by Pro, approved by BeerMat, installed by Pro as a l
     const added = await api('POST', '/v1/admin/themes', {bundle: own, previews: {tv: JPEG.toString('base64')}}, admin);
     assert.equal(added.status, 201, JSON.stringify(added));
     assert.match(added.id, /^s-[0-9a-f]{10}$/);
-    assert.deepEqual((await api('GET', '/v1/themes')).themes.map(t => [t.id, t.name, t.previews]), [[added.id, 'Harvest', ['browser', 'tv']]]);
+    // The pictures it came without are drawn here, after the answer; the admin's own TV picture is kept.
+    await new Promise(r => setTimeout(r, 50));
+    assert.deepEqual(drawn, [added.id]);
+    assert.deepEqual((await api('GET', '/v1/themes')).themes.map(t => [t.id, t.name, t.previews]), [[added.id, 'Harvest', ['app', 'browser', 'tv']]]);
+    assert.equal((await fetch(`${online}/v1/themes/${added.id}/previews/app`)).headers.get('content-type'), 'image/png', 'drawn here');
+    assert.equal((await fetch(`${online}/v1/themes/${added.id}/previews/tv`)).headers.get('content-type'), 'image/jpeg', 'the admin’s');
     const ownRow = (await api("GET", "/v1/admin/themes", undefined, admin)).themes.find(t => t.id === added.id);
     assert.deepEqual([ownRow.status, ownRow.venue, ownRow.venueName], ['approved', null, 'BeerMat']);
     assert.match(await (await fetch(`${online}/v1/admin/themes/${added.id}/files/look.css`, {headers: {Authorization: 'Bearer ' + admin}})).text(), new RegExp(`data-look=${added.id}\\]`));
-    // An app picture later; only pictures.
-    assert.equal((await api('PUT', `/v1/admin/themes/${added.id}/previews`, {previews: {app: PNG.toString('base64')}}, admin)).status, 200);
-    assert.deepEqual((await api('GET', '/v1/themes')).themes[0].previews, ['app', 'browser', 'tv']);
+    // A better app picture later, by hand; only pictures.
+    assert.equal((await api('PUT', `/v1/admin/themes/${added.id}/previews`, {previews: {app: JPEG.toString('base64')}}, admin)).status, 200);
+    assert.equal((await fetch(`${online}/v1/themes/${added.id}/previews/app`)).headers.get('content-type'), 'image/jpeg');
     assert.equal((await api('PUT', `/v1/admin/themes/${added.id}/previews`, {previews: {app: Buffer.from('not a picture').toString('base64')}}, admin)).status, 400);
     assert.equal((await api('PUT', `/v1/admin/themes/${added.id}/previews`, {previews: {app: PNG.toString('base64')}})).status, 401);
   } finally {

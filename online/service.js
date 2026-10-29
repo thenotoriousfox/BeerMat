@@ -64,7 +64,7 @@ const venuesTable = name => `CREATE TABLE IF NOT EXISTS ${name}(id TEXT PRIMARY 
   verified INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, quiz_nights TEXT NOT NULL DEFAULT '[]', listed INTEGER NOT NULL DEFAULT 0, edited TEXT NOT NULL DEFAULT '[]',
   plan TEXT NOT NULL DEFAULT 'free', plan_until INTEGER);`;
 
-export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), adminDir = path.join(here, 'admin'), backupDir = '', trustProxy = false, licenceKey = '', publicUrl = '', mail = null, pagesDir = path.join(here, 'pages'), stripe = null, adminEmail = '', fetchImpl = globalThis.fetch, ffmpeg = 'ffmpeg', renderPreview = null} = {}) {
+export function createService({database = 'online.sqlite', now = Date.now, allowedOrigins = [], appDir = path.join(here, '..', 'mobile', 'www'), adminDir = path.join(here, 'admin'), backupDir = '', trustProxy = false, licenceKey = '', publicUrl = '', mail = null, pagesDir = path.join(here, 'pages'), stripe = null, adminEmail = '', fetchImpl = globalThis.fetch, ffmpeg = 'ffmpeg', renderPreview = null, drawPreviews = null} = {}) {
   const startedAt = now();
   const db = new DatabaseSync(database);
   // Before the venue list, every venue had to have an owner: rebuild that table once (foreign keys off, so nothing
@@ -337,19 +337,27 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   // library id it gets, and on the laptop that installs it.
   const themeOut = t => ({id: t.id, name: t.name, look: !!t.look, tv: !!t.tv, sounds: !!t.sounds, bytes: t.bytes, added: t.created,
     previews: rows('SELECT kind FROM shared_theme_previews WHERE theme=? ORDER BY kind', t.id).map(r => r.kind)});
-  // Previews: pictures of the theme on the TV and on a phone in the app (drawn by the desk that shared it, with
-  // BeerMat Desk's own TV and the app's look), and in a phone's browser (drawn here, see renderBrowserPreview).
-  // JPEG, PNG or WebP, 1 MB each.
+  // Previews: pictures of the theme on BeerMat Desk's TV and on a phone in the app, and in a phone's browser. JPEG, PNG
+  // or WebP, 1 MB each. The desk that shares a theme sends the TV and app ones, and an admin may add them; this service
+  // draws whichever a theme is missing, with drawPreviews (online/qt-preview.js: the desk's own Qt TV and app mock),
+  // and the browser one with renderPreview (online/preview.js, a headless browser), when it has them. One theme at a
+  // time, after the upload has been answered: a small server draws one picture at once.
   const PREVIEW_KINDS = ['tv', 'app', 'browser'];
   const pictureType = b => b[0] === 0xff && b[1] === 0xd8 ? 'image/jpeg' : b.subarray(0, 4).toString('latin1') === '\x89PNG' ? 'image/png'
     : b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP' ? 'image/webp' : null;
-  // The browser preview: a phone's browser playing a quiz in the theme, drawn by renderPreview (online/preview.js,
-  // a headless browser) when this service has one. A theme still works without it.
-  async function renderBrowserPreview(themeId) {
-    if (!renderPreview) return;
-    const t = one('SELECT bundle FROM shared_themes WHERE id=? AND removed IS NULL', themeId);
-    const image = t?.bundle && await renderPreview(JSON.parse(t.bundle));
-    if (image && pictureType(image)) run('INSERT OR REPLACE INTO shared_theme_previews VALUES(?,?,?,?)', themeId, 'browser', pictureType(image), image);
+  let drawing = Promise.resolve();
+  function drawPictures(themeId) {
+    drawing = drawing.then(async () => {
+      const t = one('SELECT bundle FROM shared_themes WHERE id=? AND removed IS NULL', themeId); if (!t?.bundle) return;
+      const has = new Set(rows('SELECT kind FROM shared_theme_previews WHERE theme=?', themeId).map(r => r.kind)), bundle = JSON.parse(t.bundle), drawn = {};
+      if (drawPreviews && (!has.has('tv') || !has.has('app'))) Object.assign(drawn, await drawPreviews(bundle).catch(e => {console.error('Theme pictures failed:', e.message); return {};}));
+      if (renderPreview && !has.has('browser')) drawn.browser = await renderPreview(bundle).catch(e => {console.error('Browser preview failed:', e.message); return null;});
+      for (const [kind, image] of Object.entries(drawn)) {
+        if (has.has(kind) || !image || !pictureType(image) || !one('SELECT 1 FROM shared_themes WHERE id=? AND removed IS NULL', themeId)) continue;
+        run('INSERT OR REPLACE INTO shared_theme_previews VALUES(?,?,?,?)', themeId, kind, pictureType(image), image);
+      }
+    }).catch(e => console.error('Theme pictures failed:', e.message));
+    return drawing;
   }
   function savePreviews(themeId, previews) {
     for (const [kind, data] of Object.entries(previews || {})) {
@@ -621,7 +629,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
             [...theme.files.values()].reduce((n, b) => n + b.length, 0), Number(files.includes('look.css')), Number(files.includes('tv.json')), Number(files.some(f => f.startsWith('sounds/'))), now());
           savePreviews(themeId, input.previews);
         });
-        renderBrowserPreview(themeId).catch(e => console.error('Browser preview failed:', e.message));
+        drawPictures(themeId);
         if (mail && adminEmail) mail({to: adminEmail, subject: `Theme waiting for a look: ${theme.name}`,
           text: `${v.name} shared “${theme.name}” (${files.length} files). It isn’t in the library until you approve it.\n\n${publicUrl.replace(/\/$/, '')}/admin/#themes\n`}).catch(e => console.error('Mail failed:', e.message));
         return send(201, {...themeOut(one('SELECT * FROM shared_themes WHERE id=?', themeId)), review: 'pending'});
@@ -813,7 +821,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
             Number(files.some(f => f.startsWith('sounds/'))), now(), now());
           savePreviews(themeId, input.previews);
         });
-        renderBrowserPreview(themeId).catch(e => console.error('Browser preview failed:', e.message));
+        drawPictures(themeId);
         return send(201, themeOut(one('SELECT * FROM shared_themes WHERE id=?', themeId)));
       }
       // New pictures of a theme on the TV or in the app, for one shared without them.
@@ -1048,7 +1056,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     stripe: process.env.STRIPE_SECRET_KEY ? {secretKey: process.env.STRIPE_SECRET_KEY, webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '', siteUrl: process.env.SITE_URL || '',
       prices: {monthly: process.env.STRIPE_PRICE_MONTHLY, yearly: process.env.STRIPE_PRICE_YEARLY}} : null, mail: process.env.RESEND_API_KEY ? resendMail(process.env.RESEND_API_KEY, process.env.MAIL_FROM || 'BeerMat <noreply@example.com>') : null,
     // Shared themes' browser previews, when this server has Playwright's Chromium (online/preview.js); none otherwise.
-    renderPreview: await import('./preview.js').then(m => m.browserPreview()).catch(e => {console.log('Theme browser previews off:', e.message); return null;})});
+    renderPreview: await import('./preview.js').then(m => m.browserPreview()).catch(e => {console.log('Theme browser previews off:', e.message); return null;}),
+    drawPreviews: await import('./qt-preview.js').then(m => m.qtPreviews()).catch(e => {console.log('Theme TV and app pictures off:', e.message); return null;})});
   service.server.listen(Number(process.env.PORT || 8080), process.env.BIND || '127.0.0.1', () => console.log(`BeerMat Online on http://${process.env.BIND || '127.0.0.1'}:${process.env.PORT || 8080} (put HTTPS in front before going public)`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => service.close().then(() => process.exit(0)));
 }

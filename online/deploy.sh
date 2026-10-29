@@ -8,6 +8,7 @@
 #   * Node.js 24 (official build, checksum checked) in /opt/node
 #   * the service in /opt/beermat-online, run by systemd as its own user, listening on 127.0.0.1:8080 only
 #   * Caddy in front, with HTTPS from Let's Encrypt (renewed by itself)
+#   * PySide6 (Qt, no browser engine) in /opt/beermat-qt, to draw shared themes' TV and app pictures
 #   * ports 80 and 443 opened in the server's firewall (Oracle's images block them)
 #   * a nightly database backup in /var/backups/beermat-online (14 kept); copy them off the server too
 #   * the key that signs BeerMat Pro licences, from ~/.local/share/beermat/licence-key.txt (or LICENCE_KEY_FILE),
@@ -25,7 +26,11 @@ echo "Server $ip, address https://$domain"
 # console at /admin/.
 stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/online" "$stage/mobile" "$stage/shared"
-cp "$repo/online/service.js" "$repo/online/client.js" "$repo/online/admin.js" "$repo/online/preview.js" "$stage/online/"
+cp "$repo/online/service.js" "$repo/online/client.js" "$repo/online/admin.js" "$repo/online/preview.js" "$repo/online/qt-preview.js" "$stage/online/"
+# Shared themes' TV and app pictures, drawn by BeerMat Desk's own TV and app mock (online/qt-preview.js): the desk's
+# Python and QML that draw them, run by PySide6 (Qt without a browser engine, about 250 MB) installed on the server.
+mkdir -p "$stage/native/beermat_desk"
+cp "$repo"/native/beermat_desk/{__init__.py,looks.py,previews.py} "$stage/native/beermat_desk/" && cp -r "$repo/native/beermat_desk/qml" "$stage/native/beermat_desk/"
 # THEME_PREVIEWS=1: shared themes get a picture of a phone's browser too (online/preview.js), which needs the quiz
 # engine and Playwright's Chromium (about 400 MB) on the server. Without it, themes still have the desk's pictures.
 if [ "${THEME_PREVIEWS:-0}" = 1 ]; then
@@ -34,7 +39,7 @@ if [ "${THEME_PREVIEWS:-0}" = 1 ]; then
   printf '%s\n' "$(node -p 'require("'"$repo"'/package.json").devDependencies?.playwright || require("'"$repo"'/package.json").dependencies?.playwright')" > "$stage/playwright-version"
 fi
 cp "$repo"/shared/*.js "$stage/shared/"
-mkdir -p "$stage/brand" && cp "$repo"/brand/*.svg "$repo/brand/fredoka.woff2" "$repo/brand/logo-email.png" "$stage/brand/"
+mkdir -p "$stage/brand" && cp "$repo"/brand/*.svg "$repo/brand/fredoka.woff2" "$repo"/brand/fredoka-*.ttf "$repo/brand/logo-email.png" "$stage/brand/"
 cp -r "$repo/mobile/www" "$stage/mobile/"
 cp -r "$repo/online/admin" "$repo/online/pages" "$stage/online/"
 printf '{"private": true, "type": "module"}\n' > "$stage/package.json"
@@ -54,6 +59,10 @@ if [ "$(swapon --noheadings | wc -l)" = 0 ] && [ "$(awk '/MemTotal/ {print $2}' 
 fi
 apt-get update -qq
 apt-get install -y -qq caddy sqlite3 curl xz-utils rsync iptables-persistent ffmpeg >/dev/null
+# Qt for the shared themes' TV and app pictures: Python, the libraries Qt draws with off screen, and a sans serif.
+apt-get install -y -qq python3-venv libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libglib2.0-0 fonts-noto-core >/dev/null
+[ -x /opt/beermat-qt/bin/python ] || python3 -m venv /opt/beermat-qt
+/opt/beermat-qt/bin/python -c 'import PySide6.QtQuick' 2>/dev/null || /opt/beermat-qt/bin/pip install -q --no-cache-dir PySide6-Essentials==6.11.1
 
 # Node.js 24 from nodejs.org, checked against its published checksums.
 arch=$(uname -m); case $arch in x86_64) arch=x64;; aarch64) arch=arm64;; esac
@@ -102,6 +111,8 @@ Environment=PUBLIC_URL=https://$DOMAIN
 # Secrets added on the server by hand: RESEND_API_KEY, MAIL_FROM.
 EnvironmentFile=-/etc/beermat-online/env
 Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+# Draws shared themes' TV and app pictures (online/qt-preview.js).
+Environment=QT_PYTHON=/opt/beermat-qt/bin/python
 ExecStart=/opt/node/bin/node --disable-warning=ExperimentalWarning /opt/beermat-online/online/service.js
 Restart=on-failure
 NoNewPrivileges=true
