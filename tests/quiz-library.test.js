@@ -128,7 +128,7 @@ test('quiz library: shared by Pro, approved by BeerMat, downloaded by Pro, hidde
     assert.equal(ours.by, 'BeerMat');
     assert.deepEqual((await api('GET', '/v1/quizzes')).quizzes.map(q => q.title).sort(), ['Halloween Special', 'Pub Classics']);
     const broken = await api('POST', '/v1/admin/quizzes', {quiz: {title: 'Bad', rounds: [{id: 'b1', title: 'R', questions: [question('Q', {media: '/media/missing.png', type: 'picture'})]}]}}, admin);
-    assert.deepEqual([broken.status, broken.error], [400, 'Every picture and sound must be inside the quiz file: save it with Download quiz (with its pictures and sounds)']);
+    assert.deepEqual([broken.status, broken.error], [400, 'Every picture and sound must be inside the quiz file: save it from the desk’s Quizzes page with Save as file…']);
 
     // The venue takes its quiz back; a venue stopped from sharing loses its quizzes.
     assert.equal((await green.call('quiz-library/remove', {id})).status, 400, 'only the venue that shared it');

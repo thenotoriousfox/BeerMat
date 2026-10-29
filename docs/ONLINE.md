@@ -187,7 +187,7 @@ the admin console. As with themes, **nothing a venue shares is in the library un
 reads every question and answer first.
 
 * **One file**: a shared quiz is a BeerMat quiz file with its pictures and sounds inside it (`data:` URLs), as the
-  desk's Download quiz writes it, 25 MB at most (8 MB a picture or sound). `shared/quiz-file.js` checks it here on
+  desk's Save as file… (the web desk's Download quiz) writes it, 25 MB at most (8 MB a picture or sound). `shared/quiz-file.js` checks it here on
   upload and again on the laptop that downloads it: every question through the quiz engine's own checks
   (`server/model.js validateLibrary`, which the service ships for this), every picture and sound inside the file and
   really what its type says (PNG, JPEG, WebP, MP3, Ogg, WAV). Spotify tracks stay links.
