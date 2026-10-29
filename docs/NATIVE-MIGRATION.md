@@ -182,6 +182,10 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
   releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
   `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
+* **Release 0.5.9**: the Quizzes page (the quizzes on this laptop, My quizzes, Clear quiz, sharing), a TV without a
+  cable (`/tv` in a TV's browser, on the venue network too; BeerMat TV on Android TV, Google TV and Fire TV), an admin
+  downloading from the libraries without a venue, library buzzers added once, Settings at any window size, themes
+  installed while the TV page is open, and Halloween's bats on the Qt TV.
 * **Release 0.5.8**: the quiz library (Library → Quizzes; BeerMat Online stores shared quizzes, `shared/quiz-file.js`), and
   the app's My location from a fresh, precise fix.
 * **Release 0.5.7**: a Library workspace on the desk (buzzers and themes), gradients that fill the window at any
