@@ -208,6 +208,54 @@ test('a secret round hides marks, the reveal and the leaderboard from teams and 
   assert.equal((await call('state', {}, team.secret)).answer.points, 2);
 }));
 
+test('after a secret round, Next goes back through it: each answer with how every team did (Evil Mode’s losses too), then the round’s results', () => fixture(async ({call, board}) => {
+  const owls = await call('join', {name: 'Owls'}), bats = await call('join', {name: 'Bats'});
+  await call('host/library/save', {revision: 0, quiz: {title: 'Secret', rounds: [{id: 'r1', title: 'Round 1', questions: [{id: 'a', ...question()}]},
+    {id: 'r2', title: 'The Final', secret: true, questions: [{id: 'b', ...question({text: 'Capital of Scotland?', answer: 'Edinburgh'})}, {id: 'c', ...question({text: 'Capital of Ireland?', answer: 'Dublin', evil: true})}]}]}});
+  let {id} = await call('host/next', {expectedQuestion: null}); await call('host/close');
+  ({id} = await call('host/next', {expectedQuestion: id}));
+  const b = id;
+  await call('answer', {question: id, value: 'Edinburgh'}, owls.secret); await call('answer', {question: id, value: 'Glasgow'}, bats.secret); await call('host/close');
+  let desk = await call('host/state');
+  assert.equal(desk.recap.available, false, 'not before the round is over');
+  ({id} = await call('host/next', {expectedQuestion: id}));
+  await call('answer', {question: id, value: 'Cork'}, owls.secret); await call('answer', {question: id, value: 'Dublin'}, bats.secret); await call('host/close');
+  desk = await call('host/state');
+  assert.deepEqual([desk.recap.available, desk.recap.active], [true, false]);
+  assert.equal((await board()).recap, null, 'nothing on the TV until the quizmaster starts it');
+
+  // Question by question: the answer and every team's outcome.
+  await call('host/recap', {action: 'start'});
+  let tv = await board();
+  assert.equal(tv.view, 'recap');
+  assert.deepEqual([tv.recap.round, tv.recap.count, tv.recap.shown, tv.recap.done], ['The Final', 2, 0, false]);
+  assert.deepEqual([tv.recap.question.id, tv.recap.question.text, tv.recap.question.answer], [b, 'Capital of Scotland?', 'Edinburgh']);
+  assert.deepEqual(tv.recap.question.teams, [{name: 'Owls', points: 2, outcome: 'right'}, {name: 'Bats', points: 0, outcome: 'wrong'}]);
+  assert.deepEqual(tv.teams, [], 'the leaderboard stays hidden');
+  assert.equal(tv.question.answer, undefined, 'the current question still keeps its secret outside the recap');
+  await call('host/recap', {action: 'next'});
+  tv = await board();
+  assert.deepEqual([tv.recap.question.answer, tv.recap.question.evil], ['Dublin', true]);
+  assert.deepEqual(tv.recap.question.teams, [{name: 'Bats', points: 2, outcome: 'right'}, {name: 'Owls', points: -2, outcome: 'lost'}]);
+  // Then the round's results; then Next carries on (the last round: Finish quiz).
+  await call('host/recap', {action: 'next'});
+  tv = await board();
+  assert.deepEqual([tv.recap.done, tv.recap.question, tv.recap.results], [true, undefined, [{name: 'Bats', points: 2}, {name: 'Owls', points: 0}]]);
+  assert.equal((await call('host/recap', {action: 'next'})).status, 409);
+  // Back steps through it, and takes it off the TV.
+  desk = await call('host/state');
+  assert.equal(desk.back.kind, 'recap');
+  await call('host/back', {kind: 'recap'}); await call('host/back', {kind: 'recap'});
+  desk = await call('host/state');
+  assert.equal(desk.back.kind, 'recapOff');
+  await call('host/back', {kind: 'recapOff'});
+  tv = await board(); assert.equal(tv.recap, null); assert.equal(tv.view, 'question');
+  assert.equal((await call('host/state')).recap.available, true);
+  // Finishing ends it: the final leaderboard.
+  await call('host/recap', {action: 'start'}); await call('host/settings', {ended: true});
+  tv = await board(); assert.deepEqual([tv.recap, tv.view], [null, 'leaderboard']);
+}));
+
 test('a tie for first after the last question: Next skips the tie-breaker, the desk offers it, and it settles first place', () => fixture(async ({call}) => {
   const [owls, foxes, bats] = [await call('join', {name: 'Owls'}), await call('join', {name: 'Foxes'}), await call('join', {name: 'Bats'})];
   const breaker = {id: 'tb', text: 'How tall is the Eiffel Tower in metres?', type: 'nearest', seconds: 30, points: 0, answer: '330', tieBreaker: true};

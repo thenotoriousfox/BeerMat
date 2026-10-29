@@ -537,10 +537,15 @@ Item {
                 Column {
                     anchors.centerIn: parent; spacing: 26
                     Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.t("AND THE WINNER IS…"); color: root.pal.gold; font.pixelSize: 44; font.weight: Font.Bold; font.letterSpacing: 8 }
+                    // Joint winners share the line, and wrap and shrink to fit the screen however many there are.
                     Text {
+                        objectName: "winnerNames"
                         anchors.horizontalCenter: parent.horizontalCenter
+                        width: 1700; height: Math.min(implicitHeight, 520)
+                        horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                        wrapMode: Text.WordWrap; fontSizeMode: Text.Fit; minimumPixelSize: 44; maximumLineCount: 4; elide: Text.ElideRight
                         text: root.settings.leaderboardVisible === false ? root.t("Scores are hidden for now") : parent.parent.leaders.map(t => t.name).join(" & ") || root.t("No teams yet")
-                        color: root.pal.text; font.family: Theme.display; font.pixelSize: 130; font.weight: Font.Bold
+                        color: root.pal.text; font.family: Theme.display; font.pixelSize: parent.parent.leaders.length > 2 ? 96 : 130; font.weight: Font.Bold; lineHeight: 0.95
                         scale: root.view === "winner" ? 1 : 0.6
                         Behavior on scale { NumberAnimation { duration: 900; easing.type: Easing.OutBack } }
                     }
@@ -550,11 +555,93 @@ Item {
                         text: leaders.length && root.settings.leaderboardVisible !== false && leaders[0].score !== null ? root.t(leaders.length > 1 ? "{n} points — a tie!" : "{n} points", {n: leaders[0].score}) : ""
                         color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 56; font.weight: Font.Bold
                     }
-                    Row {
-                        anchors.horizontalCenter: parent.horizontalCenter; spacing: 60
-                        Repeater {
-                            model: root.settings.leaderboardVisible === false ? [] : root.teams.filter(t => t.rank > 1 && t.rank <= 3)
-                            delegate: Text { required property var modelData; text: `${modelData.rank === 2 ? "🥈" : "🥉"} ${modelData.name}${modelData.score === null ? "" : "  " + modelData.score}`; color: root.pal.text; font.pixelSize: 44 }
+                    // Second and third place (ties included), wrapping onto more lines rather than off the screen.
+                    Text {
+                        objectName: "winnerPodium"
+                        anchors.horizontalCenter: parent.horizontalCenter; width: 1700
+                        horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight
+                        color: root.pal.text; font.pixelSize: 44; lineHeight: 1.2
+                        text: (root.settings.leaderboardVisible === false ? [] : root.teams.filter(t => t.rank > 1 && t.rank <= 3))
+                              .map(t => `${t.rank === 2 ? "🥈" : "🥉"}\u00a0${t.name.replace(/ /g, "\u00a0")}${t.score === null ? "" : "\u00a0\u00a0" + t.score}`).join("      ")
+                    }
+                }
+            }
+
+            // A secret round's recap (recapState in server.js): back through its questions with their answers and how
+            // every team did, then the round's results.
+            Item {
+                id: recapView
+                objectName: "recapView"
+                anchors.fill: parent
+                opacity: root.view === "recap" ? 1 : 0; visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 300 } }
+                readonly property var r: root.tv.recap || null
+                readonly property var q: r && r.question ? r.question : null
+                Column {
+                    width: parent.width; spacing: 22
+                    Text { text: recapView.r ? root.t("SECRET ROUND") + " · " + recapView.r.round.toUpperCase() : ""; color: root.pal.gold; font.pixelSize: 30; font.weight: Font.Bold; font.letterSpacing: 4 }
+                    // A question: its text, its answer, and every team that answered.
+                    Column {
+                        visible: !!recapView.q; width: parent.width; spacing: 22
+                        Row {
+                            spacing: 24
+                            Text { text: recapView.r && recapView.q ? root.t("Question {n} of {count}", {n: recapView.r.shown + 1, count: recapView.r.count}) : ""; color: root.pal.muted; font.pixelSize: 30 }
+                            Text { visible: !!recapView.q && recapView.q.evil; text: root.t("😈 Evil Mode: a wrong answer loses the points"); color: root.pal.bad; font.pixelSize: 30; font.weight: Font.Bold }
+                        }
+                        Text { width: parent.width; text: recapView.q ? recapView.q.text : ""; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight
+                               color: root.pal.text; font.family: Theme.display; font.pixelSize: 60; font.weight: Font.Bold }
+                        Rectangle {
+                            width: parent.width; height: answerColumn.implicitHeight + 44; radius: 22
+                            color: Qt.rgba(root.pal.good.r, root.pal.good.g, root.pal.good.b, 0.12); border.color: root.pal.good; border.width: 2
+                            Column {
+                                id: answerColumn; x: 30; y: 22; width: parent.width - 60; spacing: 6
+                                Text { width: parent.width; wrapMode: Text.WordWrap; color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 52; font.weight: Font.Bold
+                                       text: recapView.q ? root.t("Answer: {answer}", {answer: recapView.q.answer ?? (recapView.q.itemAnswers || []).join(", ")}) : "" }
+                                Text { visible: text !== ""; width: parent.width; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight; color: root.pal.muted; font.pixelSize: 28
+                                       text: recapView.q ? recapView.q.answerNote : "" }
+                            }
+                        }
+                        Text { visible: !!recapView.q && !recapView.q.teams.length; text: root.t("No team answered this one."); color: root.pal.muted; font.pixelSize: 34 }
+                        Flow {
+                            objectName: "recapTeams"
+                            width: parent.width; spacing: 14
+                            Repeater {
+                                model: recapView.q ? recapView.q.teams : []
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    readonly property color tone: modelData.outcome === "right" ? root.pal.good : modelData.outcome === "lost" ? root.pal.bad : root.pal.muted
+                                    width: chip.implicitWidth + 44; height: 66; radius: 33
+                                    color: Qt.rgba(tone.r, tone.g, tone.b, modelData.outcome === "wrong" ? 0.10 : 0.20); border.color: tone; border.width: 2
+                                    Text {
+                                        id: chip; anchors.centerIn: parent; color: modelData.outcome === "wrong" ? root.pal.text : parent.tone; font.pixelSize: 32; font.weight: Font.Bold
+                                        text: (modelData.outcome === "right" ? "✓ " : "✗ ") + modelData.name
+                                              + (modelData.points === null || modelData.points === 0 ? "" : "  " + (modelData.points > 0 ? "+" : "−") + Math.abs(modelData.points))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // The round's results: every team's points for it, best first.
+                    Column {
+                        objectName: "recapResults"
+                        visible: !!recapView.r && !!recapView.r.results; width: parent.width; spacing: 12
+                        Text { text: root.t("Round results"); color: root.pal.text; font.family: Theme.display; font.pixelSize: 72; font.weight: Font.Bold }
+                        Grid {
+                            readonly property var list: recapView.r && recapView.r.results ? recapView.r.results : []
+                            columns: list.length > 8 ? 2 : 1; columnSpacing: 40; rowSpacing: 10
+                            Repeater {
+                                model: parent.list
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    required property int index
+                                    width: parent.columns > 1 ? 880 : 1800; height: parent.columns > 1 ? 70 : Math.min(84, 700 / Math.max(1, parent.list.length) - 10); radius: 16
+                                    color: index === 0 ? Qt.rgba(root.pal.gold.r, root.pal.gold.g, root.pal.gold.b, 0.18) : Qt.rgba(1, 1, 1, 0.06)
+                                    Text { x: 26; anchors.verticalCenter: parent.verticalCenter; text: modelData.name; color: root.pal.text; font.pixelSize: Math.min(38, parent.height * 0.5); font.weight: Font.DemiBold
+                                           width: parent.width - 220; elide: Text.ElideRight }
+                                    Text { anchors.right: parent.right; anchors.rightMargin: 26; anchors.verticalCenter: parent.verticalCenter
+                                           text: modelData.points === null ? "" : root.t("{n} points", {n: modelData.points}); color: index === 0 ? root.pal.goldHi : root.pal.muted; font.pixelSize: Math.min(36, parent.height * 0.48); font.weight: Font.Bold }
+                                }
+                            }
                         }
                     }
                 }

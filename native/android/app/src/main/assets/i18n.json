@@ -31,6 +31,26 @@
   "Ma position",
   "Mi ubicación"
  ],
+ "SECRET ROUND": [
+  "MANCHE SECRÈTE",
+  "RONDA SECRETA"
+ ],
+ "Question {n} of {count}": [
+  "Question {n} sur {count}",
+  "Pregunta {n} de {count}"
+ ],
+ "😈 Evil Mode: a wrong answer loses the points": [
+  "😈 Mode diabolique : une mauvaise réponse fait perdre les points",
+  "😈 Modo malvado: una respuesta incorrecta resta los puntos"
+ ],
+ "No team answered this one.": [
+  "Aucune équipe n’a répondu à celle-ci.",
+  "Ningún equipo respondió a esta."
+ ],
+ "Round results": [
+  "Résultats de la manche",
+  "Resultados de la ronda"
+ ],
  "You are here": [
   "Vous êtes ici",
   "Estás aquí"

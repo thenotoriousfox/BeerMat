@@ -365,6 +365,8 @@ function displayState(s) {
   renderCountdown(); fitTitle(); fitStage(); soundCues(s);
   $('winnerSection').hidden = s.view !== 'winner';
   if (s.view === 'winner') renderWinner(s); else winnerShown = '';
+  $('recapSection').hidden = s.view !== 'recap' || !s.recap;
+  if (s.view === 'recap' && s.recap) renderRecap(s.recap);
   if (s.view === 'wheel' && s.wheel) renderWheel(s.wheel, s.serverTime - s.wheel.spun < 3000);
   const b = q?.buzz; $('projectBuzz').hidden = !b;
   if (b) {
@@ -528,8 +530,32 @@ function renderCountdown() {
 function cheerLeaders(teams, delay) {
   teams.filter(team => team.rank === 1).slice(0, 4).forEach((team, i) => setTimeout(() => buzzSound(team.name, team.sound), delay + i * 2500));
 }
+// After a secret round (recapState in server.js): each of its questions with the answer and how every team did (✓ with
+// the points scored, ✗ with the points Evil Mode took), then the round's results.
+function renderRecap(r) {
+  $('recapRound').textContent = `${t('SECRET ROUND')} · ${r.round.toUpperCase()}`;
+  const q = r.question;
+  $('recapQuestion').hidden = !q; $('recapResults').hidden = !r.results;
+  if (q) {
+    $('recapCount').textContent = t('Question {n} of {count}', {n: r.shown + 1, count: r.count}) + (q.evil ? `  ·  ${t('😈 Evil Mode: a wrong answer loses the points')}` : '');
+    $('recapText').textContent = q.text;
+    $('recapAnswer').textContent = t('Answer: {answer}', {answer: q.answer ?? (q.itemAnswers || []).join(', ')});
+    $('recapNote').textContent = q.answerNote || '';
+    $('recapTeams').replaceChildren(...(q.teams.length ? q.teams.map(team => {
+      const li = element('li', `${team.outcome === 'right' ? '✓' : '✗'} ${team.name}${team.points ? `  ${team.points > 0 ? '+' : '−'}${Math.abs(team.points)}` : ''}`);
+      li.className = team.outcome; return li;
+    }) : [element('li', t('No team answered this one.'))]));
+  }
+  if (r.results) $('recapBoard').replaceChildren(...r.results.map((team, i) => {
+    const li = element('li'); li.append(element('span', team.name, 'team-name'), element('strong', team.points === null ? '' : t('{n} points', {n: team.points})));
+    if (i === 0) li.className = 'first'; return li;
+  }));
+  $('recapBoard').classList.toggle('cols', (r.results || []).length > 8);
+}
 function renderWinner(s) {
   const top = s.teams.filter(t => t.rank === 1), names = top.map(t => t.name).join(' & ');
+  // Joint winners: smaller lettering, so every name fits.
+  $('winnerSection').classList.toggle('many', top.length > 2);
   $('winnerName').textContent = !s.settings.leaderboardVisible ? t('Scores are hidden for now') : names || t('No teams yet');
   $('winnerPhotos').replaceChildren(...(s.settings.leaderboardVisible ? top.filter(t => t.photo).map(t => avatar(t.photo)) : []));
   $('winnerScore').textContent = top.length && s.settings.leaderboardVisible && top[0].score !== null ? t(top.length > 1 ? '{n} points — a tie!' : '{n} points', {n: top[0].score}) : '';

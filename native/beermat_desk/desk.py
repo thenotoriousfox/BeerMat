@@ -23,6 +23,7 @@ from .prefs import Prefs
 from .updates import Updates
 
 STEP_LABELS = {'reveal': 'Reveal next position', 'revealFirst': 'Reveal the leader', 'revealSecond': 'Reveal second place', 'show': 'Show leaderboard',
+               'recap': 'Reveal the secret round', 'recapAnswer': 'Reveal the next secret answer', 'recapResults': 'Show the round’s results',
                'finish': 'Finish quiz', 'round': 'Start next round', 'question': 'Start next question'}
 # Quiz files carry their pictures and sounds inside them (data: URLs); each is uploaded before the quiz loads, as the
 # web desk does (unpackMedia in web/host.js).
@@ -446,6 +447,12 @@ class Desk(QObject):
             return 'revealFirst' if board.get('shown') == board.get('rest') else 'revealSecond' if board.get('second') else 'reveal'
         if s.get('settings', {}).get('ended'):
             return None
+        # After a secret round: back through its answers, then its results (recapState in server.js).
+        recap = s.get('recap') or {}
+        if recap.get('active') and not recap.get('done'):
+            return 'recapResults' if recap.get('shown', 0) + 1 >= recap.get('count', 0) else 'recapAnswer'
+        if recap.get('available'):
+            return 'recap'
         if board.get('canShow'):
             return 'show'
         played = {h.get('sourceId') for h in s.get('history', [])}
@@ -508,6 +515,10 @@ class Desk(QObject):
             self.confirmFinish.emit(f'{tied}Finish this quiz and close answers and registration? You can resume it later.')
         elif step == 'show':
             self._act('board', {'action': 'show'}, 'Leaderboard on the TV')
+        elif step == 'recap':
+            self._act('recap', {'action': 'start'}, 'The secret round’s first answer is on the TV')
+        elif step in ('recapAnswer', 'recapResults'):
+            self._act('recap', {'action': 'next'}, 'The round’s results are on the TV' if step == 'recapResults' else 'Next secret answer revealed')
         elif step in ('reveal', 'revealFirst', 'revealSecond'):
             self._act('board', {'action': 'next'}, {'revealFirst': 'The leader revealed', 'revealSecond': 'Second place revealed: the full board'}.get(step, 'Next position revealed'))
         else:

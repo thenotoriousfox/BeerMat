@@ -470,6 +470,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const s = settings();
     // The quizmaster revealing the leaderboard position by position takes the TV until the next question.
     if (boardReveal()) return 'leaderboard';
+    // So does the secret round's recap, until the quiz moves on.
+    if (recapState()) return 'recap';
     if (s.displayMode !== 'auto') return s.displayMode;
     // A spin takes over the TV while the wheel turns and its result shows, then Auto carries on.
     const wheel = getMeta('wheel', null);
@@ -507,6 +509,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const q = latest(), b = getMeta('board', null);
     if (!q || settings().ended) return null;
     if (b && b.question === q.id && !pending(q)) return b.shown > 0 ? {kind: 'board', label: 'Hide the last position revealed'} : {kind: 'leaderboard', label: 'Take the leaderboard off the TV'};
+    const r = recapState();
+    if (r) return r.shown > 0 ? {kind: 'recap', label: r.done ? 'Back to the last secret answer' : 'Back to the previous secret answer'} : {kind: 'recapOff', label: 'Take the secret round off the TV'};
     if (q.revealed) return {kind: 'reveal', label: 'Hide the answer again'};
     if (!pending(q)) return {kind: 'close', label: 'Reopen answers'};
     return {kind: 'start', label: 'Take back this question', answers: one('SELECT COUNT(*) n FROM answers WHERE question=?', q.id).n};
@@ -514,6 +518,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function stepBack(step, q, discard) {
     if (step.kind === 'board') {const b = getMeta('board', null); setMeta('board', {...b, shown: b.shown - 1});}
     else if (step.kind === 'leaderboard') run("DELETE FROM metadata WHERE key='board'");
+    else if (step.kind === 'recap') {const r = getMeta('recap', null); setMeta('recap', {...r, shown: r.shown - 1});}
+    else if (step.kind === 'recapOff') run("DELETE FROM metadata WHERE key='recap'");
     else if (step.kind === 'reveal') run('UPDATE questions SET revealed=0,revealed_at=NULL WHERE id=?', q.id);
     else if (step.kind === 'close') {
       // The time that was left when answers closed (at least 15 s), and close-time scoring undone (settle redoes it):
@@ -538,6 +544,37 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (!round) return false;
     const played = new Set(rows('SELECT data FROM questions').map(p => dataOf(p).sourceId));
     return round.questions.every(x => played.has(x.id));
+  }
+  // A secret round's recap, once its last question is closed: the desk's Next goes back through its questions one at
+  // a time, the TV showing each with its answer and how every team did (✓ with the points it scored, ✗ with the points
+  // Evil Mode took), then the round's results. Kept as metadata 'recap' {question: the round's last question, round,
+  // questions: their ids in play order, shown: how far it's got (one past the last question = the round's results)}.
+  function secretRoundOf(q) {
+    const id = q && dataOf(q).sourceId;
+    return id ? library().rounds.find(r => r.secret === true && r.questions.some(x => x.id === id)) || null : null;
+  }
+  function recapOffer() {
+    const q = latest(), round = secretRoundOf(q);
+    if (!round || pending(q) || settings().ended || !roundOver(q)) return null;
+    const ids = new Set(round.questions.map(x => x.id));
+    const questions = rows('SELECT id,data FROM questions ORDER BY opened, id').filter(r => ids.has(dataOf(r).sourceId) && !dataOf(r).tieBreaker).map(r => r.id);
+    return questions.length ? {question: q.id, round: round.title, questions} : null;
+  }
+  function recapState() {
+    const q = latest(), r = getMeta('recap', null);
+    if (!r || !q || r.question !== q.id || pending(q) || settings().ended) return null;
+    const count = r.questions.length, out = {round: r.round, count, shown: r.shown, done: r.shown >= count};
+    if (r.shown < count) out.question = recapQuestion(r.questions[r.shown]);
+    else out.results = rows(`SELECT t.name, COALESCE(SUM(a.points), 0) points FROM teams t LEFT JOIN answers a ON a.team=t.id AND a.question IN (${r.questions.map(() => '?').join(',')})
+      WHERE t.enabled=1 AND t.waiting=0 AND t.kind<>'device' GROUP BY t.id ORDER BY points DESC, t.name COLLATE NOCASE`, ...r.questions).map(({name, points}) => ({name, points: settings().showScores ? points : null}));
+    return out;
+  }
+  function recapQuestion(id) {
+    const q = one('SELECT * FROM questions WHERE id=?', id), data = dataOf(q), shown = publicQuestion(q, true);
+    const teams = rows(`SELECT t.name, a.points FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=? AND t.enabled=1 AND t.kind<>'device' AND (a.submitted IS NOT NULL OR a.points<>0)
+      ORDER BY a.points DESC, a.submitted`, id).map(({name, points}) => ({name, points: settings().showScores ? points : null, outcome: points > 0 ? 'right' : points < 0 ? 'lost' : 'wrong'}));
+    return {id: q.id, type: data.type, text: data.text, round: data.round, options: data.options || [], points: data.points, evil: data.evil === true,
+      answer: shown.answer ?? null, answerNote: shown.answerNote || '', itemAnswers: shown.itemAnswers || [], media: data.media || null, teams};
   }
   function exportResults() {return {version: 3, settings: settings(), library: library(), teams: rows('SELECT id,name,enabled FROM teams'), questions: rows('SELECT * FROM questions'), answers: rows('SELECT * FROM answers'), adjustments: rows('SELECT * FROM adjustments'), markingLog: rows('SELECT * FROM marking_log'), buzzes: rows('SELECT * FROM buzzes'), agrees: rows('SELECT * FROM agrees'), bingoCalls: rows('SELECT * FROM bingo_calls'), bingoClaims: rows('SELECT * FROM bingo_claims'), bingoShouts: rows('SELECT * FROM bingo_shouts'), clipPlays: rows('SELECT * FROM clip_plays')};}
   // Results kept on this laptop after each quiz (results.js): worked out from the server's own marking, tie-breakers
@@ -798,7 +835,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const url = onlineUrl(), secret = secretRound(), s = {...settings(), ...secret && {leaderboardVisible: false, secretRound: true}};
     return url ? {...s, joinUrl: url, joinPassword: '', online: true} : s;
   };
-  function publicState() { return {protocol: PROTOCOL, serverTime: now(), build, rehearsal: !liveNow(), settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), reveal: publicScores().length ? boardReveal() : null, wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
+  function publicState() { return {protocol: PROTOCOL, serverTime: now(), build, rehearsal: !liveNow(), settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), reveal: publicScores().length ? boardReveal() : null, recap: recapState(), wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
 
   // Final scoring once answers stop: nearest-wins needs every answer before it can rank them.
   // Who gets a fixed speed bonus: the quickest fully right answers (none without one). Settling adds it, and the
@@ -1139,7 +1176,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/plan/refresh') return send(200, await refreshLicence());
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats();
-          return send(200, {protocol: PROTOCOL, serverTime: now(), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board: boardStep(), back: backStep(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {protocol: PROTOCOL, serverTime: now(), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board: boardStep(), recap: {...recapState(), active: !!recapState(), available: !recapState() && !!recapOffer()}, back: backStep(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -1425,6 +1462,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           requireValue(step && step.kind === body.kind, 'The quiz moved on; check the desk and try again', 409);
           stepBack(step, latest(), body.discard);
           return send(200, {ok: true, back: backStep()});
+        }
+        // The secret round's recap: start it, then one step at a time (answers, then the round's results).
+        if (p === '/api/host/recap') {
+          requireValue(['start', 'next'].includes(body.action), 'Unknown recap action');
+          const r = recapState();
+          if (body.action === 'start') {const offer = recapOffer(); requireValue(offer && !r, 'No secret round to reveal', 409); setMeta('recap', {...offer, shown: 0});}
+          else {requireValue(r && !r.done, 'No secret round being revealed', 409); setMeta('recap', {...getMeta('recap', null), shown: r.shown + 1});}
+          return send(200, recapState());
         }
         if (p === '/api/host/board') {
           requireValue(['show', 'next'].includes(body.action), 'Unknown board action');
