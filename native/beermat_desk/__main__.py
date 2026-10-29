@@ -14,7 +14,7 @@ import signal
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QStandardPaths, QUrl
+from PySide6.QtCore import QStandardPaths, QTimer, QUrl
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
@@ -105,8 +105,13 @@ def main(argv=None):
     desk.toast.connect(lambda message, error: log.warning(message) if error else None)
     log.info('BeerMat Desk started; data in %s', data_dir)
     app.aboutToQuit.connect(desk.stop)
-    # Ctrl+C in a terminal closes it properly, server and all.
-    signal.signal(signal.SIGINT, lambda *_: app.quit())
+    # Ctrl+C in a terminal, or being asked to stop (a logout, kill), closes it properly, server and all. Python only
+    # runs signal handlers between its own lines, and Qt's event loop isn't one: a timer lets it look in now and then.
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, lambda *_: app.quit())
+    wake = QTimer(app, interval=300)
+    wake.timeout.connect(lambda: None)
+    wake.start()
     desk.start()
     return app.exec()
 
