@@ -149,7 +149,9 @@ When the venue has Wi-Fi that phones already use, players can join on it instead
 
 **Windows quiz Wi-Fi**: Windows' Mobile Hotspot always has a password, so type one (8–63 characters) beside the Wi-Fi
 name. The TV shows a Wi-Fi code with the password and a second code that opens the quiz. Windows only starts it while
-the laptop is connected to some network; see [DESKTOP.md](DESKTOP.md).
+the laptop is connected to some network. Starting it asks for administrator approval once: BeerMat uses it to keep
+players off the internet (the laptop keeps its own). The quiz Wi-Fi panel then shows whether that is on and, once
+phones have joined, whether they really can't get out. See [DESKTOP.md](DESKTOP.md).
 
 ## Online quizzes
 

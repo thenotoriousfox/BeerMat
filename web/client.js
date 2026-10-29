@@ -555,6 +555,19 @@ const appHome = appPlatform === 'ios' ? 'capacitor://localhost/' : appPlatform ?
 const vibrateOn = () => (readStorage('beermat-vibrate') || (appPlatform ? '1' : '0')) === '1';
 const nudge = pattern => {if (vibrateOn()) navigator.vibrate?.(pattern);};
 let seenQuestion = null, myTurn = null;
+// On a Windows quiz Wi-Fi the server asks each phone once to try the internet (by address, by address over IPv6, and
+// by name), so the quizmaster sees whether players are really kept off it. Only the answer goes back; a phone with
+// mobile data on may reach it that way, which the desk says.
+let isolationChecked = false;
+async function checkIsolation(key) {
+  isolationChecked = true;
+  const reach = url => {
+    const stop = new AbortController(), timer = setTimeout(() => stop.abort(), 5000);
+    return fetch(url, {mode: 'no-cors', cache: 'no-store', signal: stop.signal}).then(() => true, () => false).finally(() => clearTimeout(timer));
+  };
+  const [ipv4, ipv6, dns] = await Promise.all([reach('http://1.1.1.1/'), reach('http://[2606:4700:4700::1111]/'), reach('http://neverssl.com/')]);
+  api('team/isolation', {ipv4, ipv6, dns}, key).catch(() => {});
+}
 // A phone that already joined (for example in the Wi-Fi sign-in window) is offered its team back.
 async function checkDevice() {
   deviceChecked = true;
@@ -576,6 +589,7 @@ async function refresh() {
     const s = asTeam ? await api('state', {}, asTeam) : await publicState();
     // A team joined or switched while this was loading; the refresh that follows has its state.
     if (role === 'player' && asTeam !== secret) return;
+    if (asTeam && s.isolationCheck && !isolationChecked) checkIsolation(asTeam);
     online = true; $('connection').classList.remove('offline');
     // The TV follows the quizmaster's language setting; a change after load reloads the page in the new language.
     if (role === 'display' && s.settings.language !== language()) {if (initialised) return location.reload(); setLanguage(s.settings.language); translatePage();}
