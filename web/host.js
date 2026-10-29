@@ -408,15 +408,21 @@ function nextStep(s) {
   const b = s.board;
   if (b?.active && !b.done) return b.shown === b.rest ? 'revealFirst' : b.second ? 'revealSecond' : 'reveal';
   if (s.settings.ended) return null;
+  // After a secret round: back through its answers, then its results (recapState in server.js).
+  const r = s.recap;
+  if (r?.active && !r.done) return r.shown + 1 >= r.count ? 'recapResults' : 'recapAnswer';
+  if (r?.available) return 'recap';
   if (b?.canShow) return 'show';
   if (allPlayed(s)) return 'finish';
   return b?.roundOver ? 'round' : 'question';
 }
-const nextLabels = {reveal: 'Reveal next position', revealFirst: 'Reveal the leader', revealSecond: 'Reveal second place', show: 'Show leaderboard', finish: 'Finish quiz', round: 'Start next round', question: 'Start next question'};
+const nextLabels = {recap: 'Reveal the secret round', recapAnswer: 'Reveal the next secret answer', recapResults: 'Show the round’s results', reveal: 'Reveal next position', revealFirst: 'Reveal the leader', revealSecond: 'Reveal second place', show: 'Show leaderboard', finish: 'Finish quiz', round: 'Start next round', question: 'Start next question'};
 $('next').onclick = () => {
   const step = nextStep(state);
   if (step === 'finish') finishQuiz();
   else if (step === 'show') action(() => request('board', {action: 'show'}), 'Leaderboard on the TV');
+  else if (step === 'recap') action(() => request('recap', {action: 'start'}), 'The secret round’s first answer is on the TV');
+  else if (step === 'recapAnswer' || step === 'recapResults') action(() => request('recap', {action: 'next'}), step === 'recapResults' ? 'The round’s results are on the TV' : 'Next secret answer revealed');
   else if (['reveal', 'revealFirst', 'revealSecond'].includes(step)) action(() => request('board', {action: 'next'}), step === 'revealFirst' ? 'The leader revealed' : step === 'revealSecond' ? 'Second place revealed: the full board' : 'Next position revealed');
   else if (step) action(() => request('next', {expectedQuestion: state.question?.id || null}), 'Next question opened');
 };

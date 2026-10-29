@@ -67,6 +67,13 @@ Each release on <https://github.com/DTJW92/BeerMat/releases/latest> has `BeerMat
 phone: open that page, download the APK, allow your browser to "install unknown apps" when asked, and install. A
 newer APK installs over the old one.
 
+The native app then updates itself: on its start screen (never in a quiz) it reads `latest.json` from
+downloads.beermatquiz.co.uk, and when there's a newer app it offers **Update**. It downloads the APK, checks its size
+and SHA-256 against the manifest and that it's signed with the same key as the installed app, and hands it to
+Android's installer, which asks the player (the first time, Android asks them to let BeerMat install apps). A store
+build (`./gradlew -PstoreBuild …`) hides this and leaves updates to the store; for Google Play also remove the
+`REQUEST_INSTALL_PACKAGES` permission from the manifest, which Play restricts.
+
 The release workflow (`.github/workflows/release.yml`) signs it with the upload key kept in the repository's
 secrets `ANDROID_KEYSTORE_BASE64` (the keystore, base64) and `ANDROID_KEYSTORE_PASSWORD`. The same key must sign
 every release, or phones refuse the update: keep a backup of the keystore and its password (the maintainer's copy is

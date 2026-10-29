@@ -15,7 +15,7 @@ from PySide6.QtGui import QGuiApplication                                       
 from PySide6.QtQml import QQmlApplicationEngine                                       # noqa: E402
 from PySide6.QtQuick import QQuickWindow                                              # noqa: E402,F401  (window type)
 
-from beermat_desk import looks                                                         # noqa: E402
+from beermat_desk import gradients, looks                                              # noqa: E402
 from beermat_desk.server import ROOT                                                   # noqa: E402
 
 app = QGuiApplication.instance() or QGuiApplication(sys.argv)
@@ -80,6 +80,15 @@ CASES = {
     'text-revealed': state(q=question(type='text', options=[], open=False, revealed=True, answer='Canberra', answerNote='Not Sydney', scorers=[])),
     'leaderboard': state('leaderboard', reveal={'question': 1, 'shown': 2, 'rest': 2, 'done': False}),
     'winner': state('winner'),
+    # Five teams tied for first, with long names, and a crowd behind them: it all stays on the screen.
+    'winner-tie': state('winner', teams=[{'name': n, 'rank': 1, 'score': 21} for n in ['Quiz Team Aguilera', 'Les Quizerables', 'The Pun Intended', 'Universally Challenged', 'Agatha Quiztie']]
+                        + [{'name': n, 'rank': 6 if i else 2, 'score': 18} for i, n in enumerate(['Tequila Mockingbird', 'The Quizzly Bears', 'Owls'])]),
+    # After a secret round: an Evil Mode question with how each team did, then the round's results.
+    'recap-question': state('recap', recap={'round': 'The Final', 'count': 3, 'shown': 1, 'done': False, 'question': {
+        'id': 9, 'type': 'text', 'text': 'Capital of Ireland?', 'answer': 'Dublin', 'answerNote': 'Baile Átha Cliath', 'itemAnswers': [], 'options': [], 'points': 2, 'evil': True,
+        'teams': [{'name': 'Bears', 'points': 2, 'outcome': 'right'}, {'name': 'Owls', 'points': -2, 'outcome': 'lost'}, {'name': 'Foxes', 'points': 0, 'outcome': 'wrong'}]}}),
+    'recap-results': state('recap', recap={'round': 'The Final', 'count': 3, 'shown': 3, 'done': True,
+        'results': [{'name': f'Team {i}', 'points': 12 - i} for i in range(12)]}),
     'wheel': state('wheel', wheel={'id': 'w1', 'items': ['Red', 'Blue', 'Green'], 'result': 1, 'spun': 0}),
     'countdown': state('join', timer={'label': 'Sheets in', 'endsAt': time.time() * 1000 + 65000, 'remaining': 65000}),
     'halloween': state(q=question(), look='halloween'),
@@ -94,6 +103,7 @@ class TvStageTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.engine = QQmlApplicationEngine()
+        gradients.install(cls.engine)
         cls.desk = FakeDesk()
         cls.engine.rootContext().setContextProperty('desk', cls.desk)
         cls.engine.rootContext().setContextProperty('brand', QUrl.fromLocalFile(str(ROOT / 'brand') + '/'))
@@ -171,6 +181,34 @@ class TvStageTest(unittest.TestCase):
             self.show(state(q=question(), look='halloween', serverTime=time.time() * 1000))
         self.assertEqual(drawn(), before, 'the scenery and lettering are the same items, not rebuilt')
         self.assertEqual(painted, [], 'the background is not repainted')
+
+    def test_joint_winners_and_the_recap_stay_on_the_screen(self):
+        def items(item):
+            yield item
+            for child in item.childItems():
+                yield from items(child)
+        def inside(item):
+            top_left = item.mapToItem(self.stage, 0, 0)
+            return top_left.x() >= -1 and top_left.y() >= -1 and top_left.x() + item.width() <= 1920 + 1 and top_left.y() + item.height() <= 1080 + 1
+        self.show(CASES['winner-tie'], 'winner-tie')
+        for _ in range(60):
+            app.processEvents(); time.sleep(0.02)
+        names, podium = self.stage.findChild(QObject, 'winnerNames'), self.stage.findChild(QObject, 'winnerPodium')
+        self.assertIn('Agatha Quiztie', names.property('text'))
+        self.assertLessEqual(names.property('contentWidth'), names.property('width') + 1)
+        self.assertTrue(inside(names) and inside(podium), 'every winner’s name on the screen')
+        self.show(CASES['recap-question'], 'recap-question')
+        texts = [o.property('text') for o in items(self.stage.findChild(QObject, 'recapView')) if isinstance(o.property('text'), str) and o.property('visible')]
+        self.assertIn('Answer: Dublin', texts)
+        self.assertIn('✓ Bears  +2', texts)
+        self.assertIn('✗ Owls  −2', texts, 'Evil Mode shows the points lost')
+        self.assertIn('✗ Foxes', texts)
+        self.assertIn('Question 2 of 3', texts)
+        self.show(CASES['recap-results'], 'recap-results')
+        results = self.stage.findChild(QObject, 'recapResults')
+        self.assertTrue(results.property('visible'))
+        rows = [o for o in items(results) if o.property('text') == 'Team 11']
+        self.assertTrue(rows and inside(rows[0]), 'the last team’s row on the screen')
 
     def test_the_answer_box_fits_its_answer_note_and_scorers(self):
         reveal, content = self.stage.findChild(QObject, 'reveal'), self.stage.findChild(QObject, 'revealContent')

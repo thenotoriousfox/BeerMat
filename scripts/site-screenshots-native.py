@@ -6,7 +6,7 @@ quiz API, the real desk and its TV. Run it again whenever the desk or TV changes
     python3 scripts/site-screenshots-native.py
 
 The phone shots and og.png come from scripts/site-screenshots.mjs (players play in the browser). Needs PySide6 (as the
-desk), Node.js and ffmpeg (WebP). Captured at 2x: <name>@2x.webp at full size and <name>.webp at half, as the
+desk), Node.js, ffmpeg (WebP), numpy and Pillow. Captured at 2x: <name>@2x.webp at full size and <name>.webp at half, as the
 website's srcset expects."""
 import json
 import os
@@ -16,6 +16,9 @@ import tempfile
 import time
 import urllib.request
 from pathlib import Path
+
+import numpy as np
+from PIL import Image
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 os.environ['QT_SCALE_FACTOR'] = '2'
@@ -28,7 +31,7 @@ from PySide6.QtQml import QQmlApplicationEngine                        # noqa: E
 from PySide6.QtQuick import QQuickWindow                               # noqa: E402,F401  (window type)
 from PySide6.QtQuickControls2 import QQuickStyle                       # noqa: E402
 
-from beermat_desk import desk as desk_module                           # noqa: E402
+from beermat_desk import desk as desk_module, gradients               # noqa: E402
 from beermat_desk.screens import Screens                               # noqa: E402
 
 OUT, KEY, TICKET = ROOT / 'site' / 'public' / 'shots', 'screenshot-quiz-key-0123', 'screenshot-desk-ticket-0123'
@@ -104,6 +107,7 @@ desk_module.QuizServer = ExistingServer
 desk = desk_module.Desk(folder / 'desk', KEY, port=port, laptop=False)
 screens = Screens()
 engine = QQmlApplicationEngine()
+gradients.install(engine)
 qml = ROOT / 'native' / 'beermat_desk' / 'qml'
 for name, value in (('desk', desk), ('screens', screens), ('brand', QUrl.fromLocalFile(str(ROOT / 'brand') + '/'))):
     engine.rootContext().setContextProperty(name, value)
@@ -114,6 +118,7 @@ window.setProperty('width', 1600)
 window.setProperty('height', 1000)
 # The TV as the room sees it, at 1600x900 (the TV window itself shows the same stage, full screen).
 tv_engine = QQmlApplicationEngine()
+gradients.install(tv_engine)
 tv_engine.rootContext().setContextProperty('desk', desk)
 tv_engine.rootContext().setContextProperty('brand', QUrl.fromLocalFile(str(ROOT / 'brand') + '/'))
 tv_engine.addImportPath(str(qml))
@@ -123,13 +128,25 @@ tv = tv_engine.rootObjects()[0]
 OUT.mkdir(parents=True, exist_ok=True)
 
 
+def half(png, out):
+    """The 2x capture at half size, each 2x2 block averaged exactly and rounded by a 4x4 ordered pattern, so the
+    desk's and TV's smooth gradients stay smooth (plain rounding brings their colour steps back as bands)."""
+    rgb = np.asarray(Image.open(png).convert('RGB'), dtype=np.float32)
+    h, w = rgb.shape[0] // 2 * 2, rgb.shape[1] // 2 * 2
+    mean = rgb[:h, :w].reshape(h // 2, 2, w // 2, 2, 3).mean(axis=(1, 3))
+    bayer = (np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]], dtype=np.float32) + 0.5) / 16
+    nudge = np.tile(bayer, (mean.shape[0] // 4 + 1, mean.shape[1] // 4 + 1))[:mean.shape[0], :mean.shape[1], None]
+    Image.fromarray(np.clip(np.floor(mean + nudge), 0, 255).astype(np.uint8)).save(out)
+
+
 def shot(win, name):
     pump(0.8)
     png = folder / f'{name}.png'
     win.grabWindow().save(str(png))
-    for file, scale in ((f'{name}@2x.webp', None), (f'{name}.webp', 2)):
-        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(png), *(['-vf', f'scale=iw/{scale}:-1:flags=lanczos'] if scale else []),
-                        '-c:v', 'libwebp', '-quality', '90', str(OUT / file)], check=True)
+    half(png, folder / f'{name}-1x.png')
+    # Lossless: lossy WebP stores colour coarsely and puts the bands straight back into dark gradients.
+    for file, source in ((f'{name}@2x.webp', png), (f'{name}.webp', folder / f'{name}-1x.png')):
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(source), '-c:v', 'libwebp', '-lossless', '1', '-compression_level', '6', str(OUT / file)], check=True)
     print('Saved', name)
 
 

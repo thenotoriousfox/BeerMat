@@ -110,7 +110,9 @@ RowLayout {
                 Item { Layout.fillHeight: true }
                 RowLayout {
                     spacing: 8
-                    DeskButton { text: "Use this address"; kind: "primary"; enabled: address.currentValue !== ""; onClicked: desk.useLan(address.currentValue, lanSsid.text) }
+                    DeskButton { text: net.joinMode === "lan" ? "Use this address instead" : "Use this address"; kind: "primary"; enabled: address.currentValue !== ""; onClicked: desk.useLan(address.currentValue, lanSsid.text) }
+                    // Back to the quiz Wi-Fi: the venue network stops reaching the quiz, and the TV shows the quiz Wi-Fi.
+                    DeskButton { objectName: "stopLan"; visible: net.joinMode === "lan"; text: "Stop using the venue network"; kind: "danger"; onClicked: desk.stopLan() }
                     DeskButton { text: "Check the connection"; onClicked: desk.checkNetwork() }
                 }
             }

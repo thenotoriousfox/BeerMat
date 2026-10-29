@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Permissions: the network; notifications and an approximate location only when the player asks for a reminder or
-     for quizzes near them (each asked at that moment). The QR scanner runs in Google Play services (no camera
+     for quizzes near them (each asked at that moment); installing the app's own updates from BeerMat's website, which
+     Android asks the player about each time. The QR scanner runs in Google Play services (no camera
      permission), haptics use the view's own feedback, and the Wi-Fi is joined by the player in system settings. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:allowBackup="false"
@@ -27,6 +29,11 @@
             </intent-filter>
         </activity>
         <receiver android:name=".online.ReminderReceiver" android:exported="false" />
+        <!-- A downloaded update, shown to Android's installer (update/Updates.kt). -->
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.updates"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths" />
+        </provider>
         <!-- Downloads the scanner module with the app rather than on first use (offline venues). -->
         <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode_ui" />
     </application>

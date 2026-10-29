@@ -21,6 +21,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 
 from .desk import Desk
+from . import gradients
 from .keystore import load_key
 from .screens import Screens
 from .server import ROOT
@@ -92,6 +93,7 @@ def main(argv=None):
     desk.keyKept = kept
 
     engine = QQmlApplicationEngine()
+    gradients.install(engine)
     screens = Screens(app)
     engine.rootContext().setContextProperty('desk', desk)
     engine.rootContext().setContextProperty('screens', screens)

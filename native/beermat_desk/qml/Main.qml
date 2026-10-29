@@ -33,10 +33,8 @@ ApplicationWindow {
         {name: "Teams & marking", icon: "♟", key: "Ctrl+4"}, {name: "Venue & network", icon: "⌁", key: "Ctrl+5"}, {name: "Settings", icon: "⚙", key: "Ctrl+6"}]
 
     background: Rectangle {
-        gradient: Gradient {
-            GradientStop { position: 0; color: Theme.bg2 }
-            GradientStop { position: 1; color: Theme.bg }
-        }
+        color: Theme.bg
+        SmoothGradient { anchors.fill: parent; stops: [[0, Theme.bg2], [1, Theme.bg]] }
     }
 
     // ---- keys: the live ones work from every workspace, as on the web desk ----
@@ -211,6 +209,10 @@ ApplicationWindow {
                     Pill { text: `${(view.teams || []).length} ${window.rehearsal ? "simulated" : "teams"}`; tone: Theme.text }
                     Pill { visible: window.rehearsal; text: `${(view.devices || []).length} test phones`; tone: Theme.teal }
                     Pill { text: desk.connected ? "● Server live" : "○ " + desk.status; tone: desk.connected ? Theme.good : Theme.bad }
+                    // A new version: to Settings, where it's installed (never mid-question).
+                    Pill { visible: !!desk.updates.latest; text: "Update: " + desk.updates.latest; tone: Theme.gold
+                           TapHandler { onTapped: window.workspace = window.workspaces.findIndex(w => w.name === "Settings") }
+                           HoverHandler { cursorShape: Qt.PointingHandCursor } }
                     DeskButton { text: "Load quiz…"; shortcutHint: "Ctrl+O"; onClicked: openQuiz.open() }
                 }
             }

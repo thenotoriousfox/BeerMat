@@ -4,6 +4,21 @@ export const languages = {en: 'English', fr: 'Français', es: 'Español'};
 const T = {
   // Rehearsals: a phone that joined to test its connection
   'Connected': ['Connecté', 'Conectado'],
+  // The native Android app's own updates (native/android update/).
+  'BeerMat {version} is out': ['BeerMat {version} est sorti', 'Ya está disponible BeerMat {version}'],
+  'Update the app now, before the quiz starts.': ['Mettez l’appli à jour maintenant, avant le début du quiz.', 'Actualiza la app ahora, antes de que empiece el quiz.'],
+  'Update': ['Mettre à jour', 'Actualizar'],
+  'Downloading… {percent}%': ['Téléchargement… {percent} %', 'Descargando… {percent} %'],
+  'Allow BeerMat to install apps, then tap Update again.': ['Autorisez BeerMat à installer des applis, puis touchez de nouveau Mettre à jour.', 'Permite que BeerMat instale apps y vuelve a tocar Actualizar.'],
+  'The update didn’t download': ['La mise à jour n’a pas été téléchargée', 'La actualización no se ha descargado'],
+  'My location': ['Ma position', 'Mi ubicación'],
+  // The TV's recap after a secret round.
+  'SECRET ROUND': ['MANCHE SECRÈTE', 'RONDA SECRETA'],
+  'Question {n} of {count}': ['Question {n} sur {count}', 'Pregunta {n} de {count}'],
+  '😈 Evil Mode: a wrong answer loses the points': ['😈 Mode diabolique : une mauvaise réponse fait perdre les points', '😈 Modo malvado: una respuesta incorrecta resta los puntos'],
+  'No team answered this one.': ['Aucune équipe n’a répondu à celle-ci.', 'Ningún equipo respondió a esta.'],
+  'Round results': ['Résultats de la manche', 'Resultados de la ronda'],
+  'You are here': ['Vous êtes ici', 'Estás aquí'],
   'Reconnecting…': ['Reconnexion…', 'Reconectando…'],
   'Rehearsal mode': ['Mode répétition', 'Modo ensayo'],
   'Rehearsal': ['Répétition', 'Ensayo'],

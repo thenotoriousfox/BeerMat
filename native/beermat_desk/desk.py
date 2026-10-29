@@ -20,8 +20,10 @@ from .live import LiveTools
 from . import looks
 from .online import OnlineVenue
 from .prefs import Prefs
+from .updates import Updates
 
 STEP_LABELS = {'reveal': 'Reveal next position', 'revealFirst': 'Reveal the leader', 'revealSecond': 'Reveal second place', 'show': 'Show leaderboard',
+               'recap': 'Reveal the secret round', 'recapAnswer': 'Reveal the next secret answer', 'recapResults': 'Show the round’s results',
                'finish': 'Finish quiz', 'round': 'Start next round', 'question': 'Start next question'}
 # Quiz files carry their pictures and sounds inside them (data: URLs); each is uploaded before the quiz loads, as the
 # web desk does (unpackMedia in web/host.js).
@@ -57,6 +59,9 @@ class Desk(QObject):
         self.liveTools.clipsChanged.connect(self._rebuild)
         self.onlineVenue = OnlineVenue(self)
         self.prefsModel = Prefs(self)
+        self.updater = Updates(self.api, self._update_busy, self)
+        self.updater.toast.connect(self.toast)
+        self.updater.restart.connect(self.quitRequested)
         self.resultsChanged.connect(self.onlineVenue.changed)
         self._state, self._library, self._view, self._tv = None, None, {}, {}
         self._laptop, self._network, self._checks = {}, {}, []
@@ -106,6 +111,15 @@ class Desk(QObject):
     @Property(QObject, constant=True)
     def prefs(self):
         return self.prefsModel
+
+    @Property(QObject, constant=True)
+    def updates(self):
+        return self.updater
+
+    def _update_busy(self):
+        """Why the desk can't restart for an update just now ('' when it can)."""
+        q = (self._state or {}).get('question') or {}
+        return 'Finish this question first: updating restarts the desk' if q.get('open') or q.get('live') else ''
 
     @Property(QObject, constant=True)
     def online(self):
@@ -196,6 +210,12 @@ class Desk(QObject):
         url = self.hotspot_url(self._laptop, (self.server.info or {}).get('port'))
         self._act('settings', {'joinMode': 'hotspot', 'joinUrl': url}, 'Players join on the quiz Wi-Fi')
 
+    @Slot()
+    def stopLan(self):
+        """The venue network off: only the quiz Wi-Fi (and this laptop) reach the quiz again."""
+        url = self.hotspot_url(self._laptop, (self.server.info or {}).get('port'))
+        self._act('settings', {'joinMode': 'hotspot', 'joinUrl': url}, 'Venue network off: players join on the quiz Wi-Fi')
+
     @Slot(str, str)
     def useLan(self, address, ssid):
         port = self._network.get('port', 3000)
@@ -260,6 +280,7 @@ class Desk(QObject):
         self.refresh()
         self.load_library()
         self.loadResults()
+        self.updater.start()
 
     def _server_stopped(self, code):
         """It crashed: start it again (up to three times a minute), as the Electron app does. The quiz is saved."""
@@ -426,6 +447,12 @@ class Desk(QObject):
             return 'revealFirst' if board.get('shown') == board.get('rest') else 'revealSecond' if board.get('second') else 'reveal'
         if s.get('settings', {}).get('ended'):
             return None
+        # After a secret round: back through its answers, then its results (recapState in server.js).
+        recap = s.get('recap') or {}
+        if recap.get('active') and not recap.get('done'):
+            return 'recapResults' if recap.get('shown', 0) + 1 >= recap.get('count', 0) else 'recapAnswer'
+        if recap.get('available'):
+            return 'recap'
         if board.get('canShow'):
             return 'show'
         played = {h.get('sourceId') for h in s.get('history', [])}
@@ -488,6 +515,10 @@ class Desk(QObject):
             self.confirmFinish.emit(f'{tied}Finish this quiz and close answers and registration? You can resume it later.')
         elif step == 'show':
             self._act('board', {'action': 'show'}, 'Leaderboard on the TV')
+        elif step == 'recap':
+            self._act('recap', {'action': 'start'}, 'The secret round’s first answer is on the TV')
+        elif step in ('recapAnswer', 'recapResults'):
+            self._act('recap', {'action': 'next'}, 'The round’s results are on the TV' if step == 'recapResults' else 'Next secret answer revealed')
         elif step in ('reveal', 'revealFirst', 'revealSecond'):
             self._act('board', {'action': 'next'}, {'revealFirst': 'The leader revealed', 'revealSecond': 'Second place revealed: the full board'}.get(step, 'Next position revealed'))
         else:

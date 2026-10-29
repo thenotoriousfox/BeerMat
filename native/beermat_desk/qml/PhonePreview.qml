@@ -19,12 +19,7 @@ Rectangle {
                                  : [[0, "#241046"], [0.5, colours.bg], [1, colours.bg2]]
     width: 390; height: 844; radius: 36; clip: true
     color: colours.bg
-    gradient: Gradient {
-        GradientStop { position: phone.stops[0][0]; color: phone.stops[0][1] }
-        GradientStop { position: phone.stops[Math.min(1, phone.stops.length - 1)][0]; color: phone.stops[Math.min(1, phone.stops.length - 1)][1] }
-        GradientStop { position: phone.stops[Math.min(2, phone.stops.length - 1)][0]; color: phone.stops[Math.min(2, phone.stops.length - 1)][1] }
-        GradientStop { position: phone.stops[phone.stops.length - 1][0]; color: phone.stops[phone.stops.length - 1][1] }
-    }
+    SmoothGradient { anchors.fill: parent; stops: phone.stops }
     // The scenery, from the bottom of the screen.
     Repeater {
         model: phone.phoneLook && phone.phoneLook.scene ? phone.phoneLook.scene : []

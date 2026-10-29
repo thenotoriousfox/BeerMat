@@ -216,10 +216,18 @@ jobs:
           sha256sum * > SHA256SUMS.txt
           version="${GITHUB_REF_NAME#v}"
           for f in *; do ../site/node_modules/.bin/wrangler r2 object put "beermat-downloads/$version/$f" --file "$f" --remote; done
+      # The signed update manifest the apps check (shared/update.js), once every file it names is there.
+      - name: Tell the apps about this version
+        env:
+          UPDATE_KEY: ${{ secrets.UPDATE_KEY }}
+        run: |
+          test -n "$UPDATE_KEY" || { echo "The UPDATE_KEY secret is missing"; exit 1; }
+          node scripts/update-manifest.mjs files "${GITHUB_REF_NAME#v}" > latest.json
+          site/node_modules/.bin/wrangler r2 object put beermat-downloads/latest.json --file latest.json --content-type application/json --cache-control no-cache --remote
       - name: Redeploy the website
         working-directory: site
         run: npm run deploy
-      # The bucket holds only the version the website offers; every earlier one is kept with its GitHub release. Only
+      # The bucket holds only the version the website offers (and latest.json); every earlier one is kept with its GitHub release. Only
       # once the website points at this version, and only if the listing shows this version is all there.
       - name: Remove earlier versions from downloads.beermatquiz.co.uk
         run: |
@@ -233,6 +241,6 @@ jobs:
             [ "$(echo "$page" | jq -r '.result_info.is_truncated // false')" = true ] && [ -n "$cursor" ] || break
           done
           for f in files/*; do grep -qxF "$version/$(basename "$f")" <<< "$keys" || { echo "$version/$(basename "$f") isn't in the bucket: keeping earlier versions"; exit 1; }; done
-          grep -v -e '^$' -e "^$version/" <<< "$keys" | while IFS= read -r key; do
+          grep -v -e '^$' -e "^$version/" -e '^latest\.json$' <<< "$keys" | while IFS= read -r key; do
             echo "Removing $key"; site/node_modules/.bin/wrangler r2 object delete "beermat-downloads/$key" --remote
           done
