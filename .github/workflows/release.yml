@@ -219,3 +219,20 @@ jobs:
       - name: Redeploy the website
         working-directory: site
         run: npm run deploy
+      # The bucket holds only the version the website offers; every earlier one is kept with its GitHub release. Only
+      # once the website points at this version, and only if the listing shows this version is all there.
+      - name: Remove earlier versions from downloads.beermatquiz.co.uk
+        run: |
+          version="${GITHUB_REF_NAME#v}" api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/beermat-downloads/objects"
+          cursor="" keys=""
+          while :; do
+            page=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$api?per_page=1000${cursor:+&cursor=$cursor}")
+            test "$(echo "$page" | jq -r .success)" = true
+            keys="$keys$(echo "$page" | jq -r '.result[].key')"$'\n'
+            cursor=$(echo "$page" | jq -r '.result_info.cursor // empty')
+            [ "$(echo "$page" | jq -r '.result_info.is_truncated // false')" = true ] && [ -n "$cursor" ] || break
+          done
+          for f in files/*; do grep -qxF "$version/$(basename "$f")" <<< "$keys" || { echo "$version/$(basename "$f") isn't in the bucket: keeping earlier versions"; exit 1; }; done
+          grep -v -e '^$' -e "^$version/" <<< "$keys" | while IFS= read -r key; do
+            echo "Removing $key"; site/node_modules/.bin/wrangler r2 object delete "beermat-downloads/$key" --remote
+          done
