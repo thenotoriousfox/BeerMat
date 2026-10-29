@@ -294,6 +294,9 @@ class DeskTest(DeskCase):
         prefs.loadSpotify()
         wait(lambda: prefs.spotify.get('locked') is True, what='Spotify locked on Free', log=self.toasts)
         self.window.setProperty('workspace', 5)
+        app.processEvents()
+        self.shot('2-library')
+        self.window.setProperty('workspace', 6)
         self.shot('2-settings')
         self.window.setProperty('workspace', 0)
 

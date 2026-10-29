@@ -1,5 +1,5 @@
 // BeerMat Desk: the quizmaster's control room. A rail of workspaces (Live, Rehearsal, Quizzes, Teams, Venue &
-// network, Settings), a status bar that's always in view, and the live controls. Everything shown comes from desk.view
+// network, Library, Settings), a status bar that's always in view, and the live controls. Everything shown comes from desk.view
 // (desk.py); every button calls the quiz server's existing desk API through it.
 import QtQuick
 import QtQuick.Controls.Basic
@@ -30,7 +30,8 @@ ApplicationWindow {
     property int workspace: 0
     readonly property var workspaces: [
         {name: "Live", icon: "●", key: "Ctrl+1"}, {name: "Rehearsal", icon: "◎", key: "Ctrl+2"}, {name: "Quizzes", icon: "▤", key: "Ctrl+3"},
-        {name: "Teams & marking", icon: "♟", key: "Ctrl+4"}, {name: "Venue & network", icon: "⌁", key: "Ctrl+5"}, {name: "Settings", icon: "⚙", key: "Ctrl+6"}]
+        {name: "Teams & marking", icon: "♟", key: "Ctrl+4"}, {name: "Venue & network", icon: "⌁", key: "Ctrl+5"}, {name: "Library", icon: "♫", key: "Ctrl+6"},
+        {name: "Settings", icon: "⚙", key: "Ctrl+7"}]
 
     background: Rectangle {
         color: Theme.bg
@@ -231,7 +232,9 @@ ApplicationWindow {
                 QuizzesWorkspace { onOpenQuiz: openQuiz.open(); onOpenWebDesk: window.openWebDesk() }
                 TeamsWorkspace { view: window.view }
                 VenueWorkspace { objectName: "venue" }
-                SettingsWorkspace { view: window.view; onOpenWebDesk: window.openWebDesk(); onSwapScreens: window.swapScreens() }
+                LibraryWorkspace { id: libraryWorkspace; objectName: "library" }
+                SettingsWorkspace { view: window.view; onOpenWebDesk: window.openWebDesk(); onSwapScreens: window.swapScreens()
+                                    onOpenLibrary: (tab) => { libraryWorkspace.tab = tab; window.workspace = window.workspaces.findIndex(w => w.name === "Library") } }
             }
         }
     }

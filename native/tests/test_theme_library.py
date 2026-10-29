@@ -45,12 +45,14 @@ class ThemeLibraryTest(DeskCase):
                               'shared': [{'id': 's-1111111111', 'local': 'halloween', 'name': 'My Halloween', 'status': 'rejected', 'note': 'Too spooky.'}]}
         desk.prefs.themesChanged.emit()
         problems.clear()
+        # Library (left rail), Themes.
         w.setProperty('workspace', 5)
-        pump()
-        dialog = next(o for o in w.findChildren(QObject) if o.metaObject().className().startswith('ThemeLibraryDialog'))
-        dialog.metaObject().invokeMethod(dialog, 'open')
+        library = w.findChild(QObject, 'library')
+        library.setProperty('tab', 1)
         pump(40)
-        shown = lambda: [o.property('text') for o in items(dialog.property('contentItem')) if isinstance(o.property('text'), str) and o.property('visible')]
+        dialog = next(o for o in w.findChildren(QObject) if o.metaObject().className().startswith('ThemeLibrary'))
+        self.shot('2-library-themes')
+        shown = lambda: [o.property('text') for o in items(dialog) if isinstance(o.property('text'), str) and o.property('visible')]
         self.assertIn('Haunted Hill', shown())
         self.assertIn('✓ Installed', shown())
         dialog.setProperty('tab', 1)

@@ -1,4 +1,4 @@
-// The theme library (Settings → Looks): themes other venues shared, with pictures of each on the TV, in the app and
+// The theme library (Library → Themes): themes other venues shared, with pictures of each on the TV, in the app and
 // in a phone's browser; installing one makes it a look on this laptop. My themes: this laptop's own (made in its
 // my-themes folder), shared from here with pictures the share dialog draws of it. desk.prefs talks to the quiz server,
 // which talks to BeerMat Online.
@@ -7,30 +7,23 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Desk
 
-Dialog {
+ColumnLayout {
     id: dialog
     readonly property var lib: desk.prefs.themes
     property int tab: 0
     property string reporting: ""
     property string sharing: ""          // the id of one of My themes being shared
-    parent: Overlay.overlay; anchors.centerIn: parent; modal: true
-    width: Math.min(1100, parent.width - 60); height: Math.min(820, parent.height - 60)
-    onOpened: desk.prefs.searchThemes("")
-    background: Rectangle { color: Theme.panel; radius: Theme.radius; border.color: Theme.lineStrong }
-    header: RowLayout {
-        Text { text: "Theme library"; color: Theme.text; font.family: Theme.display; font.pixelSize: 22; font.weight: Font.Bold; Layout.margins: 20; Layout.fillWidth: true }
+    spacing: 10
+    RowLayout {
+        Layout.fillWidth: true
+        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 13
+               text: dialog.lib.pro ? "Looks for the TV and phones, from BeerMat and other venues. Every theme in the library has been looked at by BeerMat; report anything that shouldn’t be there."
+                                    : "Looks for the TV and phones, from BeerMat and other venues. Anyone can look; installing and sharing themes is part of BeerMat Pro." }
         Repeater {
-            model: ["Library", "My themes"]
+            model: ["Browse", "My themes"]
             delegate: DeskButton { required property int index; required property string modelData
                                    text: modelData; kind: dialog.tab === index ? "primary" : "quiet"; implicitHeight: 34; onClicked: dialog.tab = index }
         }
-        Item { width: 12 }
-    }
-    footer: RowLayout {
-        Text { Layout.leftMargin: 20; Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 12
-               text: dialog.lib.pro ? "Every theme in the library has been looked at by BeerMat. Report anything that shouldn’t be there."
-                                    : "Anyone can look; installing and sharing themes is part of BeerMat Pro." }
-        DeskButton { text: "Close"; Layout.margins: 16; onClicked: dialog.close() }
     }
 
     // A preview from BeerMat Online (tv, app or browser), if the theme has one.
@@ -47,7 +40,7 @@ Dialog {
     }
 
     StackLayout {
-        anchors.fill: parent
+        Layout.fillWidth: true; Layout.fillHeight: true
         currentIndex: dialog.tab
 
         // ---- the library ----
