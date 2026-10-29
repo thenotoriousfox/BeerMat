@@ -1878,7 +1878,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const server = http.createServer(handle), publicServer = http.createServer((req, res) => {req.viaTunnel = true; handle(req, res);});
   publicServer.on('upgrade', (req, socket) => {req.viaTunnel = true; openSocket(req, socket);});
   server.on('upgrade', openSocket);
-  for (const s of [server, publicServer]) {s.requestTimeout = 15000; s.headersTimeout = 10000;}
+  // Idle connections stay open a minute (Node's default is 5 s): the desk and phones reuse them, and one closed just as
+  // it's reused fails the request.
+  for (const s of [server, publicServer]) {s.requestTimeout = 15000; s.headersTimeout = 10000; s.keepAliveTimeout = 60000;}
   let closing = null;
   function close() {
     simulator?.stop(); simulator = null;
