@@ -271,7 +271,9 @@ $('buzzerAdd').onsubmit = guarded(async () => {
 // ---- Shared themes ----
 // Pictures and files are fetched with the admin's session (an <img> can't send it) and shown as blobs; text files
 // as text, never run.
-let themes = [];
+let themes = [], picturesTimer = null;
+// Added in the last two minutes without its TV or app picture yet: BeerMat Online is drawing them.
+const drawing = t => Date.now() - t.added < 2 * 60000 && (!t.previews.includes('tv') || !t.previews.includes('app'));
 const authed = async url => {const res = await fetch(url, {headers: {Authorization: 'Bearer ' + token}}); if (!res.ok) throw Error('That file can’t be opened'); return res;};
 async function loadThemes() {
   themes = (await api('GET', '/v1/admin/themes')).themes;
@@ -290,7 +292,11 @@ function renderThemes() {
     head.append(el('span', ` ${t.venueName} · ${date(t.added)} · ${Math.round(t.bytes / 1024)} KB${t.reports ? ` · ${t.reports} reports` : ''}`, 'muted'));
     for (const kind of ['tv', 'app', 'browser']) {
       const label = {tv: 'TV', app: 'app', browser: 'browser'}[kind];
-      if (!t.previews.includes(kind)) {pictures.append(el('span', `No ${label} picture`, `preview-${kind} no-picture`)); continue;}
+      if (!t.previews.includes(kind)) {
+        // The browser picture needs Chromium on the server: without one, there's simply no slot for it.
+        if (kind === 'browser') continue;
+        pictures.append(el('span', drawing(t) ? `Drawing the ${label} picture…` : `No ${label} picture`, `preview-${kind} no-picture`)); continue;
+      }
       const img = el('img', undefined, `preview-${kind}`); img.alt = `The theme in the ${label}`;
       authed(`/v1/themes/${t.id}/previews/${kind}`).then(r => r.blob()).then(b => {img.src = URL.createObjectURL(b);}).catch(() => {});
       pictures.append(img);
@@ -317,6 +323,9 @@ function renderThemes() {
     return card;
   }));
   if (!shown.length) $('themeCards').append(el('p', themes.length ? 'No themes match.' : 'Nothing shared yet.', 'muted'));
+  // A theme just added has its pictures drawn by BeerMat Online a few seconds later: look again until they're in.
+  clearTimeout(picturesTimer);
+  if (themes.some(drawing)) picturesTimer = setTimeout(() => loadThemes().catch(() => {}), 3000);
 }
 $('themeSearch').oninput = renderThemes;
 // BeerMat's own themes: a folder from the file picker, sent as a theme bundle ({id, files: {path: base64}}) as the
@@ -347,7 +356,6 @@ $('themeAdd').onsubmit = guarded(async () => {
   const id = folder.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'theme';
   await api('POST', '/v1/admin/themes', {bundle: {id, files}, previews: await pictures($('themeTvPicture').files[0], $('themeAppPicture').files[0])});
   $('themeAdd').reset(); await loadThemes();
-  setTimeout(() => loadThemes().catch(() => {}), 8000);   // its pictures, once BeerMat Online has drawn them
 }, 'Added to the library: its pictures follow in a few seconds');
 // A new picture of a theme on the TV or in the app, for one shared without it (or with a poor one).
 function pickPicture(t, kind) {
