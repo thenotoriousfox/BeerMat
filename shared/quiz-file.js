@@ -1,5 +1,5 @@
 // Shared quizzes: what a quiz must be before BeerMat Online stores it or a laptop downloads it. A shared quiz is one
-// BeerMat quiz file with its pictures and sounds inside it (data: URLs), as the desk's Download quiz writes it, so it
+// BeerMat quiz file with its pictures and sounds inside it (data: URLs), as the desk's Save as file… writes it, so it
 // loads on any laptop. Every question goes through the quiz engine's own checks (server/model.js validateLibrary), and
 // every picture and sound is checked to be what it says it is; nothing the file says about itself is trusted.
 import {mkdtempSync, writeFileSync, rmSync} from 'node:fs';
@@ -45,7 +45,7 @@ export function checkQuizFile(input) {
       if (typeof holder.media !== 'string') throw Error('A picture or sound in the quiz isn’t one');
       if (inside.has(holder.media)) {holder.media = inside.get(holder.media).path; continue;}
       const match = DATA_URL.exec(holder.media);
-      if (!match) throw Error('Every picture and sound must be inside the quiz file: save it with Download quiz (with its pictures and sounds)');
+      if (!match) throw Error('Every picture and sound must be inside the quiz file: save it from the desk’s Quizzes page with Save as file…');
       const [, type, base64] = match, bytes = Buffer.from(base64, 'base64');
       if (!TYPES[type]) throw Error(`${type} files can’t go in a shared quiz (PNG, JPEG, WebP, MP3, Ogg or WAV)`);
       if (bytes.length > QUIZ_LIMITS.media) throw Error(`A picture or sound is over ${QUIZ_LIMITS.media / 1024 / 1024} MB`);
