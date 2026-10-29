@@ -7,7 +7,7 @@ import path from 'node:path';
 import {offensive} from './names.js';
 import {createSpotify} from './spotify.js';
 import {createLaptop} from './laptop.js';
-import {lanAddresses, joinUrlFor, diagnose, hotspotAddresses} from './network.js';
+import {lanAddresses, joinUrlFor, diagnose, hotspotAddresses, fetchProbe} from './network.js';
 import {teamResults} from './results.js';
 import {newVenueKey, signClaim, keyId} from '../shared/claims.js';
 import {readLicence, licencePublicKey} from '../shared/licence.js';
@@ -69,7 +69,7 @@ function loadPack(dir, prefix) {
 // runs their venue from the desk.
 export const onlineDefault = 'https://online.beermatquiz.co.uk';
 
-export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), themesDir = path.join(root, 'themes'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose, fetchImpl = globalThis.fetch, plan: fixedPlan = null, licenceKey = licencePublicKey} = {}) {
+export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), themesDir = path.join(root, 'themes'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose, reachProbe = fetchProbe, fetchImpl = globalThis.fetch, plan: fixedPlan = null, licenceKey = licencePublicKey} = {}) {
   if (typeof hostKey !== 'string' || hostKey.length < 12) throw Error('HOST_KEY must contain at least 12 characters');
   const db = new DatabaseSync(database);
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
@@ -669,6 +669,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       else try {
         const w = await laptop.wifi();
         add('hotspot', 'Quiz Wi-Fi', w.running ? 'pass' : w.available && w.wifiOn ? 'warn' : 'fail', w.running ? `On, as “${w.running.ssid}”.` : w.available && w.wifiOn ? 'Ready, but not on yet: start it on Tonight before teams arrive.' : w.available ? 'Wi-Fi is switched off on this laptop.' : 'This laptop can’t run a quiz Wi-Fi. Use the venue’s Wi-Fi instead (Settings → Joining).');
+        // Windows: the quiz Wi-Fi keeps players off the internet only while BeerMat's filters are on.
+        const iso = w.running?.isolation && (await isolationView(w.running, server.address().port)).isolation;
+        if (iso) add('isolation', 'Players kept off the internet', !iso.configured || iso.reached ? 'fail' : iso.verified ? 'pass' : 'warn', iso.text);
       } catch {add('hotspot', 'Quiz Wi-Fi', 'unknown', 'The Wi-Fi couldn’t be checked.');}
     }
     return checks;
@@ -949,12 +952,34 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       .map(a => ({name: a.name, count: a.count, ms: a.ms + (a.since ? now() - a.since : 0), awayNow: a.since !== null}));
   }
   // While the desk's quiz Wi-Fi is up, BeerMat answers only on it and on this laptop, like start.sh --hotspot.
-  // (Windows' Mobile Hotspot is at 192.168.137.1.)
-  let hotspotOnly = null;
+  // (Windows' Mobile Hotspot reports its adapter's address, normally 192.168.137.1.)
+  let hotspotOnly = null, hotspotNow = null;
   const onlyOn = running => running ? ['127.0.0.1', '::1', running.address || '10.42.0.1'] : null;
-  const localAllowed = req => {const only = allowedAddresses || hotspotOnly; return !only || only.includes((req.socket.localAddress || '').replace(/^::ffff:/, ''));};
-  const laptopStatus = async () => {const status = await laptop.status(); hotspotOnly = onlyOn(status.wifi.running); return {...status, canQuit: !!onQuit};};
-  if (laptop) laptop.wifi().then(w => {hotspotOnly = onlyOn(w.running);});
+  const track = running => {hotspotOnly = onlyOn(running); hotspotNow = running || null;};
+  const localAddress = req => (req.socket.localAddress || '').replace(/^::ffff:/, '');
+  const localAllowed = req => {const only = allowedAddresses || hotspotOnly; return !only || only.includes(localAddress(req));};
+  // Windows: whether players are kept off the internet. The script says whether its filters are on ("configured");
+  // "verified" needs phones on the quiz Wi-Fi to have tried the internet and failed. Players' browsers try once each
+  // (web/client.js, isolationCheck); their answers are kept until the quiz Wi-Fi is started again.
+  const isolationReports = new Map();
+  const wantsIsolationCheck = req => !!hotspotNow?.isolation && localAddress(req) === hotspotNow.address && !isolationReports.has(clientIp(req));
+  async function isolationView(running, port) {
+    if (!running?.isolation) return running;
+    const reports = [...isolationReports.values()], reached = reports.filter(r => r.ipv4 || r.ipv6 || r.dns);
+    const reachable = running.address ? await reachProbe(joinUrlFor(running.address, port)) : false;
+    const view = {...running.isolation, phones: reports.length, reached: reached.length, reachedBy: reached.map(r => r.team).slice(0, 5),
+      verified: !!running.isolation.configured && reports.length > 0 && !reached.length};
+    return {...running, reachable, isolation: {...view, text: isolationText(view)}};
+  }
+  const isolationText = iso => !iso.configured ? 'Not guaranteed: ' + (iso.reason || 'BeerMat’s filters are not on.') + ' Phones on the quiz Wi-Fi may be able to use the internet.'
+    : iso.reached ? `${iso.reached} ${iso.reached === 1 ? 'phone' : 'phones'} on the quiz Wi-Fi reached the internet (${iso.reachedBy.join(', ')}). A phone with mobile data on may have used that instead; if not, stop the quiz Wi-Fi: players are not kept off the internet.`
+    : iso.verified ? `Checked: ${iso.phones} ${iso.phones === 1 ? 'phone' : 'phones'} on the quiz Wi-Fi tried the internet and could not reach it.`
+    : 'BeerMat’s filters are on. Not checked yet: the first phone to join tries the internet and reports back.';
+  const laptopStatus = async () => {
+    const status = await laptop.status(); track(status.wifi.running);
+    return {...status, wifi: {...status.wifi, running: await isolationView(status.wifi.running, server.address().port)}, canQuit: !!onQuit};
+  };
+  if (laptop) laptop.wifi().then(w => track(w.running));
   // The app launcher (scripts/beermat-app.sh) opens the desk with a one-time ticket instead of asking for the key twice;
   // the desktop app asks for a new one (newDeskTicket) each time it opens the desk.
   let deskLink = deskTicket;
@@ -1062,14 +1087,24 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             requireValue(loopback(clientIp(req)), 'The quiz Wi-Fi can only be changed at the laptop', 403);
             if (body.action === 'on') {await laptop.wifiOn(); return send(200, {ok: true});}
             requireValue(['start', 'stop'].includes(body.action), 'Unknown Wi-Fi action');
-            if (body.action === 'stop') laptop.stopWifi(r => {if (r.ok) hotspotOnly = null; notify();});
+            if (body.action === 'stop') laptop.stopWifi(r => {if (r.ok) track(null); notify();});
             else {
               const port = server.address().port;
-              laptop.startWifi({card: body.card, ssid: body.ssid, ...(body.password !== undefined ? {password: body.password} : {})}, r => {if (r.ok) laptop.wifi().then(w => {hotspotOnly = onlyOn(w.running); notify();}); else notify();}, port);
+              isolationReports.clear();
+              laptop.startWifi({card: body.card, ssid: body.ssid, ...(body.password !== undefined ? {password: body.password} : {})}, r => {
+                if (!r.ok) return notify();
+                laptop.wifi().then(w => {
+                  track(w.running);
+                  // Windows: the join address is the one the hotspot's adapter really got.
+                  if (w.platform === 'windows' && w.running?.address && settings().joinMode === 'hotspot') setMeta('settings', {...settings(), joinUrl: joinUrlFor(w.running.address, port)});
+                  notify();
+                });
+              }, port);
               // The TV's join screen names the same network (and, on Windows, its password and the quiz's port).
               const windows = (await laptop.wifi()).platform === 'windows';
+              const w = windows && await laptop.wifi();
               setMeta('settings', {...settings(), joinMode: 'hotspot', joinSsid: body.ssid.trim(), joinPassword: windows ? body.password : '',
-                joinUrl: windows ? joinUrlFor(hotspotAddresses[1], port) : 'http://' + hotspotAddresses[0]});
+                joinUrl: windows ? joinUrlFor(w.address || hotspotAddresses[1], port) : 'http://' + hotspotAddresses[0]});
             }
             return send(200, {ok: true});
           }
@@ -1527,18 +1562,25 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       const team = one('SELECT * FROM teams WHERE secret=?', auth || ''); requireValue(team, 'Team recovery code required', 401);
       requireValue(team.enabled, 'This team is disabled. Ask the quizmaster.', 403);
       run('UPDATE teams SET seen=? WHERE id=?', now(), team.id); if (team.kind !== 'sim') rememberDevice(req, team.id);
+      // A phone on the Windows quiz Wi-Fi says whether it could reach the internet (see isolationView).
+      if (p === '/api/team/isolation') {
+        requireValue(wantsIsolationCheck(req), 'Not needed', 409);
+        isolationReports.set(clientIp(req), {team: team.name, ipv4: body.ipv4 === true, ipv6: body.ipv6 === true, dns: body.dns === true, at: now()});
+        return send(200, {ok: true});
+      }
+      const check = wantsIsolationCheck(req) ? {isolationCheck: true} : {};
       // Who may play is decided here, for every player route: real teams only in a live quiz, simulated ones only in a
       // rehearsal, and a phone that joined a rehearsal never. Such a phone sees a connection screen and nothing else.
       if (team.kind === 'device') {
         requireValue(p === '/api/state', 'This is a rehearsal: your phone is connected, but playing is switched off.', 403);
         return send(200, {serverTime: now(), build, settings: shownSettings(), look: lookFor(null), event: getMeta('event', ''), question: null, teams: [],
-          team: {id: team.id, name: team.name, waiting: false}, answer: null, draft: null, rehearsal: {device: true, connected: true, title: settings().title}});
+          team: {id: team.id, name: team.name, waiting: false}, answer: null, draft: null, rehearsal: {device: true, connected: true, title: settings().title}, ...check});
       }
       requireValue(team.kind === 'sim' ? !liveNow() : liveNow(), team.kind === 'sim' ? 'Simulated teams only take part in a rehearsal' : 'This quiz isn’t live yet. Ask the quizmaster.', 403);
       const teamInfo = {id: team.id, name: team.name, sound: team.sound, photo: team.photo, photoStatus: team.photo_status, waiting: !!team.waiting};
       if (team.waiting) {
         requireValue(p === '/api/state' || p === '/api/team/sound', 'Waiting for the quizmaster to let you in', 403);
-        if (p === '/api/state') return send(200, {...publicState(), question: null, team: teamInfo, answer: null, draft: null});
+        if (p === '/api/state') return send(200, {...publicState(), question: null, team: teamInfo, answer: null, draft: null, ...check});
       }
       if (p === '/api/state') {
         const q = latest();
@@ -1547,7 +1589,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         // Points stay hidden until scoring is final.
         const answer = !a || a.submitted === null && !q.settled && !q.closed ? null : pending(q) || secretQuestion(q) ? {value: a.value} : {value: a.value, points: a.points, marks: a.marks};
         return send(200, {...publicState(), question: publicQuestion(q, false, team.id), team: teamInfo, answer,
-          draft: one('SELECT value FROM drafts WHERE team=? AND question=?', team.id, q?.id || 0) || null});
+          draft: one('SELECT value FROM drafts WHERE team=? AND question=?', team.id, q?.id || 0) || null, ...check});
       }
       // A team's signed result once the quiz is finished, for players who choose to keep it in an online profile.
       if (p === '/api/team/result') {

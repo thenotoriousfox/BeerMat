@@ -52,7 +52,9 @@ Numbers at the time of writing: 96 node tests, 15 Python tests, 27 browser secti
 
 ## Not verified (needs hardware, accounts or hosting)
 
-* Windows: the app on Windows 10/11, Windows Firewall prompts, Mobile Hotspot starting and stopping, SmartScreen.
+* Windows: the app on Windows 10/11, Windows Firewall prompts, SmartScreen. Mobile Hotspot starting, stopping and
+  playing has been checked by hand; **its internet isolation has not** (the WFP filters, the UAC prompt, crash
+  clean-up): follow DESKTOP.md, "Checking it on Windows". `tests/hotspot-windows.test.js` only reads the script.
 * A real second screen, TV or projector with the desktop app (plug/unplug, full screen on the right screen, sound).
   The logic is tested with simulated screens only; Xvfb cannot present two screens to Chromium.
 * The desktop first-run window and dialogs, as a person sees them.
