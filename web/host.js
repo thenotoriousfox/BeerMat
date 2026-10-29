@@ -944,6 +944,17 @@ function renderLaptop() {
     : on?.ssid ? `Phones join “${on.ssid}” and open http://${w.address || '10.42.0.1'}${w.platform === 'windows' ? ':' + (location.port || '3000') : ''}. Hosted on ${on.interface === 'bm0' ? 'the Wi-Fi card beside your home Wi-Fi' : on.interface}.`
     : !w.wifiOn ? 'Wi-Fi is switched off on this laptop.'
     : w.cards.length ? 'Wi-Fi cards: ' + w.cards.map(c => `${c.name} (${c.ap ? where(c) : 'can’t host'})`).join(' · ') : 'No Wi-Fi card found.';
+  // Windows: each part of the quiz Wi-Fi said separately, and never "kept off the internet" until phones confirm it.
+  const iso = on?.isolation;
+  $('wifiChecks').hidden = !iso;
+  const row = (state, text) => {const li = element('li', undefined, state); li.append(element('span', {ok: '✓', todo: '○', warning: '⚠'}[state], 'tick'), element('span', text)); return li;};
+  const port = location.port || '3000';
+  if (iso) $('wifiChecks').replaceChildren(
+    row('ok', `Quiz Wi-Fi on${on.adapter ? ` (${on.adapter}, ${on.address})` : ''}`),
+    row(on.clients ? 'ok' : 'todo', on.clients ? `${on.clients} ${on.clients === 1 ? 'device' : 'devices'} connected` : 'No devices connected yet'),
+    row(on.reachable ? 'ok' : 'warning', `BeerMat ${on.reachable ? 'answers' : 'does not answer'} at http://${on.address || '?'}:${port}`),
+    row(iso.configured ? 'ok' : 'warning', iso.configured ? `Internet isolation on: ${iso.filters} filters on the hotspot adapter` : 'Internet isolation is NOT on'),
+    row(iso.verified ? 'ok' : iso.configured && !iso.reached ? 'todo' : 'warning', iso.text));
   const chosen = $('wifiCard').value || 'auto';
   $('wifiCard').replaceChildren(element('option', `Automatic — ${w.pick ? w.pick.interface + (w.pick.keepWifi ? ', beside your home Wi-Fi' : '') : 'no card can host'}`),
     ...(w.cards || []).map(c => {const o = element('option', `${c.name} — ${c.ap ? where(c) : 'can’t host'}`); o.value = c.name; o.disabled = !c.ap; return o;}));
@@ -1125,6 +1136,7 @@ function renderState(s) {
   $('eventTitle').textContent = s.settings.title; $('eventState').textContent = s.settings.ended ? 'Quiz finished' : 'Quiz in progress';
   if (!$('eventName').value) $('eventName').value = s.settings.title;
   if (!$('joinDetails').contains(document.activeElement)) {$('joinSsidInput').value = s.settings.joinSsid; $('joinUrlInput').value = s.settings.joinUrl;}
+  $('joinUrlHint').textContent = s.settings.joinUrl;
   const q = s.question, pending = q?.live;
   $('liveRound').textContent = (q?.secret && !s.settings.ended ? '🤫 Secret round · ' : '') + (q?.round || ''); $('liveText').textContent = q?.text || 'Ready when you are'; $('liveTimer').textContent = timeText(q, offset);
   $('liveKey').textContent = q ? answerKey(q) : '';
@@ -1215,6 +1227,7 @@ function renderTonight(s) {
     const tvOpen = !!screensInfo?.open, tvAuto = !!screensInfo?.autoOpen;
     const items = [
       [all.length > 0, all.length ? `Quiz ready: ${library.rounds.length} ${library.rounds.length === 1 ? 'round' : 'rounds'}, ${all.length} questions` : 'No questions yet', ['Build the quiz', () => chooseTab('build')]],
+      ...(wifi?.isolation && !(wifi.isolation.configured && !wifi.isolation.reached) ? [[false, 'Players may be able to use the internet on the quiz Wi-Fi: ' + wifi.isolation.text, ['Stop quiz Wi-Fi', () => $('wifiStop').click()]]] : []),
       [!!(wifi || lan || s.online), wifi ? `Quiz Wi-Fi “${wifi.ssid}” is on` : lan ? 'Teams join on the venue’s Wi-Fi' : s.online ? 'Teams join over the internet' : starting ? 'Starting the quiz Wi-Fi…' : 'Quiz Wi-Fi is off', wifiFix],
       // The desktop app opens the TV by itself when a TV is plugged in (Settings → Screens → Open by itself).
       [!window.beermatDesktop || tvOpen || tvAuto, !window.beermatDesktop ? 'Open the TV screen (TV screen ↗ above) on the TV'

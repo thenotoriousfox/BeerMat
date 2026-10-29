@@ -40,32 +40,117 @@ test('laptop jobs: the Wi-Fi goes through pkexec with fixed arguments, and messa
 test('laptop jobs on Windows: Mobile Hotspot through PowerShell, always with a password, settings passed as base64 JSON', async () => {
   const calls = [], results = [];
   const run = async (file, args) => {calls.push([file, ...args]); return results.shift() || {ok: true, code: 0, out: '{"available":true,"platform":"windows","needsPassword":true,"wifiOn":true,"cards":[{"name":"Wi-Fi","ap":true,"connected":true}],"pick":{"interface":"Mobile Hotspot","keepWifi":true},"running":null}'};};
-  const laptop = createLaptop({root: 'C:\\BeerMat', run, platform: 'win32', cloudflared: null, piper: ['/nowhere']});
+  const laptop = createLaptop({root: 'C:\\BeerMat', run, platform: 'win32', cloudflared: null, piper: ['/nowhere'], ownerPid: 4242, hotspotState: 'C:\\State'});
   const status = await laptop.status();
   assert.equal(status.platform, 'windows');
   assert.equal(status.wifi.needsPassword, true);
   assert.equal(status.wifi.address, '192.168.137.1');
   const ps = ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join('C:\\BeerMat', 'scripts', 'hotspot-windows.ps1')];
-  assert.deepEqual(calls.pop(), [...ps, 'status']);
+  const state = ['-StateDir', 'C:\\State'];
+  assert.deepEqual(calls.pop(), [...ps, 'status', ...state]);
   assert.throws(() => laptop.startWifi({ssid: 'Quiz', password: 'short'}), /8–63/);
   assert.throws(() => laptop.startWifi({ssid: 'Quiz', password: 'pässwörd-long'}), /8–63/);
   let done; const finished = new Promise(r => {done = r;});
   laptop.startWifi({ssid: '-Action down', password: 'quiz night 2024'}, done);
-  const call = calls.pop();
-  assert.deepEqual(call.slice(0, -1), [...ps, 'up']);
-  assert.deepEqual(JSON.parse(Buffer.from(call.at(-1), 'base64').toString()), {ssid: '-Action down', password: 'quiz night 2024'});
-  assert.match(call.at(-1), /^[A-Za-z0-9+/=]+$/);
+  // The script's administrator helper stops the hotspot if this process (its owner) goes away.
+  const call = calls.pop(), config = call[ps.length + 1];
+  assert.deepEqual(call, [...ps, 'up', config, '-OwnerPid', '4242', ...state]);
+  assert.deepEqual(JSON.parse(Buffer.from(config, 'base64').toString()), {ssid: '-Action down', password: 'quiz night 2024'});
+  assert.match(config, /^[A-Za-z0-9+/=]+$/);
   await finished;
   // A Windows exit code 126 is not a dismissed password prompt.
   results.push({ok: false, code: 126, out: 'Windows could not stop Mobile Hotspot'});
   await new Promise(r => laptop.stopWifi(r));
-  assert.deepEqual(calls.pop(), [...ps, 'down']);
+  assert.deepEqual(calls.pop(), [...ps, 'down', ...state]);
   assert.equal((await laptop.status()).jobs.wifi.message, 'Windows could not stop Mobile Hotspot');
   await assert.rejects(laptop.wifiOn(), /quick settings/);
   assert.throws(() => laptop.goOnline(3001), /winget install Cloudflare.cloudflared/);
   // The JSON line is found even after PowerShell warnings.
   results.push({ok: true, code: 0, out: 'WARNING: something\n{"available":false,"reason":"No API"}'});
   assert.deepEqual((await laptop.wifi()), {available: false, platform: 'windows', needsPassword: true, reason: 'No API', address: '192.168.137.1', running: null});
+  // The address is the one the hotspot's adapter really has (ICS can be moved off 192.168.137.1), never made up.
+  const isolation = {configured: true, state: 'applied', filters: 14, present: 14, interfaceIndex: 23};
+  results.push({ok: true, code: 0, out: JSON.stringify({available: true, platform: 'windows', address: '192.168.140.1',
+    running: {interface: 'Mobile Hotspot', ssid: 'Quiz', address: '192.168.140.1', interfaceIndex: 23, clients: 2, isolation}})});
+  const moved = await laptop.wifi();
+  assert.deepEqual([moved.address, moved.running.address, moved.running.isolation], ['192.168.140.1', '192.168.140.1', isolation]);
+  results.push({ok: true, code: 0, out: JSON.stringify({available: true, address: 'not an address; rm', running: {ssid: 'Quiz', address: null}})});
+  const odd = await laptop.wifi();
+  assert.deepEqual([odd.address, odd.running.address], ['192.168.137.1', '192.168.137.1']);
+});
+
+// A stand-in for Windows' Mobile Hotspot: what hotspot-windows.ps1 status reports. The phones are this test, so their
+// requests arrive at 127.0.0.1, which plays the hotspot's address here. None of this shows that Windows really keeps
+// phones off the internet: that needs a Windows laptop and a phone (docs/DESKTOP.md).
+function windowsLaptop(isolation) {
+  const fake = fakeLaptop();
+  const running = () => fake.running && {...fake.running, interface: 'Mobile Hotspot', address: '127.0.0.1', adapter: 'Local Area Connection* 10', interfaceIndex: 23, clients: 1, isolation: fake.isolation};
+  fake.isolation = isolation;
+  fake.wifi = async () => ({available: true, platform: 'windows', needsPassword: true, wifiOn: true, cards: [], address: '127.0.0.1', pick: {interface: 'Mobile Hotspot', keepWifi: true}, running: running()});
+  return fake;
+}
+
+test('Windows quiz Wi-Fi: isolation is "on" only when its filters are, and "verified" only once phones fail to reach the internet', () => {
+  const laptop = windowsLaptop({configured: true, state: 'applied', filters: 14, present: 14, interfaceIndex: 23});
+  return fixture({laptop, reachProbe: async url => url.startsWith('http://127.0.0.1:')}, async ({call, port}) => {
+    assert.equal((await call('host/laptop/wifi', {action: 'start', ssid: 'Quiz Night', password: 'quiz night 2024'})).status, 200);
+    laptop.finish(); await settle(); await settle();
+    // The join address (and the TV's QR code) is the one Windows gave the hotspot's adapter.
+    assert.equal((await call('host/state')).settings.joinUrl, `http://127.0.0.1:${port}`);
+    let wifi = (await call('host/laptop')).wifi.running;
+    assert.deepEqual([wifi.reachable, wifi.isolation.configured, wifi.isolation.verified, wifi.isolation.phones], [true, true, false, 0]);
+    assert.match(wifi.isolation.text, /Not checked yet/);
+    assert.equal((await call('host/preflight')).checks.find(c => c.id === 'isolation').status, 'warn');
+    // A phone on the quiz Wi-Fi is asked once to try the internet, and says it could not.
+    const team = await call('join', {name: 'Offline Otters'});
+    assert.equal((await call('state', {}, team.secret)).isolationCheck, true);
+    assert.equal((await call('team/isolation', {ipv4: false, ipv6: false, dns: false}, team.secret)).status, 200);
+    assert.equal((await call('state', {}, team.secret)).isolationCheck, undefined);
+    assert.equal((await call('team/isolation', {ipv4: true}, team.secret)).status, 409);
+    wifi = (await call('host/laptop')).wifi.running;
+    assert.deepEqual([wifi.isolation.verified, wifi.isolation.phones, wifi.isolation.reached], [true, 1, 0]);
+    assert.equal((await call('host/preflight')).checks.find(c => c.id === 'isolation').status, 'pass');
+    assert.equal((await call('team/isolation', {}, 'not-a-team')).status, 401);
+    // Starting the quiz Wi-Fi again starts the check again.
+    await call('host/laptop/wifi', {action: 'stop'}); laptop.finish(); await settle();
+    await call('host/laptop/wifi', {action: 'start', ssid: 'Quiz Night', password: 'quiz night 2024'}); laptop.finish(); await settle(); await settle();
+    assert.equal((await call('host/laptop')).wifi.running.isolation.phones, 0);
+    // A phone that reached the internet is a failure on the desk, whatever the filters say.
+    assert.equal((await call('state', {}, team.secret)).isolationCheck, true);
+    await call('team/isolation', {ipv4: true, ipv6: false, dns: true}, team.secret);
+    wifi = (await call('host/laptop')).wifi.running;
+    assert.deepEqual([wifi.isolation.verified, wifi.isolation.reached, wifi.isolation.reachedBy], [false, 1, ['Offline Otters']]);
+    assert.match(wifi.isolation.text, /reached the internet \(Offline Otters\)/);
+    assert.equal((await call('host/preflight')).checks.find(c => c.id === 'isolation').status, 'fail');
+  });
+});
+
+test('Windows quiz Wi-Fi without its filters (helper gone, or started outside BeerMat) says so, and phones cannot vouch for it', () => {
+  const laptop = windowsLaptop({configured: false, state: 'applied', filters: 14, present: 14, reason: 'The BeerMat isolation helper is no longer running, so phones may reach the internet. Stop and start the quiz Wi-Fi.'});
+  return fixture({laptop, reachProbe: async () => false}, async ({call}) => {
+    await call('host/laptop/wifi', {action: 'start', ssid: 'Quiz Night', password: 'quiz night 2024'}); laptop.finish(); await settle(); await settle();
+    const wifi = (await call('host/laptop')).wifi.running;
+    assert.deepEqual([wifi.reachable, wifi.isolation.configured, wifi.isolation.verified], [false, false, false]);
+    assert.match(wifi.isolation.text, /^Not guaranteed: The BeerMat isolation helper is no longer running/);
+    const check = (await call('host/preflight')).checks.find(c => c.id === 'isolation');
+    assert.deepEqual([check.status, check.label], ['fail', 'Players kept off the internet']);
+    // Even phones that report cannot turn an unfiltered hotspot into a verified one.
+    const team = await call('join', {name: 'Leaky Llamas'});
+    await call('team/isolation', {ipv4: false, ipv6: false, dns: false}, team.secret);
+    assert.equal((await call('host/laptop')).wifi.running.isolation.verified, false);
+  });
+});
+
+test('Linux quiz Wi-Fi is unchanged: no isolation check is asked of phones', () => {
+  const laptop = fakeLaptop();
+  return fixture({laptop}, async ({call}) => {
+    await call('host/laptop/wifi', {action: 'start', card: 'auto', ssid: 'Quiz Night'}); laptop.finish(); await settle();
+    const team = await call('join', {name: 'Penguins'});
+    assert.equal((await call('state', {}, team.secret)).isolationCheck, undefined);
+    assert.equal((await call('team/isolation', {}, team.secret)).status, 409);
+    assert.equal((await call('host/laptop')).wifi.running.isolation, undefined);
+    assert.equal((await call('host/preflight')).checks.find(c => c.id === 'isolation'), undefined);
+  });
 });
 
 async function fixture(options, fn) {

@@ -76,15 +76,81 @@ yourself).
 * **Quiz Wi-Fi from this laptop**: **Quiz night → Start quiz Wi-Fi**.
   * *Linux*: as before (`scripts/hotspot.py`): an open network, with a sign-in window that opens the quiz by itself
     on most phones. Asks for your password. The laptop can stay on your own Wi-Fi.
-  * *Windows*: Windows' own **Mobile Hotspot**. Differences you should know:
+  * *Windows*: Windows' own **Mobile Hotspot**, kept off the internet (below). Differences you should know:
     * it always has a password (8–63 characters); the TV shows a Wi-Fi QR code with it, plus a second code for
-      the quiz address (`http://192.168.137.1:3000`). There is no sign-in window.
+      the quiz address (normally `http://192.168.137.1:3000`; BeerMat reads the address the hotspot's adapter really
+      got, so a changed ICS address works too). There is no sign-in window.
     * Windows only starts it while the laptop is connected to some network (it shares that connection). A laptop
       with no network at all needs a network cable, a phone's hotspot or a second Wi-Fi adapter, or use the venue
       Wi-Fi instead. The desk says so when it happens.
-    * no administrator rights are needed; **Stop quiz Wi-Fi** or closing BeerMat turns it off again.
+    * **Start quiz Wi-Fi asks for administrator approval** (one UAC prompt) to keep players off the internet. Say no
+      and the quiz Wi-Fi does not start. Stopping needs no approval. **Stop quiz Wi-Fi** or closing BeerMat (even if
+      it crashes) turns it off again.
     * not every Wi-Fi card can share while connected; the desk shows Windows' reason when it refuses.
 * **Online**: **Go online**, as before. Install cloudflared first (Windows: `winget install Cloudflare.cloudflared`).
+
+## Windows quiz Wi-Fi: no internet for players
+
+**Why it needs anything at all.** Mobile Hotspot is Internet Connection Sharing (ICS): it NATs phones onto the
+laptop's own connection and runs a DHCP server and a DNS proxy for them. Neither the WinRT tethering API nor ICS has a
+"local network only" setting, and Windows refuses to start the hotspot without a connection to share. Ordinary Windows
+Firewall rules only apply to traffic to and from the laptop itself, not to what ICS forwards, so they cannot stop it
+either.
+
+**What BeerMat does** (`scripts/hotspot-windows.ps1`). Starting the quiz Wi-Fi launches a small helper as
+administrator. The helper starts Mobile Hotspot itself, finds the hotspot's adapter (the Wi-Fi Direct virtual adapter
+holding ICS's address) and, within about a second, adds Windows Filtering Platform (WFP) filters in a *dynamic* WFP
+session, matched on that adapter only:
+
+| Layer | Filter |
+|---|---|
+| IP forward, IPv4 and IPv6 | block everything forwarded from or to the hotspot's phones (both directions) |
+| Inbound IP packet, IPv4 | from phones, allow only packets for the laptop's hotspot address, broadcast (DHCP) and multicast; block the rest, including the laptop's other addresses |
+| Inbound IP packet, IPv6 | allow only link-local and multicast; block the rest |
+| Receive/accept, IPv4 and IPv6 | block DNS (port 53) from phones, so ICS's DNS proxy cannot look names up on the internet for them |
+
+So phones keep DHCP and everything on the laptop's hotspot address (the quiz on port 3000, its WebSocket and SSE
+updates), and cannot reach the internet by IPv4, IPv6, a direct IP address or DNS. The laptop's own internet and its
+other networks are untouched: every filter is tied to the hotspot adapter.
+
+Nothing persists. Dynamic WFP filters are deleted by Windows when the helper's process ends, however it ends. No
+firewall rule, route, interface setting or ICS setting is written, and starting again first stops any earlier helper.
+The helper checks every 3 seconds that its filters are still there and the hotspot is on the same adapter; if not, or
+if BeerMat quits or crashes, it switches the hotspot off. If the filters cannot be added, the hotspot is switched off
+again with the reason: BeerMat never falls back to a hotspot that shares the internet.
+
+**What the desk shows**, separately (Tonight → Quiz night): quiz Wi-Fi on (adapter and address), devices connected,
+BeerMat answering at the hotspot address, internet isolation on (the helper is running, checked its filters in the
+last 20 seconds, on the hotspot's current adapter), and isolation **checked**: each phone that joins tries
+`http://1.1.1.1`, `http://[2606:4700:4700::1111]` and `http://neverssl.com` once and reports whether it got through.
+Isolation counts as checked only once phones report and none got through. A phone that got through is shown as a
+failure (it may have used its mobile data). If the filters are not on — the helper was killed, or Mobile Hotspot was
+started from Windows Settings instead of BeerMat — the desk and the pre-quiz checks warn in red. Linux is unchanged
+(`hotspot.py` already blocks forwarding with nftables).
+
+**Limitations.** One UAC prompt per start (WFP needs administrator rights; there is no unprivileged way). Mobile
+Hotspot still needs some network to share before Windows will start it, although phones get none of it. The filters
+go on a moment (well under a second) after the hotspot starts, before a phone can normally finish joining. Phones see
+"No internet" for the network: they stay on it, but some Android phones ask whether to stay connected, and phones with
+mobile data on use that for the internet, which BeerMat cannot prevent. This depends on Windows behaviour that the
+automated tests cannot exercise (they check the script's filter set and the desk's logic only), so it must be checked
+on a real Windows laptop:
+
+### Checking it on Windows
+
+1. Start the quiz Wi-Fi from the desk; approve the UAC prompt. The desk shows "Internet isolation on: 14 filters".
+   `netsh wfp show filters` (as administrator) lists filters named "BeerMat quiz Wi-Fi: …".
+2. A Windows laptop and an iPhone with mobile data **off** join the quiz Wi-Fi and play a round (answers, buzzer,
+   live updates).
+3. On the Windows client: `ping 1.1.1.1`, `curl http://1.1.1.1`, `curl -6 http://[2606:4700:4700::1111]`,
+   `nslookup example.com 192.168.137.1` and `nslookup example.com 8.8.8.8` all fail; `curl http://192.168.137.1:3000`
+   works. On the iPhone, Safari cannot open any website. The desk shows isolation **checked**.
+4. The quizmaster laptop still browses the internet throughout.
+5. Stop the quiz Wi-Fi: `netsh wfp show filters` has no BeerMat filters left. Start and stop five times: still none
+   while stopped, exactly one set while on.
+6. While on, end BeerMat in Task Manager: the hotspot goes off within a few seconds and the filters are gone. Kill
+   only the administrator `powershell.exe` helper: the filters are gone, and the desk warns that isolation is not on.
+7. Decline the UAC prompt: the quiz Wi-Fi does not start, and the desk says why.
 
 ## Your data
 
@@ -168,5 +234,5 @@ Signing (not done; needs credentials):
 See [TESTING.md](TESTING.md). In short: the desktop app (source and the packaged Linux build) starts, opens the desk
 logged in, opens and blanks the TV preview, restarts a killed quiz server without losing teams, hands over to an
 already running copy, and reopens a quiz, all automated on a private virtual screen. Choosing and following screens is
-tested with simulated screens. **Not yet checked by a person**: the Windows build running on Windows, the Windows
-hotspot, a real second screen/projector, and the first-run window.
+tested with simulated screens. **Not yet checked by a person**: the Windows hotspot's internet isolation (above), a
+real second screen/projector, and the first-run window.

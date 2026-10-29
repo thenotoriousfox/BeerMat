@@ -3,7 +3,8 @@
 // last message.
 // The quiz Wi-Fi differs by system. Linux: scripts/hotspot.py (NetworkManager; needs root, so it runs through pkexec
 // and the desktop's own password prompt), an open network with a sign-in window. Windows: scripts/hotspot-windows.ps1
-// (Windows' Mobile Hotspot; no administrator rights), which always has a password.
+// (Windows' Mobile Hotspot, kept off the internet by Windows Filtering Platform filters, so it asks for administrator
+// approval once per start), which always has a password.
 import {execFile, spawn} from 'node:child_process';
 import {existsSync} from 'node:fs';
 import os from 'node:os';
@@ -21,13 +22,17 @@ const tidy = out => out.split('\n').filter(l => l.trim() && !/^usage: /.test(l))
 // Node scripts run with this same runtime; inside the desktop app that is Electron, which runs them as plain Node with this.
 const nodeEnv = () => process.versions.electron ? {...process.env, ELECTRON_RUN_AS_NODE: '1'} : undefined;
 export const hotspotAddress = platform => platform === 'win32' ? '192.168.137.1' : '10.42.0.1';
+// Windows reports the address its hotspot adapter really has (ICS's ScopeAddress can move it off 192.168.137.1).
+const reported = (platform, address) => platform === 'win32' && /^\d{1,3}(\.\d{1,3}){3}$/.test(address || '') ? address : hotspotAddress(platform);
 
 export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cloudflared, python = '/usr/bin/python3', platform = process.platform,
-  powershell = 'powershell.exe', packDir = path.join(root, 'soundpack'),
+  powershell = 'powershell.exe', ownerPid = process.pid, hotspotState = path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'BeerMat', 'hotspot'), packDir = path.join(root, 'soundpack'),
   piper = [path.join(os.homedir(), '.local/opt/piper/bin/python'), path.join(os.homedir(), '.local/share/piper/en_GB-cori-high.onnx')]} = {}) {
   const windows = platform === 'win32';
   const hotspot = path.join(root, 'scripts', windows ? 'hotspot-windows.ps1' : 'hotspot.py'), script = name => path.join(root, 'scripts', name);
-  const ps = (...args) => [powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', hotspot, ...args]];
+  // The state folder is shared with the script's administrator helper; the owner is this process, and the helper
+  // switches the hotspot off if it goes away.
+  const ps = (...args) => [powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', hotspot, ...args, '-StateDir', hotspotState]];
   const jobs = {};
   // Looked for each time, so installing cloudflared while BeerMat runs is enough (tests pass a path, or null for none).
   const tool = () => cloudflared === undefined ? onPath('cloudflared') : cloudflared;
@@ -49,8 +54,9 @@ export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cl
     const result = windows ? await run(...ps('status'), 30000) : await run(python, [hotspot, 'status'], 10000);
     try {
       const status = JSON.parse(result.out.split('\n').find(l => l.startsWith('{')) || '');
-      return {available: true, platform: windows ? 'windows' : 'linux', needsPassword: windows, ...status, address: hotspotAddress(platform),
-        running: status.running ? {...status.running, address: hotspotAddress(platform)} : null};
+      const address = reported(platform, status.address);
+      return {available: true, platform: windows ? 'windows' : 'linux', needsPassword: windows, ...status, address,
+        running: status.running ? {...status.running, address: reported(platform, status.running.address || address)} : null};
     } catch {return {available: false};}
   }
   return {
@@ -67,7 +73,8 @@ export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cl
         // Windows' Mobile Hotspot is WPA2 only.
         requireValue(typeof password === 'string' && /^[\x20-\x7e]{8,63}$/.test(password), 'Windows needs a Wi-Fi password of 8–63 letters, numbers or symbols');
         const config = Buffer.from(JSON.stringify({ssid: ssid.trim(), password})).toString('base64');
-        return job('wifi', () => run(...ps('up', config), 120000), done);
+        // Up to 90 seconds of that is the administrator prompt.
+        return job('wifi', () => run(...ps('up', config, '-OwnerPid', String(ownerPid)), 180000), done);
       }
       requireValue(Number.isInteger(port) && port > 0 && port < 65536, 'Invalid port');
       job('wifi', () => run('pkexec', [python, hotspot, 'up', '--interface', card, '--ssid', ssid.trim(), '--port', String(port), '--apply', '--replace'], 180000), done);

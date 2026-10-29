@@ -55,6 +55,6 @@ async function firewall(platform, port, run) {
   return [];
 }
 
-async function fetchProbe(url) {
+export async function fetchProbe(url) {
   try {return (await fetch(url + '/health', {signal: AbortSignal.timeout(2000)})).ok;} catch {return false;}
 }
