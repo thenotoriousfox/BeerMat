@@ -4,7 +4,7 @@ flat stripe, so they show as bands. Here the gradient is worked out exactly and 
 4×4 ordered (Bayer) pattern, so neighbouring pixels average to the true colour: no pixel is more than one level off,
 and there are no stripes. Only the 4-pixel-wide pattern is made; QML tiles it across (Image.TileHorizontally).
 
-    image://gradient/<height in device pixels>/<device pixel ratio>/<rrggbb@position>,<rrggbb@position>,…
+    image://gradient/<height in device pixels>/<device pixel ratio (only to make the id unique)>/<rrggbb@position>,<rrggbb@position>,…
 
 install(engine) adds it to a QML engine; Desk/SmoothGradient.qml uses it."""
 from PySide6.QtGui import QColor, QImage
@@ -54,8 +54,10 @@ class GradientProvider(QQuickImageProvider):
     def requestImage(self, id, size, requested):
         if id not in self._made:
             height, ratio, stops = id.split('/', 2)
+            # Made at screen pixels, but no device pixel ratio of its own: Image already stretches it to its height
+            # (TileHorizontally) and applies the screen's ratio itself, so setting one here counted it twice and, at
+            # 125%, 150% or 200% scaling, cut the gradient short in a hard line part-way down the window.
             image = strip(int(height), stops_of(stops))
-            image.setDevicePixelRatio(float(ratio))
             if len(self._made) > 32:
                 self._made.clear()
             self._made[id] = image
