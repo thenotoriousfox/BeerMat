@@ -118,10 +118,10 @@ test('sound themes can be random for each question or chosen by question type', 
   } finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
 });
 
-test('Halloween: the shipped theme and look are there to choose, and never turn up by chance', async () => {
+test('Halloween, installed from the theme library: its theme and look are there to choose, and never turn up by chance', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-halloween-')), pack = path.join(dir, 'pack'), mp3 = Buffer.from([0xff, 0xfb, 0x90, 0x00, 1]);
   for (const f of ['general/correct.mp3', 'Themes/Arcade Theme/correct.mp3']) {mkdirSync(path.dirname(path.join(pack, f)), {recursive: true}); writeFileSync(path.join(pack, f), mp3);}
-  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: pack, soundsDir: path.join(dir, 'none')});
+  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: pack, soundsDir: path.join(dir, 'none'), myThemesDir: path.join(root, 'library')});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${quiz.server.address().port}`;
   const call = async (route, body = {}, key = '') => {const r = await fetch(`${base}/api/${route}`, {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: JSON.stringify(body)}); return {status: r.status, ...await r.json()};};

@@ -43,12 +43,25 @@ test('every shipped theme is complete: valid theme.json, its look styles only it
       assert.ok(loaded.file(id, match[2]) && existsSync(loaded.file(id, match[2])), `${url} exists`);
     }
   }
+});
+
+test('every library theme (library/, offered in the theme library, not shipped) is complete as well', () => {
+  const dir = path.join(root, 'library'), ids = readdirSync(dir, {withFileTypes: true}).filter(e => e.isDirectory()).map(e => e.name);
+  const loaded = loadThemes(dir);
+  assert.deepEqual(loaded.themes.map(t => t.id).sort(), ids.sort(), 'every folder loads');
+  assert.ok(!readdirSync(path.join(root, 'themes')).some(id => ids.includes(id)), 'not shipped as well');
+  for (const id of ids) {
+    const css = readFileSync(path.join(dir, id, 'look.css'), 'utf8');
+    for (const [, look] of css.matchAll(/data-look=([a-z0-9-]+)/g)) assert.equal(look, id, `${id}/look.css only styles its own look`);
+    for (const [, url] of css.matchAll(/url\(([^)]+)\)/g)) assert.ok(existsSync(path.join(dir, url.replace(/^\/themes\//, ''))), `${url} exists`);
+  }
   assert.deepEqual(Object.keys(loaded.themes.find(t => t.id === 'halloween').sounds).sort(), ['correct', 'endRound', 'questionStart', 'reveal', 'startRound', 'timeUp', 'timerMusic', 'wrong']);
 });
 
+// Halloween comes from the theme library: here it's installed on the laptop (library/ as its my-themes/).
 test('the server serves /themes.css and theme files, nothing else from the folder', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-themes-server-'));
-  const quiz = createQuiz({plan: 'pro', hostKey: 'a-secure-quiz-test-key', database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'none'), soundsDir: path.join(dir, 'none')});
+  const quiz = createQuiz({plan: 'pro', hostKey: 'a-secure-quiz-test-key', database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'none'), soundsDir: path.join(dir, 'none'), myThemesDir: path.join(root, 'library')});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${quiz.server.address().port}`;
   try {
@@ -68,7 +81,7 @@ test('the server serves /themes.css and theme files, nothing else from the folde
 
 test('the native apps get a look as data: its colours and its phone scenery', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-looks-'));
-  const quiz = createQuiz({plan: 'pro', hostKey: 'a-secure-quiz-test-key', database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'none'), soundsDir: path.join(dir, 'none')});
+  const quiz = createQuiz({plan: 'pro', hostKey: 'a-secure-quiz-test-key', database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'none'), soundsDir: path.join(dir, 'none'), myThemesDir: path.join(root, 'library')});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${quiz.server.address().port}`;
   try {

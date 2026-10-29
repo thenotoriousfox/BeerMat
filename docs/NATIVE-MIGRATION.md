@@ -182,6 +182,8 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
   releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
   `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
+* **Halloween moves to the theme library**: it's no longer shipped in `themes/`; its source is `library/halloween`,
+  uploaded to the theme library, and the tests install it as a laptop's own theme.
 * **Themes everywhere**: a theme's `tv.json` says what BeerMat Desk's TV draws beyond colours (Halloween's full web
   design: gradient title, eyebrow, question panel, scenery, all from data, `ThemeScene.qml`), and what the app draws
   on phones (its `phone` section); the Android app takes the look's colours and phone scenery (`GET /api/looks/<id>`).

@@ -38,7 +38,7 @@ const reasons = [
 	['room', 'Built for the room', 'A big Next button, a checklist before you start, buzzers with silly sounds, and a leaderboard reveal.'],
 	['saved', 'Nothing lost', 'Everything saves as you go. If the laptop restarts, the quiz carries on where it was, and teams keep their place.'],
 	['map', 'Your pub on the map', 'With BeerMat Pro, your pub and its quiz nights are on the BeerMat map, in the app and on this website, so players can find you.'],
-	['buzzer', 'A library of buzzers', 'Every team picks a buzzer sound. With BeerMat Pro, add more from a library other BeerMat pubs share, and share your own.'],
+	['buzzer', 'Libraries of buzzers and themes', 'Every team picks a buzzer sound, and the TV and phones dress up in a theme. With BeerMat Pro, add more of both from the BeerMat libraries (Halloween and other seasonal themes among them), and share your own.'],
 ] as const;
 ---
 <Page>
@@ -188,7 +188,7 @@ const reasons = [
 					<p class="mb-1 font-display text-4xl font-bold text-amber">{PRICE.monthly}<span class="text-lg text-muted"> a month</span></p>
 					<p class="text-muted">or {PRICE.yearly} a year (two months free)</p>
 					<ul class="mb-8 space-y-3">
-						{['Everything in Free', 'Host live quizzes: real teams, real answers and buzzers', 'Live scoring and leaderboards, as many teams as the room holds', 'Your pub and quiz nights on the BeerMat map', 'The shared buzzer library', 'Help by email when you need it', 'Works offline once activated; cancel any time from the desk'].map(item => (
+						{['Everything in Free', 'Host live quizzes: real teams, real answers and buzzers', 'Live scoring and leaderboards, as many teams as the room holds', 'Your pub and quiz nights on the BeerMat map', 'The shared buzzer library', 'The theme library: Halloween and more looks for the TV and phones', 'Help by email when you need it', 'Works offline once activated; cancel any time from the desk'].map(item => (
 							<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg>{item}</li>
 						))}
 					</ul>

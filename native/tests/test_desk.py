@@ -6,6 +6,7 @@ from open to reveal, the server is killed mid-quiz and comes back with nothing l
 """
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import time
@@ -62,6 +63,8 @@ class DeskCase(unittest.TestCase):
         self.dir = tempfile.TemporaryDirectory()
         self.quiz_file = Path(self.dir.name) / 'test-quiz.json'
         subprocess.run(['node', str(ROOT / 'scripts' / 'load-test-quiz.mjs'), '--json', str(self.quiz_file)], check=True, capture_output=True)
+        # Halloween installed from the theme library (it isn't shipped): the looks test uses it.
+        shutil.copytree(ROOT / 'library' / 'halloween', Path(self.dir.name) / 'data' / 'my-themes' / 'halloween')
         self.desk = Desk(Path(self.dir.name) / 'data', 'native-test-key-0123456789', port=0, laptop=False)
         self.engine = QQmlApplicationEngine()
         gradients.install(self.engine)

@@ -1,6 +1,6 @@
 # Themes
 
-Each folder here is one theme. BeerMat finds them when it starts, so adding a theme means adding a folder; no code
+Each folder here is one theme BeerMat ships. Themes offered only in the theme library (Halloween) are in `library/`, laid out the same way. BeerMat finds them when it starts, so adding a theme means adding a folder; no code
 changes. A theme gives the TV and phones a **look**, and with a `sounds/` folder it is also a **sound theme**.
 
 ```
@@ -32,7 +32,7 @@ themes/<id>/            id: lower-case letters, digits and hyphens
 
 BeerMat Desk's TV takes the look's colours from `look.css` (its `--bg`, `--gold`… tokens) but not the rest of the
 CSS. Anything else it draws comes from `tv.json`, laid out on the TV's 1920×1080 stage (pixels; the TV scales it).
-Colours are `#rgb`, `#rrggbb` or `rgba(r, g, b, a)`; every key is optional. `themes/halloween/tv.json` uses all of it.
+Colours are `#rgb`, `#rrggbb` or `rgba(r, g, b, a)`; every key is optional. `library/halloween/tv.json` uses all of it.
 
 ```
 {"background": {"gradient": [[0, "#0c0618"], [1, "#5a2140"]],          top to bottom: [position 0–1, colour]
