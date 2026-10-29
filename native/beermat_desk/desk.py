@@ -714,7 +714,7 @@ class Desk(QObject):
     def loadQuiz(self, url):
         path = url.toLocalFile() if isinstance(url, QUrl) else str(url)
         played = bool((self._state or {}).get('history') or (self._state or {}).get('teams'))
-        if played:
+        if played or self.library.dirty:
             self.confirmLoad.emit(path)
         else:
             self.loadQuizConfirmed(path)
@@ -747,6 +747,8 @@ class Desk(QObject):
                     if holder.get(key) in uploaded:
                         holder[key] = uploaded[holder[key]]
                 self._busy = False
+                # The loaded quiz replaces whatever the Quizzes page was editing.
+                self.library.discard()
                 self._act('new-event', {'questions': 'load', 'quiz': quiz}, f'Quiz loaded: {title}')
                 return
             value = pending[0]

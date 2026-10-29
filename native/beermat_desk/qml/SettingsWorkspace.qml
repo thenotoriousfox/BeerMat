@@ -100,7 +100,9 @@ ScrollView {
         RowLayout {
             anchors.fill: parent; spacing: 20
             ListView {
-                Layout.fillWidth: true; Layout.minimumWidth: 420; Layout.fillHeight: true; clip: true; spacing: 4
+                // The file names sit next to their buttons rather than across the whole width.
+                Layout.fillWidth: true; Layout.minimumWidth: 420; Layout.maximumWidth: 760; Layout.fillHeight: true; clip: true; spacing: 4
+                ScrollBar.vertical: ScrollBar {}
                 model: desk.prefs.slots
                 delegate: RowLayout {
                     required property var modelData
@@ -114,11 +116,12 @@ ScrollView {
                 }
             }
             ColumnLayout {
-                Layout.preferredWidth: 380; Layout.maximumWidth: 380; Layout.fillWidth: false; Layout.fillHeight: true; spacing: 6
+                Layout.preferredWidth: 420; Layout.fillWidth: true; Layout.fillHeight: true; spacing: 6; Layout.leftMargin: 24
                 Text { text: "Extra buzzer sounds"; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
                 Text { text: "Teams pick one for their buzz, after the eight built-in ones."; color: Theme.faint; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                 ListView {
                     Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 2
+                    ScrollBar.vertical: ScrollBar {}
                     model: settings.pack.buzzers || []
                     delegate: RowLayout {
                         required property var modelData
@@ -256,11 +259,12 @@ ScrollView {
                 ComboBox {
                     Layout.preferredWidth: 380
                     textRole: "name"; valueRole: "id"
-                    model: [{id: "", name: "The system's default output"}].concat(desk.sound.outputs)
+                    model: [{id: "auto", name: "Automatic: the TV's own speakers (HDMI) when it's full screen"}, {id: "laptop", name: "This laptop (the system's default output)"}].concat(desk.sound.outputs)
                     currentIndex: Math.max(0, indexOfValue(desk.sound.output))
                     onActivated: desk.sound.chooseOutput(currentValue)
                 }
-                Text { text: "Sound effects, music, clips and songs play here while the TV is open."; color: Theme.faint; font.pixelSize: 12 }
+                DeskButton { text: "Test sound"; implicitHeight: 34; onClicked: desk.sound.test() }
+                Text { text: `Playing on: ${desk.sound.activeOutput}. Sound effects, music, clips and songs play here while the TV is open.`; color: Theme.faint; font.pixelSize: 12 }
             }
             Text {
                 Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 12

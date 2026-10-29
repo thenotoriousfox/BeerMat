@@ -87,6 +87,38 @@ class DeskCase(unittest.TestCase):
             (window or self.window).grabWindow().save(str(Path(self.shots) / f'native-{name}.png'))
 
 
+class QuizzesPageTest(DeskCase):
+    def test_loading_a_quiz_replaces_the_quizzes_page(self):
+        desk, lib = self.desk, self.desk.quizzes
+        desk.start()
+        wait(lambda: desk.connected and desk.view.get('phase'), what='the server')
+        desk.loadQuizConfirmed(str(self.quiz_file))
+        wait(lambda: lib.title == 'Test quiz' and lib.outline, timeout=30, what='the quiz on the Quizzes page', log=self.toasts)
+        first = next(r for r in lib.outline if r['kind'] == 'question')
+        lib.select(first['round'], first['question'])
+        # Clicking into a box and out again, nothing typed: nothing changed, so nothing is unsaved.
+        lib.setField('text', lib.question['text'])
+        lib.setField('answerNote', lib.question.get('answerNote') or '')
+        self.assertFalse(lib.dirty)
+        second = json.loads(self.quiz_file.read_text())
+        second['title'], second['rounds'] = 'Second quiz', second['rounds'][:1]
+        path = Path(self.dir.name) / 'second.json'
+        path.write_text(json.dumps(second))
+        desk.loadQuizConfirmed(str(path))
+        wait(lambda: lib.title == 'Second quiz', timeout=30, what='the second quiz on the Quizzes page', log=self.toasts)
+        # A real unsaved edit: loading asks first, then the loaded quiz replaces it.
+        lib.select(0, 0)
+        lib.setField('text', 'An edit nobody saved')
+        self.assertTrue(lib.dirty)
+        asked = []
+        desk.confirmLoad.connect(asked.append)
+        desk.loadQuiz(str(self.quiz_file))
+        self.assertEqual(asked, [str(self.quiz_file)])
+        desk.loadQuizConfirmed(str(self.quiz_file))
+        wait(lambda: lib.title == 'Test quiz' and not lib.dirty, timeout=30, what='the loaded quiz to replace the unsaved edit', log=self.toasts)
+        self.assertNotIn('An edit nobody saved', [r['text'] for r in lib.outline])
+
+
 class DeskTest(DeskCase):
     def test_runs_a_question_and_survives_a_server_crash(self):
         desk = self.desk

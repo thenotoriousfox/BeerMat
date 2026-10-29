@@ -75,6 +75,13 @@ class Library(QObject):
             self._draft = copy.deepcopy(library)
         self.changed.emit()
 
+    def discard(self):
+        """A quiz file was loaded: its quiz replaces any unsaved edits (the desk asked first), with nothing selected."""
+        self._dirty, self._selected = False, (-1, -1)
+        if self._server is not None:
+            self._draft = copy.deepcopy(self._server)
+        self.changed.emit()
+
     # ---- what QML sees ----
     @Property(bool, notify=changed)
     def dirty(self):
@@ -157,6 +164,9 @@ class Library(QObject):
             value = [line.strip() for line in str(value).split('\n') if line.strip()]
         elif field in ('points', 'seconds'):
             value = int(value)
+        # Leaving a box without typing anything (or typing the same thing) changes nothing: no "unsaved" quiz.
+        if q.get(field, '' if field not in LIST_FIELDS else []) == value or (value in ('', [], None) and field not in q):
+            return
         if value in ('', [], None) and field not in ('text',):
             q.pop(field, None)
         else:

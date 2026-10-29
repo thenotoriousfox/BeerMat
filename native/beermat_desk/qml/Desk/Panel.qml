@@ -19,7 +19,7 @@ Rectangle {
         RowLayout {
             visible: panel.title !== ""
             Layout.fillWidth: true
-            Text { text: panel.title; color: Theme.text; font.family: Theme.display; font.pixelSize: 15; font.weight: Font.DemiBold; Layout.fillWidth: true }
+            Text { text: panel.title; color: Theme.text; font.family: Theme.display; font.pixelSize: 18; font.weight: Font.Bold; Layout.fillWidth: true }
             Item { id: extra; implicitWidth: childrenRect.width; implicitHeight: childrenRect.height }
         }
         Item { id: body; Layout.fillWidth: true; Layout.fillHeight: true }

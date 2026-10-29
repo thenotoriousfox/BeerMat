@@ -187,7 +187,12 @@ ColumnLayout {
                         }
                     }
                     Text { visible: parent.count === 0; anchors.centerIn: parent; width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
-                           text: "No teams yet: they scan the code on the TV."; color: Theme.muted; font.pixelSize: 13 }
+                           // In a rehearsal real phones are only testing their connection; simulated teams do the playing.
+                           text: view.mode === "rehearsal"
+                                 ? ((view.devices || []).length ? `${view.devices.length} test ${view.devices.length === 1 ? "phone is" : "phones are"} connected (they test the connection, not play). ` : "")
+                                   + "Start the rehearsal (Rehearsal) to add simulated teams."
+                                 : "No teams yet: they scan the code on the TV."
+                           color: Theme.muted; font.pixelSize: 13 }
                 }
             }
 

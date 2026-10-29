@@ -12,6 +12,16 @@ ApplicationWindow {
     width: 1440; height: 900
     minimumWidth: 1024; minimumHeight: 640
     visible: true
+    // The Basic style draws drop-downs, number boxes, checkboxes and sliders from the palette: the desk's own colours,
+    // so none of them is a light system widget on the dark desk. Popups and dialogs inherit it.
+    palette {
+        window: Theme.panel; windowText: Theme.text; base: Theme.bg2; alternateBase: Theme.panelRaised
+        text: Theme.text; placeholderText: Theme.faint; button: Theme.panelRaised; buttonText: Theme.text; brightText: Theme.text
+        highlight: Theme.gold; highlightedText: Theme.onAccent; toolTipBase: Theme.panelRaised; toolTipText: Theme.text
+        light: Theme.panelRaised; midlight: "#3a2a6e"; mid: "#4a3a80"; dark: Theme.gold; shadow: "#000000"
+        link: Theme.goldHi; linkVisited: Theme.gold
+        disabled.text: Theme.faint; disabled.buttonText: Theme.faint; disabled.windowText: Theme.faint; disabled.button: Theme.panel
+    }
     title: desk.view.event ? `BeerMat Desk — ${desk.view.event}` : "BeerMat Desk"
     color: Theme.bg
 
@@ -65,6 +75,8 @@ ApplicationWindow {
     }
     // The TV's sounds play while the TV is showing, as Electron's TV window does.
     Binding { target: desk.sound; property: "on"; value: screens.open && !screens.blanked }
+    // "Automatic" sends the TV's sound down its own cable while it is full screen on its screen, as the Electron app.
+    Binding { target: desk.sound; property: "tvOnScreen"; value: screens.open && screens.fullScreen }
     Repeater {
         model: window.workspaces.length
         delegate: Item { required property int index; Shortcut { sequence: `Ctrl+${index + 1}`; onActivated: window.workspace = index } }
@@ -103,7 +115,8 @@ ApplicationWindow {
         target: desk
         function onToast(message, error) { toast.show(message, error) }
         function onConfirmLoad(path) {
-            window.ask("Load a new quiz?", "Start a fresh quiz with this file? The current quiz ends: its results are saved, and all teams and scores are cleared.",
+            window.ask("Load a new quiz?", "Start a fresh quiz with this file? The current quiz ends: its results are saved, and all teams and scores are cleared."
+                       + (desk.quizzes.dirty ? " Unsaved changes on the Quizzes page are discarded." : ""),
                        () => desk.loadQuizConfirmed(path))
         }
         function onConfirmFinish(text) { window.ask("Finish the quiz?", text, () => desk.finishConfirmed()) }
@@ -220,7 +233,8 @@ ApplicationWindow {
         id: toast
         property bool error: false
         function show(message, isError) { label.text = message; error = isError; opacity = 1; hide.restart() }
-        anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 24; anchors.bottomMargin: 120
+        // Top right, under the status bar: clear of the live controls and the lists people are reading.
+        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 24; anchors.topMargin: 92
         width: Math.min(460, label.implicitWidth + 36); height: label.implicitHeight + 24
         radius: 12
         color: error ? "#3a1020" : Theme.panelRaised
