@@ -52,6 +52,16 @@ def buttons_outside_panels(root):
     return spilled
 
 
+def walk_named(item, name):
+    for c in children(item):
+        try:
+            if c.objectName() == name:
+                yield c
+        except (TypeError, AttributeError):
+            continue
+        yield from walk_named(c, name)
+
+
 class SettingsLayoutTest(DeskCase):
     def test_nothing_spills_out_of_its_panel(self):
         self.desk.start()
@@ -63,6 +73,11 @@ class SettingsLayoutTest(DeskCase):
             w.setProperty('height', 760)
             pump(40)
             self.assertEqual(buttons_outside_panels(w.contentItem()), [], f'{width} wide')
+        # Each keyboard shortcut's key fits its chip (⌫ Backspace once ran into its description).
+        keys = [k for k in walk_named(w.contentItem(), 'shortcutKey')]
+        self.assertGreaterEqual(len(keys), 9)
+        for k in keys:
+            self.assertLessEqual(k.property('implicitWidth') + 8, k.parentItem().property('width'), k.property('text'))
 
 
 if __name__ == '__main__':

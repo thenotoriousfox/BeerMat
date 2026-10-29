@@ -341,12 +341,13 @@ ScrollView {
             anchors.fill: parent; columns: 4; columnSpacing: 24; rowSpacing: 6
             Repeater {
                 model: [["N", "Next (question, round, leaderboard step, finish)"], ["⌫ Backspace", "Back one step"], ["C", "Close answers"], ["P", "Pause / resume the timer"],
-                        ["R", "Reveal the answer"], ["Ctrl+O", "Load a quiz file"], ["F7", "Show or close the TV"], ["F8", "Blank the TV"], ["Ctrl+1…6", "Switch workspace"]]
+                        ["R", "Reveal the answer"], ["Ctrl+O", "Load a quiz file"], ["F7", "Show or close the TV"], ["F8", "Blank the TV"], ["Ctrl+1…7", "Switch workspace"]]
                 delegate: RowLayout {
                     required property var modelData
                     Layout.fillWidth: true
-                    Rectangle { width: 74; height: 24; radius: 6; color: Theme.panelRaised; border.color: Theme.line
-                                Text { anchors.centerIn: parent; text: modelData[0]; color: Theme.text; font.pixelSize: 12; font.weight: Font.Bold } }
+                    // The key, in a chip as wide as its label needs (⌫ Backspace is wider than a letter).
+                    Rectangle { Layout.preferredWidth: Math.max(74, key.implicitWidth + 16); Layout.preferredHeight: 24; radius: 6; color: Theme.panelRaised; border.color: Theme.line
+                                Text { id: key; objectName: "shortcutKey"; anchors.centerIn: parent; text: modelData[0]; color: Theme.text; font.pixelSize: 12; font.weight: Font.Bold } }
                     Text { text: modelData[1]; color: Theme.muted; font.pixelSize: 13; Layout.fillWidth: true; elide: Text.ElideRight }
                 }
             }
