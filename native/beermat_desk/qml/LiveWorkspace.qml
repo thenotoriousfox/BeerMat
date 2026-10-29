@@ -18,6 +18,51 @@ ColumnLayout {
     signal shareQuiz()
     spacing: Theme.gap
 
+    // ---- a TV without a cable: its own browser opens the TV page (/tv) on the quiz Wi-Fi ----
+    Popup {
+        id: cableFree
+        objectName: "cableFree"
+        readonly property var settings: desk.tv.settings || {}
+        readonly property string address: settings.joinUrl ? settings.joinUrl.replace(/\/$/, "") + "/tv" : ""
+        readonly property bool hotspot: !settings.online && settings.joinMode !== "lan"
+        parent: Overlay.overlay; anchors.centerIn: parent; modal: true; padding: 24
+        width: Math.min(parent.width - 80, 860)
+        background: Rectangle { color: Theme.panel; radius: Theme.radius; border.color: Theme.lineStrong }
+        contentItem: ColumnLayout {
+            spacing: 14
+            Text { text: "A TV without a cable"; color: Theme.text; font.family: Theme.display; font.pixelSize: 24; font.weight: Font.Bold }
+            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
+                   text: "A smart TV, or a Fire TV or Google TV stick, can show the quiz by itself: its web browser opens the TV page from this laptop. It draws the quiz on the TV, so it’s as sharp as the TV and barely touches the Wi-Fi. Keep the desk’s own TV window closed (or on another screen)." }
+            RowLayout {
+                spacing: 24; Layout.fillWidth: true
+                Rectangle {
+                    Layout.preferredWidth: 220; Layout.preferredHeight: 220; radius: 16; color: "white"; visible: !!cableFree.address
+                    QrCode { anchors.fill: parent; anchors.margins: 12; text: cableFree.address }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 10
+                    Repeater {
+                        model: [
+                            cableFree.hotspot ? `Connect the TV to the “${cableFree.settings.joinSsid || "BeerMat"}” Wi-Fi${cableFree.settings.joinPassword ? " (password " + cableFree.settings.joinPassword + ")" : ""}, as the phones do.`
+                                              : cableFree.settings.online ? "The TV only needs the internet: the quiz has a web address tonight." : "Connect the TV to the venue’s Wi-Fi, the one the phones use.",
+                            "Open the TV’s web browser (on a Fire TV stick: Silk; on Google TV: any browser from its app store).",
+                            "Go to the address below (or scan the code with a phone and send it to the TV).",
+                            "Press OK on “Start the TV”: full screen, with sound."
+                        ]
+                        delegate: Text { required property string modelData; required property int index
+                                         text: `${index + 1}.  ${modelData}`; color: Theme.text; font.pixelSize: 15; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                    }
+                }
+            }
+            Rectangle {
+                Layout.fillWidth: true; implicitHeight: 64; radius: 12; color: Theme.bg2; border.color: Theme.gold
+                Text { objectName: "tvAddress"; anchors.centerIn: parent; text: cableFree.address || "Set how players join (Venue & network) first"; color: Theme.goldHi
+                       font.family: Theme.display; font.pixelSize: cableFree.address ? 30 : 16; font.weight: Font.Bold }
+            }
+            DeskButton { text: "Close"; Layout.alignment: Qt.AlignRight; implicitHeight: 36; onClicked: cableFree.close() }
+        }
+    }
+
     // ---- the quiz is over: share it ----
     Rectangle {
         objectName: "shareFinished"
@@ -205,6 +250,7 @@ ColumnLayout {
                         spacing: 6
                         DeskButton { text: screens.open ? "Close TV" : "Show TV"; shortcutHint: "F7"; implicitHeight: 34; onClicked: screens.toggle() }
                         DeskButton { text: screens.blanked ? "Unblank" : "Blank"; shortcutHint: "F8"; implicitHeight: 34; enabled: screens.open; onClicked: screens.setBlank(!screens.blanked) }
+                        DeskButton { objectName: "tvWithoutCable"; text: "TV without a cable…"; implicitHeight: 34; onClicked: cableFree.open() }
                     }
                 }
             }

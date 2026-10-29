@@ -70,6 +70,8 @@ const T = {
   'Leaderboard': ['Classement', 'Clasificación'],
   '🔊 Enable sound': ['🔊 Activer le son', '🔊 Activar el sonido'],
   '⛶ Full screen': ['⛶ Plein écran', '⛶ Pantalla completa'],
+  '▶ Start the TV': ['▶ Démarrer la télé', '▶ Iniciar la tele'],
+  'Press OK on the remote: full screen with sound.': ['Appuyez sur OK sur la télécommande : plein écran avec le son.', 'Pulsa OK en el mando: pantalla completa con sonido.'],
   '✕ Exit full screen': ['✕ Quitter le plein écran', '✕ Salir de pantalla completa'],
   'Join the quiz on your phone': ['Rejoignez le quiz sur votre téléphone', 'Únete al quiz con tu móvil'],
   'Scan with your phone camera': ['Scannez avec l’appareil photo', 'Escanea con la cámara del móvil'],

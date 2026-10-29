@@ -40,6 +40,15 @@ a day; after that the laptop can rehearse but not go live.
 **Preflight check** (Tonight) checks the quiz, its pictures and sounds, the database, disk space, the network, the quiz
 Wi-Fi, and in the app the screens and sound, and says plainly what it couldn't check.
 
+## A TV without a cable
+
+A smart TV, or a Fire TV or Google TV stick, can show the quiz without an HDMI cable to the laptop: its own web browser
+opens the TV page from the laptop. **TV without a cable…** (Live, under the TV preview) shows the address, a QR code and
+the steps: connect the TV to the quiz Wi-Fi (or the venue network, if players use that), open its browser, go to the
+address (the join address with `/tv` on the end, e.g. `http://10.42.0.1/tv`) and press OK on **Start the TV**, which
+goes full screen with sound. The TV draws the quiz itself, so it's as sharp as the TV and barely uses the Wi-Fi. Keep
+the desk's own TV window closed, or on another screen.
+
 ## Before the room fills
 
 1. **Desktop app** (Windows or Linux, [DESKTOP.md](DESKTOP.md)): open **BeerMat**; the desk opens unlocked and the TV display goes full screen on a second screen by itself. Choose how players join under **How players join** (venue Wi-Fi, below) or start the quiz Wi-Fi in **Quiz night**. From source on Linux, `./scripts/setup.sh --app` puts the desktop app in the app menu. **Browser launcher** (`./scripts/setup.sh --browser-app`): click **BeerMat** in the app menu and type the host key: the desk opens unlocked in the browser. In **Quiz night** at the top, press **Start quiz Wi-Fi** and enter your laptop password. (From a terminal: `./scripts/quiz-night.sh` does the same, Ctrl+C ends it; or `./scripts/start.sh` for BeerMat alone, then open `http://localhost:3000/host`.) After the quiz, **Close BeerMat** takes the Wi-Fi down and stops the server.
