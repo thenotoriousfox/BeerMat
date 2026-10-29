@@ -691,3 +691,10 @@ body.idle .screen-controls button { opacity: 0; pointer-events: none; }
 .preflight li { display: grid; grid-template-columns: 26px 1fr; gap: 4px 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
 .preflight .mark { font-weight: 900; } .preflight .pass .mark { color: var(--good); } .preflight .warn .mark { color: var(--gold); } .preflight .fail .mark { color: var(--bad); } .preflight .unknown .mark { color: var(--muted); }
 .preflight strong { display: block; } .preflight span.text { grid-column: 2; color: var(--muted); font-size: .9rem; }
+
+/* Desk: the theme library's pictures of each theme (TV, app, browser). */
+.theme-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.theme-pictures { display: flex; gap: 6px; align-items: flex-end; }
+.theme-pictures img { border-radius: 6px; background: var(--bg-2, #140b2e); object-fit: contain; }
+.theme-pictures .theme-tv { width: 192px; aspect-ratio: 16 / 9; }
+.theme-pictures .theme-app, .theme-pictures .theme-browser { height: 108px; aspect-ratio: 390 / 844; }

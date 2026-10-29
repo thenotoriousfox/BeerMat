@@ -1246,6 +1246,15 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p.startsWith('/api/host/theme-library/')) {
           const what = p.slice('/api/host/theme-library/'.length), theme = typeof body.id === 'string' && themeIdPattern.test(body.id) ? body.id : null;
           requireValue(theme, 'Choose a theme');
+          // A preview picture for the web desk, which shows only pictures from this laptop (its page's policy).
+          if (what === 'preview') {
+            requireValue(['tv', 'app', 'browser'].includes(body.kind), 'No such preview');
+            const base = onlineBase().replace(/\/$/, ''), response = await fetchImpl(`${base}/v1/themes/${theme}/previews/${body.kind}`, {signal: AbortSignal.timeout(15000)}).catch(() => null);
+            requireValue(response?.ok, 'No preview', 404);
+            const type = response.headers.get('content-type') || '';
+            requireValue(/^image\/(jpeg|png|webp)$/.test(type), 'No preview', 404);
+            return send(200, {type, image: Buffer.from(await response.arrayBuffer()).toString('base64')});
+          }
           if (what === 'uninstall') {
             requireValue(/^s-[0-9a-f]{10}$/.test(theme) && existsSync(path.join(myThemesDir, theme)), 'Only themes installed from the library can be removed here');
             rmSync(path.join(myThemesDir, theme), {recursive: true, force: true});
