@@ -119,7 +119,7 @@ Players never pay. A venue has a plan, **free** or **pro** (with an end date, or
 
 ## The shared buzzer library
 
-Venues on Pro share short buzzer clips with each other from the desk (**Settings → Sounds → Shared buzzer library**).
+Venues on Pro share short buzzer clips with each other from the desk (**Library → Buzzers**, in the desk's left rail).
 
 * **Seeing it is public**: `GET /v1/buzzers?q=` lists names and lengths (never who shared a clip), so a Free desk sees
   what Pro would give it.
@@ -143,7 +143,7 @@ Venues on Pro share short buzzer clips with each other from the desk (**Settings
 ## The theme library
 
 Venues on Pro share themes (whole theme folders: a look, TV scenery, phone scenery, sounds) with each other from the
-desk (**Settings → Looks → Theme library**). Unlike buzzers, **nothing is in the library until an admin approves it**,
+desk (**Library → Themes**, in the left rail). Unlike buzzers, **nothing is in the library until an admin approves it**,
 because a theme's stylesheet runs on other venues' TVs and phones.
 
 * **Checked twice** by `shared/theme-bundle.js`: here on upload, and again on the laptop that installs it. Only
