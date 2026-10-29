@@ -468,11 +468,17 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   }
   // The leaderboard revealed position by position from the desk (after a round, and when the quiz finishes): `shown`
   // rows from the bottom; one more than the rows below first place reveals first place, and the whole board.
+  // The leaderboard revealed a step at a time: from the bottom up to third place (`rest` of them), then the leader
+  // (`leader`: the TV's first-place spotlight), then second place (`second` is that step next), which completes the
+  // board (`done`). `hidden` names the teams the TV still keeps back.
   function boardReveal() {
     const q = latest(), b = getMeta('board', null);
     if (!b || !q || b.question !== q.id || pending(q)) return null;
-    const rest = scores().filter(t => t.rank > 1).length;
-    return {question: q.id, shown: b.shown, rest, done: b.shown > rest};
+    const teams = scores(), others = teams.filter(t => t.rank > 2), seconds = teams.some(t => t.rank === 2);
+    const rest = others.length, k = b.shown, done = k > rest + (seconds ? 1 : 0);
+    const shown = new Set(others.slice(others.length - Math.min(k, rest)).map(t => t.id));
+    const hidden = done ? [] : teams.filter(t => t.rank === 1 ? k <= rest : t.rank === 2 ? k <= rest + 1 : !shown.has(t.id)).map(t => t.name);
+    return {question: q.id, shown: k, rest, leader: k > rest, second: seconds && k === rest + 1, done, hidden};
   }
   // What the desk's Next button can do with the board: show it at the end of a round (when there is a board to show
   // and more questions to come; the last round's reveal comes with Finish quiz), then reveal it.

@@ -21,7 +21,7 @@ from . import looks
 from .online import OnlineVenue
 from .prefs import Prefs
 
-STEP_LABELS = {'reveal': 'Reveal next position', 'revealFirst': 'Reveal first place', 'show': 'Show leaderboard',
+STEP_LABELS = {'reveal': 'Reveal next position', 'revealFirst': 'Reveal the leader', 'revealSecond': 'Reveal second place', 'show': 'Show leaderboard',
                'finish': 'Finish quiz', 'round': 'Start next round', 'question': 'Start next question'}
 # Quiz files carry their pictures and sounds inside them (data: URLs); each is uploaded before the quiz loads, as the
 # web desk does (unpackMedia in web/host.js).
@@ -402,7 +402,7 @@ class Desk(QObject):
         """Mirrors nextStep() in web/host.js: the next thing the big button does."""
         board = s.get('board') or {}
         if board.get('active') and not board.get('done'):
-            return 'revealFirst' if board.get('shown') == board.get('rest') else 'reveal'
+            return 'revealFirst' if board.get('shown') == board.get('rest') else 'revealSecond' if board.get('second') else 'reveal'
         if s.get('settings', {}).get('ended'):
             return None
         if board.get('canShow'):
@@ -450,8 +450,8 @@ class Desk(QObject):
             self.confirmFinish.emit(f'{tied}Finish this quiz and close answers and registration? You can resume it later.')
         elif step == 'show':
             self._act('board', {'action': 'show'}, 'Leaderboard on the TV')
-        elif step in ('reveal', 'revealFirst'):
-            self._act('board', {'action': 'next'}, 'First place revealed' if step == 'revealFirst' else 'Next position revealed')
+        elif step in ('reveal', 'revealFirst', 'revealSecond'):
+            self._act('board', {'action': 'next'}, {'revealFirst': 'The leader revealed', 'revealSecond': 'Second place revealed: the full board'}.get(step, 'Next position revealed'))
         else:
             self._act('next', {'expectedQuestion': self._expected()}, 'Next question opened')
 

@@ -404,12 +404,12 @@ function showLeader(s) {
   cheerLeaders(top, 600);
   clearTimeout(firstTimer); firstTimer = setTimeout(() => {box.hidden = true;}, 5000 + (top.length - 1) * 2500);
 }
-// The leaderboard revealed from the desk, position by position from the bottom: rows wait hidden until their turn,
-// and first place gets the spotlight (showLeader, from soundCues) when its turn comes.
+// The leaderboard revealed from the desk: from the bottom up to third place, then the leader (who gets the spotlight,
+// showLeader from soundCues), then second place, which completes the board. The server names the rows still hidden.
 function applyReveal(s) {
-  const r = s.reveal, rows = [...$('leaderboard').children], shown = r && !r.done ? r.shown : Infinity;
-  rows.forEach((li, i) => li.classList.toggle('shown', rows.length - i <= shown));
-  $('leaderboard').classList.toggle('revealing', shown !== Infinity);
+  const r = s.reveal, rows = [...$('leaderboard').children], hidden = new Set(r && !r.done ? r.hidden || [] : []);
+  rows.forEach((li, i) => li.classList.toggle('shown', !hidden.has(s.teams[i]?.name)));
+  $('leaderboard').classList.toggle('revealing', !!r && !r.done);
 }
 // The wheel always turns forwards and stops with the server's chosen segment under the pointer. It clicks each time
 // a segment edge passes the pointer, so the clicks slow down with the wheel.
@@ -466,12 +466,12 @@ const quiet = q => silentTypes.includes(q.type) || q.playsSong || /\.(mp3|ogg|wa
 function soundCues(s) {
   const q = s.question, before = heard;
   heard = {id: q?.id, round: q?.round, open: !!q?.open, revealing: !!q?.revealing, revealed: !!q?.revealed, calls: q?.bingo?.count ?? 0, shouts: Object.fromEntries((q?.bingo?.shouts || []).map(x => [x.id, x.status])),
-    buzz: Object.fromEntries((q?.buzz?.queue || []).map(b => [b.team, b.status])), view: s.view, boardDone: s.reveal?.done ? s.reveal.question : null};
+    buzz: Object.fromEntries((q?.buzz?.queue || []).map(b => [b.team, b.status])), view: s.view, boardLeader: s.reveal?.leader ? s.reveal.question : null};
   const music = !!q?.open && !q.paused && !quiet(q) && countdownFor !== q.id;
   if (music !== musicOn) {musicOn = music; if (music) playSound('timerMusic', true); else stopSound('timerMusic');}
   if (!before) return;
   if (s.view === 'leaderboard' && before.view === 'question' && s.settings.displayMode === 'auto') playSound('endRound');
-  if (s.reveal?.done && before.boardDone !== s.reveal.question) showLeader(s);
+  if (s.reveal?.leader && before.boardLeader !== s.reveal.question) showLeader(s);
   if (q && q.id !== before.id && q.live) {if (!(q.round && q.round !== before.round && playSound('startRound'))) playSound('questionStart');}
   if (q?.id !== before.id) return;
   // A countdown that ran to the end has its own ring-out, so time's up only sounds without one.

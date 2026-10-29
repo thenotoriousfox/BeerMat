@@ -83,7 +83,7 @@ test('the TV knows each team’s buzzer sound, so first place and the winner hea
   assert.deepEqual((await board()).teams.map(t => [t.name, t.sound]), [['Fox', 6], ['Owl', null]]);
 }));
 
-test('after a round, Next shows the leaderboard, reveals it from the bottom with first place last, then starts the next round', () => fixture(async ({call, board}) => {
+test('after a round, Next shows the leaderboard, reveals it from the bottom, then the leader, then second place, then starts the next round', () => fixture(async ({call, board}) => {
   const teams = {}; for (const name of ['Ant', 'Bee', 'Cat']) teams[name] = await call('join', {name});
   await call('host/library/save', {revision: 0, quiz: {title: 'Steps', rounds: [{id: 'r1', title: 'One', questions: [{id: 'a', ...question()}]}, {id: 'r2', title: 'Two', questions: [{id: 'b', ...question()}]}]}});
   let {id} = await call('host/next', {expectedQuestion: null});
@@ -92,10 +92,12 @@ test('after a round, Next shows the leaderboard, reveals it from the bottom with
   const desk = (await call('host/state')).board;
   assert.deepEqual([desk.canShow, desk.active, desk.roundOver], [true, false, true]);
   await call('host/board', {action: 'show'});
-  let tv = await board(); assert.equal(tv.view, 'leaderboard'); assert.deepEqual(tv.reveal, {question: id, shown: 0, rest: 2, done: false});
-  await call('host/board', {action: 'next'}); await call('host/board', {action: 'next'});
-  tv = await board(); assert.deepEqual([tv.reveal.shown, tv.reveal.done], [2, false]);
-  await call('host/board', {action: 'next'}); assert.equal((await board()).reveal.done, true, 'first place revealed');
+  // Ant scored; Bee and Cat share second place, so there is nobody below second: the leader comes first.
+  let tv = await board(); assert.equal(tv.view, 'leaderboard');
+  assert.deepEqual(tv.reveal, {question: id, shown: 0, rest: 0, leader: false, second: false, done: false, hidden: ['Ant', 'Bee', 'Cat']});
+  await call('host/board', {action: 'next'});
+  tv = await board(); assert.deepEqual([tv.reveal.leader, tv.reveal.second, tv.reveal.done, tv.reveal.hidden], [true, true, false, ['Bee', 'Cat']], 'the leader, second place still hidden');
+  await call('host/board', {action: 'next'}); assert.deepEqual([(await board()).reveal.done, (await board()).reveal.hidden], [true, []], 'second place completes the board');
   assert.equal((await call('host/board', {action: 'next'})).status, 409);
   // The next round's first question takes the TV back.
   ({id} = await call('host/next', {expectedQuestion: id})); tv = await board(); assert.deepEqual([tv.view, tv.reveal], ['question', null]);
@@ -105,6 +107,35 @@ test('after a round, Next shows the leaderboard, reveals it from the bottom with
   assert.equal((await board()).reveal.shown, 0);
   // Choosing a projector view ends the reveal.
   await call('host/settings', {displayMode: 'winner'}); tv = await board(); assert.deepEqual([tv.view, tv.reveal], ['winner', null]);
+}));
+
+test('the leaderboard reveal: bottom up to third, then the leader, then second place and the full board', () => fixture(async ({call, board}) => {
+  const names = ['Ant', 'Bee', 'Cat', 'Dog', 'Eel'], teams = {};
+  for (const [i, name] of names.entries()) {
+    teams[name] = await call('join', {name});
+    if (i < 4) await call('host/adjust', {team: teams[name].team?.id || teams[name].id, points: 10 - i, reason: 'Head start'});
+  }
+  await call('host/library/save', {revision: 0, quiz: {title: 'Steps', rounds: [{id: 'r1', title: 'One', questions: [{id: 'a', ...question()}]}, {id: 'r2', title: 'Two', questions: [{id: 'b', ...question()}]}]}});
+  const {id} = await call('host/next', {expectedQuestion: null}); await call('host/close');
+  assert.deepEqual((await board()).teams.map(t => [t.name, t.rank]), [['Ant', 1], ['Bee', 2], ['Cat', 3], ['Dog', 4], ['Eel', 5]]);
+  await call('host/board', {action: 'show'});
+  const steps = [];
+  for (;;) {
+    const r = (await board()).reveal, desk = (await call('host/state')).board;
+    steps.push([r.hidden.join(','), r.leader, r.second, r.done, desk.shown === desk.rest]);
+    if (r.done) break;
+    assert.equal((await call('host/board', {action: 'next'})).status, 200);
+  }
+  assert.deepEqual(steps, [
+    ['Ant,Bee,Cat,Dog,Eel', false, false, false, false],
+    ['Ant,Bee,Cat,Dog', false, false, false, false],   // fifth
+    ['Ant,Bee,Cat', false, false, false, false],       // fourth
+    ['Ant,Bee', false, false, false, true],            // third; the next step is the leader
+    ['Bee', true, true, false, false],                 // the leader (the TV's spotlight); second place next
+    ['', true, false, true, false],                    // second place: the full board
+  ]);
+  assert.equal((await call('host/board', {action: 'next'})).status, 409);
+  assert.equal((await board()).reveal.question, id);
 }));
 
 test('positions-only board hides scores everywhere but the desk', () => fixture(async ({call, board}) => {

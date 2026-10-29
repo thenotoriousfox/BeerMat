@@ -405,9 +405,10 @@ Item {
                 anchors.fill: parent
                 opacity: root.view === "leaderboard" ? 1 : 0; visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 300 } }
-                // Not "reveal": that name is the answer box's id, which wins, and every row then stayed hidden.
+                // Not "reveal": that name is the answer box's id, which wins. The server names the rows still hidden:
+                // from the bottom up to third place, then the leader, then second place (boardReveal in server.js).
                 readonly property var steps: root.tv.reveal || null
-                readonly property int shownFromBottom: steps && !steps.done ? steps.shown : 100000
+                readonly property var hidden: steps && !steps.done ? steps.hidden || [] : []
                 Text { id: boardTitle; text: root.t("Leaderboard"); color: root.pal.text; font.family: Theme.display; font.pixelSize: 72; font.weight: Font.Bold }
                 Text {
                     anchors.left: boardTitle.right; anchors.leftMargin: 30; anchors.baseline: boardTitle.baseline
@@ -426,7 +427,7 @@ Item {
                         required property var modelData
                         required property int index
                         // By id: a delegate's parent is the grid's content item, not the board.
-                        readonly property bool shown: root.teams.length - index <= boardView.shownFromBottom
+                        readonly property bool shown: !boardView.hidden.includes(modelData.name)
                         width: board.cellWidth; height: board.cellHeight
                         Rectangle {
                             anchors.fill: parent; anchors.margins: 6; anchors.rightMargin: board.twoColumns ? 18 : 6
@@ -571,8 +572,9 @@ Item {
                                         photos: f.photo ? [f.photo] : [], initials: [f.name.charAt(0).toUpperCase()],
                                         detail: f.kind !== "fastest" ? root.t("Answered {answer}", {answer: f.answer}) : root.t("{s}s", {s: (f.ms / 1000).toFixed(1)})}, 7000)
                     }
+                    // First place's turn in the reveal (the leader, before second place): its spotlight.
                     const r = root.tv.reveal
-                    const done = r && r.done ? String(r.question) : ""
+                    const done = r && r.leader ? String(r.question) : ""
                     if (done && done !== spotlight.boardDone && spotlight.boardDone !== "") {
                         const top = root.teams.filter(t => t.rank === 1).slice(0, 4)
                         spotlight.shownFor = null

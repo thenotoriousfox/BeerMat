@@ -319,7 +319,7 @@ class TvSound(QObject):
             'shouts': {x['id']: x['status'] for x in bingo.get('shouts') or []},
             'buzz': {b['team']: b['status'] for b in ((q or {}).get('buzz') or {}).get('queue') or []},
             'leader': (((q or {}).get('buzz') or {}).get('active') or {}).get('name', ''),
-            'view': s.get('view'), 'boardDone': (s.get('reveal') or {}).get('question') if (s.get('reveal') or {}).get('done') else None,
+            'view': s.get('view'), 'boardLeader': (s.get('reveal') or {}).get('question') if (s.get('reveal') or {}).get('leader') else None,
             'winner': ' & '.join(t['name'] for t in s.get('teams', []) if t.get('rank') == 1) if s.get('view') == 'winner' else ''}
         self._follow_wheel(s, before is None)
         music = bool(q and q.get('open') and not q.get('paused') and not self._quiet(q) and self._countdown_for != q.get('id'))

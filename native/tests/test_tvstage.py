@@ -166,11 +166,16 @@ class TvStageTest(unittest.TestCase):
             return [next(c.property('text') for c in items(r) if c.property('text') in [t['name'] for t in teams]) for r in rows if r.property('opacity') > 0.9]
         self.show(state('leaderboard', teams=teams))
         self.assertEqual(shown(), ['Bears', 'Owls', 'Foxes', 'Cats'], 'no reveal: the whole board')
-        for n, expected in ((0, []), (1, ['Cats']), (3, ['Owls', 'Foxes', 'Cats'])):
-            self.show(state('leaderboard', teams=teams, reveal={'question': 1, 'shown': n, 'rest': 3, 'done': False}))
-            self.assertEqual(shown(), expected, f'{n} revealed from the bottom')
-        self.show(state('leaderboard', teams=teams, reveal={'question': 1, 'shown': 4, 'rest': 3, 'done': True}))
-        self.assertEqual(shown(), ['Bears', 'Owls', 'Foxes', 'Cats'], 'first place last')
+        # The server's steps (boardReveal): bottom up to third, then the leader, then second place and the full board.
+        spotlight = self.stage.findChild(QObject, 'spotlight')
+        for hidden, expected in ((['Bears', 'Owls', 'Foxes', 'Cats'], []), (['Bears', 'Owls', 'Foxes'], ['Cats']), (['Bears', 'Owls'], ['Foxes', 'Cats'])):
+            self.show(state('leaderboard', teams=teams, reveal={'question': 1, 'shown': 4 - len(hidden), 'rest': 2, 'leader': False, 'done': False, 'hidden': hidden}))
+            self.assertEqual(shown(), expected)
+        self.show(state('leaderboard', teams=teams, reveal={'question': 1, 'shown': 3, 'rest': 2, 'leader': True, 'second': True, 'done': False, 'hidden': ['Owls']}))
+        self.assertEqual(shown(), ['Bears', 'Foxes', 'Cats'], 'the leader before second place')
+        self.assertEqual(spotlight.property('shown').property('kind').toString(), 'IN FIRST PLACE')
+        self.show(state('leaderboard', teams=teams, reveal={'question': 1, 'shown': 4, 'rest': 2, 'leader': True, 'done': True, 'hidden': []}))
+        self.assertEqual(shown(), ['Bears', 'Owls', 'Foxes', 'Cats'], 'then the full board')
 
     def test_wheel_spins_once_for_a_spin_seen_happening(self):
         spin = self.stage.findChild(QObject, 'wheelSpin')
