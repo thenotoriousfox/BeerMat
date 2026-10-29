@@ -8,6 +8,7 @@ import Desk
 ColumnLayout {
     id: library
     property int tab: 0
+    property alias quizTab: quizLibrary.tab      // Quizzes: 0 browse, 1 share yours
     spacing: Theme.gap
     // Fresh each time it's opened: other venues share all the time.
     onVisibleChanged: if (visible) { desk.prefs.searchQuizzes(""); desk.prefs.searchLibrary(""); desk.prefs.searchThemes("") }
@@ -25,7 +26,7 @@ ColumnLayout {
         StackLayout {
             anchors.fill: parent
             currentIndex: library.tab
-            QuizLibrary {}
+            QuizLibrary { id: quizLibrary }
             BuzzerLibrary {}
             ThemeLibrary {}
         }

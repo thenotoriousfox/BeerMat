@@ -236,6 +236,29 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const library = () => getMeta('library', {revision: 0, title: 'My quiz', rounds: []});
   // Quizzes downloaded from the quiz library, one file each, for the desk to load.
   const quizLibraryDir = path.join(path.dirname(path.resolve(database)), 'quiz-library');
+  // My quizzes: a copy of every quiz this laptop has had, one file each (named after its title), kept whenever it's
+  // saved and before another takes its place, so starting a new quiz or loading another never loses one. Pictures and
+  // sounds stay in the media folder, so a kept quiz loads on this laptop as it was.
+  const myQuizzesDir = path.join(path.dirname(path.resolve(database)), 'my-quizzes');
+  const quizFileName = title => `${String(title || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'quiz'}.json`;
+  function keepQuiz(quiz) {
+    if (!quiz?.rounds?.some(r => r.questions.length)) return null;
+    const {revision, ...kept} = quiz, file = path.join(myQuizzesDir, quizFileName(quiz.title));
+    mkdirSync(myQuizzesDir, {recursive: true});
+    writeFileSync(file + '.part', JSON.stringify(kept)); renameSync(file + '.part', file);
+    return file;
+  }
+  // The quizzes in a folder, newest first: what the desk's Quizzes page lists.
+  function quizzesIn(dir) {
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir).filter(f => f.endsWith('.json')).flatMap(f => {
+      const file = path.join(dir, f);
+      try {
+        const quiz = JSON.parse(readFileSync(file, 'utf8')), rounds = Array.isArray(quiz.rounds) ? quiz.rounds : [];
+        return [{file: f, path: file, title: String(quiz.title || f), rounds: rounds.length, questions: rounds.reduce((n, r) => n + (r.questions?.length || 0), 0), saved: statSync(file).mtimeMs}];
+      } catch {return [];}
+    }).sort((a, b) => b.saved - a.saved);
+  }
   const spotify = createSpotify({getMeta, setMeta, now, accountsUrl: spotifyAccountsUrl, apiUrl: spotifyApiUrl});
   // Spotify only accepts loopback redirect addresses written as an IP, so sign-in returns to 127.0.0.1 on this port.
   const spotifyRedirect = () => `http://127.0.0.1:${server.address().port}/spotify/callback`;
@@ -713,7 +736,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const photos = rows('SELECT photo FROM teams WHERE photo IS NOT NULL AND photo NOT IN (SELECT photo FROM regulars WHERE photo IS NOT NULL)').map(t => t.photo);
     transaction(() => {
       for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'marking_log', 'adjustments', 'device_ips', 'actions', 'questions', 'teams']) run(`DELETE FROM ${table}`);
-      if (nextLibrary) setMeta('library', {...nextLibrary, revision: library().revision + 1});
+      if (nextLibrary) {keepQuiz(library()); setMeta('library', {...nextLibrary, revision: library().revision + 1});}
       setMeta('timer', null); setMeta('wheel', null); setMeta('board', null); setMeta('event', token().slice(0, 12));
       setMeta('settings', {...settings(), title: title || nextLibrary?.title || library().title, ended: false, registrationOpen: true, displayMode: 'auto'});
     });
@@ -1473,7 +1496,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/library/save') {
           const old = library(); requireValue(body.revision === old.revision, 'Quiz changed in another window. Reload before saving.', 409);
           const next = {...validateLibrary(body.quiz, mediaDir), revision: old.revision + 1};
-          setMeta('library', next); return send(200, next);
+          setMeta('library', next); keepQuiz(next); return send(200, next);
+        }
+        // The Quizzes page: my quizzes and the ones downloaded from the quiz library; delete one.
+        if (p === '/api/host/my-quizzes') return send(200, {mine: quizzesIn(myQuizzesDir), downloaded: quizzesIn(quizLibraryDir), folder: myQuizzesDir});
+        if (p === '/api/host/my-quizzes/delete') {
+          const dir = body.kind === 'downloaded' ? quizLibraryDir : myQuizzesDir;
+          requireValue(typeof body.file === 'string' && /^[a-z0-9-]{1,60}\.json$/.test(body.file) && existsSync(path.join(dir, body.file)), 'No such quiz');
+          rmSync(path.join(dir, body.file)); return send(200, {deleted: true});
         }
         if (p === '/api/host/settings') {
           const next = {...settings()};

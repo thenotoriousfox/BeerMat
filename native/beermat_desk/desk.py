@@ -369,6 +369,9 @@ class Desk(QObject):
                  else 'Live' if q.get('open') else 'Revealed' if q.get('revealed') else 'Revealing' if q.get('revealing') else 'Answers closed')
         self._view = {
             'title': library.get('title') or 'No quiz loaded', 'event': settings.get('title', 'BeerMat'), 'phase': phase,
+            # A quiz is under way: questions played and not finished (the Quizzes page then opens on the editor).
+            'running': bool(history) and not settings.get('ended'),
+            'rounds': len(library.get('rounds', [])), 'questions': sum(len(r.get('questions', [])) for r in library.get('rounds', [])),
             'question': None if not q else {
                 'text': q.get('text') or q.get('title') or '', 'round': q.get('round', ''), 'type': TYPE_NAMES.get(q.get('type'), q.get('type', '')),
                 'options': q.get('options') or [], 'answer': q.get('answer') if q.get('answer') not in (None, '') else '', 'note': q.get('answerNote') or '',
@@ -523,6 +526,13 @@ class Desk(QObject):
             self._act('board', {'action': 'next'}, {'revealFirst': 'The leader revealed', 'revealSecond': 'Second place revealed: the full board'}.get(step, 'Next position revealed'))
         else:
             self._act('next', {'expectedQuestion': self._expected()}, 'Next question opened')
+
+    @Slot()
+    def clearQuiz(self):
+        """A new, empty quiz in place of this one (asked first on the Quizzes page). The server keeps a copy of the
+        old one in My quizzes, and saves a live quiz's results, as loading another quiz does."""
+        self.library.discard()
+        self._act('new-event', {'questions': 'empty'}, 'Quiz cleared: it’s kept in My quizzes', then=self.prefsModel.loadMyQuizzes)
 
     @Slot()
     def finishConfirmed(self):

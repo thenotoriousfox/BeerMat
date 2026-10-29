@@ -22,6 +22,7 @@ class Prefs(QObject):
     libraryChanged = Signal()
     themesChanged = Signal()
     quizzesChanged = Signal()
+    myQuizzesChanged = Signal()
 
     def __init__(self, desk):
         super().__init__(desk)
@@ -30,6 +31,7 @@ class Prefs(QObject):
         self._library = {}
         self._themes = {}
         self._quizzes = {}
+        self._my_quizzes = {}
         # After "Connect Spotify" the sign-in finishes in the browser, which the desk can't see: it asks the server every
         # two seconds until Spotify says connected (or three minutes pass).
         self._waiting = QTimer(self, interval=2000)
@@ -254,6 +256,35 @@ class Prefs(QObject):
     def reloadThemes(self):
         """After editing a theme in My themes by hand: the server and the desk read it again."""
         self.api.host('theme-library', {'q': self._themes.get('query', ''), 'reload': True}, lambda r: (self._themes.update(r), self.desk.reload_looks(), self.themesChanged.emit()), self._fail)
+
+    # ---- my quizzes: kept on this laptop (my-quizzes/), and downloaded from the quiz library (quiz-library/) ----
+    @Property('QVariantMap', notify=myQuizzesChanged)
+    def myQuizzes(self):
+        return self._my_quizzes
+
+    @Slot()
+    def loadMyQuizzes(self):
+        if not self.api.base:        # not connected to the quiz server yet
+            return
+
+        def got(reply):
+            self._my_quizzes = reply
+            self.myQuizzesChanged.emit()
+        self.api.host('my-quizzes', {}, got, self._fail)
+
+    @Slot(str, str)
+    def deleteMyQuiz(self, kind, file):
+        self.api.host('my-quizzes/delete', {'kind': kind, 'file': file}, lambda _: (self.desk.toast.emit('Quiz deleted from this laptop', False), self.loadMyQuizzes()), self._fail)
+
+    @Slot(str)
+    def loadQuizFile(self, path):
+        self.desk.loadQuiz(QUrl.fromLocalFile(path))
+
+    @Slot()
+    def openMyQuizzes(self):
+        folder = Path(self._my_quizzes.get('folder') or (self.desk.server.data_dir / 'my-quizzes'))
+        folder.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
     # ---- the quiz library (BeerMat Online) ----
     @Property('QVariantMap', notify=quizzesChanged)

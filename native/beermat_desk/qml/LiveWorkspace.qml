@@ -15,7 +15,22 @@ ColumnLayout {
     property real now: Date.now()
     readonly property real remainingMs: q && q.deadline ? Math.max(0, q.deadline - now) : (q ? q.remaining : 0)
     Timer { interval: 200; running: live.visible; repeat: true; onTriggered: live.now = Date.now() }
+    signal shareQuiz()
     spacing: Theme.gap
+
+    // ---- the quiz is over: share it ----
+    Rectangle {
+        objectName: "shareFinished"
+        visible: view.phase === "Finished" && (view.questions || 0) > 0
+        Layout.fillWidth: true; implicitHeight: 64; radius: Theme.radius
+        color: Qt.rgba(Theme.gold.r, Theme.gold.g, Theme.gold.b, 0.12); border.color: Qt.rgba(Theme.gold.r, Theme.gold.g, Theme.gold.b, 0.5)
+        RowLayout {
+            anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 12; spacing: 12
+            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.text; font.pixelSize: 15
+                   text: `That’s “${view.title}” done. Share it in the quiz library and other BeerMat pubs can run it too.` }
+            DeskButton { objectName: "shareFinishedButton"; text: "Share in the quiz library…"; kind: "primary"; implicitHeight: 38; onClicked: live.shareQuiz() }
+        }
+    }
 
     // ---- main area ----
     RowLayout {
