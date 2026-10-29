@@ -87,7 +87,21 @@ function checkTv(tv, files) {
   const list = (v, most, where) => {if (!Array.isArray(v) || v.length > most) bad(`${where} must be a list of at most ${most}`); return v;};
   const gradient = (v, where) => {list(v, 8, where); if (!v.length) bad(`${where} is empty`); v.forEach((s, i) => {list(s, 2, `${where}[${i}]`); num(s[0], 0, 1, `${where}[${i}][0]`); col(s[1], `${where}[${i}][1]`);});};
   const keys = (v, where, size) => {list(v, 20, where); if (v.length < 2) bad(`${where} needs two keys or more`); v.forEach((k, i) => {list(k, size, `${where}[${i}]`); num(k[0], 0, 1, `${where}[${i}][0]`); k.slice(1).forEach((x, j) => num(x, -5000, 5000, `${where}[${i}][${j + 1}]`));});};
-  obj(tv, ['background', 'title', 'eyebrow', 'panel', 'scene'], 'tv.json');
+  obj(tv, ['background', 'title', 'eyebrow', 'panel', 'scene', 'phone'], 'tv.json');
+  // Phones (the native apps): a background and pictures on a stage 390 wide, placed from the bottom of the screen.
+  // Pictures only as .png, .webp or .jpg (phones draw no .svg).
+  if (tv.phone) {
+    obj(tv.phone, ['background', 'scene'], 'phone');
+    if (tv.phone.background) {obj(tv.phone.background, ['gradient'], 'phone.background'); gradient(tv.phone.background.gradient, 'phone.background.gradient');}
+    if (tv.phone.scene) list(tv.phone.scene, 12, 'phone.scene').forEach((layer, i) => {
+      const where = `phone.scene[${i}]`;
+      obj(layer, ['image', 'x', 'bottom', 'width', 'height', 'opacity'], where);
+      if (typeof layer.image !== 'string' || !files.has(layer.image) || !/\.(png|webp|jpg)$/.test(layer.image)) bad(`${where}.image must be one of this theme’s .png, .webp or .jpg pictures`);
+      for (const k of ['x', 'bottom']) if (layer[k] !== undefined) num(layer[k], -3000, 3000, `${where}.${k}`);
+      for (const k of ['width', 'height']) num(layer[k], 1, 4000, `${where}.${k}`);
+      if (layer.opacity !== undefined) num(layer.opacity, 0, 1, `${where}.opacity`);
+    });
+  }
   if (tv.background) {
     obj(tv.background, ['gradient', 'glows'], 'background');
     if (tv.background.gradient) gradient(tv.background.gradient, 'background.gradient');

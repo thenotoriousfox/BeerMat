@@ -99,6 +99,7 @@ test('tv.json: what the native TV draws, checked key by key', () => {
       {dot: true, x: 100, y: 1000, width: 6, height: 6, color: '#ffb347', motion: {duration: 6000, easing: 'out', keys: [[0, 0, 0, 0], [1, 20, -240, 0]]}},
       {blobs: [[0.2, 0.7, 0.3, 0.6, 0.3]], x: -960, y: 860, width: 3840, height: 240, motion: {duration: 60000, alternate: true, keys: [[0, 0, 0], [1, 500, 0]]}}]};
   assert.doesNotThrow(() => checkTheme(tv(good)));
+  assert.doesNotThrow(() => checkTheme(tv({...good, phone: {background: {gradient: [[0, '#000']]}, scene: [{image: 'art/glow.png', x: -20, bottom: 0, width: 430, height: 200}]}})));
   for (const [value, reason] of [
     [{...good, script: 'alert(1)'}, /tv\.json\.script isn’t a known setting/],
     [{scene: [{image: 'art/missing.png', width: 10, height: 10}]}, /must be one of this theme’s pictures/],
@@ -108,6 +109,8 @@ test('tv.json: what the native TV draws, checked key by key', () => {
     [{title: {glow: 'url(javascript:alert(1))'}}, /must be a colour/],
     [{scene: Array.from({length: 41}, () => ({dot: true, width: 5, height: 5}))}, /at most 40/],
     [{scene: [{dot: true, width: 5, height: 5, motion: {duration: 1, keys: [[0, 0, 0], [1, 1, 1]]}}]}, /duration must be a number/],
+    [{phone: {scene: [{image: 'art/a.svg', width: 10, height: 10}]}}, /\.png, \.webp or \.jpg/],
+    [{phone: {scene: [{image: 'art/glow.png', width: 10, height: 10, motion: {}}]}}, /motion isn’t a known setting/],
   ]) assert.throws(() => checkTheme(tv(value)), reason);
   // Halloween's, as shipped.
   assert.ok(checkTheme(bundleFolder(themes, 'halloween')).files.has('tv.json'));

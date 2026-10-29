@@ -41,6 +41,8 @@ data class UiState(
     /** Server clock minus this phone's, so countdowns run locally between updates. */
     val offset: Long = 0,
     val recent: List<Identity.Recent> = emptyList(),
+    /** The quiz's look on this phone: background and scenery (its colours are in Brand). */
+    val look: uk.beermat.player.ui.PhoneLook? = null,
 )
 
 /**
@@ -114,6 +116,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun leave() {
         live?.cancel(); live = null
+        undress()
         server = null; seenQuestion = null
         _ui.update { UiState(recent = identity.recent()) }
     }
@@ -156,7 +159,23 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         if (q?.buzz?.buzzed == "active" && buzzTurn != q.id) { buzzTurn = q.id; _nudges.tryEmit(Unit) }
         server?.let { identity.saveTeam(Identity.Saved(it.base, secret, state.team?.name ?: "", state.event)) }
         _ui.update { it.copy(game = state, offset = state.serverTime - System.currentTimeMillis(), connected = true) }
+        dress(state.look)
     }
+
+    // The quiz's look, fetched once each time it changes: its colours for the whole app, its scenery for the play screen.
+    private var lookShown = ""
+    private fun dress(id: String) {
+        if (id == lookShown) return
+        lookShown = id
+        val quiz = server ?: return
+        viewModelScope.launch {
+            val look = try { if (id == "stage") null else quiz.look(id) } catch (_: Exception) { null }
+            if (lookShown != id) return@launch
+            uk.beermat.player.ui.Brand.apply(look?.colours ?: emptyMap())
+            _ui.update { it.copy(look = look) }
+        }
+    }
+    private fun undress() { lookShown = ""; uk.beermat.player.ui.Brand.apply(emptyMap()); _ui.update { it.copy(look = null) } }
 
     fun submit(value: Any) {
         val q = _ui.value.game?.question ?: return

@@ -39,6 +39,10 @@ class QuizServer(base: String) {
         request("POST", "/api/transfer", JSONObject().put("code", code), "").getString("secret")
     }
 
+    /** A look's colours and phone scenery (themes/<id>), for the app to dress itself as the TV is. */
+    suspend fun look(id: String): uk.beermat.player.ui.PhoneLook = withContext(Dispatchers.IO) {
+        Parse.look(request("GET", "/api/looks/" + java.net.URLEncoder.encode(id, "UTF-8"), null, ""), base)
+    }
     suspend fun state(secret: String): PlayerState = withContext(Dispatchers.IO) { Parse.state(request("POST", "/api/state", JSONObject(), secret)) }
 
     suspend fun answer(secret: String, question: Long, value: Any) = withContext(Dispatchers.IO) {

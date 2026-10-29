@@ -45,6 +45,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -73,10 +78,13 @@ fun BeerMatApp(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.onlin
     var tab by rememberSaveable { mutableStateOf(0) }
     // In a quiz, the quiz's language (the quizmaster chooses it, as for the TV and browsers); elsewhere the phone's.
     I18n.lang = ui.game?.settings?.language ?: I18n.phone
-    Box(
-        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF241046), Brand.bg, Brand.bg2)))
-            .safeDrawingPadding().imePadding()
-    ) {
+    // The quiz's look dresses the whole screen (its background and scenery, behind everything); otherwise BeerMat's own.
+    val look = if (ui.stage == Stage.Play) ui.look else null
+    val backdrop = look?.background?.takeIf { it.isNotEmpty() }?.let { stops -> Brush.verticalGradient(*stops.toTypedArray()) }
+        ?: Brush.verticalGradient(listOf(Color(0xFF241046), Brand.bg, Brand.bg2))
+    Box(Modifier.fillMaxSize().background(backdrop)) {
+        if (look != null) LookScene(look)
+    Box(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
         Column(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f)) {
                 AnimatedContent(ui.stage to tab, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "stage") { (stage, shown) ->
@@ -104,6 +112,32 @@ fun BeerMatApp(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.onlin
         }
         if (ui.stage == Stage.Connect) VenueSheet(online, o)
         ui.wifi?.let { WifiSheet(it.ssid, it.password, onDone = vm::dismissWifi) }
+    }
+    }
+}
+
+/** A look's phone scenery (tv.json's phone): pictures on a stage 390 wide, scaled to the screen's width and placed
+ *  from its bottom, behind the quiz. Pictures load from the quiz server once each. */
+@Composable
+fun LookScene(look: PhoneLook) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+        val scale = maxWidth.value / 390f
+        for (layer in look.scene) {
+            val picture by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, layer.image) {
+                value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    try { java.net.URL(layer.image).openStream().use { android.graphics.BitmapFactory.decodeStream(it) } } catch (_: Exception) { null }
+                }
+            }
+            picture?.let {
+                androidx.compose.foundation.Image(it.asImageBitmap(), null, contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                    modifier = Modifier.align(Alignment.BottomStart)
+                        .offset(x = (layer.x * scale).dp, y = (-layer.bottom * scale).dp)
+                        .wrapContentSize(Alignment.BottomStart, unbounded = true)
+                        .requiredSize((layer.width * scale).dp, (layer.height * scale).dp)
+                        .graphicsLayer { alpha = layer.opacity }
+                        .testTag("look-scene"))
+            }
+        }
     }
 }
 

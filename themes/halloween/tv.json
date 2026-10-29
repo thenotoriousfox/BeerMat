@@ -10,6 +10,13 @@
   },
   "eyebrow": {"color": "#9dff5a", "glow": "rgba(157, 255, 90, 0.45)"},
   "panel": {"gradient": [[0, "rgba(44, 20, 68, 0.9)"], [1, "rgba(16, 7, 28, 0.93)"]], "border": "rgba(255, 140, 60, 0.3)"},
+  "phone": {
+    "background": {"gradient": [[0, "#0c0618"], [0.45, "#1b0b30"], [0.75, "#3a1648"], [1, "#5a2140"]]},
+    "scene": [
+      {"image": "art/phone-moon.webp", "x": 140, "bottom": 120, "width": 257, "height": 257},
+      {"image": "art/phone-hill.webp", "x": -648, "bottom": 0, "width": 1266, "height": 343}
+    ]
+  },
   "scene": [
     {"image": "art/moon.svg", "x": 1129, "y": 508, "width": 468, "height": 468,
      "motion": {"duration": 18000, "alternate": true, "easing": "sine", "keys": [[0, 0, 0, 1], [1, 0, 0, 0.92]]}},
