@@ -31,6 +31,7 @@ cp "$repo/online/service.js" "$repo/online/client.js" "$repo/online/admin.js" "$
 # Python and QML that draw them, run by PySide6 (Qt without a browser engine, about 250 MB) installed on the server.
 mkdir -p "$stage/native/beermat_desk"
 cp "$repo"/native/beermat_desk/{__init__.py,looks.py,previews.py} "$stage/native/beermat_desk/" && cp -r "$repo/native/beermat_desk/qml" "$stage/native/beermat_desk/"
+mkdir -p "$stage/web" && cp "$repo/web/i18n.js" "$repo/web/qr.js" "$stage/web/"   # the TV's words in the quiz's language, and its QR code
 # THEME_PREVIEWS=1: shared themes get a picture of a phone's browser too (online/preview.js), which needs the quiz
 # engine and Playwright's Chromium (about 400 MB) on the server. Without it, themes still have the desk's pictures.
 if [ "${THEME_PREVIEWS:-0}" = 1 ]; then
