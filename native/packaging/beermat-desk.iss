@@ -15,6 +15,8 @@ SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\BeerMat-Desk.exe
 MinVersion=10.0
+; An update from the desk (updates.py) runs this silently with /UPDATE=1: the desk closes itself, and the new one starts.
+CloseApplications=force
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"
@@ -28,3 +30,11 @@ Name: "{autodesktop}\BeerMat Desk"; Filename: "{app}\BeerMat-Desk.exe"; Tasks: d
 
 [Run]
 Filename: "{app}\BeerMat-Desk.exe"; Description: "Start BeerMat Desk"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\BeerMat-Desk.exe"; Flags: nowait; Check: IsUpdate
+
+[Code]
+// Run by the desk's updater (/UPDATE=1): start the new desk once it's installed.
+function IsUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:UPDATE|0}') = '1';
+end;

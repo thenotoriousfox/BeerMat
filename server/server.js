@@ -17,6 +17,7 @@ import {typeGroups} from './looks.js';
 import {loadThemes, bundleFolder} from './themes.js';
 import {checkTheme, themeId as themeIdPattern} from '../shared/theme-bundle.js';
 import {fetchDriveQuiz} from './drive.js';
+import {createUpdates} from './updates.js';
 import {createSimulator, cleanOptions, fastSeconds} from './rehearsal.js';
 import {QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern, sheetPoints, spotifyTrack} from './model.js';
 
@@ -70,9 +71,12 @@ function loadPack(dir, prefix) {
 // runs their venue from the desk.
 export const onlineDefault = 'https://online.beermatquiz.co.uk';
 
-export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), themesDir = path.join(root, 'themes'), myThemesDir = path.join(path.dirname(path.resolve(database)), 'my-themes'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose, reachProbe = fetchProbe, fetchImpl = globalThis.fetch, plan: fixedPlan = null, licenceKey = licencePublicKey} = {}) {
+export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), themesDir = path.join(root, 'themes'), myThemesDir = path.join(path.dirname(path.resolve(database)), 'my-themes'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose, reachProbe = fetchProbe, fetchImpl = globalThis.fetch, plan: fixedPlan = null, licenceKey = licencePublicKey, updatesBase, updateKey} = {}) {
   if (typeof hostKey !== 'string' || hostKey.length < 12) throw Error('HOST_KEY must contain at least 12 characters');
   const db = new DatabaseSync(database);
+  // Updates for BeerMat Desk (server/updates.js), downloaded next to the database.
+  const appVersion = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+  const updates = createUpdates({dir: path.join(path.dirname(path.resolve(database)), 'updates'), currentVersion: appVersion, fetchImpl, base: updatesBase, publicKey: updateKey});
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
     CREATE TABLE IF NOT EXISTS teams(id TEXT PRIMARY KEY,name TEXT UNIQUE COLLATE NOCASE,secret TEXT UNIQUE,seen INTEGER);
     CREATE TABLE IF NOT EXISTS questions(id INTEGER PRIMARY KEY AUTOINCREMENT,data TEXT,opened INTEGER,deadline INTEGER,closed INTEGER DEFAULT 0);
@@ -1224,6 +1228,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           // Registering this laptop always sends this laptop's own key.
           const sent = body.path.endsWith('/keys') ? {publicKey: venueKey().publicKey} : body.body;
           return send(200, await onlineApi(body.method, body.path, sent));
+        }
+        // Updates (BeerMat Desk): is there a newer version, and its file for this kind of install, downloaded and checked.
+        if (p === '/api/host/update/check') {
+          try {return send(200, await updates.check(body.kind));} catch (e) {return send(200, {current: appVersion, error: e.message});}
+        }
+        if (p === '/api/host/update/download') {
+          requireValue(typeof body.kind === 'string', 'Which kind of install?');
+          try {return send(200, await updates.download(body.kind));} catch (e) {return send(502, {error: e.message});}
         }
         // The theme library (BeerMat Online): browse it; with Pro, install a theme into my-themes/, share one of this
         // laptop's own, report one; take back a theme this laptop shared, whatever its plan now. Every theme is checked

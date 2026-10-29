@@ -211,6 +211,10 @@ ApplicationWindow {
                     Pill { text: `${(view.teams || []).length} ${window.rehearsal ? "simulated" : "teams"}`; tone: Theme.text }
                     Pill { visible: window.rehearsal; text: `${(view.devices || []).length} test phones`; tone: Theme.teal }
                     Pill { text: desk.connected ? "● Server live" : "○ " + desk.status; tone: desk.connected ? Theme.good : Theme.bad }
+                    // A new version: to Settings, where it's installed (never mid-question).
+                    Pill { visible: !!desk.updates.latest; text: "Update: " + desk.updates.latest; tone: Theme.gold
+                           TapHandler { onTapped: window.workspace = window.workspaces.findIndex(w => w.name === "Settings") }
+                           HoverHandler { cursorShape: Qt.PointingHandCursor } }
                     DeskButton { text: "Load quiz…"; shortcutHint: "Ctrl+O"; onClicked: openQuiz.open() }
                 }
             }

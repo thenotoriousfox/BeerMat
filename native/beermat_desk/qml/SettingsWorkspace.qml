@@ -148,6 +148,28 @@ ScrollView {
                 }
             }
         }
+        // Updates (updates.py): checked when the desk starts and twice a day; installed only when the quizmaster says.
+        Panel {
+            objectName: "updatesPanel"
+            Layout.fillWidth: true; implicitHeight: 200
+            title: "Updates"
+            headerExtra: Pill { text: desk.updates.latest ? desk.updates.latest + " is out" : "BeerMat Desk " + desk.updates.current
+                                tone: desk.updates.latest ? Theme.gold : Theme.muted; strong: !!desk.updates.latest }
+            ColumnLayout {
+                anchors.fill: parent; spacing: 8
+                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
+                       text: desk.updates.message || "BeerMat Desk looks for a new version when it starts, and installs one only when you say. Quizzes and settings carry over." }
+                Item { Layout.fillHeight: true }
+                Flow {
+                    Layout.fillWidth: true; spacing: 8
+                    DeskButton { visible: desk.updates.canInstall; kind: "primary"; enabled: !desk.updates.state
+                                 text: desk.updates.state === "downloading" ? "Downloading…" : desk.updates.state === "installing" ? "Restarting…" : "Update and restart"
+                                 onClicked: desk.updates.install() }
+                    DeskButton { visible: !!desk.updates.latest && !desk.updates.canInstall; kind: "primary"; text: "Download from the website"; onClicked: desk.updates.openDownloads() }
+                    DeskButton { text: desk.updates.state === "checking" ? "Checking…" : "Check for updates"; enabled: !desk.updates.state; onClicked: desk.updates.checkNow() }
+                }
+            }
+        }
     }
 
     // ---- the quiz room ----

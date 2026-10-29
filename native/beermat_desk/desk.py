@@ -20,6 +20,7 @@ from .live import LiveTools
 from . import looks
 from .online import OnlineVenue
 from .prefs import Prefs
+from .updates import Updates
 
 STEP_LABELS = {'reveal': 'Reveal next position', 'revealFirst': 'Reveal the leader', 'revealSecond': 'Reveal second place', 'show': 'Show leaderboard',
                'finish': 'Finish quiz', 'round': 'Start next round', 'question': 'Start next question'}
@@ -57,6 +58,9 @@ class Desk(QObject):
         self.liveTools.clipsChanged.connect(self._rebuild)
         self.onlineVenue = OnlineVenue(self)
         self.prefsModel = Prefs(self)
+        self.updater = Updates(self.api, self._update_busy, self)
+        self.updater.toast.connect(self.toast)
+        self.updater.restart.connect(self.quitRequested)
         self.resultsChanged.connect(self.onlineVenue.changed)
         self._state, self._library, self._view, self._tv = None, None, {}, {}
         self._laptop, self._network, self._checks = {}, {}, []
@@ -106,6 +110,15 @@ class Desk(QObject):
     @Property(QObject, constant=True)
     def prefs(self):
         return self.prefsModel
+
+    @Property(QObject, constant=True)
+    def updates(self):
+        return self.updater
+
+    def _update_busy(self):
+        """Why the desk can't restart for an update just now ('' when it can)."""
+        q = (self._state or {}).get('question') or {}
+        return 'Finish this question first: updating restarts the desk' if q.get('open') or q.get('live') else ''
 
     @Property(QObject, constant=True)
     def online(self):
@@ -260,6 +273,7 @@ class Desk(QObject):
         self.refresh()
         self.load_library()
         self.loadResults()
+        self.updater.start()
 
     def _server_stopped(self, code):
         """It crashed: start it again (up to three times a minute), as the Electron app does. The quiz is saved."""
