@@ -70,6 +70,7 @@ const T = {
   'Leaderboard': ['Classement', 'Clasificación'],
   '🔊 Enable sound': ['🔊 Activer le son', '🔊 Activar el sonido'],
   '⛶ Full screen': ['⛶ Plein écran', '⛶ Pantalla completa'],
+  'BeerMat TV': ['BeerMat TV', 'BeerMat TV'],
   '▶ Start the TV': ['▶ Démarrer la télé', '▶ Iniciar la tele'],
   'Press OK on the remote: full screen with sound.': ['Appuyez sur OK sur la télécommande : plein écran avec le son.', 'Pulsa OK en el mando: pantalla completa con sonido.'],
   '✕ Exit full screen': ['✕ Quitter le plein écran', '✕ Salir de pantalla completa'],
