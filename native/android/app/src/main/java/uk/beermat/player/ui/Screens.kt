@@ -178,6 +178,7 @@ fun ConnectScreen(vm: PlayerViewModel, ui: UiState, scan: () -> Unit) {
     val connect = { focus.clearFocus(); vm.connect(address) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
         Header("BeerMat", t("Play the quiz"))
+        UpdateBanner()
         Text(t("Scan the code on the TV"), style = MaterialTheme.typography.displaySmall)
         Text(t("No account, no internet: the quiz runs on the quizmaster’s laptop."), color = Brand.muted, modifier = Modifier.padding(top = 6.dp, bottom = 20.dp))
         BigButton(t("Scan the TV’s code"), enabled = !ui.busy, onClick = scan)
