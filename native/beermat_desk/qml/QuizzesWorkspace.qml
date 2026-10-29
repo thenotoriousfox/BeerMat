@@ -42,6 +42,7 @@ RowLayout {
                 id: outline
                 Layout.fillWidth: true; Layout.fillHeight: true
                 clip: true; spacing: 2
+                ScrollBar.vertical: ScrollBar {}
                 model: lib.outline
                 delegate: Rectangle {
                     id: row

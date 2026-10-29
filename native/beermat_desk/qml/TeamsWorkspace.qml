@@ -23,7 +23,7 @@ RowLayout {
         headerExtra: RowLayout {
             spacing: 8
             Text {
-                text: !(view.marking && view.marking.id) ? "" : view.canMark ? "closed: mark below" : "close answers to mark"
+                text: !(view.marking && view.marking.id) ? "" : view.canMark ? "Closed: mark below" : "Close answers to mark them"
                 color: view.canMark ? Theme.good : Theme.muted; font.pixelSize: 12; font.weight: Font.Bold
             }
             // Any question played so far can be marked again (paper answers, a disputed mark).

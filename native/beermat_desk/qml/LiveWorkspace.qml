@@ -9,6 +9,9 @@ ColumnLayout {
     id: live
     required property var view
     readonly property var q: view.question || null
+    // The current question's answers (choice questions show their counts on the tiles instead), as Teams & marking
+    // has them; not while it is marking a past question.
+    readonly property var feed: q && !(view.marking && view.marking.past) && !(q.options && q.options.length) ? (view.answerRows || []) : []
     property real now: Date.now()
     readonly property real remainingMs: q && q.deadline ? Math.max(0, q.deadline - now) : (q ? q.remaining : 0)
     Timer { interval: 200; running: live.visible; repeat: true; onTriggered: live.now = Date.now() }
@@ -82,7 +85,37 @@ ColumnLayout {
 
                 RoundControls { view: live.view; Layout.fillWidth: true }
 
-                Item { Layout.fillHeight: true }
+                // The answers as they come in: each team's answer, and its points once marked.
+                Text {
+                    visible: live.feed.length > 0
+                    text: `ANSWERS SO FAR · ${live.feed.length}`; color: Theme.teal; font.pixelSize: 12; font.weight: Font.Bold; font.letterSpacing: 2
+                }
+                Flickable {
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    clip: true; contentHeight: feedFlow.implicitHeight; boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar {}
+                    Flow {
+                        id: feedFlow
+                        width: parent.width; spacing: 8
+                        Repeater {
+                            model: live.feed
+                            delegate: Rectangle {
+                                required property var modelData
+                                readonly property bool marked: !view.canClose
+                                width: Math.min(feedFlow.width, Math.max(220, feedText.implicitWidth + 32)); height: 58; radius: 12
+                                color: marked && modelData.points > 0 ? Qt.rgba(Theme.good.r, Theme.good.g, Theme.good.b, 0.16) : Theme.panelRaised
+                                border.color: marked && modelData.points > 0 ? Theme.good : Theme.line
+                                Column {
+                                    id: feedText
+                                    anchors.verticalCenter: parent.verticalCenter; x: 16; width: parent.width - 32
+                                    Text { text: modelData.team + (parent.parent.marked ? `  ·  ${modelData.points} pts` : ""); color: Theme.muted; font.pixelSize: 12; font.weight: Font.Bold; elide: Text.ElideRight; width: parent.width }
+                                    Text { text: modelData.value || "—"; color: Theme.text; font.pixelSize: 17; font.weight: Font.DemiBold; elide: Text.ElideRight; width: Math.min(implicitWidth, 600) }
+                                }
+                            }
+                        }
+                    }
+                }
+                Item { Layout.fillHeight: true; visible: live.feed.length === 0 }
 
                 // The answer: on this desk only, never on the TV until it is revealed there.
                 Rectangle {
@@ -170,6 +203,7 @@ ColumnLayout {
                     anchors.fill: parent
                     clip: true
                     spacing: 6
+                    ScrollBar.vertical: ScrollBar {}
                     model: view.teams || []
                     delegate: Rectangle {
                         required property var modelData
@@ -204,6 +238,7 @@ ColumnLayout {
                     id: upNext
                     anchors.fill: parent
                     clip: true
+                    ScrollBar.vertical: ScrollBar {}
                     spacing: 2
                     model: view.upcoming || []
                     delegate: Column {

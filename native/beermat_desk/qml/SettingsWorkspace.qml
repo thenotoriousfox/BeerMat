@@ -230,9 +230,10 @@ ScrollView {
         RowLayout {
             anchors.fill: parent; spacing: 20
             ColumnLayout {
-                Layout.preferredWidth: 380; Layout.alignment: Qt.AlignTop; spacing: 8
-                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 13
-                       text: "A look colours the TV and phones; a sound theme sets the moments' sounds. Either can follow the question's format." }
+                // A fixed column: its long description would otherwise take the whole width from the format list.
+                Layout.preferredWidth: 380; Layout.maximumWidth: 380; Layout.fillWidth: false; Layout.alignment: Qt.AlignTop; spacing: 8
+                Text { Layout.fillWidth: true; Layout.maximumWidth: 380; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 13
+                       text: "A look colours the TV and phones; a sound theme sets the moments' sounds. Either can follow the question's format: choose “By format”, then pick for each format on the right." }
                 Label { text: "Look"; color: Theme.muted }
                 ComboBox {
                     Layout.fillWidth: true; textRole: "text"; valueRole: "value"
@@ -248,19 +249,27 @@ ScrollView {
                 }
             }
             ListView {
-                Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 2
+                Layout.fillWidth: true; Layout.minimumWidth: 520; Layout.fillHeight: true; clip: true; spacing: 2
+                ScrollBar.vertical: ScrollBar {}
+                header: RowLayout {
+                    width: ListView.view.width; spacing: 8
+                    Text { text: "Format"; color: Theme.faint; font.pixelSize: 12; Layout.preferredWidth: 170 }
+                    Text { text: "Look"; color: Theme.faint; font.pixelSize: 12; Layout.fillWidth: true; Layout.preferredWidth: 1 }
+                    Text { text: "Sound theme"; color: Theme.faint; font.pixelSize: 12; Layout.fillWidth: true; Layout.preferredWidth: 1 }
+                }
                 model: settings.view.formats || []
                 delegate: RowLayout {
                     required property var modelData
                     width: ListView.view.width; spacing: 8
                     Text { text: modelData.text; color: Theme.text; font.pixelSize: 13; Layout.preferredWidth: 170 }
+                    // Equal columns, under their headings.
                     ComboBox {
-                        Layout.fillWidth: true; textRole: "text"; valueRole: "value"; model: settings.view.looks || []
+                        Layout.fillWidth: true; Layout.preferredWidth: 1; textRole: "text"; valueRole: "value"; model: settings.view.looks || []
                         currentIndex: Math.max(0, indexOfValue((settings.view.looksByType || {})[modelData.value] || "stage"))
                         onActivated: desk.prefs.setLookFor(modelData.value, currentValue)
                     }
                     ComboBox {
-                        Layout.fillWidth: true; textRole: "text"; valueRole: "value"
+                        Layout.fillWidth: true; Layout.preferredWidth: 1; textRole: "text"; valueRole: "value"
                         model: [{value: "", text: "Pack sounds"}].concat((settings.view.soundThemes || []).map(t => ({value: t, text: t})))
                         currentIndex: Math.max(0, indexOfValue((settings.view.soundThemesByType || {})[modelData.value] || ""))
                         onActivated: desk.prefs.setThemeFor(modelData.value, currentValue)
@@ -272,9 +281,11 @@ ScrollView {
 
     // ---- Spotify ----
     Panel {
-        Layout.fillWidth: true; implicitHeight: 250
+        // As tall as what it shows (much less while Spotify is locked).
+        Layout.fillWidth: true; implicitHeight: spotifyBody.implicitHeight + 72
         title: "Spotify (optional)"
         ColumnLayout {
+            id: spotifyBody
             anchors.fill: parent; spacing: 8
             Text {
                 Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.gold; font.pixelSize: 13
@@ -339,9 +350,9 @@ ScrollView {
                 spacing: 10
                 Label { text: "TV sound"; color: Theme.muted }
                 ComboBox {
-                    Layout.preferredWidth: 380
+                    Layout.preferredWidth: 480
                     textRole: "name"; valueRole: "id"
-                    model: [{id: "auto", name: "Automatic: the TV's own speakers (HDMI) when it's full screen"}, {id: "laptop", name: "This laptop (the system's default output)"}].concat(desk.sound.outputs)
+                    model: [{id: "auto", name: "Automatic: the TV's speakers when it's full screen"}, {id: "laptop", name: "This laptop (the system's default output)"}].concat(desk.sound.outputs)
                     currentIndex: Math.max(0, indexOfValue(desk.sound.output))
                     onActivated: desk.sound.chooseOutput(currentValue)
                 }
@@ -380,8 +391,8 @@ ScrollView {
         GridLayout {
             anchors.fill: parent; columns: 4; columnSpacing: 24; rowSpacing: 6
             Repeater {
-                model: [["N", "Next (question, round, leaderboard step, finish)"], ["C", "Close answers"], ["P", "Pause / resume the timer"], ["R", "Reveal the answer"],
-                        ["Ctrl+O", "Load a quiz file"], ["F7", "Show or close the TV"], ["F8", "Blank the TV"], ["Ctrl+1…6", "Switch workspace"]]
+                model: [["N", "Next (question, round, leaderboard step, finish)"], ["⌫ Backspace", "Back one step"], ["C", "Close answers"], ["P", "Pause / resume the timer"],
+                        ["R", "Reveal the answer"], ["Ctrl+O", "Load a quiz file"], ["F7", "Show or close the TV"], ["F8", "Blank the TV"], ["Ctrl+1…6", "Switch workspace"]]
                 delegate: RowLayout {
                     required property var modelData
                     Layout.fillWidth: true

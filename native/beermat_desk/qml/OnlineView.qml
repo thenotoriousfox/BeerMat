@@ -18,7 +18,7 @@ RowLayout {
 
     // ---- account ----
     Panel {
-        Layout.preferredWidth: 380; Layout.maximumWidth: 380; Layout.fillHeight: true
+        Layout.preferredWidth: 560; Layout.maximumWidth: 560; Layout.fillHeight: true
         title: "BeerMat Online"
         ColumnLayout {
             anchors.fill: parent; spacing: 8

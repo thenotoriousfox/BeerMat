@@ -34,7 +34,8 @@ RowLayout {
 
         // ---- the quiz Wi-Fi ----
         Panel {
-            Layout.fillWidth: true; implicitHeight: 230 + isolationRows.length * 24
+            // Shorter when this laptop can't host a quiz Wi-Fi: only the explanation shows.
+            Layout.fillWidth: true; implicitHeight: (wifi.available ? 230 : 120) + isolationRows.length * 24
             title: "Quiz Wi-Fi"
             headerExtra: Pill {
                 text: !wifi.available ? "UNAVAILABLE" : working ? "WORKING…" : running ? `ON · ${running.ssid}` : "OFF"
@@ -77,7 +78,7 @@ RowLayout {
                 RowLayout {
                     spacing: 8
                     DeskButton { visible: !!wifi.available && !wifi.wifiOn; text: "Switch Wi-Fi on"; onClicked: desk.wifiOn() }
-                    DeskButton { visible: !running; text: "Start the quiz Wi-Fi"; kind: "primary"; enabled: !!wifi.available && !!wifi.wifiOn && !!wifi.pick && !working && ssid.text.trim() !== ""
+                    DeskButton { visible: !running && !!wifi.available; text: "Start the quiz Wi-Fi"; kind: "primary"; enabled: !!wifi.available && !!wifi.wifiOn && !!wifi.pick && !working && ssid.text.trim() !== ""
                                  onClicked: desk.startWifi(card.currentValue, ssid.text, password.text) }
                     DeskButton { visible: !!running; text: "Stop the quiz Wi-Fi"; kind: "danger"; enabled: !working; onClicked: desk.stopWifi() }
                     DeskButton { visible: net.joinMode !== "hotspot" || !!net.online; text: "Players join on the quiz Wi-Fi"; onClicked: desk.useHotspot() }
