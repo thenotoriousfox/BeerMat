@@ -259,6 +259,38 @@
   "BeerMat TV",
   "BeerMat TV"
  ],
+ "Looking for the quiz on this Wi-Fi…": [
+  "Recherche du quiz sur ce Wi-Fi…",
+  "Buscando el quiz en esta wifi…"
+ ],
+ "Found “{title}”": [
+  "« {title} » trouvé",
+  "«{title}» encontrado"
+ ],
+ "No quiz found on this Wi-Fi. Is the TV on the quiz Wi-Fi? Or type the address on the laptop’s TV screen.": [
+  "Aucun quiz trouvé sur ce Wi-Fi. La télé est-elle sur le Wi-Fi du quiz ? Ou tapez l’adresse affichée par l’ordinateur.",
+  "No se ha encontrado ningún quiz en esta wifi. ¿Está la tele en la wifi del quiz? O escribe la dirección que muestra el portátil."
+ ],
+ "Nothing at {address} answers as a BeerMat quiz.": [
+  "Rien à {address} ne répond comme un quiz BeerMat.",
+  "Nada en {address} responde como un quiz de BeerMat."
+ ],
+ "Quiz address, e.g. 10.42.0.1": [
+  "Adresse du quiz, ex. 10.42.0.1",
+  "Dirección del quiz, p. ej. 10.42.0.1"
+ ],
+ "Show the quiz": [
+  "Afficher le quiz",
+  "Mostrar el quiz"
+ ],
+ "Look again": [
+  "Chercher à nouveau",
+  "Buscar de nuevo"
+ ],
+ "Can’t reach the quiz laptop at {address}. Trying again…": [
+  "Impossible de joindre l’ordinateur du quiz à {address}. Nouvel essai…",
+  "No se puede contactar con el portátil del quiz en {address}. Reintentando…"
+ ],
  "▶ Start the TV": [
   "▶ Démarrer la télé",
   "▶ Iniciar la tele"

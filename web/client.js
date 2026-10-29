@@ -754,8 +754,11 @@ if (role === 'player') {
 }
 if (role === 'display') {
   $('enableSound').onclick = () => {enableSound(); $('enableSound').hidden = true;};
+  // In BeerMat TV (the Android TV app), the app is full screen and lets sound play: no start button or screen buttons.
+  const inApp = new URLSearchParams(location.search).get('app') === '1';
+  if (inApp) {document.body.classList.add('in-app'); enableSound(); $('enableSound').hidden = true;}
   // /tv, a smart TV's browser: one press of OK starts it full screen with sound (a browser allows neither before a press).
-  if (location.pathname === '/tv') {
+  if (location.pathname === '/tv' && !inApp) {
     $('tvStart').hidden = false; $('tvStartButton').focus();
     $('tvStartButton').onclick = () => {
       enableSound(); $('enableSound').hidden = true;

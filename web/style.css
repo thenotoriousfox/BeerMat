@@ -722,3 +722,5 @@ body.idle .screen-controls button { opacity: 0; pointer-events: none; }
 .tv-start h1 { font-size: 3.4rem; margin: 0; }
 .tv-start button { font-size: 2rem; padding: .9rem 2.6rem; border-radius: 999px; border: 0; background: var(--gold, #ffb703); color: #140b2e; font-weight: 800; cursor: pointer; }
 .tv-start button:focus-visible { outline: 6px solid #fff; outline-offset: 6px; }
+/* BeerMat TV (the Android TV app) is full screen already: no screen buttons. */
+body.in-app .screen-controls #fullscreen, body.in-app .screen-controls #enableSound { display: none; }

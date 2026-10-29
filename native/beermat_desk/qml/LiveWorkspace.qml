@@ -54,6 +54,8 @@ ColumnLayout {
                     }
                 }
             }
+            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 13
+                   text: "On an Android TV, Google TV or Fire TV stick: install the BeerMat app and open BeerMat TV. On the quiz Wi-Fi it finds the quiz by itself." }
             Rectangle {
                 Layout.fillWidth: true; implicitHeight: 64; radius: 12; color: Theme.bg2; border.color: Theme.gold
                 Text { objectName: "tvAddress"; anchors.centerIn: parent; text: cableFree.address || "Set how players join (Venue & network) first"; color: Theme.goldHi
