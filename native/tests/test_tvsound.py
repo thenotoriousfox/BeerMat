@@ -92,6 +92,51 @@ class TvSoundTest(unittest.TestCase):
         self.step(self.state(None, view='leaderboard'))
         self.assertEqual(self.sound._wheel_timers, [], 'leaving the wheel stops its ticks')
 
+    def test_the_first_wheel_ever_ticks_and_a_refresh_does_not_spin_it_again(self):
+        import time
+        self.step(self.state(question()))       # the TV is open, no wheel yet
+        wheel = {'id': 1, 'items': ['Red', 'Blue', 'Green'], 'result': 1, 'spun': time.time() * 1000}
+        self.step(self.state(None, view='wheel', wheel=dict(wheel)))
+        timers = list(self.sound._wheel_timers)
+        self.assertGreater(len(timers), 10, 'the first spin ticks too')
+        # Every refresh brings the same wheel as a new object: it carries on, not starting over.
+        self.step(self.state(None, view='wheel', wheel=dict(wheel)))
+        self.assertEqual(self.sound._wheel_timers, timers)
+
+    def test_automatic_output_is_the_tvs_own_while_it_is_full_screen(self):
+        from beermat_desk import tvsound
+
+        class Device:
+            def __init__(self, name, ident):
+                self.name, self.ident = name, ident
+
+            def description(self):
+                return self.name
+
+            def id(self):
+                return self.ident.encode()
+        laptop, hdmi = Device('Laptop speakers', 'alsa_output.pci-analog'), Device('TU104 HD Audio Controller Digital Stereo (HDMI)', 'alsa_output.pci-hdmi-stereo')
+        usb = Device('USB Audio Speakers', 'alsa_output.usb-speaker')
+        saved = tvsound.QMediaDevices
+        tvsound.QMediaDevices = type('Devices', (), {'audioOutputs': staticmethod(lambda: [laptop, hdmi, usb]), 'defaultAudioOutput': staticmethod(lambda: laptop)})
+        try:
+            self.sound._prefs.remove('tvSound')
+            self.assertEqual(self.sound.output, 'auto')
+            self.assertIs(self.sound._device(), laptop, 'TV in a window: the laptop')
+            self.sound.tvOnScreen = True
+            self.assertIs(self.sound._device(), hdmi, 'TV full screen: its HDMI sound')
+            self.assertEqual(self.sound.activeOutput, hdmi.name)
+            self.sound._prefs.setValue('tvSound', 'laptop')
+            self.assertIs(self.sound._device(), laptop)
+            self.sound._prefs.setValue('tvSound', 'alsa_output.usb-speaker')
+            self.assertIs(self.sound._device(), usb, 'a chosen output wins')
+            self.sound._prefs.setValue('tvSound', '')
+            self.assertEqual(self.sound.output, 'laptop', 'the old "system default" setting')
+        finally:
+            tvsound.QMediaDevices = saved
+            self.sound._prefs.remove('tvSound')
+            self.sound.tvOnScreen = False
+
     def test_silent_while_tv_closed(self):
         self.sound.on = False
         self.step(self.state(question()))

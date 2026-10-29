@@ -324,33 +324,75 @@ Item {
                 // The reveal slides up over the bottom of the question.
                 Rectangle {
                     id: reveal
+                    objectName: "reveal"
                     readonly property var q: questionView.q
                     readonly property bool shown: !!q && !!q.revealed
-                    // Choices are marked on their tiles; the strip then only says who scored.
+                    // Choices are marked on their tiles; the box then only says who scored.
                     readonly property bool tiles: !!q && ["choice", "vote", "multi"].includes(q.type)
+                    readonly property string answer: !q ? "" : q.type === "sheet" ? (q.items || []).map((item, i) => `${i + 1}. ${(q.itemAnswers || [])[i] || root.t("Marked by quizmaster")}`).join("   ")
+                        : q.type === "sequence" ? (q.items || []).join("  →  ") : (q.answer || root.t("Marked by quizmaster"))
+                    // Who scored, fastest first (closest first for nearest wins), each with its time or answer and points,
+                    // as the web TV (renderSolution in web/app.js).
+                    readonly property var scorers: q && q.type !== "vote" && q.scorers ? q.scorers : null
+                    readonly property bool nearest: !!q && q.type === "nearest"
+                    readonly property int most: 12
+                    // Many scorers: smaller chips, so the whole list fits.
+                    readonly property bool crowded: !!scorers && scorers.length > 6
                     anchors.horizontalCenter: parent.horizontalCenter
-                    width: parent.width; height: tiles ? 90 : 230; radius: 28
-                    y: shown ? parent.height - height : parent.height + 40
+                    // As tall as what it says, up to most of the screen; the question stays readable above it.
+                    width: parent.width; height: Math.min(parent.height * 0.66 - 16, content.implicitHeight + 56); radius: 28
+                    y: shown ? parent.height - height - 16 : parent.height + 40
                     opacity: shown ? 1 : 0
+                    clip: true
                     Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
                     Behavior on opacity { NumberAnimation { duration: 300 } }
-                    color: Qt.rgba(root.pal.good.r, root.pal.good.g, root.pal.good.b, 0.16); border.color: root.pal.good; border.width: 3
+                    color: Qt.rgba(root.pal.panel.r, root.pal.panel.g, root.pal.panel.b, 0.94); border.color: root.pal.good; border.width: 3
+                    Rectangle { anchors.fill: parent; radius: parent.radius; color: Qt.rgba(root.pal.good.r, root.pal.good.g, root.pal.good.b, 0.12) }
                     ColumnLayout {
-                        anchors.fill: parent; anchors.margins: 30; spacing: 8
-                        Text { visible: !reveal.tiles; text: root.t("ANSWER"); color: root.pal.good; font.pixelSize: 26; font.weight: Font.Bold; font.letterSpacing: 4 }
+                        id: content
+                        objectName: "revealContent"
+                        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 28; spacing: 10
+                        Text { visible: !reveal.tiles; text: root.t("ANSWER"); color: root.pal.good; font.pixelSize: 24; font.weight: Font.Bold; font.letterSpacing: 4 }
                         Text {
                             visible: !reveal.tiles
-                            Layout.fillWidth: true; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight
-                            text: !reveal.q ? "" : reveal.q.type === "sheet" ? (reveal.q.itemAnswers || []).map((a, i) => `${i + 1}. ${a || root.t("Marked by quizmaster")}`).join("   ")
-                                : reveal.q.type === "sequence" ? (reveal.q.items || []).join("  →  ") : (reveal.q.answer || root.t("Marked by quizmaster"))
-                            color: root.pal.text; font.family: Theme.display; font.pixelSize: 58; font.weight: Font.Bold
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight
+                            text: reveal.answer
+                            color: root.pal.text; font.family: Theme.display; font.weight: Font.Bold; lineHeight: 0.95
+                            // Long answers get smaller rather than spilling out of the box.
+                            font.pixelSize: reveal.answer.length > 90 ? 38 : reveal.answer.length > 45 ? 46 : 58
                         }
-                        Text { visible: !reveal.tiles && !!reveal.q && !!reveal.q.answerNote; text: reveal.q ? reveal.q.answerNote || "" : ""; color: root.pal.muted; font.pixelSize: 30; Layout.fillWidth: true; elide: Text.ElideRight }
+                        Text { visible: !reveal.tiles && !!reveal.q && !!reveal.q.answerNote; text: reveal.q ? reveal.q.answerNote || "" : ""; color: root.pal.muted; font.pixelSize: 26
+                               Layout.fillWidth: true; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight }
                         Text {
-                            readonly property var scorers: reveal.q ? reveal.q.scorers : null
-                            visible: !!scorers && reveal.q.type !== "vote"
-                            text: !scorers ? "" : !scorers.length ? root.t("Nobody scored this time") : scorers.length === 1 ? root.t("1 team scored: {name}", {name: scorers[0].name}) : root.t("{n} teams scored — {names}", {n: scorers.length, names: scorers.slice(0, 5).map(s => s.name).join(", ") + (scorers.length > 5 ? "…" : "")})
-                            color: root.pal.goldHi; font.pixelSize: 30; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight
+                            visible: !!reveal.scorers
+                            Layout.topMargin: reveal.tiles ? 0 : 4
+                            text: !reveal.scorers ? "" : reveal.q.tieBreaker ? root.t("Tie-breaker — closest first") : !reveal.scorers.length ? root.t("Nobody scored this time")
+                                : reveal.scorers.length === 1 ? root.t("1 team scored") : reveal.nearest ? root.t("{n} teams scored — closest first", {n: reveal.scorers.length})
+                                : root.t("{n} teams scored — fastest first", {n: reveal.scorers.length})
+                            color: root.pal.goldHi; font.pixelSize: 26; font.weight: Font.Bold
+                        }
+                        Flow {
+                            visible: !!reveal.scorers && reveal.scorers.length > 0
+                            Layout.fillWidth: true; spacing: reveal.crowded ? 8 : 10
+                            Repeater {
+                                model: reveal.scorers ? reveal.scorers.slice(0, reveal.most) : []
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    required property int index
+                                    readonly property string detail: [reveal.nearest ? (modelData.answer || "") : modelData.ms === null || modelData.ms === undefined ? "" : root.t("{s}s", {s: (modelData.ms / 1000).toFixed(1)}),
+                                                                      modelData.points === null || modelData.points === undefined ? "" : `+${modelData.points}`].filter(x => x).join(" · ")
+                                    width: chip.implicitWidth + 28; height: reveal.crowded ? 42 : 50; radius: height / 2
+                                    color: index === 0 ? Qt.rgba(root.pal.gold.r, root.pal.gold.g, root.pal.gold.b, 0.22) : Qt.rgba(1, 1, 1, 0.07)
+                                    border.color: index === 0 ? root.pal.gold : Qt.rgba(1, 1, 1, 0.14)
+                                    Row {
+                                        id: chip; anchors.centerIn: parent; spacing: 12
+                                        Text { text: `${index + 1}. ${modelData.name}`; color: root.pal.text; font.pixelSize: reveal.crowded ? 20 : 24; font.weight: Font.DemiBold }
+                                        Text { visible: parent.parent.detail !== ""; text: parent.parent.detail; color: root.pal.goldHi; font.pixelSize: reveal.crowded ? 20 : 24; font.weight: Font.Bold }
+                                    }
+                                }
+                            }
+                            Text { visible: !!reveal.scorers && reveal.scorers.length > reveal.most; height: 50; verticalAlignment: Text.AlignVCenter
+                                   text: reveal.scorers ? `+${reveal.scorers.length - reveal.most}` : ""; color: root.pal.muted; font.pixelSize: 24 }
                         }
                     }
                 }
@@ -439,14 +481,23 @@ Item {
                 opacity: root.view === "wheel" ? 1 : 0; visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 300 } }
                 readonly property var wheel: root.tv.wheel || null
+                // The wheel on show (its id as text), and whether a state has been seen at all: a spin seen happening
+                // turns, one already there when the TV opens is shown at rest. Every TV refresh brings a new wheel
+                // object, so only a new id counts.
                 property string shownId: ""
+                property bool primed: false
                 property real turn: 0
                 property bool done: false
-                onWheelChanged: {
-                    if (!wheel || wheel.id === shownId) return
-                    const fresh = shownId !== "" && root.serverNow - wheel.spun < 3000, slice = 360 / wheel.items.length
+                Connections { target: root; function onTvChanged() { wheelView.follow() } }
+                Component.onCompleted: follow()
+                function follow() {
+                    if (!root.tv || !root.tv.settings) return
+                    const first = !primed
+                    primed = true
+                    if (!wheel || String(wheel.id) === shownId) return
+                    const fresh = !first && root.serverNow - wheel.spun < 3000, slice = 360 / wheel.items.length
                     const target = 360 - (wheel.result + 0.5) * slice
-                    shownId = wheel.id; wheelCanvas.requestPaint()
+                    shownId = String(wheel.id); wheelCanvas.requestPaint()
                     spin.stop()
                     if (!fresh) { wheelCanvas.rotation = target; done = true; return }
                     done = false
@@ -454,7 +505,7 @@ Item {
                     spin.start()
                 }
                 // The web TV's curve (cubic-bezier(.12,.6,.15,1)), which the tick sounds follow (tvsound.py).
-                NumberAnimation { id: spin; target: wheelCanvas; property: "rotation"; duration: 6000; easing.type: Easing.BezierSpline
+                NumberAnimation { id: spin; objectName: "wheelSpin"; target: wheelCanvas; property: "rotation"; duration: 6000; easing.type: Easing.BezierSpline
                                   easing.bezierCurve: [0.12, 0.6, 0.15, 1, 1, 1]; onFinished: wheelView.done = true }
                 Canvas {
                     id: wheelCanvas

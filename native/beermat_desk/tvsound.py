@@ -5,6 +5,7 @@ Everything goes to one output, the TV's sound (chosen in Settings), as Electron'
 
 The moments follow soundCues() in web/client.js exactly, so a native TV and a web TV sound the same."""
 import math
+import re
 import struct
 import tempfile
 import wave
@@ -22,6 +23,8 @@ FANFARE = [(523, 0), (659, 0.15), (784, 0.3), (1047, 0.45), (784, 0.7), (1047, 0
 WHEEL_MS, WHEEL_EASING = 6000, (0.12, 0.6, 0.15, 1)
 QUIET_TYPES = {'audio', 'clips', 'musicbingo', 'buzzer', 'bingo'}
 AUDIO_FILE = ('.mp3', '.ogg', '.wav')
+# A TV's own sound: the output on its HDMI or DisplayPort cable (desktop/sound.js pickOutput).
+TV_OUTPUT = re.compile(r'HDMI|DisplayPort|\bDP\b', re.I)
 
 
 def synth(path, notes, shape, gain=0.12, length=0.22):
@@ -98,6 +101,7 @@ class TvSound(QObject):
         self._tick.start()
         self._wheel_id, self._wheel_turn, self._wheel_timers = None, 0.0, []
         self._pegs, self._peg = [], 0
+        self._tv_on_screen = False
 
     onChanged = Signal()
 
@@ -120,7 +124,29 @@ class TvSound(QObject):
 
     @Property(str, notify=outputsChanged)
     def output(self):
-        return self._prefs.value('tvSound', '', str)
+        """'auto' (the default, as the Electron app): the TV's own HDMI or DisplayPort sound while the TV is full screen on
+        its screen, otherwise the system's default; 'laptop': always the system's default; or one output's id."""
+        chosen = self._prefs.value('tvSound', 'auto', str)
+        return 'laptop' if chosen == '' else chosen
+
+    tvOnScreenChanged = Signal()
+
+    def _get_tv_on_screen(self):
+        return self._tv_on_screen
+
+    def _set_tv_on_screen(self, on):
+        if on != self._tv_on_screen:
+            self._tv_on_screen = on
+            self._apply_output()
+            self.tvOnScreenChanged.emit()
+            self.outputsChanged.emit()
+
+    tvOnScreen = Property(bool, _get_tv_on_screen, _set_tv_on_screen, notify=tvOnScreenChanged)
+
+    @Property(str, notify=outputsChanged)
+    def activeOutput(self):
+        """The output's name sounds go to now, for the desk."""
+        return self._device().description()
 
     @Slot(str)
     def chooseOutput(self, device_id):
@@ -129,13 +155,25 @@ class TvSound(QObject):
         self.outputsChanged.emit()
 
     def _device(self):
-        chosen = self.output
-        return next((d for d in QMediaDevices.audioOutputs() if bytes(d.id()).decode(errors='replace') == chosen), QMediaDevices.defaultAudioOutput())
+        chosen, outputs = self.output, QMediaDevices.audioOutputs()
+        if chosen == 'auto':
+            tv = next((d for d in outputs if TV_OUTPUT.search(d.description()) or TV_OUTPUT.search(bytes(d.id()).decode(errors='replace'))), None) if self._tv_on_screen else None
+            return tv or QMediaDevices.defaultAudioOutput()
+        return next((d for d in outputs if bytes(d.id()).decode(errors='replace') == chosen), QMediaDevices.defaultAudioOutput())
 
     def _apply_output(self):
         device = self._device()
         for _, out in self._players.values():
             out.setDevice(device)
+        # QSoundEffect takes its device when made: the wheel's pegs are made again for the new output.
+        self._pegs = []
+
+    @Slot()
+    def test(self):
+        """The desk's Test sound button: a short chime on the TV's output, even with the TV closed."""
+        was, self.enabled = self.enabled, True
+        self.play_file(self._synth_file('test-chime', [(784, 0), (988, 0.15), (1175, 0.3)], 'triangle', 0.15, 0.3))
+        self.enabled = was
 
     # ---- playing ----
     def _url(self, src):
@@ -234,7 +272,7 @@ class TvSound(QObject):
             return
         slice_ = 360 / len(wheel['items'])
         target = 360 - (wheel['result'] + 0.5) * slice_
-        fresh = not first and self._wheel_id is not None and self._now() - wheel.get('spun', 0) < 3000
+        fresh = not first and self._now() - wheel.get('spun', 0) < 3000
         self._wheel_id = wheel['id']
         if not fresh:
             self._wheel_turn = target
