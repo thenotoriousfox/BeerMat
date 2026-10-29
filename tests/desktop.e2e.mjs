@@ -48,7 +48,7 @@ try {
   const tvOpened = app.waitForEvent('window');
   await desk.locator('#tvOpen').click();
   const tv = await tvOpened;
-  await tv.waitForURL(/\/display$/);
+  await tv.waitForURL(/\/tv\?app=1$/);
   await tv.locator('#projection').waitFor({state: 'attached'});
   const tvWindow = await app.browserWindow(tv);
   assert.equal(await tvWindow.evaluate(w => w.isFullScreen()), false, 'one screen: a preview window');

@@ -8,7 +8,7 @@ profiles and quiz listings.
                    ┌───────────────────────── one laptop (offline core) ─────────────────────────┐
   Quizmaster ──────┤ Desktop app (Electron)          Quiz server (Node, server/)                  │
                    │  desk window ── /host ─────────▶ quiz engine, scoring, SQLite, media, sounds │
-  TV/projector ────┤  TV window ──── /display ───────▶ live updates (SSE, WebSocket)               │
+  TV/projector ────┤  TV window ──── /tv ────────────▶ live updates (SSE, WebSocket)               │
                    │                                  network: quiz hotspot / venue LAN / tunnel   │
                    └─────────────────────────────────────────▲─────────────────────────────────────┘
                                                              │ http://10.42.0.1 · http://192.168.x.y:3000 · https://….trycloudflare.com

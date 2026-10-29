@@ -144,7 +144,7 @@ test('allowed local addresses refuse other interfaces, except the TV page (a TV 
     assert.equal((await fetch(url() + p, {method, ...(method === 'POST' && {body: '{}'})})).status, 403, `${method} ${p}`);
   assert.equal((await fetch(url() + '/api/events?key=' + 'a'.repeat(22) + '==')).status, 403, 'a team’s live updates');
   // The TV page, what it loads and the room's live updates: on every network.
-  for (const p of ['/tv', '/display', '/client.js', '/app.js', '/style.css', '/themes.css', '/i18n.js', '/qr.js', '/brand/mark.svg', '/api/leaderboard', '/api/hello'])
+  for (const p of ['/tv', '/client.js', '/app.js', '/style.css', '/themes.css', '/i18n.js', '/qr.js', '/brand/mark.svg', '/api/leaderboard', '/api/hello'])
     assert.equal((await fetch(url() + p)).status, 200, p);
   const events = await fetch(url() + '/api/events', {signal: AbortSignal.timeout(1500)});
   assert.equal(events.status, 200, 'the TV’s live updates');

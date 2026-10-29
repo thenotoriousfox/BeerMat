@@ -53,7 +53,7 @@ test('concurrent teams, choices, manual close, portal fallback and request guard
  const base=`http://127.0.0.1:${quiz.server.address().port}`;
  async function api(p,b={},auth=''){const r=await fetch(base+'/api/'+p,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+auth},body:JSON.stringify(b)});return {status:r.status,...await r.json()};}
  try{
- for(const p of ['/','/generate_204','/hotspot-detect.html','/connecttest.txt','/host','/display','/app.js','/style.css']){const r=await fetch(base+p);assert.equal(r.status,200);assert.ok(r.headers.get('content-security-policy'));}
+ for(const p of ['/','/generate_204','/hotspot-detect.html','/connecttest.txt','/host','/tv','/app.js','/style.css']){const r=await fetch(base+p);assert.equal(r.status,200);assert.ok(r.headers.get('content-security-policy'));}
  const csrf=await fetch(base+'/api/join',{method:'POST',headers:{Origin:'http://evil.example'},body:'{"name":"Stolen"}'});assert.equal(csrf.status,403);
  const malformed=await fetch(base+'/api/join',{method:'POST',body:'{'});assert.equal(malformed.status,400);
  const host=(await api('login',{key})).key;await api('host/settings',{waitingRoom:false},host);

@@ -1089,7 +1089,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const localAddress = req => (req.socket.localAddress || '').replace(/^::ffff:/, '');
   const localAllowed = req => {const only = allowedAddresses || hotspotOnly; return !only || only.includes(localAddress(req));};
   // The TV page is the exception: a smart TV or TV stick is usually on the venue's own Wi-Fi, which the laptop stays on
-  // beside its quiz Wi-Fi, so the TV page (/tv, /display), what it loads and its live updates answer on every network
+  // beside its quiz Wi-Fi, so the TV page (/tv; /display leads there), what it loads and its live updates answer on every network
   // the laptop is on. Only reading, and only what the room sees on the TV anyway: playing, joining and the desk stay on
   // the quiz Wi-Fi.
   const tvFiles = new Set(['/tv', '/display', '/client.js', '/app.js', '/qr.js', '/soundnames.js', '/i18n.js', '/style.css', '/themes.css', '/api/leaderboard', '/api/hello']);
@@ -1134,8 +1134,10 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       // Discovery: what a native app checks before joining (is this a BeerMat quiz server, which protocol, rehearsing?).
       if (req.method === 'GET' && p === '/api/hello') return send(200, {app: 'BeerMat', protocol: PROTOCOL, build, title: settings().title, rehearsal: !liveNow(), registrationOpen: !!settings().registrationOpen && !settings().ended});
       if ((req.method === 'GET' || req.method === 'HEAD') && !p.startsWith('/api/')) {
-        // /tv: the TV page as a smart TV's browser opens it (short to type with a remote; client.js shows a start button).
-        const routes = {'/host': 'host.html', '/display': 'display.html', '/tv': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
+        // /tv: the TV page (short to type with a remote; client.js shows a start button). /display, its old address,
+        // still leads there.
+        if (p === '/display') {res.writeHead(301, {...security, Location: '/tv' + url.search}); return res.end();}
+        const routes = {'/host': 'host.html', '/tv': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
         if (p.startsWith('/media/')) {
           requireValue(mediaPattern.test(p), 'Media not found', 404);
           const file = path.join(mediaDir, path.basename(p));

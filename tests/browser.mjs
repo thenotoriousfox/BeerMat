@@ -73,7 +73,7 @@ try {
   log('form authoring: text, choice, one-item sheet, picture and audio upload; saved quiz survives reload');
   await player.goto(base + '/hotspot-detect.html'); await player.locator('#name').fill('Fox team'); await player.locator('#joinButton').click(); await visible(player, '#game'); const recovery = await player.locator('#code').textContent(); assert.equal(recovery.length, 48);
   // The TV starts in Auto: before the first question it shows how to join.
-  await projector.goto(base + '/display'); await visible(projector, '#joinSection');
+  await projector.goto(base + '/tv'); await visible(projector, '#joinSection');
   await host.locator('[data-tab=live]').click(); assert.equal(await host.locator('#displayMode').inputValue(), 'auto');
   // Later updates with no question open must keep the TV connected (a drawing error shows as a lost connection).
   await host.locator('#visibility').click(); await waitFor(host, () => document.getElementById('visibility').textContent === 'Show leaderboard');
@@ -83,6 +83,10 @@ try {
   assert.equal(await projector.locator('.qr:visible').count(), 1, 'one code to scan'); assert.match(await projector.locator('#joinStepWifi').textContent(), /“BeerMat”/);
   assert.match(await projector.locator('#joinStepUrl').textContent(), /10\.42\.0\.1/); await waitFor(projector, () => /1 team has joined/.test(document.getElementById('joinStatus').textContent));
   await host.locator('[data-tab=settings]').click(); await host.locator('#joinSsidInput').fill('Fox Quiz'); await host.locator('#joinDetails button').click(); await waitFor(projector, () => document.getElementById('joinStepWifi').textContent.includes('Fox Quiz')); await host.locator('[data-tab=live]').click();
+  // /tv opens on Start the TV: one press, full screen with sound. Then the page's own full screen button and F key.
+  await visible(projector, '#tvStartButton'); await projector.locator('#tvStartButton').click();
+  await waitFor(projector, () => !!document.fullscreenElement && document.getElementById('tvStart').hidden && document.getElementById('enableSound').hidden);
+  await projector.keyboard.press('f'); await waitFor(projector, () => !document.fullscreenElement);
   await projector.mouse.move(5, 5); await projector.mouse.move(20, 20); await projector.locator('#fullscreen').click(); await waitFor(projector, () => !!document.fullscreenElement && document.getElementById('fullscreen').textContent.includes('Exit'));
   await projector.keyboard.press('f'); await waitFor(projector, () => !document.fullscreenElement);
   await host.locator('#displayMode').selectOption('leaderboard'); await waitFor(projector, () => document.getElementById('joinHint').textContent.includes('Fox Quiz')); await projector.getByText('1. Fox team').waitFor();
@@ -145,7 +149,7 @@ try {
   assert.equal(await scoreOf('Fox team'), before + 3); assert.equal(await scoreOf('Owl team'), 1);
   log('leaving the quiz page during a question is shown on the desk');
   log('letter keypad, tap-to-order sequence and nearest-wins sliding scale (2 places: 1 point each after rounding)');
-  await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('question'); await projector.mouse.move(5, 5); await projector.mouse.move(20, 20); await projector.locator('#enableSound').click();
+  await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('question'); assert.equal(await projector.locator('#enableSound').isHidden(), true, 'sound already on: Start the TV turned it on');
   await play('Classic buzz'); await visible(rival, '#buzz'); await rival.locator('#buzz').click(); await player.locator('#buzz').click();
   await waitFor(player, () => document.getElementById('buzzStatus').textContent.includes('#2'));
   await waitFor(projector, () => document.getElementById('buzzLeader').textContent.includes('Owl team'));

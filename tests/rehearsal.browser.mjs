@@ -35,7 +35,7 @@ try {
   pass('the rehearsal starts with six simulated teams, connected');
 
   const tv = await page({viewport: {width: 1280, height: 720}});
-  await tv.goto(base + '/display'); await tv.locator('#rehearsalBadge').waitFor({state: 'visible'});
+  await tv.goto(base + '/tv?app=1'); await tv.locator('#rehearsalBadge').waitFor({state: 'visible'});
   pass('the TV shows it is a rehearsal');
 
   const phone = await page({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});

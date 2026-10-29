@@ -52,7 +52,7 @@ try {
   };
 
   const tv = await (await browser.newContext({viewport: {width: 1600, height: 900}, deviceScaleFactor: 2})).newPage(); tv.retina = true;
-  await tv.goto(base + '/display'); await sleep(1500);
+  await tv.goto(base + '/tv?app=1'); await sleep(1500);
   await shot(tv, 'tv-join');
 
   const desk = await (await browser.newContext({viewport: {width: 1600, height: 1000}, deviceScaleFactor: 2})).newPage(); desk.retina = true;
@@ -72,7 +72,7 @@ try {
   await shot(tv, 'tv-question'); await shot(phones[5], 'phone-choice');
   // The picture shown when a link to the site is shared (Open Graph): the TV at 1200×630, kept as PNG for every app.
   const og = await (await browser.newContext({viewport: {width: 1200, height: 630}})).newPage();
-  await og.goto(base + '/display'); await sleep(1500); await og.screenshot({path: path.join(out, 'og.png')});
+  await og.goto(base + '/tv?app=1'); await sleep(1500); await og.screenshot({path: path.join(out, 'og.png')});
   // Without the "Quiz desk unlocked" note from signing in.
   await desk.waitForFunction(() => !document.getElementById('message').textContent, null, {timeout: 15000}).catch(() => {});
   await shot(desk, 'desk');
