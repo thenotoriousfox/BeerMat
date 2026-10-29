@@ -51,16 +51,13 @@ Item {
         scale: Math.min(root.width / width, root.height / height)
         visible: root.view !== "blank"
 
-        Rectangle {
-            anchors.fill: parent
-            visible: !(root.look && root.look.background)
-            gradient: Gradient {
-                GradientStop { position: 0; color: root.pal.panel }
-                GradientStop { position: 0.55; color: root.pal.bg2 }
-                GradientStop { position: 1; color: root.pal.bg }
-            }
+        // The background, without bands: BeerMat's, or the look's own gradient (tv.json's background).
+        SmoothGradient {
+            anchors.fill: parent; scaleHint: stage.scale
+            readonly property var own: root.look && root.look.background && root.look.background.gradient ? root.look.background.gradient : null
+            stops: own && own.length ? own : [[0, root.pal.panel], [0.55, root.pal.bg2], [1, root.pal.bg]]
         }
-        // The look's own background: a gradient top to bottom, and soft coloured glows ([x, y, width, height, colour]).
+        // The look's soft coloured glows ([x, y, width, height, colour]), over its gradient.
         Canvas {
             id: lookBackground
             objectName: "lookBackground"
@@ -72,9 +69,7 @@ Item {
                 const ctx = getContext("2d"), b = background
                 ctx.reset()
                 if (!b) return
-                const g = ctx.createLinearGradient(0, 0, 0, height)
-                for (const [at, colour] of b.gradient || []) g.addColorStop(at, colour)
-                ctx.fillStyle = g; ctx.fillRect(0, 0, width, height)
+                // The gradient is the SmoothGradient underneath; this adds the glows.
                 for (const [cx, cy, w, h, colour] of b.glows || []) {
                     ctx.save(); ctx.translate(cx, cy); ctx.scale(1, h / w)
                     const r = ctx.createRadialGradient(0, 0, 0, 0, 0, w / 2), c = Qt.color(colour)
@@ -92,9 +87,6 @@ Item {
                 color: Qt.rgba(modelData[2].r, modelData[2].g, modelData[2].b, 0.07)
             }
         }
-
-        // The background's gradient, without bands.
-        Dither {}
 
         // The look's scenery (tv.json's scene), behind everything.
         Loader {

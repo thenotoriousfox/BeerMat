@@ -33,11 +33,8 @@ ApplicationWindow {
         {name: "Teams & marking", icon: "♟", key: "Ctrl+4"}, {name: "Venue & network", icon: "⌁", key: "Ctrl+5"}, {name: "Settings", icon: "⚙", key: "Ctrl+6"}]
 
     background: Rectangle {
-        gradient: Gradient {
-            GradientStop { position: 0; color: Theme.bg2 }
-            GradientStop { position: 1; color: Theme.bg }
-        }
-        Dither {}
+        color: Theme.bg
+        SmoothGradient { anchors.fill: parent; stops: [[0, Theme.bg2], [1, Theme.bg]] }
     }
 
     // ---- keys: the live ones work from every workspace, as on the web desk ----

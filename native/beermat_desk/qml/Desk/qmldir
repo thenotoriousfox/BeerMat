@@ -6,4 +6,4 @@ DeskButton 1.0 DeskButton.qml
 Field 1.0 Field.qml
 Area 1.0 Area.qml
 Tool 1.0 Tool.qml
-Dither 1.0 Dither.qml
+SmoothGradient 1.0 SmoothGradient.qml

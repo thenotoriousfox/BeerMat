@@ -22,6 +22,7 @@ from PySide6.QtGui import QFontDatabase, QGuiApplication           # noqa: E402
 from PySide6.QtQml import QQmlApplicationEngine                    # noqa: E402
 from PySide6.QtQuickControls2 import QQuickStyle                   # noqa: E402
 
+from beermat_desk import gradients                                 # noqa: E402
 from beermat_desk.desk import Desk                                 # noqa: E402
 from beermat_desk.screens import Screens                           # noqa: E402
 from beermat_desk.server import ROOT                               # noqa: E402
@@ -63,6 +64,7 @@ class DeskCase(unittest.TestCase):
         subprocess.run(['node', str(ROOT / 'scripts' / 'load-test-quiz.mjs'), '--json', str(self.quiz_file)], check=True, capture_output=True)
         self.desk = Desk(Path(self.dir.name) / 'data', 'native-test-key-0123456789', port=0, laptop=False)
         self.engine = QQmlApplicationEngine()
+        gradients.install(self.engine)
         self.screens = Screens()
         self.engine.rootContext().setContextProperty('desk', self.desk)
         self.engine.rootContext().setContextProperty('screens', self.screens)

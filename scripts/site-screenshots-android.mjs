@@ -59,7 +59,7 @@ for (const name of ['Quiz Team Aguilera', 'Les Quizerables', 'Agatha Quiztie', '
 function shot(name) {
   const png = path.join(raw, `${name}.png`);
   writeFileSync(png, execFileSync(adbPath, ['exec-out', 'screencap', '-p'], {maxBuffer: 64 * 1024 * 1024}));
-  execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', png, '-vf', 'crop=iw:iw*1688/780:0:0,scale=780:1688:flags=lanczos', '-c:v', 'libwebp', '-quality', '90', path.join(out, `${name}.webp`)]);
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', png, '-vf', 'crop=iw:iw*1688/780:0:0,scale=780:1688:flags=lanczos', '-c:v', 'libwebp', '-lossless', '1', '-compression_level', '6', path.join(out, `${name}.webp`)]);
   console.log('Saved', name);
 }
 

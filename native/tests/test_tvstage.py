@@ -15,7 +15,7 @@ from PySide6.QtGui import QGuiApplication                                       
 from PySide6.QtQml import QQmlApplicationEngine                                       # noqa: E402
 from PySide6.QtQuick import QQuickWindow                                              # noqa: E402,F401  (window type)
 
-from beermat_desk import looks                                                         # noqa: E402
+from beermat_desk import gradients, looks                                              # noqa: E402
 from beermat_desk.server import ROOT                                                   # noqa: E402
 
 app = QGuiApplication.instance() or QGuiApplication(sys.argv)
@@ -103,6 +103,7 @@ class TvStageTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.engine = QQmlApplicationEngine()
+        gradients.install(cls.engine)
         cls.desk = FakeDesk()
         cls.engine.rootContext().setContextProperty('desk', cls.desk)
         cls.engine.rootContext().setContextProperty('brand', QUrl.fromLocalFile(str(ROOT / 'brand') + '/'))

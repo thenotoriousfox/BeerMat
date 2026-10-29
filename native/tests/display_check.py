@@ -16,13 +16,14 @@ from PySide6.QtQuick import QQuickWindow
 from PySide6.QtQuickControls2 import QQuickStyle
 app = QGuiApplication(sys.argv); app.setOrganizationName('BeerMat-test')
 QQuickStyle.setStyle('Basic'); QFontDatabase.addApplicationFont(str(Path(__file__).resolve().parents[2] / 'brand' / 'fredoka.woff2'))
+from beermat_desk import gradients
 from beermat_desk.desk import Desk
 from beermat_desk.screens import Screens
 from beermat_desk.server import ROOT
 out = Path(sys.argv[1]); data = Path(tempfile.mkdtemp())
 linger = int(sys.argv[sys.argv.index('--wait') + 1]) if '--wait' in sys.argv else 0
 desk = Desk(data, 'real-display-check-key-0123', port=0, laptop=False); screens = Screens(app)
-e = QQmlApplicationEngine(); c = e.rootContext()
+e = QQmlApplicationEngine(); gradients.install(e); c = e.rootContext()
 c.setContextProperty('desk', desk); c.setContextProperty('screens', screens); c.setContextProperty('brand', QUrl.fromLocalFile(str(ROOT / 'brand') + '/'))
 e.addImportPath(str(ROOT / 'native/beermat_desk/qml')); e.load(QUrl.fromLocalFile(str(ROOT / 'native/beermat_desk/qml/Main.qml')))
 win = e.rootObjects()[0]; tv = win.findChild(QObject, 'tv')

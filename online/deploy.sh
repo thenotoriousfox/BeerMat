@@ -30,7 +30,7 @@ cp "$repo/online/service.js" "$repo/online/client.js" "$repo/online/admin.js" "$
 # Shared themes' TV and app pictures, drawn by BeerMat Desk's own TV and app mock (online/qt-preview.js): the desk's
 # Python and QML that draw them, run by PySide6 (Qt without a browser engine, about 250 MB) installed on the server.
 mkdir -p "$stage/native/beermat_desk"
-cp "$repo"/native/beermat_desk/{__init__.py,looks.py,previews.py} "$stage/native/beermat_desk/" && cp -r "$repo/native/beermat_desk/qml" "$stage/native/beermat_desk/"
+cp "$repo"/native/beermat_desk/{__init__.py,looks.py,previews.py,gradients.py} "$stage/native/beermat_desk/" && cp -r "$repo/native/beermat_desk/qml" "$stage/native/beermat_desk/"
 mkdir -p "$stage/web" && cp "$repo/web/i18n.js" "$repo/web/qr.js" "$stage/web/"   # the TV's words in the quiz's language, and its QR code
 # THEME_PREVIEWS=1: shared themes get a picture of a phone's browser too (online/preview.js), which needs the quiz
 # engine and Playwright's Chromium (about 400 MB) on the server. Without it, themes still have the desk's pictures.
@@ -40,7 +40,7 @@ if [ "${THEME_PREVIEWS:-0}" = 1 ]; then
   printf '%s\n' "$(node -p 'require("'"$repo"'/package.json").devDependencies?.playwright || require("'"$repo"'/package.json").dependencies?.playwright')" > "$stage/playwright-version"
 fi
 cp "$repo"/shared/*.js "$stage/shared/"
-mkdir -p "$stage/brand" && cp "$repo"/brand/*.svg "$repo/brand/fredoka.woff2" "$repo"/brand/fredoka-*.ttf "$repo/brand/noise.png" "$repo/brand/logo-email.png" "$stage/brand/"
+mkdir -p "$stage/brand" && cp "$repo"/brand/*.svg "$repo/brand/fredoka.woff2" "$repo"/brand/fredoka-*.ttf "$repo/brand/logo-email.png" "$stage/brand/"
 cp -r "$repo/mobile/www" "$stage/mobile/"
 cp -r "$repo/online/admin" "$repo/online/pages" "$stage/online/"
 printf '{"private": true, "type": "module"}\n' > "$stage/package.json"

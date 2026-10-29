@@ -51,8 +51,11 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -80,9 +83,8 @@ fun BeerMatApp(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.onlin
     I18n.lang = ui.game?.settings?.language ?: I18n.phone
     // The quiz's look dresses the whole screen (its background and scenery, behind everything); otherwise BeerMat's own.
     val look = if (ui.stage == Stage.Play) ui.look else null
-    val backdrop = look?.background?.takeIf { it.isNotEmpty() }?.let { stops -> Brush.verticalGradient(*stops.toTypedArray()) }
-        ?: Brush.verticalGradient(listOf(Color(0xFF241046), Brand.bg, Brand.bg2))
-    Box(Modifier.fillMaxSize().background(backdrop)) {
+    val backdrop = look?.background?.takeIf { it.isNotEmpty() } ?: listOf(0f to Color(0xFF241046), 0.5f to Brand.bg, 1f to Brand.bg2)
+    Box(Modifier.fillMaxSize().smoothGradient(backdrop)) {
         if (look != null) LookScene(look)
     Box(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
         Column(Modifier.fillMaxSize()) {
@@ -114,6 +116,16 @@ fun BeerMatApp(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.onlin
         ui.wifi?.let { WifiSheet(it.ssid, it.password, onDone = vm::dismissWifi) }
     }
     }
+}
+
+/** A top-to-bottom gradient without bands: Android dithers it (its Paint's dither flag, which Compose's brushes leave
+ *  off), so dark colours a few steps apart change smoothly instead of in stripes. */
+fun Modifier.smoothGradient(stops: List<Pair<Float, Color>>) = drawBehind {
+    val paint = android.graphics.Paint().apply {
+        isDither = true
+        shader = android.graphics.LinearGradient(0f, 0f, 0f, size.height, stops.map { it.second.toArgb() }.toIntArray(), stops.map { it.first }.toFloatArray(), android.graphics.Shader.TileMode.CLAMP)
+    }
+    drawIntoCanvas { it.nativeCanvas.drawRect(0f, 0f, size.width, size.height, paint) }
 }
 
 /** A look's phone scenery (tv.json's phone): pictures on a stage 390 wide, scaled to the screen's width and placed
