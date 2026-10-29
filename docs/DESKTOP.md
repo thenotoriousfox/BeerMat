@@ -18,8 +18,17 @@ each file's checksum).
 The builds are **not code-signed yet**. Windows SmartScreen warns about an unknown publisher (More info → Run
 anyway) until the installer is signed with a code-signing certificate (see "Building", below).
 
-**Updating:** install the new version over the old one. Your quizzes, settings and key are in your user folder, not
-the program folder, so they carry over. There is no automatic updater yet.
+**Updating:** BeerMat Desk looks for a new version when it starts and twice a day (it needs the internet: the
+venue's Wi-Fi, or the quiz Wi-Fi with the laptop still on its own). When one is out, the top bar says so and
+**Settings → Updates** offers it; nothing happens until you say, and never while a question is open. Installed on
+Windows, **Update and restart** runs the new installer silently and starts the new desk; the Linux AppImage swaps
+itself for the new one in place. The Windows zip and the Linux tar.gz say a new version is out and open the download
+page. Your quizzes, settings and key are in your user folder, not the program folder, so they carry over.
+
+How it's kept safe: each release publishes `latest.json` on downloads.beermatquiz.co.uk, signed with BeerMat's
+release key (`scripts/update-manifest.mjs`, the `UPDATE_KEY` secret; the public half is in `shared/update.js`, and the
+maintainer's copy of the private key is `~/.local/share/beermat/update-key.txt`). The desk's quiz server only believes
+a manifest signed with it, and only installs a file whose size and SHA-256 match it (`server/updates.js`).
 
 ## First run
 
