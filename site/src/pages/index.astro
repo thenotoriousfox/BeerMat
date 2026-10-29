@@ -38,7 +38,7 @@ const reasons = [
 	['room', 'Built for the room', 'A big Next button, a checklist before you start, buzzers with silly sounds, and a leaderboard reveal.'],
 	['saved', 'Nothing lost', 'Everything saves as you go. If the laptop restarts, the quiz carries on where it was, and teams keep their place.'],
 	['map', 'Your pub on the map', 'With BeerMat Pro, your pub and its quiz nights are on the BeerMat map, in the app and on this website, so players can find you.'],
-	['buzzer', 'Libraries of buzzers and themes', 'Every team picks a buzzer sound, and the TV and phones dress up in a theme. With BeerMat Pro, add more of both from the BeerMat libraries (Halloween and other seasonal themes among them), and share your own.'],
+	['buzzer', 'Libraries of quizzes, buzzers and themes', 'Ready-made quizzes, buzzer sounds for every team, and themes that dress up the TV and phones (Halloween among them). With BeerMat Pro, download any of them from the BeerMat libraries, and share your own.'],
 ] as const;
 ---
 <Page>
@@ -147,7 +147,23 @@ const reasons = [
 		</ul>
 	</section>
 
-	<!-- Rehearsal: what Free does, so nobody's first quiz night is their first go. -->
+	<!-- The Library: quizzes, buzzers and themes from BeerMat and other pubs. -->
+	<section class="wrap grid items-center gap-12 py-20 lg:grid-cols-[.8fr_1.2fr]">
+		<div>
+			<p class="eyebrow">The Library</p>
+			<h2 class="text-3xl text-balance sm:text-4xl">No time to write a quiz this week?</h2>
+			<p class="text-muted">Library, on the desk’s left rail, holds ready-made quizzes, buzzer sounds and themes from BeerMat and other BeerMat pubs. Browse it on any plan; with BeerMat Pro, download what you like and share your own.</p>
+			<ul class="mt-6 space-y-4">
+				<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg><span><strong class="text-cream">Quizzes:</strong> see each one’s rounds and formats, then download and load it in one click, pictures and sounds included. The questions stay a surprise until you do.</span></li>
+				<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg><span><strong class="text-cream">Buzzers:</strong> short sounds for every team to pick from, shared by pubs.</span></li>
+				<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg><span><strong class="text-cream">Themes:</strong> dress the TV and the teams’ phones for the night, from Halloween to your pub’s own colours.</span></li>
+				<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg><span>Every quiz and theme is checked by BeerMat before other pubs see it.</span></li>
+			</ul>
+		</div>
+		<Shot src="/shots/library.webp" alt="The Library on the quizmaster’s desk: ready-made quizzes with their rounds and formats, and a Download and load button for each" {...DESK} retina sizes="(min-width: 1024px) 640px, 100vw" />
+	</section>
+
+		<!-- Rehearsal: what Free does, so nobody's first quiz night is their first go. -->
 	<section class="wrap py-20">
 		<div class="card grid gap-10 !p-8 lg:grid-cols-[.9fr_1.1fr] lg:!p-10">
 			<div>
@@ -188,7 +204,7 @@ const reasons = [
 					<p class="mb-1 font-display text-4xl font-bold text-amber">{PRICE.monthly}<span class="text-lg text-muted"> a month</span></p>
 					<p class="text-muted">or {PRICE.yearly} a year (two months free)</p>
 					<ul class="mb-8 space-y-3">
-						{['Everything in Free', 'Host live quizzes: real teams, real answers and buzzers', 'Live scoring and leaderboards, as many teams as the room holds', 'Your pub and quiz nights on the BeerMat map', 'The shared buzzer library', 'The theme library: Halloween and more looks for the TV and phones', 'Help by email when you need it', 'Works offline once activated; cancel any time from the desk'].map(item => (
+						{['Everything in Free', 'Host live quizzes: real teams, real answers and buzzers', 'Live scoring and leaderboards, as many teams as the room holds', 'Your pub and quiz nights on the BeerMat map', 'The quiz library: ready-made quizzes to download and run', 'The shared buzzer library', 'The theme library: Halloween and more looks for the TV and phones', 'Help by email when you need it', 'Works offline once activated; cancel any time from the desk'].map(item => (
 							<li class="flex gap-3"><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons.marking} /></svg>{item}</li>
 						))}
 					</ul>

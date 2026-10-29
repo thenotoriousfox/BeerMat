@@ -25,6 +25,7 @@ import {summarize, achievements} from '../shared/achievements.js';
 import {parseVenueList, checkQuizNights} from '../shared/venues.js';
 import {signLicence, plans} from '../shared/licence.js';
 import {checkTheme, renameTheme, bundleOf} from '../shared/theme-bundle.js';
+import {checkQuizFile, quizOutline, QUIZ_LIMITS} from '../shared/quiz-file.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const token = () => randomBytes(32).toString('base64url');
@@ -96,6 +97,9 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     CREATE TABLE IF NOT EXISTS shared_themes(id TEXT PRIMARY KEY, name TEXT NOT NULL, venue TEXT REFERENCES venues(id) ON DELETE SET NULL, venue_key TEXT NOT NULL,
       bundle TEXT, bytes INTEGER NOT NULL, look INTEGER NOT NULL, tv INTEGER NOT NULL, sounds INTEGER NOT NULL, created INTEGER NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending', reviewed INTEGER, note TEXT NOT NULL DEFAULT '', hidden INTEGER NOT NULL DEFAULT 0, removed INTEGER);
+    CREATE TABLE IF NOT EXISTS shared_quizzes(id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', venue TEXT REFERENCES venues(id) ON DELETE SET NULL,
+      venue_key TEXT NOT NULL, quiz TEXT, bytes INTEGER NOT NULL, rounds INTEGER NOT NULL, questions INTEGER NOT NULL, formats TEXT NOT NULL, outline TEXT NOT NULL,
+      created INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'pending', reviewed INTEGER, note TEXT NOT NULL DEFAULT '', hidden INTEGER NOT NULL DEFAULT 0, removed INTEGER);
     CREATE TABLE IF NOT EXISTS shared_theme_previews(theme TEXT NOT NULL REFERENCES shared_themes(id) ON DELETE CASCADE, kind TEXT NOT NULL, type TEXT NOT NULL, image BLOB NOT NULL,
       PRIMARY KEY(theme, kind));
   `);
@@ -371,6 +375,23 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   const checkedTheme = (bundle, themeId) => {try {return renameTheme(checkTheme(bundle), themeId);} catch (e) {check(false, e.message);}};
   const sharedTheme = themeId => {const t = one('SELECT * FROM shared_themes WHERE id=? AND removed IS NULL', themeId); check(t, 'That theme isn’t in the library any more', 404); return t;};
   const themeLibrary = {what: 'The theme library'};
+  // The quiz library: quiz files venues and BeerMat share, each with its pictures and sounds inside. As themes, every
+  // quiz a venue shares waits for an admin before anyone sees it; BeerMat's own go straight in. Anyone sees what's in
+  // it (title, description, rounds, formats, never the questions); downloading and sharing is BeerMat Pro. Checked
+  // (shared/quiz-file.js) here and again on the laptop that downloads it.
+  const quizOut = q => ({id: q.id, title: q.title, description: q.description, rounds: q.rounds, questions: q.questions, formats: JSON.parse(q.formats),
+    outline: JSON.parse(q.outline), bytes: q.bytes, added: q.created, by: q.venue_key === 'beermat' ? 'BeerMat' : q.venue_name || ''});
+  const quizLibrary = {what: 'The quiz library'};
+  const checkedQuiz = (quiz, description) => {
+    let checked; try {checked = checkQuizFile(quiz);} catch (e) {check(false, e.message);}
+    return {...checked, description: text(description || '', QUIZ_LIMITS.description, {name: 'Description'})};
+  };
+  const storeQuiz = (quizId, checked, {venue = null, venueKey, status = 'pending'}) => run(
+    'INSERT INTO shared_quizzes(id,title,description,venue,venue_key,quiz,bytes,rounds,questions,formats,outline,created,status,reviewed) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    quizId, checked.title, checked.description, venue, venueKey, JSON.stringify(checked.quiz), checked.bytes, checked.rounds, checked.questions,
+    JSON.stringify(checked.formats), JSON.stringify(quizOutline(checked.quiz)), now(), status, status === 'approved' ? now() : null);
+  const quizRow = quizId => one('SELECT q.*, v.name venue_name FROM shared_quizzes q LEFT JOIN venues v ON v.id=q.venue WHERE q.id=?', quizId);
+  const sharedQuiz = quizId => {const q = quizRow(quizId); check(q && !q.removed, 'That quiz isn’t in the library any more', 404); return q;};
   const sharedBuzzer = buzzerId => {const b = one('SELECT * FROM shared_buzzers WHERE id=? AND removed IS NULL', buzzerId); check(b, 'That buzzer isn’t in the library any more', 404); return b;};
 
   async function body(req, max = 400 * 1024) {
@@ -452,7 +473,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return send(200, {received: true});
       }
       // A shared buzzer arrives as base64 audio: up to 2 MB of it.
-      const input = ['POST', 'PATCH', 'PUT'].includes(method) ? await body(req, method === 'POST' && (p === '/v1/buzzers' || p === '/v1/admin/buzzers') ? 3 * 1024 * 1024 : method === 'POST' && (p === '/v1/themes' || p === '/v1/admin/themes') ? 26 * 1024 * 1024 : method === 'PUT' && /^\/v1\/admin\/themes\/[^/]+\/previews$/.test(p) ? 3 * 1024 * 1024 : undefined) : {};
+      const input = ['POST', 'PATCH', 'PUT'].includes(method) ? await body(req, method === 'POST' && (p === '/v1/buzzers' || p === '/v1/admin/buzzers') ? 3 * 1024 * 1024 : method === 'POST' && (p === '/v1/themes' || p === '/v1/admin/themes' || p === '/v1/quizzes' || p === '/v1/admin/quizzes') ? 36 * 1024 * 1024 : method === 'PUT' && /^\/v1\/admin\/themes\/[^/]+\/previews$/.test(p) ? 3 * 1024 * 1024 : undefined) : {};
       const parts = p.split('/').slice(2);
 
       // ---- Accounts ----
@@ -670,6 +691,58 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return send(201, {reported: true});
       }
 
+      // ---- The quiz library (see quizOut) ----
+      if (method === 'GET' && p === '/v1/quizzes') {
+        const q = (url.searchParams.get('q') || '').trim().toLowerCase().slice(0, 60), like = `%${q.replace(/[%_]/g, '')}%`;
+        return send(200, {quizzes: rows(`SELECT q.id,q.title,q.description,q.rounds,q.questions,q.formats,q.outline,q.bytes,q.created,q.venue_key,v.name venue_name
+          FROM shared_quizzes q LEFT JOIN venues v ON v.id=q.venue WHERE q.removed IS NULL AND q.hidden=0 AND q.status='approved'
+          AND (?='' OR lower(q.title) LIKE ? OR lower(q.description) LIKE ?) ORDER BY q.created DESC LIMIT 500`, q, like, like).map(quizOut)});
+      }
+      // Where a quiz this laptop shared has got to (waiting, in the library, or turned down and why).
+      if (method === 'GET' && parts[0] === 'quizzes' && parts.length === 2) {
+        const q = quizRow(parts[1]); check(q, 'No such quiz', 404);
+        return send(200, {id: q.id, title: q.title, status: q.removed ? 'removed' : q.hidden ? 'hidden' : q.status, note: q.status === 'rejected' ? q.note : ''});
+      }
+      if (method === 'POST' && p === '/v1/quizzes') {
+        const request = input.request, v = proLaptop(request, 'beermat.quiz-upload', quizLibrary);
+        check(!v.library_banned, 'This venue can’t share any more. Email hello@beermatquiz.co.uk if you think that’s wrong.', 403);
+        check(request.rights === true, 'Confirm you have the right to share everything in this quiz');
+        check(typeof input.quiz === 'string' && sha(input.quiz) === request.sha256, 'The quiz doesn’t match what the laptop signed');
+        check(one('SELECT COUNT(*) n FROM shared_quizzes WHERE venue=? AND created>?', v.id, now() - 86400000).n < 10, 'That’s 10 quizzes shared today: share more tomorrow', 429);
+        let quiz; try {quiz = JSON.parse(input.quiz);} catch {check(false, 'Not a BeerMat quiz file');}
+        const checked = checkedQuiz(quiz, input.description), quizId = 'q-' + randomBytes(5).toString('hex');
+        storeQuiz(quizId, checked, {venue: v.id, venueKey: request.venueKey});
+        if (mail && adminEmail) mail({to: adminEmail, subject: `Quiz waiting for a look: ${checked.title}`,
+          text: `${v.name} shared “${checked.title}” (${checked.rounds} rounds, ${checked.questions} questions). It isn’t in the library until you approve it.\n\n${publicUrl.replace(/\/$/, '')}/admin/#quizzes\n`}).catch(e => console.error('Mail failed:', e.message));
+        return send(201, {...quizOut(quizRow(quizId)), review: 'pending'});
+      }
+      if (method === 'POST' && parts[0] === 'quizzes' && parts.length === 3 && parts[2] === 'file') {
+        const request = input.request; proLaptop(request, 'beermat.quiz-get', quizLibrary); check(request.quiz === parts[1], 'Not a request for this quiz');
+        const q = sharedQuiz(parts[1]); check(q.status === 'approved' && !q.hidden, 'That quiz isn’t in the library', 404);
+        return send(200, {...quizOut(q), quiz: q.quiz});
+      }
+      // A venue takes back a quiz it shared (whatever its plan now).
+      if (method === 'POST' && parts[0] === 'quizzes' && parts.length === 3 && parts[2] === 'remove') {
+        const request = input.request, v = proLaptop(request, 'beermat.quiz-remove', {pro: false}); check(request.quiz === parts[1], 'Not a request for this quiz');
+        const q = sharedQuiz(parts[1]); check(q.venue === v.id, 'Only the venue that shared a quiz can take it out', 403);
+        run('UPDATE shared_quizzes SET removed=?,quiz=NULL WHERE id=?', now(), q.id);
+        return send(200, {removed: true});
+      }
+      // One report per venue per quiz; the third venue's report hides it, and BeerMat is told.
+      if (method === 'POST' && parts[0] === 'quizzes' && parts.length === 3 && parts[2] === 'report') {
+        const request = input.request, v = proLaptop(request, 'beermat.quiz-report', quizLibrary); check(request.quiz === parts[1], 'Not a request for this quiz');
+        const q = sharedQuiz(parts[1]), reporter = 'venue:' + v.id, reason = text(request.reason, 500, {required: true, name: 'What’s wrong'});
+        if (!one("SELECT 1 FROM reports WHERE kind='quiz' AND target=? AND reporter=? AND resolved IS NULL", q.id, reporter))
+          run('INSERT INTO reports(id,kind,target,reason,reporter,created) VALUES(?,?,?,?,?,?)', id(), 'quiz', q.id, reason, reporter, now());
+        const reports = one("SELECT COUNT(DISTINCT reporter) n FROM reports WHERE kind='quiz' AND target=? AND resolved IS NULL", q.id).n;
+        if (reports >= 3 && !q.hidden) {
+          run('UPDATE shared_quizzes SET hidden=1 WHERE id=?', q.id);
+          if (mail && adminEmail) mail({to: adminEmail, subject: `Shared quiz hidden after ${reports} reports: ${q.title}`,
+            text: `“${q.title}” was reported by ${reports} venues and is hidden from the library until you look at it.\n\nLatest report: ${reason}\n\n${publicUrl.replace(/\/$/, '')}/admin/#quizzes\n`}).catch(e => console.error('Mail failed:', e.message));
+        }
+        return send(201, {reported: true});
+      }
+
       // ---- The shared buzzer library (see proLaptop) ----
       if (method === 'GET' && p === '/v1/buzzers') {
         const q = (url.searchParams.get('q') || '').trim().toLowerCase().slice(0, 60), like = `%${q.replace(/[%_]/g, '')}%`;
@@ -728,7 +801,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
           venueResults: n('SELECT COUNT(*) n FROM venue_results'), upcoming: n('SELECT COUNT(*) n FROM events WHERE cancelled=0 AND starts>? AND starts<?', now(), now() + 7 * 86400000),
           openReports: n('SELECT COUNT(*) n FROM reports WHERE resolved IS NULL'), awaitingApproval: n('SELECT COUNT(*) n FROM venues WHERE approved=0'),
           sharedBuzzers: n('SELECT COUNT(*) n FROM shared_buzzers WHERE removed IS NULL'), hiddenBuzzers: n('SELECT COUNT(*) n FROM shared_buzzers WHERE removed IS NULL AND hidden=1'),
-          sharedThemes: n("SELECT COUNT(*) n FROM shared_themes WHERE removed IS NULL AND status='approved'"), pendingThemes: n("SELECT COUNT(*) n FROM shared_themes WHERE removed IS NULL AND status='pending'"), databaseBytes: (() => {try {return statSync(database).size;} catch {return null;}})(), lastBackup, startedAt, now: now()});
+          sharedThemes: n("SELECT COUNT(*) n FROM shared_themes WHERE removed IS NULL AND status='approved'"), pendingThemes: n("SELECT COUNT(*) n FROM shared_themes WHERE removed IS NULL AND status='pending'"),
+          sharedQuizzes: n("SELECT COUNT(*) n FROM shared_quizzes WHERE removed IS NULL AND status='approved'"), pendingQuizzes: n("SELECT COUNT(*) n FROM shared_quizzes WHERE removed IS NULL AND status='pending'"), databaseBytes: (() => {try {return statSync(database).size;} catch {return null;}})(), lastBackup, startedAt, now: now()});
       }
       if (method === 'GET' && p === '/v1/admin/venues') {
         admin();
@@ -742,10 +816,10 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       }
       if (method === 'GET' && p === '/v1/admin/reports') {
         admin();
-        const list = rows(`SELECT r.*, v.name venue_name, b.name buzzer_name, th.name theme_name, pa.display_name profile_name, pa.email profile_email, a.email reporter_email, rv.name reporter_venue FROM reports r LEFT JOIN venues v ON r.kind='venue' AND v.id=r.target
-          LEFT JOIN shared_buzzers b ON r.kind='buzzer' AND b.id=r.target AND b.removed IS NULL LEFT JOIN shared_themes th ON r.kind='theme' AND th.id=r.target AND th.removed IS NULL LEFT JOIN accounts pa ON r.kind='profile' AND pa.id=r.target LEFT JOIN accounts a ON a.id=r.reporter LEFT JOIN venues rv ON r.reporter='venue:' || rv.id
+        const list = rows(`SELECT r.*, v.name venue_name, b.name buzzer_name, th.name theme_name, sq.title quiz_name, pa.display_name profile_name, pa.email profile_email, a.email reporter_email, rv.name reporter_venue FROM reports r LEFT JOIN venues v ON r.kind='venue' AND v.id=r.target
+          LEFT JOIN shared_buzzers b ON r.kind='buzzer' AND b.id=r.target AND b.removed IS NULL LEFT JOIN shared_themes th ON r.kind='theme' AND th.id=r.target AND th.removed IS NULL LEFT JOIN shared_quizzes sq ON r.kind='quiz' AND sq.id=r.target AND sq.removed IS NULL LEFT JOIN accounts pa ON r.kind='profile' AND pa.id=r.target LEFT JOIN accounts a ON a.id=r.reporter LEFT JOIN venues rv ON r.reporter='venue:' || rv.id
           WHERE ?=1 OR r.resolved IS NULL ORDER BY r.created DESC LIMIT 200`, Number(url.searchParams.get('all') === '1'));
-        return send(200, {reports: list.map(r => ({id: r.id, kind: r.kind, target: r.target, targetName: r.venue_name || r.buzzer_name || r.theme_name || (r.profile_name ? `${r.profile_name} (${r.profile_email})` : '') || '(removed)', ...(r.profile_email && {email: r.profile_email}), reason: r.reason, reporter: r.reporter_email || r.reporter_venue || null, created: r.created, resolved: r.resolved}))});
+        return send(200, {reports: list.map(r => ({id: r.id, kind: r.kind, target: r.target, targetName: r.venue_name || r.buzzer_name || r.theme_name || r.quiz_name || (r.profile_name ? `${r.profile_name} (${r.profile_email})` : '') || '(removed)', ...(r.profile_email && {email: r.profile_email}), reason: r.reason, reporter: r.reporter_email || r.reporter_venue || null, created: r.created, resolved: r.resolved}))});
       }
       if (method === 'PATCH' && parts[0] === 'admin' && parts[1] === 'reports' && parts.length === 3) {
         admin(); check(one('SELECT 1 FROM reports WHERE id=?', parts[2]), 'Report not found', 404);
@@ -849,12 +923,44 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         run("UPDATE reports SET resolved=? WHERE kind='theme' AND target=? AND resolved IS NULL", now(), t.id);
         return send(200, {ok: true});
       }
+      // Shared quizzes: waiting ones first. An admin reads every question and answer (and sees its pictures, hears its
+      // sounds), then approves or turns it down with a note for the venue; hides, shows or removes one.
+      if (method === 'GET' && p === '/v1/admin/quizzes') {
+        admin();
+        return send(200, {quizzes: rows(`SELECT q.*, v.name venue_name, (SELECT COUNT(*) FROM reports r WHERE r.kind='quiz' AND r.target=q.id AND r.resolved IS NULL) reports
+          FROM shared_quizzes q LEFT JOIN venues v ON v.id=q.venue WHERE q.removed IS NULL ORDER BY q.status='pending' DESC, q.hidden DESC, reports DESC, q.created DESC LIMIT 500`)
+          .map(q => ({...quizOut(q), status: q.status, note: q.note, hidden: !!q.hidden, venue: q.venue, by: q.venue_key === 'beermat' ? 'BeerMat' : q.venue_name || '(venue removed)', reports: q.reports}))});
+      }
+      // One quiz in full, for reading before approving it.
+      if (method === 'GET' && parts[0] === 'admin' && parts[1] === 'quizzes' && parts.length === 3) {
+        admin(); const q = sharedQuiz(parts[2]);
+        return send(200, {...quizOut(q), quiz: JSON.parse(q.quiz)});
+      }
+      // BeerMat's own quizzes, added by an admin: checked as a venue's is, straight into the library.
+      if (method === 'POST' && p === '/v1/admin/quizzes') {
+        admin();
+        const checked = checkedQuiz(input.quiz, input.description), quizId = 'q-' + randomBytes(5).toString('hex');
+        storeQuiz(quizId, checked, {venueKey: 'beermat', status: 'approved'});
+        return send(201, quizOut(quizRow(quizId)));
+      }
+      if (parts[0] === 'admin' && parts[1] === 'quizzes' && parts.length === 3 && (method === 'PATCH' || method === 'DELETE')) {
+        admin(); const q = sharedQuiz(parts[2]);
+        if (method === 'DELETE') run('UPDATE shared_quizzes SET removed=?,quiz=NULL WHERE id=?', now(), q.id);
+        else if (input.status !== undefined) {
+          check(['approved', 'rejected'].includes(input.status), 'Approve it or turn it down');
+          run('UPDATE shared_quizzes SET status=?,reviewed=?,note=? WHERE id=?', input.status, now(), input.status === 'rejected' ? text(input.note || '', 500, {name: 'Note'}) : '', q.id);
+        } else if (input.description !== undefined) run('UPDATE shared_quizzes SET description=? WHERE id=?', text(input.description, QUIZ_LIMITS.description, {name: 'Description'}), q.id);
+        else {check(typeof input.hidden === 'boolean', 'Invalid setting'); run('UPDATE shared_quizzes SET hidden=? WHERE id=?', Number(input.hidden), q.id);}
+        run("UPDATE reports SET resolved=? WHERE kind='quiz' AND target=? AND resolved IS NULL", now(), q.id);
+        return send(200, {ok: true});
+      }
       if (method === 'POST' && parts[0] === 'admin' && parts[1] === 'venues' && parts.length === 4 && parts[3] === 'library') {
         admin(); check(one('SELECT 1 FROM venues WHERE id=?', parts[2]), 'Venue not found', 404); check(typeof input.banned === 'boolean', 'Invalid setting');
         run('UPDATE venues SET library_banned=? WHERE id=?', Number(input.banned), parts[2]);
         if (input.banned) {
           run('UPDATE shared_buzzers SET removed=?,audio=NULL WHERE venue=? AND removed IS NULL', now(), parts[2]);
           run('UPDATE shared_themes SET removed=?,bundle=NULL WHERE venue=? AND removed IS NULL', now(), parts[2]);
+          run('UPDATE shared_quizzes SET removed=?,quiz=NULL WHERE venue=? AND removed IS NULL', now(), parts[2]);
         }
         return send(200, {ok: true});
       }

@@ -15,7 +15,7 @@ ScrollView {
     readonly property var spotify: desk.prefs.spotify
     signal openWebDesk()
     signal swapScreens()
-    signal openLibrary(int tab)        // Library: 0 buzzers, 1 themes
+    signal openLibrary(int tab)        // Library: 0 quizzes, 1 buzzers, 2 themes
     contentWidth: availableWidth
     onVisibleChanged: if (visible) desk.prefs.loadSpotify()
     // Back from the browser (Spotify's sign-in) or the Spotify app: check again, as the web desk does on focus.
@@ -160,7 +160,7 @@ ScrollView {
                 RowLayout {
                     Field { id: buzzerName; placeholderText: "Name"; Layout.fillWidth: true; maximumLength: 60 }
                     DeskButton { text: "Add…"; implicitHeight: 34; onClicked: { soundFile.slot = "buzzer"; soundFile.open() } }
-                    DeskButton { text: "Shared buzzer library…"; implicitHeight: 34; onClicked: settings.openLibrary(0) }
+                    DeskButton { text: "Shared buzzer library…"; implicitHeight: 34; onClicked: settings.openLibrary(1) }
                 }
                 Text { text: "Bingo calls"; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold; Layout.topMargin: 8 }
                 RowLayout {
@@ -175,7 +175,7 @@ ScrollView {
     Panel {
         Layout.fillWidth: true; implicitHeight: 420
         title: "Looks & sound themes"
-        headerExtra: DeskButton { text: "Theme library…"; implicitHeight: 32; onClicked: settings.openLibrary(1) }
+        headerExtra: DeskButton { text: "Theme library…"; implicitHeight: 32; onClicked: settings.openLibrary(2) }
         RowLayout {
             anchors.fill: parent; spacing: 20
             ColumnLayout {

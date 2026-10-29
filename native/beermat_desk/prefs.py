@@ -21,6 +21,7 @@ class Prefs(QObject):
     spotifyChanged = Signal()
     libraryChanged = Signal()
     themesChanged = Signal()
+    quizzesChanged = Signal()
 
     def __init__(self, desk):
         super().__init__(desk)
@@ -28,6 +29,7 @@ class Prefs(QObject):
         self._spotify = {}
         self._library = {}
         self._themes = {}
+        self._quizzes = {}
         # After "Connect Spotify" the sign-in finishes in the browser, which the desk can't see: it asks the server every
         # two seconds until Spotify says connected (or three minutes pass).
         self._waiting = QTimer(self, interval=2000)
@@ -252,6 +254,56 @@ class Prefs(QObject):
     def reloadThemes(self):
         """After editing a theme in My themes by hand: the server and the desk read it again."""
         self.api.host('theme-library', {'q': self._themes.get('query', ''), 'reload': True}, lambda r: (self._themes.update(r), self.desk.reload_looks(), self.themesChanged.emit()), self._fail)
+
+    # ---- the quiz library (BeerMat Online) ----
+    @Property('QVariantMap', notify=quizzesChanged)
+    def quizzes(self):
+        return self._quizzes
+
+    @Slot(str)
+    def searchQuizzes(self, query):
+        self._quizzes = {**self._quizzes, 'loading': True, 'query': query, 'error': ''}
+        self.quizzesChanged.emit()
+
+        def got(reply):
+            self._quizzes = {**reply, 'query': query, 'loading': False, 'error': ''}
+            self.quizzesChanged.emit()
+
+        def failed(error):
+            self._quizzes = {**self._quizzes, 'loading': False, 'error': error}
+            self.quizzesChanged.emit()
+        self.api.host('quiz-library', {'q': query}, got, failed, timeout_ms=30000)
+
+    def _quizzes_again(self):
+        self.searchQuizzes(self._quizzes.get('query', ''))
+
+    @Slot(str)
+    def downloadQuiz(self, quiz):
+        """Downloads a quiz to this laptop (quiz-library/ in its data folder) and loads it, as Load quiz file does: the
+        desk asks first if a quiz is under way or has unsaved changes."""
+        def got(reply):
+            self._quizzes_again()
+            self.desk.loadQuiz(QUrl.fromLocalFile(reply['path']))
+        self.desk.toast.emit('Downloading the quiz…', False)
+        self.api.host('quiz-library/download', {'id': quiz}, got, self._fail, timeout_ms=150000)
+
+    @Slot(str, bool)
+    def shareQuiz(self, description, rights):
+        """Shares the quiz on this desk (the saved one, with its pictures and sounds)."""
+        self.desk.toast.emit('Sending the quiz…', False)
+        self.api.host('quiz-library/share', {'description': description, 'rights': rights},
+                      lambda r: (self.desk.toast.emit(f'“{r["title"]}” sent: BeerMat looks at every quiz before it’s in the library', False), self._quizzes_again()),
+                      self._fail, timeout_ms=200000)
+
+    @Slot(str)
+    def removeSharedQuiz(self, quiz):
+        self.api.host('quiz-library/remove', {'id': quiz}, lambda _: (self.desk.toast.emit('Taken out of the library', False), self._quizzes_again()), self._fail)
+
+    @Slot(str, str)
+    def reportQuiz(self, quiz, reason):
+        if reason.strip():
+            self.api.host('quiz-library/report', {'id': quiz, 'reason': reason.strip()},
+                          lambda _: self.desk.toast.emit('Reported: thanks. BeerMat will look at it.', False), self._fail, timeout_ms=20000)
 
     # ---- bingo calls ----
     @Slot(QUrl)

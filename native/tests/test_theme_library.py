@@ -48,7 +48,7 @@ class ThemeLibraryTest(DeskCase):
         # Library (left rail), Themes.
         w.setProperty('workspace', 5)
         library = w.findChild(QObject, 'library')
-        library.setProperty('tab', 1)
+        library.setProperty('tab', 2)
         pump(40)
         dialog = next(o for o in w.findChildren(QObject) if o.metaObject().className().startswith('ThemeLibrary'))
         self.shot('2-library-themes')

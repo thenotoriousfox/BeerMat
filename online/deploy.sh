@@ -40,6 +40,7 @@ if [ "${THEME_PREVIEWS:-0}" = 1 ]; then
   printf '%s\n' "$(node -p 'require("'"$repo"'/package.json").devDependencies?.playwright || require("'"$repo"'/package.json").dependencies?.playwright')" > "$stage/playwright-version"
 fi
 cp "$repo"/shared/*.js "$stage/shared/"
+mkdir -p "$stage/server" && cp "$repo/server/model.js" "$stage/server/"   # the quiz engine's checks, for shared quizzes (shared/quiz-file.js)
 mkdir -p "$stage/brand" && cp "$repo"/brand/*.svg "$repo/brand/fredoka.woff2" "$repo"/brand/fredoka-*.ttf "$repo/brand/logo-email.png" "$stage/brand/"
 cp -r "$repo/mobile/www" "$stage/mobile/"
 cp -r "$repo/online/admin" "$repo/online/pages" "$stage/online/"

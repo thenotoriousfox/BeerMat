@@ -177,6 +177,25 @@ try:
     post('host/settings', {'displayMode': 'leaderboard'}, host)
     pump(2.5)
     shot(tv, 'tv-leaderboard')
+    # Library → Quizzes, with example quizzes as the library shows them (the shot doesn't depend on what's in the real
+    # library today).
+    desk.prefs.searchQuizzes = desk.prefs.searchLibrary = desk.prefs.searchThemes = lambda q: None
+    outline = lambda *rounds: [{'title': t, 'questions': n} for t, n in rounds]
+    desk.prefs._quizzes = {'pro': True, 'query': '', 'downloaded': ['q-2'], 'current': {}, 'shared': [], 'quizzes': [
+        {'id': 'q-1', 'title': 'Halloween Special', 'by': 'BeerMat', 'rounds': 5, 'questions': 40, 'description': 'Spooky films, monster music and a pumpkin picture round, with a secret round to finish.',
+         'formats': ['Multiple choice', 'Picture', 'Audio', 'Nearest wins', 'Buzzer'], 'outline': outline(('Fright night films', 8), ('Monster mash', 8), ('Pumpkin pictures', 8), ('Creepy creatures', 8), ('The witching hour', 8))},
+        {'id': 'q-2', 'title': 'Tuesday Classics', 'by': 'The Crown & Anchor', 'rounds': 6, 'questions': 48, 'description': 'A proper pub quiz: general knowledge, sport, music and a picture round.',
+         'formats': ['Typed answer', 'Multiple choice', 'Picture', 'Letter keypad'], 'outline': outline(('General knowledge', 8), ('Sport', 8), ('On the map', 8), ('Name that tune', 8), ('Pictures', 8), ('Wipeout', 8))},
+        {'id': 'q-3', 'title': 'Music Bingo: Party Anthems', 'by': 'BeerMat', 'rounds': 2, 'questions': 2, 'description': 'Two full games of music bingo, ninety seconds of every song.',
+         'formats': ['Music bingo'], 'outline': outline(('Game one', 1), ('Game two', 1))},
+        {'id': 'q-4', 'title': 'Around the World in 40 Questions', 'by': 'The Old Bell', 'rounds': 4, 'questions': 40, 'description': 'Capitals, flags, landmarks and a pinpoint round on the map.',
+         'formats': ['Typed answer', 'Picture', 'Pinpoint', 'Put in order'], 'outline': outline(('Capitals', 10), ('Flags', 10), ('Landmarks', 10), ('Where in the world?', 10))},
+    ]}
+    desk.prefs.quizzesChanged.emit()
+    window.setProperty('workspace', 5)
+    window.findChild(QObject, 'library').setProperty('tab', 0)
+    pump(1)
+    shot(window, 'library')
 finally:
     server.terminate()
 print('Screenshots saved in', OUT)
