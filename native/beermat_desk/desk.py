@@ -209,6 +209,12 @@ class Desk(QObject):
         url = self.hotspot_url(self._laptop, (self.server.info or {}).get('port'))
         self._act('settings', {'joinMode': 'hotspot', 'joinUrl': url}, 'Players join on the quiz Wi-Fi')
 
+    @Slot()
+    def stopLan(self):
+        """The venue network off: only the quiz Wi-Fi (and this laptop) reach the quiz again."""
+        url = self.hotspot_url(self._laptop, (self.server.info or {}).get('port'))
+        self._act('settings', {'joinMode': 'hotspot', 'joinUrl': url}, 'Venue network off: players join on the quiz Wi-Fi')
+
     @Slot(str, str)
     def useLan(self, address, ssid):
         port = self._network.get('port', 3000)

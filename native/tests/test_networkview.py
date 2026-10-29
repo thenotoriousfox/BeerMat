@@ -42,6 +42,10 @@ class FakeDesk(QObject):
     def loadNetwork(self):
         self.loads += 1
 
+    @Slot()
+    def stopLan(self):
+        self.stopped = True
+
 
 def windows(isolation, **running):
     return {'port': 3000, 'joinMode': 'hotspot', 'joinSsid': 'Quiz', 'joinUrl': 'http://192.168.137.1:3000', 'addresses': [],
@@ -108,6 +112,14 @@ class NetworkViewTest(unittest.TestCase):
         self.assertIn('⚠  BeerMat does not answer at http://192.168.137.1:3000', text)
         self.assertIn('⚠  Not guaranteed', text)
         self.assertIn('⚠  1 phone on the quiz Wi-Fi reached the internet (Owls).', self.show('windows-reached'))
+
+    def test_the_venue_network_can_be_switched_off(self):
+        self.assertNotIn('Stop using the venue network', self.show('linux'))
+        CASES['lan'] = {**CASES['linux'], 'joinMode': 'lan', 'joinUrl': 'http://192.168.1.20:3000'}
+        self.assertIn('Stop using the venue network', self.show('lan'))
+        self.desk.stopped = False
+        self.view.findChild(QObject, 'stopLan').clicked.emit()
+        self.assertTrue(self.desk.stopped)
 
 
 if __name__ == '__main__':
