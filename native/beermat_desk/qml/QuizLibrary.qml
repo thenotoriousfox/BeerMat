@@ -53,7 +53,7 @@ ColumnLayout {
                             Layout.fillWidth: true
                             Text { text: modelData.title; color: Theme.text; font.family: Theme.display; font.pixelSize: 20; font.weight: Font.Bold; elide: Text.ElideRight; Layout.fillWidth: true }
                             Text { visible: downloaded; text: "✓ Downloaded"; color: Theme.good; font.pixelSize: 13; font.weight: Font.Bold }
-                            DeskButton { visible: !!quizzes.lib.pro; text: downloaded ? "Load again" : "Download and load"; kind: downloaded ? "quiet" : "primary"; implicitHeight: 32
+                            DeskButton { visible: !!quizzes.lib.pro || !!quizzes.lib.admin; text: downloaded ? "Load again" : "Download and load"; kind: downloaded ? "quiet" : "primary"; implicitHeight: 32
                                          onClicked: desk.prefs.downloadQuiz(modelData.id) }
                             DeskButton { visible: !!quizzes.lib.pro; text: "Report"; implicitHeight: 32; onClicked: quizzes.reporting = quizzes.reporting === modelData.id ? "" : modelData.id }
                         }

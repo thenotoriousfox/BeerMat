@@ -33,10 +33,34 @@ ColumnLayout {
         property var kinds: []
         color: Theme.bg2; radius: 6; clip: true; border.color: Theme.line
         Image {
+            id: picture
             anchors.fill: parent; fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true
             source: parent.kinds.includes(parent.kind) && dialog.lib.previews ? dialog.lib.previews + parent.theme + "/previews/" + parent.kind : ""
         }
         Text { anchors.centerIn: parent; visible: !parent.kinds.includes(parent.kind); text: "—"; color: Theme.faint }
+        // Click: the picture, large.
+        MouseArea {
+            objectName: "preview-" + parent.kind
+            anchors.fill: parent; enabled: picture.status === Image.Ready; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: { enlarged.source = picture.source; enlarged.caption = {tv: "On the TV", app: "In the app", browser: "In a phone’s browser"}[parent.kind] || ""; enlarged.open() }
+        }
+    }
+
+    // A theme's picture at full size, as big as the window allows; a click or Esc closes it.
+    Popup {
+        id: enlarged
+        objectName: "enlargedPreview"
+        property url source
+        property string caption: ""
+        parent: Overlay.overlay; anchors.centerIn: parent; modal: true; padding: 12
+        width: Math.min(parent.width - 60, big.sourceSize.width + 24 || 1000); height: Math.min(parent.height - 60, (big.sourceSize.height || 600) + 52)
+        background: Rectangle { color: Theme.panel; radius: Theme.radius; border.color: Theme.lineStrong }
+        ColumnLayout {
+            anchors.fill: parent; spacing: 6
+            Image { id: big; Layout.fillWidth: true; Layout.fillHeight: true; fillMode: Image.PreserveAspectFit; source: enlarged.source; asynchronous: true; cache: true; smooth: true; mipmap: true }
+            Text { text: enlarged.caption + "  ·  click to close"; color: Theme.muted; font.pixelSize: 12; Layout.alignment: Qt.AlignHCenter }
+        }
+        MouseArea { anchors.fill: parent; onClicked: enlarged.close() }
     }
 
     StackLayout {
@@ -73,7 +97,7 @@ ColumnLayout {
                             Text { color: Theme.faint; font.pixelSize: 11; text: "TV · app · browser" }
                             RowLayout {
                                 spacing: 6
-                                DeskButton { visible: !!dialog.lib.pro && !installed; text: "Install"; kind: "primary"; implicitHeight: 32; onClicked: desk.prefs.installTheme(modelData.id) }
+                                DeskButton { visible: (!!dialog.lib.pro || !!dialog.lib.admin) && !installed; text: "Install"; kind: "primary"; implicitHeight: 32; onClicked: desk.prefs.installTheme(modelData.id) }
                                 Text { visible: installed; text: "✓ Installed"; color: Theme.good; font.pixelSize: 13; font.weight: Font.Bold }
                                 DeskButton { visible: installed; text: "Remove"; implicitHeight: 32; onClicked: desk.prefs.uninstallTheme(modelData.id) }
                                 DeskButton { visible: !!dialog.lib.pro; text: "Report"; implicitHeight: 32; onClicked: dialog.reporting = dialog.reporting === modelData.id ? "" : modelData.id }

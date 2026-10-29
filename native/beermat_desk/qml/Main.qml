@@ -96,6 +96,12 @@ ApplicationWindow {
         toast.show("Desk and TV swapped screens", false)
     }
 
+    // Library → Quizzes, on Browse (0) or Share yours (1).
+    function openQuizLibrary(tab) {
+        libraryWorkspace.tab = 0; libraryWorkspace.quizTab = tab
+        window.workspace = window.workspaces.findIndex(w => w.name === "Library")
+    }
+
     function openWebDesk() {
         Qt.openUrlExternally(desk.deskUrl)
         toast.show("The web desk asks for the quizmaster key: it's in Settings → Quizmaster key.", false)
@@ -222,14 +228,15 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 currentIndex: window.workspace
-                LiveWorkspace { view: window.view }
+                LiveWorkspace { view: window.view; onShareQuiz: window.openQuizLibrary(1) }
                 RehearsalWorkspace {
                     view: window.view
                     onConfirmGoLive: window.ask("Go live?", "Real teams will be able to join and play. The rehearsal ends and nothing from it is kept.", () => desk.goLive())
                     onConfirmEndLive: window.ask("End the live quiz and rehearse?", "The live quiz's results are saved first, then all teams and scores are cleared for the rehearsal.",
                                                  () => desk.startRehearsalWith(Object.assign(chosen(), {endLive: true})))
                 }
-                QuizzesWorkspace { onOpenQuiz: openQuiz.open(); onOpenWebDesk: window.openWebDesk() }
+                QuizzesWorkspace { objectName: "quizzes"; onOpenQuiz: openQuiz.open(); onOpenWebDesk: window.openWebDesk()
+                                   onShareQuiz: window.openQuizLibrary(1); onBrowseLibrary: window.openQuizLibrary(0) }
                 TeamsWorkspace { view: window.view }
                 VenueWorkspace { objectName: "venue" }
                 LibraryWorkspace { id: libraryWorkspace; objectName: "library" }
