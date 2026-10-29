@@ -41,6 +41,7 @@ ApplicationWindow {
 
     // ---- keys: the live ones work from every workspace, as on the web desk ----
     Shortcut { sequence: "N"; onActivated: desk.next() }
+    Shortcut { sequence: "Backspace"; onActivated: desk.back() }
     Shortcut { sequence: "C"; onActivated: desk.closeAnswers() }
     Shortcut { sequence: "R"; onActivated: desk.reveal() }
     Shortcut { sequence: "P"; onActivated: window.view.canResume ? desk.resume() : desk.pause() }
@@ -124,6 +125,7 @@ ApplicationWindow {
                        () => desk.loadQuizConfirmed(path))
         }
         function onConfirmFinish(text) { window.ask("Finish the quiz?", text, () => desk.finishConfirmed()) }
+        function onConfirmBack(text) { window.ask("Take this question back?", text, () => desk.backConfirmed()) }
         function onQuitRequested() { Qt.exit(0) }
         function onTransferCode(code) {
             transferNote.text = `On the team's new phone: open the quiz, then under “Get it back” (or “Already playing?” in the app) type ${code}. The code works for 5 minutes.`

@@ -487,6 +487,37 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const played = new Set(rows('SELECT data FROM questions').map(p => dataOf(p).sourceId)), more = library().rounds.some(r => r.questions.some(x => !x.tieBreaker && !played.has(x.id)));
     return {...reveal, active: !!reveal, canShow: !reveal && !!q && !pending(q) && roundOver(q) && more && visible && !settings().ended, roundOver: !!q && !pending(q) && roundOver(q)};
   }
+  // The desk's Back button: the step Next took last, undone, newest first. It says what it will do so the desk can
+  // label the button, and how many answers taking back a started question would throw away (the desk asks first).
+  function backStep() {
+    const q = latest(), b = getMeta('board', null);
+    if (!q || settings().ended) return null;
+    if (b && b.question === q.id && !pending(q)) return b.shown > 0 ? {kind: 'board', label: 'Hide the last position revealed'} : {kind: 'leaderboard', label: 'Take the leaderboard off the TV'};
+    if (q.revealed) return {kind: 'reveal', label: 'Hide the answer again'};
+    if (!pending(q)) return {kind: 'close', label: 'Reopen answers'};
+    return {kind: 'start', label: 'Take back this question', answers: one('SELECT COUNT(*) n FROM answers WHERE question=?', q.id).n};
+  }
+  function stepBack(step, q, discard) {
+    if (step.kind === 'board') {const b = getMeta('board', null); setMeta('board', {...b, shown: b.shown - 1});}
+    else if (step.kind === 'leaderboard') run("DELETE FROM metadata WHERE key='board'");
+    else if (step.kind === 'reveal') run('UPDATE questions SET revealed=0,revealed_at=NULL WHERE id=?', q.id);
+    else if (step.kind === 'close') {
+      // The time that was left when answers closed (at least 15 s), and close-time scoring undone (settle redoes it):
+      // nearest wins is ranked afresh anyway; the fixed speed bonus was added, so it comes off again.
+      const data = dataOf(q), left = q.closed_at && q.closed_at < q.deadline ? q.deadline - q.closed_at : 0;
+      transaction(() => {
+        if (q.settled) for (const team of speedBonusTeams(q, data)) run('UPDATE answers SET points=points-? WHERE team=? AND question=?', speedBonusOf(data), team, q.id);
+        run('UPDATE questions SET closed=0,closed_at=NULL,settled=0,paused_ms=NULL,deadline=? WHERE id=?', now() + Math.max(15000, left), q.id);
+      });
+    } else {
+      requireValue(!step.answers || discard === true, `${step.answers} ${step.answers === 1 ? 'team has' : 'teams have'} answered: taking the question back throws those answers away`, 409);
+      if (usesSpotify(dataOf(q)) && spotify.connected()) spotify.pause();
+      transaction(() => {
+        for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'marking_log']) run(`DELETE FROM ${table} WHERE question=?`, q.id);
+        run('DELETE FROM questions WHERE id=?', q.id);
+      });
+    }
+  }
   // A saved question ends its round when every question in that round has been played.
   function roundOver(q) {
     const id = dataOf(q).sourceId, round = id && library().rounds.find(r => r.questions.some(x => x.id === id));
@@ -756,6 +787,15 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function publicState() { return {protocol: PROTOCOL, serverTime: now(), build, rehearsal: !liveNow(), settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), reveal: publicScores().length ? boardReveal() : null, wheel: getMeta('wheel', null), timer: getMeta('timer', null)}; }
 
   // Final scoring once answers stop: nearest-wins needs every answer before it can rank them.
+  // Who gets a fixed speed bonus: the quickest fully right answers (none without one). Settling adds it, and the
+  // desk's Back (reopening answers) takes it off again.
+  function speedBonusTeams(q, data) {
+    if (data.bonusMode !== 'fixed' || !speedBonusOf(data)) return [];
+    return rows('SELECT team,value,submitted FROM answers WHERE question=? AND submitted IS NOT NULL', q.id)
+      .filter(a => basePoints(a.value, data) === data.points && isCorrect(a.value, data))
+      .map(a => ({team: a.team, ms: a.submitted - q.opened - lateness(q, a.team), submitted: a.submitted}))
+      .sort((a, b) => a.ms - b.ms || a.submitted - b.submitted).slice(0, data.bonusPlaces).map(a => a.team);
+  }
   function settle(q) {
     if (!q || q.settled || pending(q)) return;
     const data = dataOf(q);
@@ -765,13 +805,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         for (const r of ranked) run('UPDATE answers SET points=? WHERE team=? AND question=?', r.points, r.team, q.id);
       }
       // Fixed speed bonus: once answers stop, the quickest fully right answers get it.
-      if (data.bonusMode === 'fixed' && speedBonusOf(data)) {
-        const right = rows('SELECT team,value,submitted FROM answers WHERE question=? AND submitted IS NOT NULL', q.id)
-          .filter(a => basePoints(a.value, data) === data.points && isCorrect(a.value, data))
-          .map(a => ({team: a.team, ms: a.submitted - q.opened - lateness(q, a.team), submitted: a.submitted}))
-          .sort((a, b) => a.ms - b.ms || a.submitted - b.submitted);
-        for (const a of right.slice(0, data.bonusPlaces)) run('UPDATE answers SET points=points+? WHERE team=? AND question=?', speedBonusOf(data), a.team, q.id);
-      }
+      for (const team of speedBonusTeams(q, data)) run('UPDATE answers SET points=points+? WHERE team=? AND question=?', speedBonusOf(data), team, q.id);
       run('UPDATE questions SET settled=1 WHERE id=?', q.id);
       endAway(q);
     });
@@ -1085,7 +1119,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/plan/refresh') return send(200, await refreshLicence());
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats();
-          return send(200, {protocol: PROTOCOL, serverTime: now(), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board: boardStep(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {protocol: PROTOCOL, serverTime: now(), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board: boardStep(), back: backStep(), timer: getMeta('timer', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -1284,6 +1318,13 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           return send(200, next);
         }
         if (p === '/api/host/open') return send(200, openQuestion(body));
+        if (p === '/api/host/back') {
+          // `kind` is the step the desk showed: if the quiz moved on meanwhile, nothing is undone.
+          const step = backStep();
+          requireValue(step && step.kind === body.kind, 'The quiz moved on; check the desk and try again', 409);
+          stepBack(step, latest(), body.discard);
+          return send(200, {ok: true, back: backStep()});
+        }
         if (p === '/api/host/board') {
           requireValue(['show', 'next'].includes(body.action), 'Unknown board action');
           const q = latest(), reveal = boardReveal();

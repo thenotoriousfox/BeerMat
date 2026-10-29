@@ -235,6 +235,12 @@ ColumnLayout {
             anchors.margins: 14
             spacing: 10
             DeskButton {
+                text: "◀ Back"; shortcutHint: "⌫"
+                enabled: !!view.back && !desk.busy
+                onClicked: desk.back()
+                ToolTip.visible: hovered; ToolTip.text: view.back ? view.back.label : "Nothing to go back to"
+            }
+            DeskButton {
                 id: nextButton
                 big: true; kind: "primary"
                 text: view.next ? view.next.label : "Start next question"

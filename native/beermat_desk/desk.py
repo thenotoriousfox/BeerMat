@@ -41,6 +41,7 @@ class Desk(QObject):
     toast = Signal(str, bool)       # message, is it an error
     confirmLoad = Signal(str)       # the quiz has been played: ask before replacing it (file path)
     confirmFinish = Signal(str)     # ask before finishing (what's at stake)
+    confirmBack = Signal(str)       # taking back a question teams have answered: ask first (what's at stake)
     quitRequested = Signal()        # Close BeerMat, pressed on a desk (also in a browser)
     transferCode = Signal(str)      # a team's 4-digit code to move to another phone
     networkChanged = Signal()
@@ -338,6 +339,8 @@ class Desk(QObject):
             'answers': len(answered), 'teams': [{'name': t['name'], 'score': t.get('score', 0), 'rank': t.get('rank', 0), 'connected': bool(t.get('connected')),
                                                   'answered': t['id'] in answered} for t in sorted(teams, key=lambda t: (t.get('rank') or 999, t['name'].lower()))],
             'next': {'step': step or '', 'label': STEP_LABELS.get(step, 'Quiz finished'), 'enabled': bool(step) and not (q and q.get('live'))},
+            # Back undoes the last step Next took; the server says which (backStep in server.js).
+            'back': s.get('back') or None,
             'canClose': bool(q and (q.get('open') or q.get('live')) and not q.get('revealed')),
             'canReveal': bool(q and not q.get('open') and not q.get('live') and not q.get('revealed') and not q.get('revealing')),
             'canPause': bool(q and q.get('open') and not q.get('paused')), 'canResume': bool(q and q.get('paused')),
@@ -438,6 +441,23 @@ class Desk(QObject):
     def _expected(self):
         q = (self._state or {}).get('question')
         return q.get('id') if q else None
+
+    @Slot()
+    def back(self):
+        step = (self._state or {}).get('back')
+        if not step or self._busy:
+            return
+        if step.get('answers'):
+            n = step['answers']
+            self.confirmBack.emit(f'{n} {"team has" if n == 1 else "teams have"} answered; those answers are thrown away.')
+        else:
+            self.backConfirmed()
+
+    @Slot()
+    def backConfirmed(self):
+        step = (self._state or {}).get('back')
+        if step:
+            self._act('back', {'kind': step['kind'], **({'discard': True} if step.get('answers') else {})}, f'Back: {step["label"][0].lower()}{step["label"][1:]}')
 
     @Slot()
     def next(self):

@@ -101,6 +101,34 @@ class ClosingTest(DeskCase):
         self.assertEqual(app.exec(), 0, 'closing the desk ended BeerMat')
 
 
+class BackTest(DeskCase):
+    def test_back_takes_a_question_back_and_reopens_answers(self):
+        desk = self.desk
+        desk.start()
+        wait(lambda: desk.connected and desk.view.get('phase'), what='the server')
+        desk.loadQuizConfirmed(str(self.quiz_file))
+        wait(lambda: desk.view.get('title') == 'Test quiz', timeout=30, what='the quiz', log=self.toasts)
+        self.assertIsNone(desk.view.get('back'), 'nothing to go back to yet')
+        desk.next()
+        wait(lambda: (desk.view.get('back') or {}).get('kind') == 'start', what='a question to take back', log=self.toasts)
+        desk.back()
+        wait(lambda: desk.view.get('back') is None and desk.view['next']['label'] == 'Start next question', what='the question taken back', log=self.toasts)
+        desk.next()
+        wait(lambda: (desk.view.get('back') or {}).get('kind') == 'start', what='the question again')
+        # With answers in (the server counts them; tests/hosting.test.js covers that), Back asks first.
+        asked = []
+        desk.confirmBack.connect(asked.append)
+        desk._state['back'] = {**desk._state['back'], 'answers': 1}
+        desk.back()
+        self.assertEqual(asked, ['1 team has answered; those answers are thrown away.'])
+        desk.refresh()
+        # Closing answers goes back to answers open.
+        desk.closeAnswers()
+        wait(lambda: (desk.view.get('back') or {}).get('kind') == 'close', what='answers closed', log=self.toasts)
+        desk.back()
+        wait(lambda: desk.view.get('canClose') and (desk.view.get('back') or {}).get('kind') == 'start', what='answers reopened', log=self.toasts)
+
+
 class QuizzesPageTest(DeskCase):
     def test_loading_a_quiz_replaces_the_quizzes_page(self):
         desk, lib = self.desk, self.desk.quizzes

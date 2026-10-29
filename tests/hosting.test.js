@@ -353,3 +353,74 @@ test('looks: one for all, random for each question, or by question type', () => 
   for (let i = 0; i < 12; i++) {await open({}); const look = (await board()).look; assert.equal((await board()).look, look, 'a question keeps its look'); seen.add(look);}
   assert.ok(seen.size >= 3, `looks vary: ${[...seen]}`);
 }));
+
+test('Back undoes the last step: leaderboard positions, the leaderboard, the reveal, closing answers, starting a question', () => fixture(async ({call, board, tick}) => {
+  const ant = await call('join', {name: 'Ant'}), bee = await call('join', {name: 'Bee'});
+  await call('host/library/save', {revision: 0, quiz: {title: 'Back', rounds: [{id: 'r1', title: 'One', questions: [{id: 'a', ...question()}]}, {id: 'r2', title: 'Two', questions: [{id: 'b', ...question()}]}]}});
+  const back = async () => (await call('host/state')).back;
+  const undo = async (fields = {}) => call('host/back', {kind: (await back()).kind, ...fields});
+  assert.equal(await back(), null, 'nothing played yet');
+
+  // Starting a question nobody has answered: taken back as if never started, so Next starts it again.
+  let {id} = await call('host/next', {expectedQuestion: null});
+  assert.deepEqual(await back(), {kind: 'start', label: 'Take back this question', answers: 0});
+  assert.equal((await undo()).status, 200);
+  assert.deepEqual([(await board()).question, await back()], [null, null]);
+  ({id} = await call('host/next', {expectedQuestion: null}));
+  assert.equal((await board()).question.round, 'One', 'the same first question again');
+
+  // With an answer in, the desk must say the answers go.
+  await call('answer', {question: id, value: 'Cardiff'}, ant.secret);
+  assert.equal((await back()).answers, 1);
+  const refused = await undo();
+  assert.deepEqual([refused.status, refused.error], [409, '1 team has answered: taking the question back throws those answers away']);
+  assert.equal((await undo({discard: true})).status, 200);
+  assert.equal(((await call('host/state')).teams.find(t => t.name === 'Ant')).score, 0, 'its points went with it');
+
+  // Closing answers: reopened with the time that was left (at least 15 s); teams can answer again.
+  ({id} = await call('host/next', {expectedQuestion: null}));
+  await call('answer', {question: id, value: 'Cardiff'}, ant.secret);
+  tick(20000); await call('host/close');
+  assert.deepEqual(await back(), {kind: 'close', label: 'Reopen answers'});
+  await undo();
+  let q = (await board()).question;
+  assert.equal(q.open, true);
+  assert.equal(q.deadline, 1020000 + 15000, '10 s were left when it closed: at least 15 s');
+  assert.equal((await call('answer', {question: id, value: 'Cardiff'}, bee.secret)).status, 200, 'a late team answers');
+  await call('host/close');
+
+  // Revealing: hidden again.
+  await call('host/reveal', {question: id});
+  assert.equal((await back()).kind, 'reveal');
+  await undo();
+  assert.equal((await board()).question.revealed, false);
+  await call('host/reveal', {question: id});
+
+  // The leaderboard: each revealed position goes back, then the board itself.
+  await call('host/board', {action: 'show'}); await call('host/board', {action: 'next'});
+  assert.deepEqual(await back(), {kind: 'board', label: 'Hide the last position revealed'});
+  await undo(); assert.equal((await board()).reveal.shown, 0);
+  assert.deepEqual(await back(), {kind: 'leaderboard', label: 'Take the leaderboard off the TV'});
+  await undo(); assert.deepEqual([(await board()).reveal, (await board()).view], [null, 'question']);
+  assert.equal((await back()).kind, 'reveal', 'and on, step by step');
+
+  // A step the desk no longer shows (the quiz moved on) is not undone.
+  assert.equal((await call('host/back', {kind: 'start'})).status, 409);
+  // A finished quiz has no Back (Resume quiz is for that).
+  await call('host/settings', {ended: true}); assert.equal(await back(), null);
+}));
+
+test('Back over closing answers takes a fixed speed bonus off, so closing again awards it once', () => fixture(async ({call, tick}) => {
+  const teams = [];
+  for (const name of ['First', 'Second']) teams.push(await call('join', {name}));
+  const {id} = await call('host/open', question({fastestFingers: true, speedBonus: 5, bonusMode: 'fixed', bonusPlaces: 1}));
+  for (const t of teams) {await call('answer', {question: id, value: 'Cardiff'}, t.secret); tick(1000);}
+  const points = async () => (await call('host/state')).teams.map(t => [t.name, t.score]).sort();
+  await call('host/close');
+  assert.deepEqual(await points(), [['First', 7], ['Second', 2]]);
+  await call('host/back', {kind: 'close'});
+  const marked = (await call('host/review', {question: id})).answers.map(a => a.points);
+  assert.deepEqual(marked, [2, 2], 'the bonus comes off while answers are open');
+  await call('host/close');
+  assert.deepEqual(await points(), [['First', 7], ['Second', 2]], 'and is awarded once on closing again');
+}));
