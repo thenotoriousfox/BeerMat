@@ -83,7 +83,7 @@ test('the TV knows each team’s buzzer sound, so first place and the winner hea
   assert.deepEqual((await board()).teams.map(t => [t.name, t.sound]), [['Fox', 6], ['Owl', null]]);
 }));
 
-test('after a round, Next shows the leaderboard, reveals it from the bottom with first place last, then starts the next round', () => fixture(async ({call, board}) => {
+test('after a round, Next shows the leaderboard, reveals it from the bottom, then the leader, then second place, then starts the next round', () => fixture(async ({call, board}) => {
   const teams = {}; for (const name of ['Ant', 'Bee', 'Cat']) teams[name] = await call('join', {name});
   await call('host/library/save', {revision: 0, quiz: {title: 'Steps', rounds: [{id: 'r1', title: 'One', questions: [{id: 'a', ...question()}]}, {id: 'r2', title: 'Two', questions: [{id: 'b', ...question()}]}]}});
   let {id} = await call('host/next', {expectedQuestion: null});
@@ -92,10 +92,12 @@ test('after a round, Next shows the leaderboard, reveals it from the bottom with
   const desk = (await call('host/state')).board;
   assert.deepEqual([desk.canShow, desk.active, desk.roundOver], [true, false, true]);
   await call('host/board', {action: 'show'});
-  let tv = await board(); assert.equal(tv.view, 'leaderboard'); assert.deepEqual(tv.reveal, {question: id, shown: 0, rest: 2, done: false});
-  await call('host/board', {action: 'next'}); await call('host/board', {action: 'next'});
-  tv = await board(); assert.deepEqual([tv.reveal.shown, tv.reveal.done], [2, false]);
-  await call('host/board', {action: 'next'}); assert.equal((await board()).reveal.done, true, 'first place revealed');
+  // Ant scored; Bee and Cat share second place, so there is nobody below second: the leader comes first.
+  let tv = await board(); assert.equal(tv.view, 'leaderboard');
+  assert.deepEqual(tv.reveal, {question: id, shown: 0, rest: 0, leader: false, second: false, done: false, hidden: ['Ant', 'Bee', 'Cat']});
+  await call('host/board', {action: 'next'});
+  tv = await board(); assert.deepEqual([tv.reveal.leader, tv.reveal.second, tv.reveal.done, tv.reveal.hidden], [true, true, false, ['Bee', 'Cat']], 'the leader, second place still hidden');
+  await call('host/board', {action: 'next'}); assert.deepEqual([(await board()).reveal.done, (await board()).reveal.hidden], [true, []], 'second place completes the board');
   assert.equal((await call('host/board', {action: 'next'})).status, 409);
   // The next round's first question takes the TV back.
   ({id} = await call('host/next', {expectedQuestion: id})); tv = await board(); assert.deepEqual([tv.view, tv.reveal], ['question', null]);
@@ -105,6 +107,35 @@ test('after a round, Next shows the leaderboard, reveals it from the bottom with
   assert.equal((await board()).reveal.shown, 0);
   // Choosing a projector view ends the reveal.
   await call('host/settings', {displayMode: 'winner'}); tv = await board(); assert.deepEqual([tv.view, tv.reveal], ['winner', null]);
+}));
+
+test('the leaderboard reveal: bottom up to third, then the leader, then second place and the full board', () => fixture(async ({call, board}) => {
+  const names = ['Ant', 'Bee', 'Cat', 'Dog', 'Eel'], teams = {};
+  for (const [i, name] of names.entries()) {
+    teams[name] = await call('join', {name});
+    if (i < 4) await call('host/adjust', {team: teams[name].team?.id || teams[name].id, points: 10 - i, reason: 'Head start'});
+  }
+  await call('host/library/save', {revision: 0, quiz: {title: 'Steps', rounds: [{id: 'r1', title: 'One', questions: [{id: 'a', ...question()}]}, {id: 'r2', title: 'Two', questions: [{id: 'b', ...question()}]}]}});
+  const {id} = await call('host/next', {expectedQuestion: null}); await call('host/close');
+  assert.deepEqual((await board()).teams.map(t => [t.name, t.rank]), [['Ant', 1], ['Bee', 2], ['Cat', 3], ['Dog', 4], ['Eel', 5]]);
+  await call('host/board', {action: 'show'});
+  const steps = [];
+  for (;;) {
+    const r = (await board()).reveal, desk = (await call('host/state')).board;
+    steps.push([r.hidden.join(','), r.leader, r.second, r.done, desk.shown === desk.rest]);
+    if (r.done) break;
+    assert.equal((await call('host/board', {action: 'next'})).status, 200);
+  }
+  assert.deepEqual(steps, [
+    ['Ant,Bee,Cat,Dog,Eel', false, false, false, false],
+    ['Ant,Bee,Cat,Dog', false, false, false, false],   // fifth
+    ['Ant,Bee,Cat', false, false, false, false],       // fourth
+    ['Ant,Bee', false, false, false, true],            // third; the next step is the leader
+    ['Bee', true, true, false, false],                 // the leader (the TV's spotlight); second place next
+    ['', true, false, true, false],                    // second place: the full board
+  ]);
+  assert.equal((await call('host/board', {action: 'next'})).status, 409);
+  assert.equal((await board()).reveal.question, id);
 }));
 
 test('positions-only board hides scores everywhere but the desk', () => fixture(async ({call, board}) => {
@@ -321,4 +352,75 @@ test('looks: one for all, random for each question, or by question type', () => 
   const seen = new Set();
   for (let i = 0; i < 12; i++) {await open({}); const look = (await board()).look; assert.equal((await board()).look, look, 'a question keeps its look'); seen.add(look);}
   assert.ok(seen.size >= 3, `looks vary: ${[...seen]}`);
+}));
+
+test('Back undoes the last step: leaderboard positions, the leaderboard, the reveal, closing answers, starting a question', () => fixture(async ({call, board, tick}) => {
+  const ant = await call('join', {name: 'Ant'}), bee = await call('join', {name: 'Bee'});
+  await call('host/library/save', {revision: 0, quiz: {title: 'Back', rounds: [{id: 'r1', title: 'One', questions: [{id: 'a', ...question()}]}, {id: 'r2', title: 'Two', questions: [{id: 'b', ...question()}]}]}});
+  const back = async () => (await call('host/state')).back;
+  const undo = async (fields = {}) => call('host/back', {kind: (await back()).kind, ...fields});
+  assert.equal(await back(), null, 'nothing played yet');
+
+  // Starting a question nobody has answered: taken back as if never started, so Next starts it again.
+  let {id} = await call('host/next', {expectedQuestion: null});
+  assert.deepEqual(await back(), {kind: 'start', label: 'Take back this question', answers: 0});
+  assert.equal((await undo()).status, 200);
+  assert.deepEqual([(await board()).question, await back()], [null, null]);
+  ({id} = await call('host/next', {expectedQuestion: null}));
+  assert.equal((await board()).question.round, 'One', 'the same first question again');
+
+  // With an answer in, the desk must say the answers go.
+  await call('answer', {question: id, value: 'Cardiff'}, ant.secret);
+  assert.equal((await back()).answers, 1);
+  const refused = await undo();
+  assert.deepEqual([refused.status, refused.error], [409, '1 team has answered: taking the question back throws those answers away']);
+  assert.equal((await undo({discard: true})).status, 200);
+  assert.equal(((await call('host/state')).teams.find(t => t.name === 'Ant')).score, 0, 'its points went with it');
+
+  // Closing answers: reopened with the time that was left (at least 15 s); teams can answer again.
+  ({id} = await call('host/next', {expectedQuestion: null}));
+  await call('answer', {question: id, value: 'Cardiff'}, ant.secret);
+  tick(20000); await call('host/close');
+  assert.deepEqual(await back(), {kind: 'close', label: 'Reopen answers'});
+  await undo();
+  let q = (await board()).question;
+  assert.equal(q.open, true);
+  assert.equal(q.deadline, 1020000 + 15000, '10 s were left when it closed: at least 15 s');
+  assert.equal((await call('answer', {question: id, value: 'Cardiff'}, bee.secret)).status, 200, 'a late team answers');
+  await call('host/close');
+
+  // Revealing: hidden again.
+  await call('host/reveal', {question: id});
+  assert.equal((await back()).kind, 'reveal');
+  await undo();
+  assert.equal((await board()).question.revealed, false);
+  await call('host/reveal', {question: id});
+
+  // The leaderboard: each revealed position goes back, then the board itself.
+  await call('host/board', {action: 'show'}); await call('host/board', {action: 'next'});
+  assert.deepEqual(await back(), {kind: 'board', label: 'Hide the last position revealed'});
+  await undo(); assert.equal((await board()).reveal.shown, 0);
+  assert.deepEqual(await back(), {kind: 'leaderboard', label: 'Take the leaderboard off the TV'});
+  await undo(); assert.deepEqual([(await board()).reveal, (await board()).view], [null, 'question']);
+  assert.equal((await back()).kind, 'reveal', 'and on, step by step');
+
+  // A step the desk no longer shows (the quiz moved on) is not undone.
+  assert.equal((await call('host/back', {kind: 'start'})).status, 409);
+  // A finished quiz has no Back (Resume quiz is for that).
+  await call('host/settings', {ended: true}); assert.equal(await back(), null);
+}));
+
+test('Back over closing answers takes a fixed speed bonus off, so closing again awards it once', () => fixture(async ({call, tick}) => {
+  const teams = [];
+  for (const name of ['First', 'Second']) teams.push(await call('join', {name}));
+  const {id} = await call('host/open', question({fastestFingers: true, speedBonus: 5, bonusMode: 'fixed', bonusPlaces: 1}));
+  for (const t of teams) {await call('answer', {question: id, value: 'Cardiff'}, t.secret); tick(1000);}
+  const points = async () => (await call('host/state')).teams.map(t => [t.name, t.score]).sort();
+  await call('host/close');
+  assert.deepEqual(await points(), [['First', 7], ['Second', 2]]);
+  await call('host/back', {kind: 'close'});
+  const marked = (await call('host/review', {question: id})).answers.map(a => a.points);
+  assert.deepEqual(marked, [2, 2], 'the bonus comes off while answers are open');
+  await call('host/close');
+  assert.deepEqual(await points(), [['First', 7], ['Second', 2]], 'and is awarded once on closing again');
 }));

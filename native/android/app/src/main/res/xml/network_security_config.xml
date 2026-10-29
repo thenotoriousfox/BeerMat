@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Quiz laptops serve plain http on the local network (10.42.0.1, 192.168.x.y): they have no certificate. Online
+     quizzes use https. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

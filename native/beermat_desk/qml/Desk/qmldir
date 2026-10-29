@@ -1,0 +1,8 @@
+module Desk
+singleton Theme 1.0 Theme.qml
+Panel 1.0 Panel.qml
+Pill 1.0 Pill.qml
+DeskButton 1.0 DeskButton.qml
+Field 1.0 Field.qml
+Area 1.0 Area.qml
+Tool 1.0 Tool.qml

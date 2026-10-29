@@ -64,8 +64,10 @@ function penalty(m) {
   return score + 10 * Math.floor(Math.abs(dark * 100 / (n * n) - 50) / 5);
 }
 
+// UTF-8 bytes; TextEncoder where there is one, by hand elsewhere (the native desk's QML engine has none).
+const utf8 = text => typeof TextEncoder === 'function' ? [...new TextEncoder().encode(text)] : [...unescape(encodeURIComponent(text))].map(c => c.charCodeAt(0));
 export function qrMatrix(text) {
-  const {version, out} = codewords([...new TextEncoder().encode(text)]);
+  const {version, out} = codewords(utf8(text));
   const n = version * 4 + 17, base = Array.from({length: n}, () => Array(n).fill(false)), fixed = Array.from({length: n}, () => Array(n).fill(false));
   const set = (r, c, dark, m = base) => {if (r >= 0 && c >= 0 && r < n && c < n) {m[r][c] = dark; fixed[r][c] = true;}};
   for (const [r0, c0] of [[0, 0], [0, n - 7], [n - 7, 0]]) for (let r = -1; r <= 7; r++) for (let c = -1; c <= 7; c++) {
@@ -95,7 +97,7 @@ export function qrMatrix(text) {
     const bits = (version << 12) | rem;
     for (let i = 0; i < 18; i++) {const dark = ((bits >>> i) & 1) === 1, a = n - 11 + i % 3, b = Math.floor(i / 3); set(b, a, dark); set(a, b, dark);}
   }
-  const dataBits = out.flatMap(byte => Array.from({length: 8}, (_, i) => (byte >>> (7 - i)) & 1));
+  const dataBits = [].concat(...out.map(byte => Array.from({length: 8}, (_, i) => (byte >>> (7 - i)) & 1)));
   let k = 0;
   for (let right = n - 1; right >= 1; right -= 2) {
     if (right === 6) right = 5;

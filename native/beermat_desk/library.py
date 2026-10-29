@@ -1,0 +1,480 @@
+"""The quiz library, edited on the desk: a working copy of the server's library (rounds and questions) that the
+Quizzes workspace changes field by field and saves with /api/host/library/save. The server validates every question
+(server/model.js validateQuestion) and answers with a sentence when something's missing, so the rules for each format
+live there, not here. Fields the native editor doesn't show (Evil Mode, speed bonus, buzzer and bingo options, …) are
+kept exactly as they are."""
+import base64
+import copy
+import json
+import secrets
+from pathlib import Path
+
+from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
+
+# Formats a question can be, as the web desk names them.
+TYPES = [('text', 'Typed answer'), ('choice', 'Multiple choice'), ('multi', 'Tick all that apply'), ('letter', 'Letter keypad'),
+         ('number', 'Number'), ('nearest', 'Nearest wins'), ('sequence', 'Put in order'), ('pinpoint', 'Pinpoint'), ('wordsnake', 'Word snake'),
+         ('tiles', 'Letter tiles'), ('vote', 'Vote'), ('buzzer', 'Buzzer'), ('bingo', 'Bingo'), ('musicbingo', 'Music bingo'), ('clips', 'Sound clips'),
+         ('picture', 'Picture'), ('audio', 'Audio'), ('sheet', 'Answer sheet')]
+# The fields the native editor shows; which ones apply depends on the format.
+LIST_FIELDS = {'options', 'correct', 'items', 'itemAnswers', 'aliases'}
+FIELDS_BY_TYPE = {
+    'choice': ['options', 'answer'], 'vote': ['options'], 'multi': ['options', 'correct'], 'sequence': ['items'],
+    'sheet': ['items', 'itemAnswers'], 'picture': ['media', 'answer', 'aliases'], 'audio': ['media', 'answer', 'aliases'],
+    'pinpoint': ['media'], 'text': ['answer', 'aliases'], 'letter': ['answer'], 'number': ['answer'], 'nearest': ['answer'], 'tiles': ['answer'],
+    'wordsnake': ['answer'], 'buzzer': ['answer'],
+}
+
+SPEED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'}
+BINGO = {'bingo', 'musicbingo'}
+# Each format's options (server/model.js validateQuestion): key, label, kind, and for numbers their range, for choices
+# their values. The server checks them again when the quiz is saved.
+OPTIONS = [
+    ('evil', 'Evil Mode: a wrong answer loses the points', 'bool', None, lambda t: t not in ('vote', 'bingo', 'musicbingo', 'clips', 'buzzer')),
+    ('fastestFingers', 'Fastest fingers first (speed bonus)', 'bool', None, lambda t: t in SPEED),
+    ('speedBonus', 'Speed bonus points', 'int', (0, 100), lambda t: t in SPEED),
+    ('bonusMode', 'Speed bonus', 'choice', [('sliding', 'Fades over the time allowed'), ('fixed', 'Only the fastest answers')], lambda t: t in SPEED),
+    ('bonusPlaces', 'Fastest answers given the fixed bonus', 'int', (1, 50), lambda t: t in SPEED),
+    ('places', 'Places scored (closest first)', 'int', (1, 20), lambda t: t == 'nearest'),
+    ('tieBreaker', 'Tie-breaker (scores nothing, orders teams level on points)', 'bool', None, lambda t: t == 'nearest'),
+    ('goWide', 'Go wide: teams may take help for fewer points', 'bool', None, lambda t: t in ('wordsnake', 'pinpoint')),
+    ('goWidePoints', 'Points when going wide', 'int', (0, 100), lambda t: t in ('wordsnake', 'pinpoint')),
+    ('variation', 'Buzzer game', 'choice', [('classic', 'Classic'), ('advanced', 'Advanced (pass and agree)')], lambda t: t == 'buzzer'),
+    ('penalty', 'Points lost for a wrong answer', 'int', (0, 100), lambda t: t == 'buzzer'),
+    ('passPenalty', 'Points lost for passing', 'int', (0, 100), lambda t: t == 'buzzer'),
+    ('agreePoints', 'Points for agreeing with a right answer', 'int', (0, 100), lambda t: t == 'buzzer'),
+    ('agreeSeconds', 'Seconds to agree', 'int', (5, 60), lambda t: t == 'buzzer'),
+    ('mode', 'Bingo game', 'choice', [('line', 'One line'), ('twoLines', 'Two lines'), ('fullHouse', 'Full house'), ('progressive', 'Full game: line, two lines, full house')], lambda t: t in BINGO),
+    ('stagePoints', 'Full game points: line, two lines, full house (e.g. 2, 3, 5)', 'ints', (0, 100), lambda t: t in BINGO),
+    ('startAt', 'Songs start this far in (seconds)', 'int', (0, 600), lambda t: t == 'musicbingo'),
+    ('songSeconds', 'Play each song for (seconds, 0: whole song)', 'int', (0, 600), lambda t: t == 'musicbingo'),
+    ('autoNext', 'Play the next song by itself', 'bool', None, lambda t: t == 'musicbingo'),
+    ('revealNow', 'Show each song title as it plays', 'bool', None, lambda t: t == 'musicbingo'),
+    ('clipSeconds', 'Spotify clips play for (seconds)', 'int', (3, 60), lambda t: t == 'clips'),
+    ('partScoring', 'Sheet scoring', 'choice', [('each', 'A point for each part'), ('split', "The question's points shared"), ('all', 'Points only when every part is right')], lambda t: t == 'sheet'),
+]
+DEFAULTS = {'bonusMode': 'sliding', 'bonusPlaces': 1, 'places': 1, 'variation': 'classic', 'agreeSeconds': 10, 'mode': 'line', 'clipSeconds': 15, 'partScoring': 'each'}
+PICTURE, SOUND = ('.png', '.jpg', '.jpeg', '.webp'), ('.mp3', '.ogg', '.wav')
+
+
+class Library(QObject):
+    changed = Signal()
+    toast = Signal(str, bool)
+
+    def __init__(self, api, media_dir=None, parent=None):
+        super().__init__(parent)
+        self.api, self.media_dir = api, media_dir
+        self._server, self._draft, self._dirty = None, None, False
+        self._selected = (-1, -1)
+
+    # ---- the server's copy ----
+    def received(self, library):
+        """A fresh library from the server. Unsaved edits are kept (the save then reports the conflict)."""
+        self._server = library
+        if not self._dirty:
+            self._draft = copy.deepcopy(library)
+        self.changed.emit()
+
+    def discard(self):
+        """A quiz file was loaded: its quiz replaces any unsaved edits (the desk asked first), with nothing selected."""
+        self._dirty, self._selected = False, (-1, -1)
+        if self._server is not None:
+            self._draft = copy.deepcopy(self._server)
+        self.changed.emit()
+
+    # ---- what QML sees ----
+    @Property(bool, notify=changed)
+    def dirty(self):
+        return self._dirty
+
+    @Property(str, notify=changed)
+    def title(self):
+        return (self._draft or {}).get('title', '')
+
+    @Property('QVariantList', constant=True)
+    def types(self):
+        return [{'value': v, 'text': t} for v, t in TYPES]
+
+    @Property('QVariantList', notify=changed)
+    def outline(self):
+        """Rounds and their questions, flattened for a list: a round row, then its questions."""
+        rows = []
+        names = dict(TYPES)
+        for r, rnd in enumerate((self._draft or {}).get('rounds', [])):
+            rows.append({'kind': 'round', 'round': r, 'question': -1, 'text': rnd.get('title') or f'Round {r + 1}', 'count': len(rnd.get('questions', []))})
+            for i, q in enumerate(rnd.get('questions', [])):
+                rows.append({'kind': 'question', 'round': r, 'question': i, 'text': q.get('text') or q.get('title') or '(no question yet)',
+                             'type': names.get(q.get('type'), q.get('type', '')), 'selected': (r, i) == self._selected,
+                             'tieBreaker': bool(q.get('tieBreaker'))})
+        return rows
+
+    @Property('QVariantMap', notify=changed)
+    def question(self):
+        """The selected question as the editor shows it: list fields as lines of text."""
+        q = self._current()
+        if q is None:
+            return {}
+        shown = {k: ('\n'.join(map(str, q.get(k) or [])) if k in LIST_FIELDS else q.get(k)) for k in q}
+        shown['fields'] = FIELDS_BY_TYPE.get(q.get('type'), [])
+        shown['round'], shown['index'] = self._selected
+        shown['roundTitle'] = self._draft['rounds'][self._selected[0]].get('title', '')
+        shown['answer'] = '' if q.get('answer') is None else str(q.get('answer'))
+        kind = q.get('type')
+        shown['options_'] = [{'key': k, 'label': label, 'kind': kind_, 'range': list(rng) if kind_ in ('int', 'ints') else [],
+                              'choices': [{'value': v, 'text': t} for v, t in rng] if kind_ == 'choice' else [],
+                              'value': (', '.join(map(str, q.get(k) or [])) if kind_ == 'ints' else q.get(k, DEFAULTS.get(k, False if kind_ == 'bool' else 0)))}
+                             for k, label, kind_, rng, applies in OPTIONS if applies(kind)]
+        shown['clipsList'] = [{'label': c.get('label', ''), 'media': c.get('media') or '', 'spotify': c.get('spotify') or '', 'start': c.get('start', 0)} for c in q.get('clips') or []]
+        shown['songsList'] = [{'title': x.get('title', ''), 'media': x.get('media') or '', 'spotify': x.get('spotify') or '', 'start': x.get('start', ''), 'seconds': x.get('seconds', '')}
+                              for x in q.get('songs') or []]
+        shown['target'] = q.get('target') or {}
+        shown['spotifyClip'] = q.get('clip') or {}
+        shown['itemAliases'] = '\n'.join(' | '.join(a) for a in q.get('itemAliases') or [])
+        return shown
+
+    def _current(self):
+        r, i = self._selected
+        try:
+            return self._draft['rounds'][r]['questions'][i] if r >= 0 and i >= 0 else None
+        except (KeyError, IndexError, TypeError):
+            return None
+
+    def _touch(self):
+        self._dirty = True
+        self.changed.emit()
+
+    # ---- editing ----
+    @Slot(int, int)
+    def select(self, r, i):
+        self._selected = (r, i)
+        self.changed.emit()
+
+    @Slot(str)
+    def setTitle(self, title):
+        if self._draft is not None and title != self._draft.get('title'):
+            self._draft['title'] = title
+            self._touch()
+
+    @Slot(str, 'QVariant')
+    def setField(self, field, value):
+        q = self._current()
+        if q is None:
+            return
+        if field in LIST_FIELDS:
+            value = [line.strip() for line in str(value).split('\n') if line.strip()]
+        elif field in ('points', 'seconds'):
+            value = int(value)
+        # Leaving a box without typing anything (or typing the same thing) changes nothing: no "unsaved" quiz.
+        if q.get(field, '' if field not in LIST_FIELDS else []) == value or (value in ('', [], None) and field not in q):
+            return
+        if value in ('', [], None) and field not in ('text',):
+            q.pop(field, None)
+        else:
+            q[field] = value
+        self._touch()
+
+    @Slot(str, str)
+    def setOption(self, key, value):
+        """A format option, from the editor's text: true/false, a number, a choice, or numbers separated by commas."""
+        q = self._current()
+        spec = next((o for o in OPTIONS if o[0] == key), None)
+        if q is None or spec is None:
+            return
+        kind = spec[2]
+        try:
+            q[key] = (value == 'true' if kind == 'bool' else int(value) if kind == 'int'
+                      else [int(v) for v in value.replace(' ', '').split(',') if v] if kind == 'ints' else value)
+        except ValueError:
+            self.toast.emit(f'{spec[1]}: give whole numbers', True)
+            return
+        self._touch()
+
+    @Slot(str, QUrl)
+    def uploadMedia(self, field, url):
+        """A picture or sound for the question, uploaded to the quiz server's media (as the web editor's upload)."""
+        path = Path(url.toLocalFile() if isinstance(url, QUrl) else str(url))
+        if path.suffix.lower() not in PICTURE + SOUND:
+            return self.toast.emit('Choose a PNG, JPEG or WebP picture, or an MP3, Ogg or WAV sound', True)
+        try:
+            data = path.read_bytes()
+        except OSError as e:
+            return self.toast.emit(f'Could not read {path.name}: {e}', True)
+        r, i = self._selected
+
+        def done(media):
+            q = self._draft['rounds'][r]['questions'][i]
+            if field == 'clip':
+                q.setdefault('clips', []).append({'media': media, 'label': path.stem[:100]})
+            elif field == 'song':
+                q.setdefault('songs', []).append({'title': path.stem[:100], 'media': media})
+            else:
+                q['media'] = media
+                q.pop('clip', None)
+            self._touch()
+            self.toast.emit(f'{path.name} added', False)
+        self.api.upload(data, f'upload{path.suffix.lower()}', done, lambda e: self.toast.emit(e, True))
+
+    @Slot(float, float)
+    def setTarget(self, x, y):
+        """Pinpoint: the target's centre, as fractions of the picture; its size stays (or a sensible first size)."""
+        q = self._current()
+        if q is not None:
+            t = q.get('target') or {'r': 0.06, 'aspect': 1}
+            q['target'] = {**t, 'x': round(min(1, max(0, x)), 4), 'y': round(min(1, max(0, y)), 4)}
+            self._touch()
+
+    @Slot(float, float)
+    def setTargetShape(self, radius, aspect):
+        q = self._current()
+        if q is not None and q.get('target'):
+            q['target'] = {**q['target'], 'r': round(radius, 3), 'aspect': round(aspect, 3)}
+            self._touch()
+
+    @Slot(str, int, str, str)
+    def setItem(self, kind, index, field, value):
+        """A clip's or song's field: label, title, spotify (a track link), start, seconds. Empty numbers are removed."""
+        q = self._current()
+        items = (q or {}).get('clips' if kind == 'clip' else 'songs') or []
+        if not 0 <= index < len(items):
+            return
+        item = items[index]
+        if field in ('start', 'seconds'):
+            if str(value).strip() == '':
+                item.pop(field, None)
+            else:
+                try:
+                    item[field] = int(value)
+                except ValueError:
+                    return self.toast.emit('Give whole seconds', True)
+        elif field == 'spotify':
+            if value.strip():
+                item['spotify'] = value.strip()
+                item.pop('media', None)
+                if kind == 'clip':
+                    item.setdefault('start', 0)
+            else:
+                item.pop('spotify', None)
+        else:
+            item[field] = value
+        self._touch()
+
+    @Slot(str)
+    def addSpotifyItem(self, kind):
+        q = self._current()
+        if q is not None:
+            if kind == 'clip':
+                q.setdefault('clips', []).append({'spotify': '', 'start': 0, 'label': ''})
+            else:
+                q.setdefault('songs', []).append({'title': f'Song {len(q.get("songs") or []) + 1}', 'spotify': ''})
+            self._touch()
+
+    @Slot(str, int)
+    def removeItem(self, kind, index):
+        q = self._current()
+        items = (q or {}).get('clips' if kind == 'clip' else 'songs') or []
+        if 0 <= index < len(items):
+            del items[index]
+            self._touch()
+
+    @Slot(int)
+    def setTargetClip(self, index):
+        q = self._current()
+        if q is not None:
+            q['targetClip'] = index
+            self._touch()
+
+    @Slot(str)
+    def importSongs(self, links):
+        """Music bingo from Spotify: the server looks up each track's title (needs Spotify connected, Pro)."""
+        r, i = self._selected
+        lines = [line.strip() for line in links.split('\n') if line.strip()]
+
+        def done(reply):
+            q = self._draft['rounds'][r]['questions'][i]
+            q.setdefault('songs', []).extend({'title': x['title'][:100], 'spotify': x['spotify']} for x in reply.get('songs', []))
+            self._touch()
+            self.toast.emit(f'{len(reply.get("songs", []))} songs added', False)
+        self.api.host('spotify/import', {'links': lines}, done, lambda e: self.toast.emit(e, True), timeout_ms=60000)
+
+    @Slot(str, str, str)
+    def setSpotifyClip(self, track, start, seconds):
+        """An audio question (or a sheet) playing a Spotify track instead of a file."""
+        q = self._current()
+        if q is None:
+            return
+        if not track.strip():
+            q.pop('clip', None)
+        else:
+            try:
+                q['clip'] = {'spotify': track.strip(), 'start': int(start or 0), 'seconds': int(seconds or 30)}
+            except ValueError:
+                return self.toast.emit('Give whole seconds', True)
+            q.pop('media', None)
+        self._touch()
+
+    @Slot(str)
+    def setItemAliases(self, text):
+        """Sheet: other accepted answers for each part, one line per part, separated by |."""
+        q = self._current()
+        if q is not None:
+            lines = text.split('\n')
+            q['itemAliases'] = [[a.strip() for a in (lines[n] if n < len(lines) else '').split('|') if a.strip()] for n in range(len(q.get('items') or []))]
+            self._touch()
+
+    @Slot(str)
+    def setType(self, kind):
+        q = self._current()
+        if q is not None and q.get('type') != kind:
+            q['type'] = kind
+            self._touch()
+
+    @Slot(int)
+    def addQuestion(self, r):
+        rounds = self._draft.setdefault('rounds', [])
+        if not rounds:
+            rounds.append({'id': 'r' + secrets.token_hex(4), 'title': 'Round 1', 'questions': []})
+            r = 0
+        questions = rounds[r].setdefault('questions', [])
+        questions.append({'id': 'q' + secrets.token_hex(4), 'type': 'text', 'text': '', 'answer': '', 'points': 1, 'seconds': 30})
+        self._selected = (r, len(questions) - 1)
+        self._touch()
+
+    @Slot()
+    def duplicateQuestion(self):
+        q = self._current()
+        if q is None:
+            return
+        r, i = self._selected
+        copy_ = copy.deepcopy(q)
+        copy_['id'] = 'q' + secrets.token_hex(4)
+        self._draft['rounds'][r]['questions'].insert(i + 1, copy_)
+        self._selected = (r, i + 1)
+        self._touch()
+
+    @Slot()
+    def deleteQuestion(self):
+        r, i = self._selected
+        if self._current() is None:
+            return
+        del self._draft['rounds'][r]['questions'][i]
+        self._selected = (-1, -1)
+        self._touch()
+
+    @Slot(int)
+    def moveQuestion(self, step):
+        r, i = self._selected
+        questions = (self._draft or {}).get('rounds', [{}])[r].get('questions', []) if r >= 0 else []
+        j = i + step
+        if self._current() is None or not 0 <= j < len(questions):
+            return
+        questions[i], questions[j] = questions[j], questions[i]
+        self._selected = (r, j)
+        self._touch()
+
+    @Slot()
+    def addRound(self):
+        rounds = self._draft.setdefault('rounds', [])
+        rounds.append({'id': 'r' + secrets.token_hex(4), 'title': f'Round {len(rounds) + 1}', 'questions': []})
+        self._touch()
+
+    @Slot(int, str)
+    def renameRound(self, r, title):
+        if title.strip() and self._draft['rounds'][r].get('title') != title:
+            self._draft['rounds'][r]['title'] = title.strip()
+            self._touch()
+
+    @Slot(int)
+    def deleteRound(self, r):
+        del self._draft['rounds'][r]
+        self._selected = (-1, -1)
+        self._touch()
+
+    # ---- saving ----
+    @Slot()
+    def save(self):
+        """Saved only if nobody else changed the quiz meanwhile (revision); the server checks every question."""
+        if not self._dirty:
+            return
+
+        def saved(library):
+            self._dirty = False
+            self.received(library)
+            self.toast.emit('Quiz saved', False)
+
+        self.api.host('library/save', {'revision': (self._server or {}).get('revision', 0), 'quiz': self._draft}, saved,
+                      lambda e: self.toast.emit(f'Not saved: {e}', True))
+
+    @Slot()
+    def revert(self):
+        self._dirty = False
+        self._draft = copy.deepcopy(self._server)
+        self._selected = (-1, -1)
+        self.changed.emit()
+
+    @Slot(QUrl)
+    def printSheets(self, url):
+        """Blank answer sheets for a paper round or a team without phones, as the web desk's Print blank sheets: the
+        quiz's questions with a line for each answer (choices listed, order items shuffled; formats that need a phone or
+        the TV are left out), as a PDF that opens in the system's viewer for printing."""
+        import html
+        import random
+        from PySide6.QtCore import QMarginsF
+        from PySide6.QtGui import QDesktopServices, QPageLayout, QPageSize, QPdfWriter, QTextDocument
+        quiz = self._server or {}
+        line = '<p>Answer: __________________________________________________</p>'
+        parts = [f'<h1>{html.escape(quiz.get("title", "Quiz"))}</h1>', '<p>Team name: __________________________________</p>']
+        letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        for rnd in quiz.get('rounds', []):
+            parts.append(f'<h2>{html.escape(rnd.get("title", ""))}</h2>')
+            for i, q in enumerate(rnd.get('questions', [])):
+                kind = q.get('type')
+                if kind == 'sheet':
+                    parts.append(f'<h3>{html.escape(q.get("text", ""))}</h3>')
+                    for n, item in enumerate(q.get('items') or []):
+                        parts += [f'<p>{n + 1}. {html.escape(item)}</p>', line]
+                elif kind in ('buzzer', 'bingo', 'musicbingo', 'pinpoint', 'clips', 'wordsnake', 'tiles'):
+                    continue
+                else:
+                    parts.append(f'<p>{i + 1}. {html.escape(q.get("text", ""))}</p>')
+                    if kind in ('choice', 'vote', 'multi'):
+                        parts.append('<p>' + '&nbsp;&nbsp;&nbsp;&nbsp;'.join(f'{letters[n]}. {html.escape(o)}' for n, o in enumerate(q.get('options') or [])) + '</p>')
+                    if kind == 'sequence':
+                        items = list(q.get('items') or [])
+                        random.shuffle(items)
+                        parts.append('<p>Put in order: ' + ' · '.join(map(html.escape, items)) + '</p>')
+                    parts.append(line)
+        path = Path(url.toLocalFile() if isinstance(url, QUrl) else str(url))
+        writer = QPdfWriter(str(path))
+        writer.setResolution(96)   # the text is laid out at screen resolution; the PDF's default (1200 dpi) shrinks it
+        writer.setPageLayout(QPageLayout(QPageSize(QPageSize.PageSizeId.A4), QPageLayout.Orientation.Portrait, QMarginsF(15, 15, 15, 15), QPageLayout.Unit.Millimeter))
+        writer.setTitle(f'{quiz.get("title", "Quiz")} — answer sheet')
+        doc = QTextDocument()
+        doc.setDefaultStyleSheet('h1 { font-size: 20pt; } h2 { font-size: 15pt; margin-top: 14pt; } p { font-size: 11pt; }')
+        doc.setHtml('\n'.join(parts))
+        doc.setPageSize(writer.pageLayout().paintRectPixels(writer.resolution()).size().toSizeF())
+        doc.print_(writer)
+        self.toast.emit(f'Answer sheets saved to {path.name}: print them from the viewer', False)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+        return str(path)
+
+    @Slot(QUrl, bool)
+    def export(self, url, with_media=True):
+        """The quiz as a BeerMat quiz file, as the web desk's Download quiz. With its media, every picture and sound is
+        put inside the file (as data: URLs), so it loads on another laptop; Load quiz file unpacks them again."""
+        path = Path(url.toLocalFile() if isinstance(url, QUrl) else str(url))
+        quiz = copy.deepcopy({k: v for k, v in (self._server or {}).items() if k != 'revision'})
+        if with_media and self.media_dir:
+            kinds = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav'}
+            holders = [q for r in quiz.get('rounds', []) for q in r.get('questions', [])]
+            holders += [item for q in list(holders) for item in [*(q.get('clips') or []), *(q.get('songs') or [])]]
+            for holder in holders:
+                media = holder.get('media')
+                if isinstance(media, str) and media.startswith('/media/'):
+                    file = Path(self.media_dir) / Path(media).name
+                    if file.suffix.lower() in kinds and file.exists():
+                        holder['media'] = f'data:{kinds[file.suffix.lower()]};base64,' + base64.b64encode(file.read_bytes()).decode()
+        try:
+            path.write_text(json.dumps(quiz, indent=2, ensure_ascii=False), encoding='utf-8')
+            self.toast.emit(f'Quiz saved to {path.name}' + (' with its pictures and sounds' if with_media else ''), False)
+        except OSError as e:
+            self.toast.emit(f'Could not write {path.name}: {e}', True)

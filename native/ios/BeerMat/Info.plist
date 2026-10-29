@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>BeerMat</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string></string>
+	</dict>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Fredoka.ttf</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<!-- The QR code on the TV; asked once, when the player taps Scan. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Scan the QR code on the quiz TV to join.</string>
+	<!-- Find a quiz near me: asked only when the player taps it; the position is rounded to about 100 m before it's sent. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>To find quiz nights near you. Asked only when you tap Quizzes near me; your position is rounded before it's sent.</string>
+	<!-- iOS local-network privacy: quizzes run on the quiz laptop on the venue's or the quiz Wi-Fi. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Quizzes run on the quizmaster's laptop on the venue's Wi-Fi or the quiz Wi-Fi, so BeerMat needs to reach it on your local network.</string>
+	<!-- Quiz laptops serve plain http on the local network (no certificate): ATS doesn't apply to IP addresses, and this
+	     covers .local and bare host names. Online quizzes use https. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+</dict>
+</plist>

@@ -406,18 +406,18 @@ const allPlayed = s => {const played = new Set(s.history.map(q => q.sourceId)), 
 // position from the bottom), and finishing, which reveals the final standings the same way.
 function nextStep(s) {
   const b = s.board;
-  if (b?.active && !b.done) return b.shown === b.rest ? 'revealFirst' : 'reveal';
+  if (b?.active && !b.done) return b.shown === b.rest ? 'revealFirst' : b.second ? 'revealSecond' : 'reveal';
   if (s.settings.ended) return null;
   if (b?.canShow) return 'show';
   if (allPlayed(s)) return 'finish';
   return b?.roundOver ? 'round' : 'question';
 }
-const nextLabels = {reveal: 'Reveal next position', revealFirst: 'Reveal first place', show: 'Show leaderboard', finish: 'Finish quiz', round: 'Start next round', question: 'Start next question'};
+const nextLabels = {reveal: 'Reveal next position', revealFirst: 'Reveal the leader', revealSecond: 'Reveal second place', show: 'Show leaderboard', finish: 'Finish quiz', round: 'Start next round', question: 'Start next question'};
 $('next').onclick = () => {
   const step = nextStep(state);
   if (step === 'finish') finishQuiz();
   else if (step === 'show') action(() => request('board', {action: 'show'}), 'Leaderboard on the TV');
-  else if (step === 'reveal' || step === 'revealFirst') action(() => request('board', {action: 'next'}), step === 'revealFirst' ? 'First place revealed' : 'Next position revealed');
+  else if (['reveal', 'revealFirst', 'revealSecond'].includes(step)) action(() => request('board', {action: 'next'}), step === 'revealFirst' ? 'The leader revealed' : step === 'revealSecond' ? 'Second place revealed: the full board' : 'Next position revealed');
   else if (step) action(() => request('next', {expectedQuestion: state.question?.id || null}), 'Next question opened');
 };
 // Level for first place after the last question: the desk offers the tie-breaker (Next never opens one).
@@ -661,8 +661,13 @@ $('spinWheel').onclick = () => action(async () => {
   $('wheelLast').textContent = `Last spin: ${wheel.items[wheel.result]}`;
   return auto ? 'Wheel spinning on the projector — Auto carries on once the result has shown' : 'Wheel spinning on the projector — set TV shows back to Auto when you are done';
 });
+$('back').onclick = () => {
+  const b = state?.back; if (!b) return;
+  if (b.answers && !confirm(`Take this question back? ${b.answers} ${b.answers === 1 ? 'team has' : 'teams have'} answered; those answers are thrown away.`)) return;
+  action(() => request('back', {kind: b.kind, ...(b.answers ? {discard: true} : {})}), `Back: ${b.label[0].toLowerCase() + b.label.slice(1)}`);
+};
 // Single-key shortcuts, also usable from a Stream Deck or presenter remote that sends key presses.
-const shortcuts = {n: 'next', c: 'close', r: 'reveal', 1: 'buzzCorrect', 2: 'buzzWrong', 3: 'buzzPass', a: 'startAgree', b: 'callNumber', w: 'spinWheel', t: 'timerPause', s: 'showScores'};
+const shortcuts = {backspace: 'back', n: 'next', c: 'close', r: 'reveal', 1: 'buzzCorrect', 2: 'buzzWrong', 3: 'buzzPass', a: 'startAgree', b: 'callNumber', w: 'spinWheel', t: 'timerPause', s: 'showScores'};
 document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || $('panel').hidden || e.target.closest('input,textarea,select,dialog')) return;
   const key = e.key.toLowerCase(), shout = state?.question?.bingo?.pending && {1: 'shoutCorrect', 2: 'shoutWrong'}[key];
@@ -1145,6 +1150,8 @@ function renderState(s) {
   if (clipRun && (q?.id !== clipRun.question || !q.live)) stopClips(); else renderClipsPanel(q);
   $('liveCount').textContent = q ? `${s.answers.length} answers received · ${s.teams.filter(t => t.enabled && !t.waiting).length} active teams` : 'Add rounds in Quizzes, then start your first question.';
   renderMedia($('liveMedia'), q); renderSolution($('liveSolution'), q);
+  // Back undoes the last step Next took (the server says which, so it can label it).
+  $('back').disabled = !s.back; $('back').title = s.back ? `${s.back.label} (Backspace)` : 'Nothing to go back to';
   const step = nextStep(s); $('next').disabled = !!q?.live || !step; $('next').textContent = nextLabels[step] || 'Quiz finished'; $('close').textContent = ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type) ? 'End game' : 'Close answers'; $('close').disabled = !pending; $('pause').disabled = !q?.open; $('resume').disabled = !q?.paused; $('reveal').disabled = !q || !!pending;
   $('reveal').textContent = q?.revealing ? 'Revealing…' : q?.revealed ? 'Hide answer reveal' : 'Reveal answer';
   $('registration').textContent = s.settings.registrationOpen ? 'Close registration' : 'Open registration'; $('registration').disabled = s.settings.ended;
