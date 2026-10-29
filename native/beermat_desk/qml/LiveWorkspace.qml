@@ -248,7 +248,9 @@ ColumnLayout {
                         border.color: screens.open && !screens.blanked ? Qt.rgba(Theme.good.r, Theme.good.g, Theme.good.b, 0.6) : Theme.line
                         TvStage { anchors.fill: parent; anchors.margins: 2; tv: desk.tv; serverUrl: desk.serverUrl; blanked: screens.blanked }
                     }
-                    RowLayout {
+                    // Wraps when the panel is narrow (the desk's side column), rather than running off its edge.
+                    Flow {
+                        Layout.fillWidth: true
                         spacing: 6
                         DeskButton { text: screens.open ? "Close TV" : "Show TV"; shortcutHint: "F7"; implicitHeight: 34; onClicked: screens.toggle() }
                         DeskButton { text: screens.blanked ? "Unblank" : "Blank"; shortcutHint: "F8"; implicitHeight: 34; enabled: screens.open; onClicked: screens.setBlank(!screens.blanked) }
