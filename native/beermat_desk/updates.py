@@ -8,7 +8,7 @@ checked (server/updates.js); this installs it and restarts:
 * anything else (the Windows zip, the Linux tar.gz, run from source): the desk says a new version is out and opens the
   download page.
 
-It checks when the desk starts and twice a day, quietly (no internet, no fuss), and on Check for updates in Settings.
+It checks when the desk starts and twice a day (an installed desk), quietly (no internet, no fuss), and on Check for updates in Settings.
 Never in the middle of a question: the quiz is saved, but a restart would cut teams off while they answer."""
 import os
 import shutil
@@ -54,7 +54,10 @@ class Updates(QObject):
         self._timer = QTimer(self, interval=12 * 3600 * 1000, timeout=lambda: self.check(True))
 
     def start(self):
-        """The desk is unlocked: check now, quietly, and twice a day."""
+        """The desk is unlocked: check now, quietly, and twice a day. Run from source (a developer's copy) it checks
+        only when asked."""
+        if self.kind is None:
+            return
         self.check(True)
         self._timer.start()
 
