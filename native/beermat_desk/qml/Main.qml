@@ -37,6 +37,7 @@ ApplicationWindow {
             GradientStop { position: 0; color: Theme.bg2 }
             GradientStop { position: 1; color: Theme.bg }
         }
+        Dither {}
     }
 
     // ---- keys: the live ones work from every workspace, as on the web desk ----

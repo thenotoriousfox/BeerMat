@@ -118,3 +118,16 @@ for wght, style in ((400, 'Regular'), (500, 'Medium'), (600, 'SemiBold'), (700, 
     static.flavor = None
     static.save(os.path.join(HERE, f'fredoka-{style.lower()}.ttf'))
 print('wrote fredoka-regular.ttf … fredoka-bold.ttf')
+
+# Fine grey noise, tiled over the desk's and the TV's dark gradients at a few percent opacity (Desk/Dither.qml): it
+# breaks the gradients' steps up, which otherwise show as bands across the screen. Seeded, so it's the same each run.
+import random
+import struct
+import zlib
+rng = random.Random(1975)
+size = 128
+rows = b''.join(b'\x00' + bytes(rng.randrange(256) for _ in range(size)) for _ in range(size))
+chunk = lambda kind, data: struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff)
+with open(os.path.join(HERE, 'noise.png'), 'wb') as out:
+    out.write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', size, size, 8, 0, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(rows, 9)) + chunk(b'IEND', b''))
+print('wrote noise.png')

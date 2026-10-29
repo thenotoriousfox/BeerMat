@@ -29,7 +29,7 @@ Button {
         Rectangle {
             visible: control.shortcutHint !== ""
             anchors.verticalCenter: parent.verticalCenter
-            width: hint.implicitWidth + 10; height: 20; radius: 5
+            width: hint.implicitWidth + 10; height: Math.max(20, hint.implicitHeight + 4); radius: 5
             color: Qt.rgba(0, 0, 0, control.kind === "quiet" || !control.enabled ? 0.25 : 0.14)
             Text { id: hint; anchors.centerIn: parent; text: control.shortcutHint; font.pixelSize: 11; font.weight: Font.Bold
                    color: !control.enabled ? Theme.faint : control.kind === "quiet" ? Theme.muted : Theme.onAccent }

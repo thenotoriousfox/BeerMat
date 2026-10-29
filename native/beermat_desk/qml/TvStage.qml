@@ -93,6 +93,9 @@ Item {
             }
         }
 
+        // The background's gradient, without bands.
+        Dither {}
+
         // The look's scenery (tv.json's scene), behind everything.
         Loader {
             anchors.fill: parent

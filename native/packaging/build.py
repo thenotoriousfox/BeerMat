@@ -31,7 +31,7 @@ TARGET = f'{"win" if WINDOWS else "linux"}-{ARCH}'
 
 # What the quiz server and the desk read at run time (as the Electron build's "files", minus Electron).
 DATA = ['package.json', 'server', 'web', 'shared', 'desktop/server-host.js', 'desktop/database.js', 'sounds', 'themes',
-        'brand/mark.svg', 'brand/wordmark.svg', 'brand/icon.svg', 'brand/fredoka.woff2', 'brand/fredoka-regular.ttf', 'brand/fredoka-medium.ttf', 'brand/fredoka-semibold.ttf', 'brand/fredoka-bold.ttf', 'brand/Fredoka-OFL.txt',
+        'brand/mark.svg', 'brand/wordmark.svg', 'brand/icon.svg', 'brand/fredoka.woff2', 'brand/fredoka-regular.ttf', 'brand/fredoka-medium.ttf', 'brand/fredoka-semibold.ttf', 'brand/fredoka-bold.ttf', 'brand/Fredoka-OFL.txt', 'brand/noise.png',
         'media/README.md', 'scripts/hotspot.py', 'scripts/hotspot-windows.ps1', 'native/beermat_desk/qml']
 # Qt parts the desk doesn't use, left out to keep the download small.
 EXCLUDE = ['PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'PySide6.QtWebEngineQuick', 'PySide6.Qt3DCore', 'PySide6.QtCharts',

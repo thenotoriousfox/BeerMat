@@ -25,6 +25,7 @@ Rectangle {
         GradientStop { position: phone.stops[Math.min(2, phone.stops.length - 1)][0]; color: phone.stops[Math.min(2, phone.stops.length - 1)][1] }
         GradientStop { position: phone.stops[phone.stops.length - 1][0]; color: phone.stops[phone.stops.length - 1][1] }
     }
+    Dither {}
     // The scenery, from the bottom of the screen.
     Repeater {
         model: phone.phoneLook && phone.phoneLook.scene ? phone.phoneLook.scene : []

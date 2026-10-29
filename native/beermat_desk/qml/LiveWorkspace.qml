@@ -270,7 +270,7 @@ ColumnLayout {
             anchors.margins: 14
             spacing: 10
             DeskButton {
-                text: "◀ Back"; shortcutHint: "⌫"
+                text: "◀ Back"; shortcutHint: "Backspace"
                 enabled: !!view.back && !desk.busy
                 onClicked: desk.back()
                 ToolTip.visible: hovered; ToolTip.text: view.back ? view.back.label : "Nothing to go back to"
