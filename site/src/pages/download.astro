@@ -6,17 +6,12 @@ import pkg from '../../../package.json';
 // the latest (earlier ones stay with their GitHub releases), and the site is
 // rebuilt with the new version.
 const v = pkg.version, file = (name: string) => `${DOWNLOADS}/${v}/${name}`;
-// BeerMat Desk, the native app (native/beermat_desk), is the download; the previous desk (Electron) stays in each
-// release as a fallback, listed below it.
+// BeerMat Desk, the native app (native/beermat_desk), is the download.
 const desktop = [
 	['Windows 10 and 11', 'Installer', `BeerMat-Desk-Setup-${v}.exe`, 'Installs BeerMat Desk with a Start menu entry. Recommended.'],
 	['Windows 10 and 11', 'Portable (zip)', `BeerMat-Desk-${v}-win-x64.zip`, 'Unzip anywhere (a USB stick too) and open BeerMat-Desk.exe. Nothing installed.'],
 	['Linux', 'AppImage', `BeerMat-Desk-${v}-linux-x64.AppImage`, 'One file: make it executable and open it. Tested on CachyOS.'],
 	['Linux', 'tar.gz', `BeerMat-Desk-${v}-linux-x64.tar.gz`, 'The app as a folder, for packaging it yourself.'],
-];
-const previous = [
-	['Windows installer', `BeerMat-Setup-${v}.exe`], ['Windows portable', `BeerMat-${v}-portable.exe`],
-	['Linux AppImage', `BeerMat-${v}.AppImage`], ['Linux tar.gz', `beermat-${v}.tar.gz`], ['Android app', `BeerMat-${v}-classic.apk`],
 ];
 ---
 <Page title="Download BeerMat" description={`Download BeerMat ${v} for Windows and Linux, and the BeerMat app for Android.`}>
@@ -40,11 +35,6 @@ const previous = [
 			<h2 class="text-xl">Windows says “Windows protected your PC”?</h2>
 			<p class="mb-0 text-muted">BeerMat isn’t code-signed yet, so Windows doesn’t recognise it. Click <strong>More info</strong>, then <strong>Run anyway</strong>. Check the file first if you like: its checksum is in <a href={file('SHA256SUMS.txt')}>SHA256SUMS.txt</a>.</p>
 		</div>
-		<details class="card mt-4">
-			<summary class="cursor-pointer text-lg">The previous desk</summary>
-			<p class="mt-2 text-muted">The BeerMat desk before BeerMat Desk, kept for now in case the new one doesn’t suit your laptop. It runs the same quizzes.</p>
-			<ul class="mb-0 grid gap-1 sm:grid-cols-2">{previous.map(([label, name]) => <li><a href={file(name)}>{label}</a> <span class="text-sm text-muted">{name}</span></li>)}</ul>
-		</details>
 
 		</>}
 
