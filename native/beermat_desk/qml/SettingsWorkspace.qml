@@ -40,7 +40,7 @@ ScrollView {
         Layout.fillWidth: true
         spacing: Theme.gap
         Panel {
-            Layout.fillWidth: true; implicitHeight: 200
+            Layout.fillWidth: true; Layout.fillHeight: true; implicitHeight: Math.max(200, fitHeight)
             title: "Plan"
             headerExtra: Pill { text: plan.name || "BeerMat Free"; tone: plan.live ? Theme.gold : Theme.muted; strong: !!plan.live }
             ColumnLayout {
@@ -58,7 +58,7 @@ ScrollView {
             }
         }
         Panel {
-            Layout.fillWidth: true; implicitHeight: 200
+            Layout.fillWidth: true; Layout.fillHeight: true; implicitHeight: Math.max(200, fitHeight)
             title: "Quiz data"
             ColumnLayout {
                 anchors.fill: parent; spacing: 8
@@ -77,7 +77,7 @@ ScrollView {
         // Updates (updates.py): checked when the desk starts and twice a day; installed only when the quizmaster says.
         Panel {
             objectName: "updatesPanel"
-            Layout.fillWidth: true; implicitHeight: 200
+            Layout.fillWidth: true; Layout.fillHeight: true; implicitHeight: Math.max(200, fitHeight)
             title: "Updates"
             headerExtra: Pill { text: desk.updates.latest ? desk.updates.latest + " is out" : "BeerMat Desk " + desk.updates.current
                                 tone: desk.updates.latest ? Theme.gold : Theme.muted; strong: !!desk.updates.latest }
@@ -100,7 +100,7 @@ ScrollView {
 
     // ---- the quiz room ----
     Panel {
-        Layout.fillWidth: true; implicitHeight: 170
+        Layout.fillWidth: true; implicitHeight: Math.max(170, fitHeight)
         title: "Quiz room"
         GridLayout {
             anchors.fill: parent; columns: 4; columnSpacing: 14; rowSpacing: 8
@@ -120,7 +120,7 @@ ScrollView {
 
     // ---- sounds and buzzers ----
     Panel {
-        Layout.fillWidth: true; implicitHeight: 470
+        Layout.fillWidth: true; implicitHeight: Math.max(470, fitHeight)
         title: "Sounds & buzzers"
         RowLayout {
             anchors.fill: parent; spacing: 20
@@ -173,7 +173,7 @@ ScrollView {
 
     // ---- looks and sound themes ----
     Panel {
-        Layout.fillWidth: true; implicitHeight: 420
+        Layout.fillWidth: true; implicitHeight: Math.max(420, fitHeight)
         title: "Looks & sound themes"
         headerExtra: DeskButton { text: "Theme library…"; implicitHeight: 32; onClicked: settings.openLibrary(2) }
         RowLayout {
@@ -277,7 +277,7 @@ ScrollView {
     }
 
     Panel {
-        Layout.fillWidth: true; implicitHeight: 230
+        Layout.fillWidth: true; implicitHeight: Math.max(230, fitHeight)
         title: "Screens"
         ColumnLayout {
             anchors.fill: parent; spacing: 8
@@ -317,7 +317,7 @@ ScrollView {
     }
 
     Panel {
-        Layout.fillWidth: true; implicitHeight: 170
+        Layout.fillWidth: true; implicitHeight: Math.max(170, fitHeight)
         title: "Quizmaster key"
         ColumnLayout {
             anchors.fill: parent; spacing: 8
@@ -335,7 +335,7 @@ ScrollView {
     }
 
     Panel {
-        Layout.fillWidth: true; implicitHeight: 200
+        Layout.fillWidth: true; implicitHeight: Math.max(200, fitHeight)
         title: "Keyboard shortcuts"
         GridLayout {
             anchors.fill: parent; columns: 4; columnSpacing: 24; rowSpacing: 6

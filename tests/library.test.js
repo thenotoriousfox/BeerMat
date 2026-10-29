@@ -76,7 +76,22 @@ test('shared buzzer library: shared by Pro, seen by everyone, played and added b
     assert.equal(added.name, 'Air horn');
     const buzzer = added.sounds.buzzers.find(b => b.name === 'Air horn');
     assert.ok(buzzer && existsSync(path.join(dir, 'pro-media', path.basename(buzzer.media))), 'saved on the laptop, for quiz nights offline');
-    assert.equal((await red.call('buzzer-library/add', {id})).name, 'Air horn (2)');
+    // Each clip is added once: the library says so, and adding it again is refused.
+    assert.equal(buzzer.library, id, 'it remembers which library clip it is');
+    const again = await red.call('buzzer-library/add', {id});
+    assert.deepEqual([again.status, again.error], [409, 'That buzzer is already in your buzzer sounds']);
+    assert.deepEqual((await red.call('buzzer-library')).added, [id]);
+    assert.equal((await red.call('sounds', {})).buzzers.filter(b => b.name.startsWith('Air horn')).length, 1, 'one copy');
+    // Rearranging the buzzer sounds on the desk keeps that; once removed, it can be added again.
+    const kept = (await red.call('sounds', {buzzers: added.sounds.buzzers})).buzzers.find(b => b.name === 'Air horn');
+    assert.equal(kept.library, id);
+    await red.call('sounds', {buzzers: added.sounds.buzzers.filter(b => b.name !== 'Air horn')});
+    assert.deepEqual((await red.call('buzzer-library')).added, []);
+    assert.equal((await red.call('buzzer-library/add', {id})).name, 'Air horn');
+    // One added before clips were remembered (no library id) is recognised by its name.
+    await red.call('sounds', {buzzers: (await red.call('sounds', {})).buzzers.map(b => ({name: b.name, media: b.media}))});
+    assert.deepEqual((await red.call('buzzer-library')).added, [id]);
+    assert.equal((await red.call('buzzer-library/add', {id})).status, 409);
 
     // Asking BeerMat Online directly needs a request signed by a Pro venue's laptop, fresh, for that clip.
     const laptop = newVenueKey();

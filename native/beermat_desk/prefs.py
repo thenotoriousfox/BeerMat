@@ -153,7 +153,8 @@ class Prefs(QObject):
     @Slot(str)
     def addLibraryBuzzer(self, buzzer):
         self.api.host('buzzer-library/add', {'id': buzzer},
-                      lambda r: (self.desk.toast.emit(f'“{r["name"]}” added: teams can pick it in their phone menu', False), self.desk.refresh()), self._fail, timeout_ms=20000)
+                      lambda r: (self.desk.toast.emit(f'“{r["name"]}” added: teams can pick it in their phone menu', False), self.desk.refresh(),
+                                 self.searchLibrary(self._library.get('query', ''))), self._fail, timeout_ms=20000)
 
     @Slot(str, str)
     def reportLibraryBuzzer(self, buzzer, reason):

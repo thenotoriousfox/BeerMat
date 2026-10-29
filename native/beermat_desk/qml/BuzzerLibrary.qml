@@ -34,7 +34,10 @@ ColumnLayout {
                 Layout.fillWidth: true
                 Text { text: `${modelData.name} · ${modelData.seconds}s`; color: Theme.text; font.pixelSize: 14; elide: Text.ElideRight; Layout.fillWidth: true }
                 DeskButton { visible: !!buzzers.lib.pro || !!buzzers.lib.admin; text: "▶ Play"; implicitHeight: 32; onClicked: desk.prefs.playLibraryBuzzer(modelData.id) }
-                DeskButton { visible: !!buzzers.lib.pro || !!buzzers.lib.admin; text: "Add"; implicitHeight: 32; onClicked: desk.prefs.addLibraryBuzzer(modelData.id) }
+                // Each clip is added once: then it's in this laptop's buzzer sounds (Settings).
+                Text { visible: (buzzers.lib.added || []).includes(modelData.id); text: "✓ Added"; color: Theme.good; font.pixelSize: 13; font.weight: Font.Bold }
+                DeskButton { visible: (!!buzzers.lib.pro || !!buzzers.lib.admin) && !(buzzers.lib.added || []).includes(modelData.id); text: "Add"; implicitHeight: 32
+                             onClicked: desk.prefs.addLibraryBuzzer(modelData.id) }
                 DeskButton { text: "Report"; implicitHeight: 32; onClicked: buzzers.reporting = buzzers.reporting === modelData.id ? "" : modelData.id }
                 DeskButton { visible: (buzzers.lib.shared || []).includes(modelData.id); text: "Take it out"; kind: "danger"; implicitHeight: 32
                              onClicked: desk.prefs.removeLibraryBuzzer(modelData.id) }
