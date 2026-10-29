@@ -39,7 +39,7 @@ test('quiz library: shared by Pro, approved by BeerMat, downloaded by Pro, hidde
     const response = await fetch(online + route, {method, headers: {'Content-Type': 'application/json', ...(token && {Authorization: 'Bearer ' + token})}, ...(body && {body: JSON.stringify(body)})});
     return {status: response.status, ...await response.json().catch(() => ({}))};
   };
-  const [red, green, blue, gold] = await Promise.all([desk('red', 'pro'), desk('green', 'pro'), desk('blue'), desk('gold', 'pro')]);
+  const [red, green, blue, gold, office] = await Promise.all([desk('red', 'pro'), desk('green', 'pro'), desk('blue'), desk('gold', 'pro'), desk('office')]);
   try {
     service.importVenues({venues: [{id: 'red-lion', name: 'The Red Lion', town: 'Bristol'}, {id: 'green-man', name: 'The Green Man', town: 'Bath'},
       {id: 'blue-bell', name: 'The Blue Bell', town: 'Bath'}, {id: 'gold-cup', name: 'The Gold Cup', town: 'Wells'}]});
@@ -111,6 +111,22 @@ test('quiz library: shared by Pro, approved by BeerMat, downloaded by Pro, hidde
     assert.equal((await green.call('new-event', {questions: 'load', quiz: file})).status, 200);
     assert.equal((await green.call('library')).rounds[1].questions[0].answer, 'Japan');
 
+    // BeerMat's admin, signed in on a laptop with no venue and no Pro, downloads from every library; another account doesn't.
+    assert.equal((await office.call('quiz-library/download', {id})).status, 403);
+    await api('POST', '/v1/accounts', {email: 'player@example.com', password: 'correct horse battery', displayName: 'Player'});
+    assert.equal((await office.call('online/signin', {email: 'player@example.com', password: 'correct horse battery'})).signedIn, true);
+    assert.equal((await office.call('quiz-library')).admin, false);
+    assert.equal((await office.call('quiz-library/download', {id})).status, 403);
+    await office.call('online/signin', {email: 'admin@example.com', password: 'correct horse battery'});
+    assert.deepEqual([(await office.call('quiz-library')).pro, (await office.call('quiz-library')).admin], [false, true]);
+    const fetched = await office.call('quiz-library/download', {id});
+    assert.equal(fetched.status, 200, JSON.stringify(fetched));
+    assert.equal(fetched.title, 'Pub Classics');
+    assert.equal((await office.call('quiz-library/share', {rights: true})).status, 403, 'sharing still needs a Pro venue');
+    // Signed out: refused again.
+    await office.call('online/signout');
+    assert.equal((await office.call('quiz-library/download', {id})).status, 403);
+
     // Three venues' reports hide it.
     assert.equal((await blue.call('quiz-library/report', {id, reason: 'x'})).status, 403, 'reporting is Pro, as downloading');
     for (const venue of [green, gold, green]) assert.equal((await venue.call('quiz-library/report', {id, reason: 'Answers are wrong.'})).status, 200);
@@ -140,7 +156,7 @@ test('quiz library: shared by Pro, approved by BeerMat, downloaded by Pro, hidde
     assert.equal((await api('GET', `/v1/quizzes/${again.id}`)).status, 'removed');
     assert.equal((await red.call('quiz-library/share', {rights: true})).status, 403);
   } finally {
-    for (const d of [red, green, blue, gold]) await d.quiz.close();
+    for (const d of [red, green, blue, gold, office]) await d.quiz.close();
     await service.close(); rmSync(dir, {recursive: true, force: true});
   }
 });

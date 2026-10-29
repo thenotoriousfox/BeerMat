@@ -47,7 +47,7 @@ ColumnLayout {
         headerExtra: Pill { visible: !!shelf.view.running; text: "UNDER WAY"; tone: Theme.good }
         ColumnLayout {
             anchors.fill: parent; spacing: 8
-            Text { text: shelf.hasQuiz ? shelf.view.title : "No quiz yet"; color: Theme.text; font.family: Theme.display; font.pixelSize: 22; font.weight: Font.Bold
+            Text { objectName: "shelfTitle"; text: shelf.hasQuiz ? shelf.view.title : "No quiz yet"; color: Theme.text; font.family: Theme.display; font.pixelSize: 22; font.weight: Font.Bold
                    elide: Text.ElideRight; Layout.fillWidth: true }
             Text { color: Theme.muted; font.pixelSize: 13
                    text: shelf.hasQuiz ? `${shelf.view.rounds} round${shelf.view.rounds === 1 ? "" : "s"} · ${shelf.view.questions} questions` + (desk.quizzes.dirty ? " · unsaved changes" : "")

@@ -665,7 +665,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return res.end(Buffer.from(picture.image));
       }
       if (method === 'POST' && parts[0] === 'themes' && parts.length === 3 && parts[2] === 'bundle') {
-        const request = input.request; proLaptop(request, 'beermat.theme-get', themeLibrary); check(request.theme === parts[1], 'Not a request for this theme');
+        // A BeerMat admin signed in on the desk downloads without a venue or Pro (to look at what's in the library).
+        if (!account?.admin) {const request = input.request; proLaptop(request, 'beermat.theme-get', themeLibrary); check(request.theme === parts[1], 'Not a request for this theme');}
         const t = sharedTheme(parts[1]); check(t.status === 'approved' && !t.hidden, 'That theme isn’t in the library', 404);
         return send(200, {...themeOut(t), bundle: t.bundle});
       }
@@ -717,7 +718,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return send(201, {...quizOut(quizRow(quizId)), review: 'pending'});
       }
       if (method === 'POST' && parts[0] === 'quizzes' && parts.length === 3 && parts[2] === 'file') {
-        const request = input.request; proLaptop(request, 'beermat.quiz-get', quizLibrary); check(request.quiz === parts[1], 'Not a request for this quiz');
+        if (!account?.admin) {const request = input.request; proLaptop(request, 'beermat.quiz-get', quizLibrary); check(request.quiz === parts[1], 'Not a request for this quiz');}
         const q = sharedQuiz(parts[1]); check(q.status === 'approved' && !q.hidden, 'That quiz isn’t in the library', 404);
         return send(200, {...quizOut(q), quiz: q.quiz});
       }
@@ -762,7 +763,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return send(201, buzzerOut(one('SELECT * FROM shared_buzzers WHERE id=?', buzzerId)));
       }
       if (method === 'POST' && parts[0] === 'buzzers' && parts.length === 3 && parts[2] === 'audio') {
-        const request = input.request; proLaptop(request, 'beermat.buzzer-get'); check(request.buzzer === parts[1], 'Not a request for this buzzer');
+        if (!account?.admin) {const request = input.request; proLaptop(request, 'beermat.buzzer-get'); check(request.buzzer === parts[1], 'Not a request for this buzzer');}
         const b = sharedBuzzer(parts[1]); check(!b.hidden, 'That buzzer has been reported and is waiting for a check', 404);
         return send(200, {...buzzerOut(b), audio: Buffer.from(b.audio).toString('base64')});
       }

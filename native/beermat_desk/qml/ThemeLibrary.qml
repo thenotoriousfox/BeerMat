@@ -40,6 +40,7 @@ ColumnLayout {
         Text { anchors.centerIn: parent; visible: !parent.kinds.includes(parent.kind); text: "—"; color: Theme.faint }
         // Click: the picture, large.
         MouseArea {
+            objectName: "preview-" + parent.kind
             anchors.fill: parent; enabled: picture.status === Image.Ready; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: { enlarged.source = picture.source; enlarged.caption = {tv: "On the TV", app: "In the app", browser: "In a phone’s browser"}[parent.kind] || ""; enlarged.open() }
         }
@@ -96,7 +97,7 @@ ColumnLayout {
                             Text { color: Theme.faint; font.pixelSize: 11; text: "TV · app · browser" }
                             RowLayout {
                                 spacing: 6
-                                DeskButton { visible: !!dialog.lib.pro && !installed; text: "Install"; kind: "primary"; implicitHeight: 32; onClicked: desk.prefs.installTheme(modelData.id) }
+                                DeskButton { visible: (!!dialog.lib.pro || !!dialog.lib.admin) && !installed; text: "Install"; kind: "primary"; implicitHeight: 32; onClicked: desk.prefs.installTheme(modelData.id) }
                                 Text { visible: installed; text: "✓ Installed"; color: Theme.good; font.pixelSize: 13; font.weight: Font.Bold }
                                 DeskButton { visible: installed; text: "Remove"; implicitHeight: 32; onClicked: desk.prefs.uninstallTheme(modelData.id) }
                                 DeskButton { visible: !!dialog.lib.pro; text: "Report"; implicitHeight: 32; onClicked: dialog.reporting = dialog.reporting === modelData.id ? "" : modelData.id }

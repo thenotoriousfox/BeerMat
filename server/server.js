@@ -843,12 +843,22 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     requireValue(base && fetchImpl, 'Set the BeerMat Online address first');
     let response;
     try {
-      response = await fetchImpl(base.replace(/\/$/, '') + route, {method: 'POST', headers: {'Content-Type': 'application/json'},
+      // The BeerMat Online sign-in goes too: an admin downloads from the libraries without a venue or Pro.
+      const session = getMeta('onlineSession', null);
+      response = await fetchImpl(base.replace(/\/$/, '') + route, {method: 'POST', headers: {'Content-Type': 'application/json', ...(session ? {Authorization: 'Bearer ' + session.token} : {})},
         body: JSON.stringify({request: signClaim({v: 1, at: now(), ...request}, venueKey()), ...extra}), signal: AbortSignal.timeout(timeout)});
     } catch {throw new QuizError('BeerMat Online can’t be reached. Is this laptop on the internet?', 502);}
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new QuizError(data.error || `BeerMat Online said ${response.status}`, response.status >= 500 ? 502 : response.status === 403 ? 403 : 400);
     return data;
+  }
+  // Signed in to BeerMat Online as a BeerMat admin: the libraries' downloads work without a venue or Pro. Asked of
+  // BeerMat Online once per sign-in (a sign-in from before this was remembered asks now).
+  async function onlineAdmin() {
+    const session = getMeta('onlineSession', null);
+    if (!session) return false;
+    if (typeof session.admin === 'boolean') return session.admin;
+    try {const me = await onlineApi('GET', '/v1/me'); setMeta('onlineSession', {...session, admin: !!me.admin}); return !!me.admin;} catch {return false;}
   }
   const libraryClip = buzzer => libraryApi(`/v1/buzzers/${encodeURIComponent(buzzer)}/audio`, {kind: 'beermat.buzzer-get', buzzer});
   // Online mode: phones and the TV get the public link as the join address.
@@ -1278,7 +1288,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           requireValue(typeof body.email === 'string' && typeof body.password === 'string', 'Enter your email and password');
           const data = p.endsWith('signin') ? await onlineApi('POST', '/v1/sessions', {email: body.email, password: body.password})
             : await onlineApi('POST', '/v1/accounts', {email: body.email, password: body.password, displayName: body.displayName});
-          setMeta('onlineSession', {token: data.token, email: data.account.email, name: data.account.displayName});
+          setMeta('onlineSession', {token: data.token, email: data.account.email, name: data.account.displayName, admin: !!data.account.admin});
           return send(200, {signedIn: true, email: data.account.email, name: data.account.displayName});
         }
         if (p === '/api/host/online/signout') {
@@ -1313,7 +1323,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const sharedThemes = getMeta('sharedThemes', []);
           const statuses = await Promise.all(sharedThemes.map(t => onlineApi('GET', `/v1/themes/${encodeURIComponent(t.id)}`).catch(() => ({status: 'unknown'}))));
           const mine = loadThemes(myThemesDir).themes;
-          return send(200, {themes: listed, onlineError, pro: plan().has('themeLibrary'), folder: myThemesDir, previews: `${onlineBase().replace(/\/$/, '')}/v1/themes/`,
+          return send(200, {themes: listed, onlineError, pro: plan().has('themeLibrary'), admin: await onlineAdmin(), folder: myThemesDir, previews: `${onlineBase().replace(/\/$/, '')}/v1/themes/`,
             installed: mine.filter(t => /^s-[0-9a-f]{10}$/.test(t.id)).map(t => ({id: t.id, name: t.name})),
             mine: mine.filter(t => !/^s-[0-9a-f]{10}$/.test(t.id)).map(t => ({id: t.id, name: t.name, builtIn: !!loadThemes(themesDir).themes.some(b => b.id === t.id)})),
             shared: sharedThemes.map((t, i) => ({...t, status: statuses[i].status, note: statuses[i].note || ''}))});
@@ -1342,7 +1352,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             await libraryApi(`/v1/themes/${theme}/remove`, {kind: 'beermat.theme-remove', theme}).catch(e => {if (e.status !== 404) throw e;});
             setMeta('sharedThemes', shared.filter(t => t.id !== theme)); return send(200, {removed: true});
           }
-          requireValue(plan().has('themeLibrary'), 'Installing and sharing themes is part of BeerMat Pro', 403);
+          requireValue(plan().has('themeLibrary') || (what === 'install' && await onlineAdmin()), 'Installing and sharing themes is part of BeerMat Pro', 403);
           if (what === 'install') {
             const got = await libraryApi(`/v1/themes/${theme}/bundle`, {kind: 'beermat.theme-get', theme}, {}, 60000);
             let checked;
@@ -1383,7 +1393,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const sharedQuizzes = getMeta('sharedQuizzes', []);
           const statuses = await Promise.all(sharedQuizzes.map(s => onlineApi('GET', `/v1/quizzes/${encodeURIComponent(s.id)}`).catch(() => ({status: 'unknown'}))));
           const current = library(), questions = current.rounds.reduce((n, r) => n + r.questions.length, 0);
-          return send(200, {quizzes: listed, onlineError, pro: plan().has('quizLibrary'), folder: quizLibraryDir,
+          return send(200, {quizzes: listed, onlineError, pro: plan().has('quizLibrary'), admin: await onlineAdmin(), folder: quizLibraryDir,
             downloaded: existsSync(quizLibraryDir) ? readdirSync(quizLibraryDir).filter(f => /^q-[0-9a-f]{10}\.json$/.test(f)).map(f => f.slice(0, -5)) : [],
             current: {title: current.title, rounds: current.rounds.length, questions},
             shared: sharedQuizzes.map((s, i) => ({...s, status: statuses[i].status, note: statuses[i].note || ''}))});
@@ -1397,7 +1407,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             await libraryApi(`/v1/quizzes/${body.id}/remove`, {kind: 'beermat.quiz-remove', quiz: body.id}).catch(e => {if (e.status !== 404) throw e;});
             setMeta('sharedQuizzes', shared.filter(s => s.id !== body.id)); return send(200, {removed: true});
           }
-          requireValue(plan().has('quizLibrary'), 'Downloading and sharing quizzes is part of BeerMat Pro', 403);
+          requireValue(plan().has('quizLibrary') || (what === 'download' && await onlineAdmin()), 'Downloading and sharing quizzes is part of BeerMat Pro', 403);
           if (what === 'download') {
             const got = await libraryApi(`/v1/quizzes/${body.id}/file`, {kind: 'beermat.quiz-get', quiz: body.id}, {}, 120000);
             let checked;
@@ -1435,7 +1445,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/buzzer-library') {
           const q = typeof body.q === 'string' ? body.q.trim().slice(0, 60) : '';
           const {buzzers} = await onlineApi('GET', '/v1/buzzers' + (q ? '?q=' + encodeURIComponent(q) : ''));
-          return send(200, {buzzers, pro: plan().has('buzzerLibrary'), shared: getMeta('sharedBuzzers', [])});
+          return send(200, {buzzers, pro: plan().has('buzzerLibrary'), admin: await onlineAdmin(), shared: getMeta('sharedBuzzers', [])});
         }
         if (p.startsWith('/api/host/buzzer-library/')) {
           const buzzer = typeof body.id === 'string' && /^[\w-]{1,40}$/.test(body.id) ? body.id : null, what = p.slice('/api/host/buzzer-library/'.length);
@@ -1446,7 +1456,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             await libraryApi(`/v1/buzzers/${buzzer}/remove`, {kind: 'beermat.buzzer-remove', buzzer}).catch(e => {if (e.status !== 400 || !/any more/.test(e.message)) throw e;});
             setMeta('sharedBuzzers', shared.filter(x => x !== buzzer)); return send(200, {removed: true});
           }
-          requireValue(plan().has('buzzerLibrary'), 'Playing, adding and sharing buzzers is part of BeerMat Pro', 403);
+          requireValue(plan().has('buzzerLibrary') || (['play', 'add'].includes(what) && await onlineAdmin()), 'Playing, adding and sharing buzzers is part of BeerMat Pro', 403);
           if (what === 'play') {requireValue(buzzer, 'Choose a buzzer'); const clip = await libraryClip(buzzer); return send(200, {name: clip.name, audio: clip.audio});}
           if (what === 'add') {
             requireValue(buzzer, 'Choose a buzzer');

@@ -27,13 +27,27 @@ def pump(n=30):
 
 
 def items(item):
+    """Every item under this one; PySide now and then hands back a stale wrapper for an item, which is skipped."""
     yield item
-    for child in item.childItems():
+    try:
+        children = item.childItems()
+    except (TypeError, AttributeError):
+        return
+    for child in children:
         yield from items(child)
 
 
-def shown(root):
-    return [o.property('text') for o in items(root) if isinstance(o.property('text'), str) and o.property('visible')]
+def named(root, name):
+    for o in items(root):
+        try:
+            if o.objectName() == name:
+                yield o
+        except (TypeError, AttributeError):
+            continue
+
+
+def text_of(root, name):
+    return root.findChild(QObject, name).property('text')
 
 
 def press(root, name):
@@ -55,7 +69,7 @@ class QuizShelfTest(DeskCase):
         w.setProperty('workspace', 2)
         pump(20)
         self.assertFalse(page.property('editing'))
-        self.assertIn('No quiz yet', shown(shelf))
+        self.assertEqual(text_of(shelf, 'shelfTitle'), 'No quiz yet')
         press(shelf, 'newQuiz')
         pump(5)
         self.assertTrue(page.property('editing'))
@@ -74,8 +88,8 @@ class QuizShelfTest(DeskCase):
         desk.prefs.loadMyQuizzes()
         wait(lambda: any(q['title'] == 'Pub quiz' for q in desk.prefs.myQuizzes.get('mine', [])), what='My quizzes', log=self.toasts)
         pump(20)
-        self.assertIn('Pub quiz', shown(shelf))
-        self.assertIn('Edit quiz', shown(shelf))
+        self.assertEqual(text_of(shelf, 'shelfTitle'), 'Pub quiz')
+        self.assertEqual(text_of(shelf, 'editQuiz'), 'Edit quiz')
         self.shot('2-quiz-shelf')
 
         # Share goes to the quiz library's Share yours.
@@ -136,8 +150,8 @@ class QuizShelfTest(DeskCase):
         enlarged = w.findChild(QObject, 'enlargedPreview')
         self.assertFalse(enlarged.property('visible'))
         page = next(o for o in w.findChildren(QObject) if o.metaObject().className().startswith('ThemeLibrary'))
-        area = next(o for o in items(page) if 'MouseArea' in o.metaObject().className() and o.property('enabled') and o.property('cursorShape') is not None
-                    and o.parentItem() and o.parentItem().property('kind') == 'tv')
+        wait(lambda: any(o.property('enabled') for o in named(page, 'preview-tv')), what='the TV picture')
+        area = next(o for o in named(page, 'preview-tv') if o.property('enabled'))
         from PySide6.QtCore import QPointF, Qt
         from PySide6.QtTest import QTest
         centre = area.mapToScene(QPointF(area.property('width') / 2, area.property('height') / 2))
