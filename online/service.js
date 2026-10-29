@@ -591,7 +591,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
           [...theme.files.values()].reduce((n, b) => n + b.length, 0), Number(files.includes('look.css')), Number(files.includes('tv.json')), Number(files.some(f => f.startsWith('sounds/'))), now());
         if (mail && adminEmail) mail({to: adminEmail, subject: `Theme waiting for a look: ${theme.name}`,
           text: `${v.name} shared “${theme.name}” (${files.length} files). It isn’t in the library until you approve it.\n\n${publicUrl.replace(/\/$/, '')}/admin/#themes\n`}).catch(e => console.error('Mail failed:', e.message));
-        return send(201, {...themeOut(one('SELECT * FROM shared_themes WHERE id=?', themeId)), status: 'pending'});
+        return send(201, {...themeOut(one('SELECT * FROM shared_themes WHERE id=?', themeId)), review: 'pending'});
       }
       if (method === 'POST' && parts[0] === 'themes' && parts.length === 3 && parts[2] === 'bundle') {
         const request = input.request; proLaptop(request, 'beermat.theme-get', themeLibrary); check(request.theme === parts[1], 'Not a request for this theme');
