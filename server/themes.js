@@ -4,7 +4,7 @@
 //   sounds/      its sound theme, files named like a sound pack's general/ folder (optional)
 //   art/ …       anything else its look.css uses, served from /themes/<id>/
 // Seasonal themes are only used when chosen, never for random or by-type picks.
-import {readdirSync, readFileSync, existsSync} from 'node:fs';
+import {readdirSync, readFileSync, existsSync, statSync} from 'node:fs';
 import path from 'node:path';
 import {slotFiles} from '../web/soundnames.js';
 
@@ -36,4 +36,18 @@ export function loadThemes(dir, prefix = '/themes/') {
     css: themes.filter(t => t.css).map(t => `/* ---- themes/${t.id}/look.css ---- */\n${t.css}`).join('\n'),
     file(id, file) {return themeId.test(id) && themeFile.test(file) && themes.some(t => t.id === id) ? path.join(dir, id, file) : null;},
   };
+}
+
+// A theme folder as a shared-theme bundle (shared/theme-bundle.js): the files a theme may share, nothing else (no
+// scripts such as make-sounds.mjs). The bundle is checked before it goes anywhere.
+export function bundleFolder(dir, id) {
+  const files = {}, walk = sub => {
+    for (const entry of readdirSync(path.join(dir, id, sub), {withFileTypes: true})) {
+      const rel = sub ? `${sub}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(rel);
+      else if (/^(theme\.json|look\.css|tv\.json|CREDITS\.md)$/.test(rel) || /\.(png|webp|jpg|svg|woff2|mp3|ogg|wav)$/.test(rel)) files[rel] = readFileSync(path.join(dir, id, rel)).toString('base64');
+    }
+  };
+  walk('');
+  return {id, files};
 }

@@ -85,6 +85,13 @@ class Desk(QObject):
             self._palettes = looks.load(ROOT / 'themes')
         return self._palettes
 
+    @Property('QVariantMap', constant=True)
+    def lookScenes(self):
+        """What each look draws on the native TV beyond colours (themes/<id>/tv.json)."""
+        if not hasattr(self, '_scenes'):
+            self._scenes = looks.scenes(ROOT / 'themes')
+        return self._scenes
+
     @Property(QObject, constant=True)
     def prefs(self):
         return self.prefsModel

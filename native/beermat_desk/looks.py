@@ -1,6 +1,7 @@
-"""The looks (themes/<id>/look.css) as colours for the native TV: each look's CSS custom properties under
-:root[data-look=<id>], turned into Qt colours. The web TV's scenery (Halloween's moon and bats, for example) isn't
-drawn natively; the colours are."""
+"""The looks for the native TV: each theme's colours (its look.css custom properties under :root[data-look=<id>],
+turned into Qt colours), and what the TV draws beyond colours, from its tv.json: background, title, eyebrow, the
+panel behind the question, and its scenery (ThemeScene.qml). themes/README.md describes tv.json."""
+import json
 import re
 from pathlib import Path
 
@@ -39,3 +40,26 @@ def load(folder):
                     palette[NAMES[name]] = colour
         looks[look] = palette
     return looks
+
+
+def scenes(folder):
+    """{look id: its tv.json, plus 'base' (the folder, as a file URL for its pictures)} for every theme with one. A
+    tv.json that isn't JSON (or isn't an object) is left out: the TV then shows the look's colours only."""
+    out = {}
+    for path in sorted(Path(folder).glob('*/tv.json')):
+        try:
+            data = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict):
+            out[path.parent.name] = {**qt_colours(data), 'base': path.parent.resolve().as_uri() + '/'}
+    return out
+
+
+def qt_colours(value):
+    """tv.json with its colours ('#abc', 'rgba(…)', as CSS writes them) as Qt reads them; everything else unchanged."""
+    if isinstance(value, dict):
+        return {k: qt_colours(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [qt_colours(v) for v in value]
+    return (qt_colour(value) or value) if isinstance(value, str) else value
