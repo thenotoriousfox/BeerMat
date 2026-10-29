@@ -179,6 +179,9 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.5** builds BeerMat Desk (Linux tar.gz and AppImage, Windows installer and zip, its tests first) and the
   native Android app as the main downloads; Electron and Capacitor stay in each release as the fallback ("classic").
   The Windows desk build now runs in CI on Windows; it hasn't been installed on a real Windows laptop yet.
+* **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
+  releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
+  `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
 * **Themes everywhere**: a theme's `tv.json` says what BeerMat Desk's TV draws beyond colours (Halloween's full web
   design: gradient title, eyebrow, question panel, scenery, all from data, `ThemeScene.qml`), and what the app draws
   on phones (its `phone` section); the Android app takes the look's colours and phone scenery (`GET /api/looks/<id>`).

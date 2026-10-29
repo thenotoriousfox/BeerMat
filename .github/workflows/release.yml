@@ -1,8 +1,8 @@
 name: Release
-# Push a tag like v0.4.0 (matching package.json's version) to build the Windows and Linux apps and the Android
-# BeerMat app (APK), and publish them as a GitHub release: https://github.com/DTJW92/BeerMat/releases/latest.
-# The main downloads are the native ones: BeerMat Desk (Qt, native/beermat_desk) and the native Android app
-# (native/android). The Electron desk and the Capacitor app are still built, as a fallback ("classic").
+# Push a tag like v0.4.0 (matching package.json's version) to build BeerMat Desk (Qt, native/beermat_desk) for
+# Windows and Linux and the native Android app (native/android, an APK), and publish them as a GitHub release:
+# https://github.com/DTJW92/BeerMat/releases/latest. (The Electron desk and the Capacitor app are no longer released;
+# releases up to 0.5.5 have them.)
 # They're also copied to https://downloads.beermatquiz.co.uk/<version>/ (Cloudflare R2), where the website's download
 # page links, and the website is redeployed to show the new version. Run it by hand to build without publishing.
 on:
@@ -12,87 +12,6 @@ on:
 permissions:
   contents: read
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            dist: dist:linux
-            files: |
-              dist/*.AppImage
-              dist/*.tar.gz
-          - os: windows-latest
-            dist: dist:win
-            files: |
-              dist/*.exe
-    runs-on: ${{ matrix.os }}
-    env:
-      # The build downloads its own copy of castlabs' Electron; the one npm installs is only for running from source.
-      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - name: Tag matches package.json
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: test "${GITHUB_REF_NAME#v}" = "$(node -p 'require("./package.json").version')" || { echo "Tag $GITHUB_REF_NAME does not match package.json version"; exit 1; }
-      # npm 12, as the lockfile was made with: it reads .npmrc's allow-git and package.json's allowScripts.
-      - run: npm install -g npm@12
-      - run: npm ci
-      # The shared buzzer library's test needs ffmpeg, which runners lack.
-      - if: runner.os == 'Linux'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
-      - if: runner.os == 'Linux'
-        run: npm test
-      - run: npm run ${{ matrix.dist }} -- --publish never
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ runner.os }}
-          path: ${{ matrix.files }}
-          if-no-files-found: error
-
-  android:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - name: Tag matches mobile/package.json
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: test "${GITHUB_REF_NAME#v}" = "$(node -p 'require("./mobile/package.json").version')" || { echo "Tag $GITHUB_REF_NAME does not match mobile/package.json version"; exit 1; }
-      # The upload key lives in the repository's secrets, never in the repository (docs/MOBILE.md).
-      - name: Signing key
-        env:
-          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-        run: |
-          test -n "$KEYSTORE" && test -n "$PASSWORD" || { echo "ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD secrets are missing"; exit 1; }
-          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/upload.jks"
-          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=upload\nkeyPassword=%s\n' "$RUNNER_TEMP/upload.jks" "$PASSWORD" "$PASSWORD" > mobile/android/keystore.properties
-      - name: Build
-        working-directory: mobile
-        run: |
-          npm install -g npm@12
-          npm ci
-          node scripts/build-web.mjs
-          npx cap sync android
-          cd android && ./gradlew assembleRelease
-          mkdir -p ../../dist && cp app/build/outputs/apk/release/app-release.apk "../../dist/BeerMat-$(node -p 'require("../package.json").version')-classic.apk"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Android
-          path: dist/*.apk
-          if-no-files-found: error
-
-  # BeerMat Desk, the native (Qt) desk: Python, Qt and Node.js in one download (native/packaging/build.py). Its tests
-  # run first on Linux, offscreen.
   desk:
     strategy:
       fail-fast: false
@@ -169,7 +88,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [build, android, desk, android-native]
+    needs: [desk, android-native]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
