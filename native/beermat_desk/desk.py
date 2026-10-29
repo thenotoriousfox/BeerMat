@@ -145,7 +145,8 @@ class Desk(QObject):
     def startWifi(self, card, ssid, password):
         """The quiz Wi-Fi (scripts/hotspot.py on Linux, Mobile Hotspot on Windows); the system asks for a password."""
         body = {'action': 'start', 'card': card or 'auto', 'ssid': ssid, **({'password': password} if (self._laptop.get('wifi') or {}).get('needsPassword') else {})}
-        self.api.host('laptop/wifi', body, lambda _: (self.toast.emit('Starting the quiz Wi-Fi: answer the password prompt on this laptop', False), self.loadNetwork()),
+        self.api.host('laptop/wifi', body, lambda _: (self.toast.emit('Starting the quiz Wi-Fi: approve the administrator prompt on this laptop' if (self._laptop.get('wifi') or {}).get('platform') == 'windows'
+                                             else 'Starting the quiz Wi-Fi: answer the password prompt on this laptop', False), self.loadNetwork()),
                       lambda e: self.toast.emit(e, True), timeout_ms=30000)
 
     @Slot()

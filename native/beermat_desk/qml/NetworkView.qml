@@ -14,8 +14,19 @@ RowLayout {
     // Running, with its name known (Windows can report a hotspot that's on before it has one).
     readonly property var running: wifi.running && wifi.running.ssid ? wifi.running : null
     readonly property bool working: !!(laptop.jobs && laptop.jobs.wifi && laptop.jobs.wifi.running)
+    // Windows: each part of the quiz Wi-Fi on its own line, as the web desk; "kept off the internet" is only claimed once
+    // phones on it have tried and failed (server.js, isolationView).
+    readonly property var isolation: running && running.isolation ? running.isolation : null
+    readonly property var isolationRows: !isolation ? [] : [
+        ["ok", `Quiz Wi-Fi on${running.adapter ? ` (${running.adapter}, ${running.address})` : ""}`],
+        [running.clients ? "ok" : "todo", running.clients ? `${running.clients} ${running.clients === 1 ? "device" : "devices"} connected` : "No devices connected yet"],
+        [running.reachable ? "ok" : "warn", `BeerMat ${running.reachable ? "answers" : "does not answer"} at http://${running.address || "?"}:${net.port || 3000}`],
+        [isolation.configured ? "ok" : "warn", isolation.configured ? `Internet isolation on: ${isolation.filters} filters on the hotspot adapter` : "Internet isolation is NOT on"],
+        [isolation.verified ? "ok" : isolation.configured && !isolation.reached ? "todo" : "warn", isolation.text || ""]]
     spacing: Theme.gap
     onVisibleChanged: if (visible) desk.loadNetwork()
+    // While a job runs, or until phones have checked the isolation, keep the panel current.
+    Timer { interval: 4000; repeat: true; running: venue.visible && (venue.working || (!!venue.isolation && !venue.isolation.verified)); onTriggered: desk.loadNetwork() }
 
     ColumnLayout {
         Layout.fillWidth: true; Layout.fillHeight: true
@@ -23,7 +34,7 @@ RowLayout {
 
         // ---- the quiz Wi-Fi ----
         Panel {
-            Layout.fillWidth: true; implicitHeight: 230
+            Layout.fillWidth: true; implicitHeight: 230 + isolationRows.length * 24
             title: "Quiz Wi-Fi"
             headerExtra: Pill {
                 text: !wifi.available ? "UNAVAILABLE" : working ? "WORKING…" : running ? `ON · ${running.ssid}` : "OFF"
@@ -40,6 +51,15 @@ RowLayout {
                         : !wifi.wifiOn ? "Wi-Fi is switched off on this laptop."
                         : (wifi.cards || []).length ? "Wi-Fi cards: " + wifi.cards.map(c => `${c.name} (${c.ap ? (c.connected ? "on " + c.network + ", shares it" : c.hosting ? "hosting" : "free") : "can't host"})`).join(" · ")
                         : "No Wi-Fi card found."
+                }
+                Repeater {
+                    model: venue.isolationRows
+                    delegate: Text {
+                        required property var modelData
+                        Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 13
+                        text: `${modelData[0] === "ok" ? "✓" : modelData[0] === "warn" ? "⚠" : "○"}  ${modelData[1]}`
+                        color: modelData[0] === "ok" ? Theme.good : modelData[0] === "warn" ? Theme.bad : Theme.muted
+                    }
                 }
                 RowLayout {
                     visible: !!wifi.available && !running
@@ -60,8 +80,8 @@ RowLayout {
                     DeskButton { visible: !running; text: "Start the quiz Wi-Fi"; kind: "primary"; enabled: !!wifi.available && !!wifi.wifiOn && !!wifi.pick && !working && ssid.text.trim() !== ""
                                  onClicked: desk.startWifi(card.currentValue, ssid.text, password.text) }
                     DeskButton { visible: !!running; text: "Stop the quiz Wi-Fi"; kind: "danger"; enabled: !working; onClicked: desk.stopWifi() }
-                    DeskButton { visible: net.joinMode !== "hotspot" || net.online; text: "Players join on the quiz Wi-Fi"; onClicked: desk.useHotspot() }
-                    Text { visible: working; text: "Answer the password prompt on this laptop…"; color: Theme.gold; font.pixelSize: 13 }
+                    DeskButton { visible: net.joinMode !== "hotspot" || !!net.online; text: "Players join on the quiz Wi-Fi"; onClicked: desk.useHotspot() }
+                    Text { visible: working; text: wifi.platform === "windows" ? "Approve the administrator prompt on this laptop…" : "Answer the password prompt on this laptop…"; color: Theme.gold; font.pixelSize: 13 }
                 }
             }
         }
