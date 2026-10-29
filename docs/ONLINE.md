@@ -140,6 +140,35 @@ Venues on Pro share short buzzer clips with each other from the desk (**Settings
   anonymous like every other clip. Only add ones BeerMat has the right to share (CC0, public domain, its own), since
   choosing them makes BeerMat their publisher.
 
+## The theme library
+
+Venues on Pro share themes (whole theme folders: a look, TV scenery, phone scenery, sounds) with each other from the
+desk (**Settings → Looks → Theme library**). Unlike buzzers, **nothing is in the library until an admin approves it**,
+because a theme's stylesheet runs on other venues' TVs and phones.
+
+* **Checked twice** by `shared/theme-bundle.js`: here on upload, and again on the laptop that installs it. Only
+  `theme.json`, `look.css`, `tv.json`, `CREDITS.md` and pictures, fonts and sounds (each really what its name says),
+  15 MB in all; `look.css` may only style its own look and load its own files (no `@import`, nothing from the
+  internet); `.svg` pictures without scripts, handlers or links out; `tv.json` key by key. On upload the theme gets its
+  library id (`s-` and ten hex digits) and its look, file paths, fonts and animations are renamed under it, so they
+  can't clash with BeerMat's own or another theme's.
+* **Seeing it is public**: `GET /v1/themes?q=` lists approved themes (names, what they contain, which pictures they
+  have; never who shared them); `GET /v1/themes/:id` tells a laptop where a theme it shared has got to (`pending`,
+  `approved`, `rejected` with the admin's note, `hidden`, `removed`); `GET /v1/themes/:id/previews/tv|app|browser`
+  serves its pictures once it's approved (an admin's session sees them before).
+* **Everything else is Pro, by laptop** (signed requests, as for buzzers): `beermat.theme-upload` (`POST /v1/themes`,
+  the bundle as a JSON string beside the request, its `sha256` and `rights: true` in it; `previews: {tv, app}`
+  optional, 1 MB each), `beermat.theme-get` (`POST /v1/themes/:id/bundle`), `beermat.theme-report` and
+  `beermat.theme-remove` (the sharing venue only, whatever its plan now). Ten themes a day per venue.
+* **Pictures**: the desk that shares a theme sends pictures of it on BeerMat Desk's TV and in the app (drawn with their
+  own code). The service adds one of a phone's browser when it has Chromium (`online/preview.js` runs the quiz engine
+  with the theme installed and photographs a phone-sized page); deploy with `THEME_PREVIEWS=1` for that (about 400 MB
+  more on the server). Without it the service runs as before, and themes have the desk's two pictures.
+* **Review**: `ADMIN_EMAIL` is told when a theme waits. In the admin console (**Themes**) an admin sees each theme's
+  pictures and opens any of its files (pictures and sounds as they are, the stylesheet and `tv.json` as text, in a
+  sandbox), then approves it or turns it down with a note for the venue; hides, shows or removes one. Three venues
+  reporting an approved theme hide it again and tell `ADMIN_EMAIL`. Stopping a venue sharing removes its themes too.
+
 ## Data model
 
 | Table | Holds |

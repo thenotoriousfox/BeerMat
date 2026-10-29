@@ -25,7 +25,14 @@ echo "Server $ip, address https://$domain"
 # console at /admin/.
 stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/online" "$stage/mobile" "$stage/shared"
-cp "$repo/online/service.js" "$repo/online/client.js" "$repo/online/admin.js" "$stage/online/"
+cp "$repo/online/service.js" "$repo/online/client.js" "$repo/online/admin.js" "$repo/online/preview.js" "$stage/online/"
+# THEME_PREVIEWS=1: shared themes get a picture of a phone's browser too (online/preview.js), which needs the quiz
+# engine and Playwright's Chromium (about 400 MB) on the server. Without it, themes still have the desk's pictures.
+if [ "${THEME_PREVIEWS:-0}" = 1 ]; then
+  mkdir -p "$stage/server" "$stage/web" && cp "$repo"/server/*.js "$stage/server/" && cp -r "$repo"/web/. "$stage/web/"
+  cp "$repo/brand/fredoka.woff2" "$repo/brand/mark.svg" "$stage/brand/" 2>/dev/null || true
+  printf '%s\n' "$(node -p 'require("'"$repo"'/package.json").devDependencies?.playwright || require("'"$repo"'/package.json").dependencies?.playwright')" > "$stage/playwright-version"
+fi
 cp "$repo"/shared/*.js "$stage/shared/"
 mkdir -p "$stage/brand" && cp "$repo"/brand/*.svg "$repo/brand/fredoka.woff2" "$repo/brand/logo-email.png" "$stage/brand/"
 cp -r "$repo/mobile/www" "$stage/mobile/"
@@ -68,6 +75,13 @@ if [ -f /tmp/beermat-licence-key ]; then
   install -D -o root -g beermat -m 640 /tmp/beermat-licence-key /etc/beermat-online/licence-key.txt && rm /tmp/beermat-licence-key
 fi
 rm -rf /opt/beermat-online && mv /tmp/beermat-online /opt/beermat-online && chown -R root:root /opt/beermat-online && chmod -R u=rwX,go=rX /opt/beermat-online
+# Theme browser previews (THEME_PREVIEWS=1 on the computer deploying): Playwright and its Chromium, outside any home
+# folder so the service's user can run it.
+if [ -f /opt/beermat-online/playwright-version ]; then
+  cd /opt/beermat-online && /opt/node/bin/npm install --no-save --no-audit --no-fund "playwright@$(cat playwright-version)" >/dev/null
+  PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright /opt/node/bin/npx playwright install --with-deps chromium >/dev/null
+  chmod -R a+rX /opt/ms-playwright && cd /
+fi
 
 cat > /etc/systemd/system/beermat-online.service <<UNIT
 [Unit]
@@ -87,6 +101,7 @@ Environment=LICENCE_KEY_FILE=/etc/beermat-online/licence-key.txt
 Environment=PUBLIC_URL=https://$DOMAIN
 # Secrets added on the server by hand: RESEND_API_KEY, MAIL_FROM.
 EnvironmentFile=-/etc/beermat-online/env
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 ExecStart=/opt/node/bin/node --disable-warning=ExperimentalWarning /opt/beermat-online/online/service.js
 Restart=on-failure
 NoNewPrivileges=true

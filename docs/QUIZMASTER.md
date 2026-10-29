@@ -200,6 +200,19 @@ Phones show the quiz in the phone's own language when it is English, French or S
 ## Looks
 
 **TV & phone look** (Tonight → Settings → Quiz room) changes the colours of the TV and the teams' phones: Purple stage (the default), Electric blue, Sunset, Emerald casino, Retro neon, Royal gold or Halloween (a haunted hill at night behind the quiz: a moon rising behind a manor, bats, drifting fog, a cobweb with its spider and glowing jack-o'-lanterns; phones show the hill and moon; nothing moves when the TV asks for reduced motion). Each look is a theme folder in `themes/` (see `themes/README.md` to make your own). **Random look for each question** gives every question one of them (it keeps it until the next question); **Look by question type** sets one per format — keypad, typed, speed, buzzer/clips and bingo rounds start on different looks, and the table that appears lets you change any of them. Answer colours (A red, B blue, C green, D yellow…) stay the same in every look. The desk keeps its own colours.
+Teams playing in the BeerMat app get the look too: its colours, and the theme's phone scenery behind the quiz.
+
+**Theme library** (Settings → Looks → Theme library…): themes other venues shared, each with a picture of it on the
+TV, in the app and in a phone's browser. With BeerMat Pro, **Install** makes one a look on this laptop (it works
+offline from then on); **Remove** takes it off again. Every theme in the library has been looked at by BeerMat first;
+**Report** anything that shouldn't be there.
+
+**My themes**: make your own by copying a theme folder (Halloween is a good start) into the My themes folder (the
+dialog opens it) and changing its files; `themes/README.md` explains each one, including `tv.json`, which sets what
+BeerMat Desk's TV and the app draw. It's a look on this laptop at once (**Read them again** after editing). **Share…**
+shows it on the TV and in the app, and sends those pictures with it; tick that you have the right to share everything
+in it. BeerMat looks at it before it's in the library, and the dialog shows whether it's waiting, in the library, or
+turned down (with the reason).
 
 ## Spin the wheel and keyboard control
 
