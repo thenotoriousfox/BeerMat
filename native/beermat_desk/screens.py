@@ -106,6 +106,12 @@ class Screens(QObject):
         self._prefs.setValue('autoOpen', on)
         self.changed.emit()
 
+    def start(self):
+        """At startup, as desktop/screens.js: with a TV screen already connected, the TV opens by itself (if wanted)."""
+        if self.autoOpen and not self._open and self.target >= 0:
+            self._open = True
+        self.changed.emit()
+
     def _screen_added(self, _):
         if self.autoOpen and not self._open and len(QGuiApplication.screens()) > 1:
             self._open = True

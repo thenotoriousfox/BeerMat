@@ -113,6 +113,7 @@ def main(argv=None):
     wake.timeout.connect(lambda: None)
     wake.start()
     desk.start()
+    screens.start()
     return app.exec()
 
 
