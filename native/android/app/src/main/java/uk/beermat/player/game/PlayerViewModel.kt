@@ -211,6 +211,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun tap() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.tap(_ui.value.secret, q.id); say(t("Tap recorded")); refresh() } }
 
+    fun fifty() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.fifty(_ui.value.secret, q.id); refresh() } }
     fun goWide() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.goWide(_ui.value.secret, q.id); refresh() } }
 
     /** What the team has put but not locked in, per question: survives the phone being turned (as the browser keeps

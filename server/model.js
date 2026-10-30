@@ -75,6 +75,12 @@ export function validateQuestion(q, mediaDir) {
       result.wipeout = q.wipeout === true;
     }
     else requireValue(!result.answer || result.options.includes(result.answer), 'Correct answer must match a choice');
+    // 50/50: a team can take away half the wrong choices; a right answer then scores fiftyPoints.
+    if (q.type === 'choice') {
+      result.fiftyFifty = q.fiftyFifty === true; result.fiftyPoints = q.fiftyPoints ?? 0;
+      requireValue(integer(result.fiftyPoints, 0, 100), '50/50 points must be 0–100');
+      requireValue(!result.fiftyFifty || (result.options.length >= 3 && result.answer), 'A 50/50 needs three or more choices and the right one set');
+    }
   }
   if (q.type === 'letter') {
     requireValue(/^[a-z]?$/i.test(result.answer), 'Letter answer must be a single letter A–Z');
@@ -107,7 +113,7 @@ export function validateQuestion(q, mediaDir) {
   }
   if (q.type === 'wordsnake' || q.type === 'pinpoint') {
     result.goWide = q.goWide === true; result.goWidePoints = q.goWidePoints ?? 0;
-    requireValue(integer(result.goWidePoints, 0, 100), 'Go-wide points must be 0–100');
+    requireValue(integer(result.goWidePoints, 0, 100), 'Hint or second-guess points must be 0–100');
   }
   if (q.type === 'tiles') {
     const letters = result.answer.toUpperCase().replace(/[^A-Z ]/g, '').replace(/\s+/g, ' ').trim();
@@ -128,7 +134,7 @@ export function validateQuestion(q, mediaDir) {
       return c.spotify ? {spotify, start: c.start ?? 0, ...(c.seconds !== undefined && {seconds: c.seconds}), label: c.label?.trim() || ''} : {media: c.media, label: c.label?.trim() || ''};
     });
     result.clipSeconds = q.clipSeconds ?? 15;
-    requireValue(integer(result.clipSeconds, 3, 60), 'Spotify clip length must be 3–60 seconds');
+    requireValue(integer(result.clipSeconds, 3, 60), 'Each clip plays for 3–60 seconds');
     result.targetClip = q.targetClip;
     requireValue(integer(q.targetClip, 0, result.clips.length - 1), 'Pick which clip teams should tap for');
   }

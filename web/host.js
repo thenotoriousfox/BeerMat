@@ -122,14 +122,15 @@ function formTypes() {
   const type = $('qType').value, show = (id, on) => {$(id).hidden = !on;};
   show('choiceFields', ['choice', 'vote', 'multi'].includes(type)); show('multiFields', type === 'multi'); show('sheetFields', type === 'sheet'); show('sequenceFields', type === 'sequence');
   show('nearestFields', type === 'nearest'); show('buzzerFields', type === 'buzzer'); show('pinpointFields', type === 'pinpoint'); show('goWideFields', type === 'pinpoint' || type === 'wordsnake');
-  $('goWideText').textContent = type === 'wordsnake' ? 'Allow go wide: teams can remove the decoy letters for fewer points' : 'Allow go wide: a second tap scores if the first misses'; show('bingoFields', type === 'bingo' || type === 'musicbingo'); show('stagePointsFields', (type === 'bingo' || type === 'musicbingo') && $('qMode').value === 'progressive');
+  show('fiftyFields', type === 'choice'); $('goWidePointsText').textContent = type === 'wordsnake' ? 'Points with the hint' : 'Points for a second guess';
+  $('goWideText').textContent = type === 'wordsnake' ? 'Hint: teams can hide the decoy letters, for fewer points' : 'Second guess: a second tap scores if the first misses'; show('bingoFields', type === 'bingo' || type === 'musicbingo'); show('stagePointsFields', (type === 'bingo' || type === 'musicbingo') && $('qMode').value === 'progressive');
   const songs = $('qSongs').value.split('\n').filter(l => l.trim()).length; $('songCount').textContent = `${songs} songs${songs < 30 ? ' — add at least 30 so each team gets a different mix (a ticket holds 15)' : ''}`; show('musicFields', type === 'musicbingo'); show('clipsFields', type === 'clips');
   show('mediaFields', !['bingo', 'musicbingo', 'clips'].includes(type)); show('audioClipFields', type === 'audio' || type === 'sheet'); show('answerFields', !['sheet', 'vote', 'sequence', 'multi', 'pinpoint', 'bingo', 'musicbingo', 'clips'].includes(type)); show('aliasesLabel', ['text', 'picture', 'audio'].includes(type)); show('noteLabel', type !== 'sheet');
   // Speed bonus settings only appear once fastest fingers first is ticked.
   const fastest = speedTypes.includes(type) && $('qFastest').checked;
   show('pointsLabel', (type !== 'sheet' || $('qPartScoring').value !== 'each') && !(isBingoType(type) && $('qMode').value === 'progressive')); show('fastestLabel', speedTypes.includes(type)); show('speedLabel', fastest);
   show('bingoExtras', type === 'bingo');
-  show('hideTextLabel', !['bingo', 'musicbingo', 'clips'].includes(type)); show('revealLabel', !['pinpoint', 'audio'].includes(type) && !/\.(mp3|ogg|wav)$/i.test($('qMedia').value));
+  show('hideTextLabel', !['bingo', 'musicbingo', 'clips'].includes(type)); show('revealLabel', type === 'picture');
   show('bonusModeLabel', fastest && markedTypes.includes(type)); show('bonusPlacesLabel', fastest && markedTypes.includes(type) && $('qBonusMode').value === 'fixed'); show('evilLabel', markedTypes.includes(type));
   $('answerLabel').textContent = {choice: 'Correct choice (copy one line from above; blank for manual marking)', letter: 'Correct letter (A–Z)', wordsnake: 'Answer word (letters only, 3–20; spaces are removed)', tiles: 'Answer (4–40 letters; spaces mark separate words)', number: 'Correct number', nearest: 'Correct number', buzzer: 'Expected answer (shown only to you)'}[type] || 'Correct answer (blank for manual marking)';
   $('pointsText').textContent = {nearest: 'Points for the closest team', buzzer: 'Points for a correct buzz', vote: 'Points (votes score nothing)', multi: 'Points for every right tick', pinpoint: 'Points for a first-tap hit', bingo: 'Points for a valid bingo', musicbingo: 'Points for a valid bingo', clips: 'Points for tapping the right clip'}[type] || 'Correct answer points';
@@ -231,7 +232,7 @@ function fillQuestion(q = null) {
   $('qFastest').checked = !!q?.fastestFingers; $('qBonusMode').value = q?.bonusMode || 'sliding'; $('qBonusPlaces').value = q?.bonusPlaces ?? 1; $('qEvil').checked = !!q?.evil;
   $('qHideText').checked = !!q?.hideText; $('qReveal').value = q?.reveal || ''; $('qWipeout').checked = !!q?.wipeout;
   $('qPerCall').value = String(q?.perCall || 1); $('qSpeedBingo').checked = !!q?.speed; $('qReactions').checked = !!q?.reactions; $('qReactionPoints').value = q?.reactionPoints ?? 0;
-  $('qGoWide').checked = !!q?.goWide; $('qGoWidePoints').value = q?.goWidePoints ?? 0; $('qMode').value = q?.mode || 'progressive';
+  $('qGoWide').checked = !!q?.goWide; $('qGoWidePoints').value = q?.goWidePoints ?? 0; $('qFifty').checked = !!q?.fiftyFifty; $('qFiftyPoints').value = q?.fiftyPoints ?? 0; $('qMode').value = q?.mode || 'progressive';
   [$('qLinePoints').value, $('qTwoLinePoints').value, $('qHousePoints').value] = q?.stagePoints || [1, 2, 3];
   $('qVariation').value = q?.variation || 'classic'; $('qPenalty').value = q?.penalty ?? 0; $('qPassPenalty').value = q?.passPenalty ?? 0; $('qAgreePoints').value = q?.agreePoints ?? 1; $('qAgreeSeconds').value = q?.agreeSeconds ?? 10;
   $('sheetItems').replaceChildren(); (q?.type === 'sheet' ? q.items : ['']).forEach((item, i) => addSheetItem(item, [q?.itemAnswers?.[i] || '', ...(q?.itemAliases?.[i] || [])].filter(Boolean).join(' / ')));
@@ -284,8 +285,9 @@ function readQuestion() {
   if (['choice', 'vote', 'multi'].includes(type)) q.options = lines('qOptions');
   if (type === 'multi') Object.assign(q, {correct: lines('qCorrect'), wipeout: $('qWipeout').checked});
   if (!['bingo', 'musicbingo', 'clips'].includes(type) && $('qHideText').checked) q.hideText = true;
-  if ($('qReveal').value && !['pinpoint', 'audio', 'bingo', 'musicbingo', 'clips'].includes(type)) q.reveal = $('qReveal').value;
+  if ($('qReveal').value && type === 'picture') q.reveal = $('qReveal').value;
   if (type === 'pinpoint') q.target = pinTarget;
+  if (type === 'choice') Object.assign(q, {fiftyFifty: $('qFifty').checked, fiftyPoints: Number($('qFiftyPoints').value)});
   if (type === 'pinpoint' || type === 'wordsnake') Object.assign(q, {goWide: $('qGoWide').checked, goWidePoints: Number($('qGoWidePoints').value)});
   const stagePoints = $('qMode').value === 'progressive' ? {stagePoints: [Number($('qLinePoints').value), Number($('qTwoLinePoints').value), Number($('qHousePoints').value)]} : {};
   if (type === 'bingo') Object.assign(q, {mode: $('qMode').value, media: '', perCall: Number($('qPerCall').value), speed: $('qSpeedBingo').checked, ...stagePoints});
@@ -467,11 +469,13 @@ function playClip(i, only = false) {
     }, (q.clips[i].seconds ?? q.clipSeconds) * 1000)).catch(e => {message(e.message, true); if (clipRun === run) stopClips();});
     return renderClipsPanel(q);
   }
-  const run = clipRun = {question: q.id, index: i}, audio = $('clipAudio'); let started = false;
+  const run = clipRun = {question: q.id, index: i}, audio = $('clipAudio'); let started = false, ended = false;
   audio.src = q.clips[i].media;
-  audio.onplaying = () => {if (!started && clipRun === run) {started = true; request('clip', {question: q.id, clip: i}).catch(e => message(e.message, true));}};
+  // An uploaded clip plays for the question's clip length too (or to its end, if that's sooner).
+  audio.onplaying = () => {if (!started && clipRun === run) {started = true; request('clip', {question: q.id, clip: i}).catch(e => message(e.message, true)); setTimeout(() => {if (clipRun === run && !ended) {audio.pause(); audio.onended();}}, (q.clipSeconds ?? 15) * 1000);}};
   audio.onended = async () => {
-    if (clipRun !== run) return;
+    if (clipRun !== run || ended) return;
+    ended = true;
     if (only) return stopClips();
     await request('clip', {question: q.id, clip: -1}).catch(() => {});
     setTimeout(() => {if (clipRun === run) playClip(i + 1);}, 1500);
@@ -1209,7 +1213,7 @@ function answerKey(q) {
   if (q.type === 'vote') return 'Vote — no right answer';
   if (q.type === 'sequence') return 'Order: ' + q.items.join(' → ');
   if (q.type === 'multi') return 'Right ticks: ' + q.correct.join(', ');
-  if (q.type === 'pinpoint') return `Pinpoint target set${q.goWide ? ` · go wide scores ${q.goWidePoints}` : ''}`;
+  if (q.type === 'pinpoint') return `Pinpoint target set${q.goWide ? ` · a second guess scores ${q.goWidePoints}` : ''}`;
   if (q.type === 'bingo') return `Bingo — ${modes[q.mode]} wins`;
   if (q.type === 'musicbingo') return `Music bingo — ${q.songs.length} songs, ${modes[q.mode]} wins`;
   if (q.type === 'clips') return `Right clip: ${q.targetClip + 1}. ${q.clips[q.targetClip].label || '(unnamed)'}`;
@@ -1262,7 +1266,7 @@ function renderBingoPanel(q) {
   $('callNumber').disabled = busy || g.over || !!q.paused || g.pending > 0 || g.called.length >= 90;
 }
 function shownValue(q, value) {
-  if (q.type === 'wordsnake') {try {const {path, wide} = JSON.parse(value); return path.map(i => q.grid.letters[i]).join('') + (wide ? ' (went wide)' : '');} catch {return value;}}
+  if (q.type === 'wordsnake') {try {const {path, wide} = JSON.parse(value); return path.map(i => q.grid.letters[i]).join('') + (wide ? ' (used the hint)' : '');} catch {return value;}}
   if (q.type === 'tiles') {try {return JSON.parse(value).map(i => q.pieces[i]).join('');} catch {return value;}}
   if (q.type === 'multi') {try {return JSON.parse(value).join(', ') || '(nothing ticked)';} catch {return value;}}
   if (q.type === 'pinpoint') {try {return JSON.parse(value).map((p, i) => `${i ? 'Go-wide tap' : 'Tap'} at ${Math.round(p[0] * 100)}%, ${Math.round(p[1] * 100)}%`).join(' · ');} catch {return value;}}

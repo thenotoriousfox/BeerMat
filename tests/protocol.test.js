@@ -42,7 +42,7 @@ test('a phone joining a rehearsal is a test device, refused every gameplay route
     assert.equal(phone.rehearsal, true);
     const state = await post('/api/state', {}, phone.secret);
     assert.equal(state.protocol, 1); assert.equal(state.rehearsal.device, true); assert.equal(state.question, null);
-    for (const route of ['/api/answer', '/api/buzz', '/api/agree', '/api/draft', '/api/bingo', '/api/tap', '/api/gowide', '/api/team/result'])
+    for (const route of ['/api/answer', '/api/buzz', '/api/agree', '/api/draft', '/api/bingo', '/api/tap', '/api/gowide', '/api/fifty', '/api/team/result'])
       assert.equal((await post(route, {}, phone.secret)).status, 403, route);
   } finally {await close();}
 });

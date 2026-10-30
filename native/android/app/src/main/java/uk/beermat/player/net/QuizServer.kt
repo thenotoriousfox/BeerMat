@@ -80,6 +80,7 @@ class QuizServer(base: String) {
     suspend fun tap(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/tap", JSONObject().put("question", question), secret) }
 
     /** Word trail (and pinpoint) help: the decoys go, for fewer points. */
+    suspend fun fifty(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/fifty", JSONObject().put("question", question), secret) }
     suspend fun goWide(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/gowide", JSONObject().put("question", question), secret) }
 
     suspend fun agree(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/agree", JSONObject().put("question", question), secret) }

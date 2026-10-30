@@ -356,6 +356,28 @@ test('word trail: adjacent traces only, go wide scores less; tiles assemble the 
   await call('host/close'); assert.equal(await score(a), 11); assert.equal(await score(b), 2);
 }));
 
+test('50/50: half the wrong choices go for that team only; a right answer then scores the 50/50 points', () => fixture(async ({call, teams, score}) => {
+  const [a, b, c] = await teams('Alpha', 'Bravo', 'Charlie');
+  const options = ['Venus', 'Mars', 'Jupiter', 'Saturn'];
+  assert.equal((await call('host/open', {...base, text: 'Red planet', type: 'choice', options: ['Venus', 'Mars'], answer: 'Mars', points: 3, fiftyFifty: true, fiftyPoints: 1})).status, 400, 'two choices: nothing to take away');
+  await call('host/open', {...base, text: 'Red planet', type: 'choice', options, answer: 'Mars', points: 3, fiftyFifty: true, fiftyPoints: 1, fastestFingers: true, speedBonus: 2});
+  let s = await call('state', {}, b.secret); const id = s.question.id;
+  assert.equal(s.question.fiftyFifty, true); assert.equal(s.question.fiftyPoints, 1); assert.equal(s.question.fiftyRemoved, undefined);
+  const {removed} = await call('fifty', {question: id}, b.secret);
+  assert.equal(removed.length, 2); assert.ok(!removed.includes('Mars'), 'the right answer stays');
+  assert.deepEqual(removed, [...removed].sort((x, y) => options.indexOf(x) - options.indexOf(y)));
+  assert.deepEqual((await call('state', {}, b.secret)).question.fiftyRemoved, removed, 'the same each time');
+  assert.equal((await call('state', {}, a.secret)).question.fiftyRemoved, undefined, 'only for the team that took it');
+  await call('answer', {question: id, value: 'Mars'}, a.secret);
+  await call('answer', {question: id, value: 'Mars'}, b.secret);
+  assert.equal((await call('fifty', {question: id}, a.secret)).status, 409, 'not after answering');
+  await call('fifty', {question: id}, c.secret); await call('answer', {question: id, value: 'Venus'}, c.secret);
+  await call('host/close');
+  assert.ok(await score(a) > 3, 'full points and a speed bonus without it');
+  assert.equal(await score(b), 1, 'the 50/50 points, no speed bonus');
+  assert.equal(await score(c), 0);
+}));
+
 test('4-digit codes move a team to a new phone once; notes and stats stay on the desk', () => fixture(async ({call, teams, tick}) => {
   const [a] = await teams('Alpha');
   const {code} = await call('host/team', {id: a.id, action: 'transfer'}); assert.match(code, /^\d{4}$/);

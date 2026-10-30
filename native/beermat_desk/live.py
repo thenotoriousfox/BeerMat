@@ -149,9 +149,12 @@ class LiveTools(QObject):
         run = self._clips = {'question': q['id'], 'index': i, 'spotify': bool(clip.get('spotify'))}
         self.clipsChanged.emit()
 
+        ended = {'done': False}
+
         def finished():
-            if self._clips is not run:
+            if self._clips is not run or ended['done']:
                 return
+            ended['done'] = True
             if only:
                 return self.stopClips()
             self.api.host('clip', {'question': q['id'], 'clip': -1}, lambda _: QTimer.singleShot(1500, lambda: self._clips is run and self._play_clip(q, i + 1)))
@@ -169,6 +172,8 @@ class LiveTools(QObject):
             return self.stopClips()
         self._clip_player = player
         announced = {'done': False}
+        # An uploaded clip plays for the question's clip length too (or to its end, if that's sooner).
+        QTimer.singleShot(int((q.get('clipSeconds') or 15) * 1000), lambda: self._clips is run and not ended['done'] and (player.stop(), finished()))
 
         def status(state):
             if self._clips is not run:

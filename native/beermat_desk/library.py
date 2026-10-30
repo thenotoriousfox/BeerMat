@@ -27,39 +27,47 @@ FIELDS_BY_TYPE = {
 
 SPEED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'}
 BINGO = {'bingo', 'musicbingo'}
-# Each format's options (server/model.js validateQuestion): key, label, kind, and for numbers their range, for choices
-# their values. The server checks them again when the quiz is saved.
+# Formats with a right answer the server can mark (model.js autoMarked): Risk It and the fixed speed bonus need one.
+MARKED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio'}
+# Each format's options (server/model.js validateQuestion): key, label, kind, for numbers their range, for choices
+# their values, and when it's offered (the format and the question's other options: a buzzer's pass penalty only for
+# an advanced buzzer, say). The server checks them again when the quiz is saved.
 OPTIONS = [
-    ('evil', 'Risk It: a wrong answer loses the points', 'bool', None, lambda t: t not in ('vote', 'bingo', 'musicbingo', 'clips', 'buzzer')),
-    ('fastestFingers', 'Fastest fingers first (speed bonus)', 'bool', None, lambda t: t in SPEED),
-    ('speedBonus', 'Speed bonus points', 'int', (0, 100), lambda t: t in SPEED),
-    ('bonusMode', 'Speed bonus', 'choice', [('sliding', 'Fades over the time allowed'), ('fixed', 'Only the fastest answers')], lambda t: t in SPEED),
-    ('bonusPlaces', 'Fastest answers given the fixed bonus', 'int', (1, 50), lambda t: t in SPEED),
-    ('places', 'Places scored (closest first)', 'int', (1, 20), lambda t: t == 'nearest'),
-    ('tieBreaker', 'Tie-breaker (scores nothing, orders teams level on points)', 'bool', None, lambda t: t == 'nearest'),
-    ('goWide', 'Go wide: teams may take help for fewer points', 'bool', None, lambda t: t in ('wordsnake', 'pinpoint')),
-    ('goWidePoints', 'Points when going wide', 'int', (0, 100), lambda t: t in ('wordsnake', 'pinpoint')),
-    ('variation', 'Buzzer game', 'choice', [('classic', 'Classic'), ('advanced', 'Advanced (pass and agree)')], lambda t: t == 'buzzer'),
-    ('penalty', 'Points lost for a wrong answer', 'int', (0, 100), lambda t: t == 'buzzer'),
-    ('passPenalty', 'Points lost for passing', 'int', (0, 100), lambda t: t == 'buzzer'),
-    ('agreePoints', 'Points for agreeing with a right answer', 'int', (0, 100), lambda t: t == 'buzzer'),
-    ('agreeSeconds', 'Seconds to agree', 'int', (5, 60), lambda t: t == 'buzzer'),
-    ('mode', 'Bingo game', 'choice', [('line', 'One line'), ('twoLines', 'Two lines'), ('fullHouse', 'Full house'), ('progressive', 'Full game: line, two lines, full house')], lambda t: t in BINGO),
-    ('stagePoints', 'Full game points: line, two lines, full house (e.g. 2, 3, 5)', 'ints', (0, 100), lambda t: t in BINGO),
-    ('startAt', 'Songs start this far in (seconds)', 'int', (0, 600), lambda t: t == 'musicbingo'),
-    ('songSeconds', 'Play each song for (seconds, 0: whole song)', 'int', (0, 600), lambda t: t == 'musicbingo'),
-    ('autoNext', 'Play the next song by itself', 'bool', None, lambda t: t == 'musicbingo'),
-    ('revealNow', 'Show each song title as it plays', 'bool', None, lambda t: t == 'musicbingo'),
-    ('clipSeconds', 'Spotify clips play for (seconds)', 'int', (3, 60), lambda t: t == 'clips'),
-    ('hideText', "Phones don't show the wording (you read it out): for wording that gives the answer away", 'bool', None, lambda t: t not in BINGO | {'clips'}),
-    ('reveal', 'Picture reveal (needs a picture)', 'choice', [('', 'Shown straight away'), ('blur', 'Starts blurred, sharpens over the time'), ('tiles', 'Under twelve tiles that go one by one')],
-     lambda t: t not in BINGO | {'clips', 'pinpoint', 'audio'}),
-    ('wipeout', 'Wipeout: any wrong tick scores nothing', 'bool', None, lambda t: t == 'multi'),
-    ('perCall', 'Numbers called each time (1–3)', 'int', (1, 3), lambda t: t == 'bingo'),
-    ('speed', 'Speed bingo: only numbers on a team’s ticket are called', 'bool', None, lambda t: t == 'bingo'),
-    ('reactions', 'Reaction table: teams dab the song as soon as they know it', 'bool', None, lambda t: t == 'musicbingo'),
-    ('reactionPoints', 'Points for the quickest team on each song', 'int', (0, 10), lambda t: t == 'musicbingo'),
-    ('partScoring', 'Sheet scoring', 'choice', [('each', 'A point for each part'), ('split', "The question's points shared"), ('all', 'Points only when every part is right')], lambda t: t == 'sheet'),
+    ('evil', 'Risk It: a wrong answer loses the points', 'bool', None, lambda t, q: t in MARKED),
+    ('fastestFingers', 'Fastest fingers first (speed bonus)', 'bool', None, lambda t, q: t in SPEED),
+    ('speedBonus', 'Speed bonus points', 'int', (0, 100), lambda t, q: t in SPEED and q.get('fastestFingers')),
+    ('bonusMode', 'Speed bonus', 'choice', [('sliding', 'Fades over the time allowed'), ('fixed', 'Only the fastest answers')], lambda t, q: t in SPEED & MARKED and q.get('fastestFingers')),
+    ('bonusPlaces', 'Fastest answers given the fixed bonus', 'int', (1, 50), lambda t, q: t in SPEED & MARKED and q.get('fastestFingers') and q.get('bonusMode') == 'fixed'),
+    ('places', 'Places scored (closest first)', 'int', (1, 20), lambda t, q: t == 'nearest'),
+    ('tieBreaker', 'Tie-breaker (scores nothing, orders teams level on points)', 'bool', None, lambda t, q: t == 'nearest'),
+    # goWide is the hint on a word trail and the second guess on a pinpoint (the key stays as it is in quiz files).
+    ('goWide', 'Hint: teams can hide the decoy letters, for fewer points', 'bool', None, lambda t, q: t == 'wordsnake'),
+    ('goWidePoints', 'Points with the hint', 'int', (0, 100), lambda t, q: t == 'wordsnake' and q.get('goWide')),
+    ('goWide', 'Second guess: a second tap scores if the first misses', 'bool', None, lambda t, q: t == 'pinpoint'),
+    ('goWidePoints', 'Points for a second guess', 'int', (0, 100), lambda t, q: t == 'pinpoint' and q.get('goWide')),
+    ('fiftyFifty', '50/50: teams can take away half the wrong choices, for fewer points', 'bool', None, lambda t, q: t == 'choice'),
+    ('fiftyPoints', 'Points after a 50/50', 'int', (0, 100), lambda t, q: t == 'choice' and q.get('fiftyFifty')),
+    ('variation', 'Buzzer game', 'choice', [('classic', 'Classic'), ('advanced', 'Advanced (pass and agree)')], lambda t, q: t == 'buzzer'),
+    ('penalty', 'Points lost for a wrong answer', 'int', (0, 100), lambda t, q: t == 'buzzer'),
+    ('passPenalty', 'Points lost for passing', 'int', (0, 100), lambda t, q: t == 'buzzer' and q.get('variation') == 'advanced'),
+    ('agreePoints', 'Points for agreeing with a right answer', 'int', (0, 100), lambda t, q: t == 'buzzer' and q.get('variation') == 'advanced'),
+    ('agreeSeconds', 'Seconds to agree', 'int', (5, 60), lambda t, q: t == 'buzzer' and q.get('variation') == 'advanced'),
+    ('mode', 'Bingo game', 'choice', [('line', 'One line'), ('twoLines', 'Two lines'), ('fullHouse', 'Full house'), ('progressive', 'Full game: line, two lines, full house')], lambda t, q: t in BINGO),
+    ('stagePoints', 'Full game points: line, two lines, full house (e.g. 2, 3, 5)', 'ints', (0, 100), lambda t, q: t in BINGO and q.get('mode') == 'progressive'),
+    ('startAt', 'Songs start this far in (seconds)', 'int', (0, 600), lambda t, q: t == 'musicbingo'),
+    ('songSeconds', 'Play each song for (seconds, 0: whole song)', 'int', (0, 600), lambda t, q: t == 'musicbingo'),
+    ('autoNext', 'Play the next song by itself', 'bool', None, lambda t, q: t == 'musicbingo'),
+    ('revealNow', 'Show each song title as it plays', 'bool', None, lambda t, q: t == 'musicbingo'),
+    ('clipSeconds', 'Each clip plays for (seconds)', 'int', (3, 60), lambda t, q: t == 'clips'),
+    ('hideText', "Phones don't show the wording (you read it out): for wording that gives the answer away", 'bool', None, lambda t, q: t not in BINGO | {'clips'}),
+    ('reveal', 'Picture reveal', 'choice', [('', 'Shown straight away'), ('blur', 'Starts blurred, sharpens over the time'), ('tiles', 'Under twelve tiles that go one by one')],
+     lambda t, q: t == 'picture'),
+    ('wipeout', 'Wipeout: any wrong tick scores nothing', 'bool', None, lambda t, q: t == 'multi'),
+    ('perCall', 'Numbers called each time (1–3)', 'int', (1, 3), lambda t, q: t == 'bingo'),
+    ('speed', 'Speed bingo: only numbers on a team’s ticket are called', 'bool', None, lambda t, q: t == 'bingo'),
+    ('reactions', 'Reaction table: teams dab the song as soon as they know it', 'bool', None, lambda t, q: t == 'musicbingo'),
+    ('reactionPoints', 'Points for the quickest team on each song', 'int', (0, 10), lambda t, q: t == 'musicbingo' and q.get('reactions')),
+    ('partScoring', 'Sheet scoring', 'choice', [('each', 'A point for each part'), ('split', "The question's points shared"), ('all', 'Points only when every part is right')], lambda t, q: t == 'sheet'),
 ]
 DEFAULTS = {'reveal': '', 'perCall': 1, 'bonusMode': 'sliding', 'bonusPlaces': 1, 'places': 1, 'variation': 'classic', 'agreeSeconds': 10, 'mode': 'line', 'clipSeconds': 15, 'partScoring': 'each'}
 PICTURE, SOUND = ('.png', '.jpg', '.jpeg', '.webp'), ('.mp3', '.ogg', '.wav')
@@ -131,7 +139,7 @@ class Library(QObject):
         shown['options_'] = [{'key': k, 'label': label, 'kind': kind_, 'range': list(rng) if kind_ in ('int', 'ints') else [],
                               'choices': [{'value': v, 'text': t} for v, t in rng] if kind_ == 'choice' else [],
                               'value': (', '.join(map(str, q.get(k) or [])) if kind_ == 'ints' else q.get(k, DEFAULTS.get(k, False if kind_ == 'bool' else 0)))}
-                             for k, label, kind_, rng, applies in OPTIONS if applies(kind)]
+                             for k, label, kind_, rng, applies in OPTIONS if applies(kind, {**DEFAULTS, **q})]
         shown['clipsList'] = [{'label': c.get('label', ''), 'media': c.get('media') or '', 'spotify': c.get('spotify') or '', 'start': c.get('start', 0)} for c in q.get('clips') or []]
         shown['songsList'] = [{'title': x.get('title', ''), 'media': x.get('media') or '', 'spotify': x.get('spotify') or '', 'start': x.get('start', ''), 'seconds': x.get('seconds', '')}
                               for x in q.get('songs') or []]

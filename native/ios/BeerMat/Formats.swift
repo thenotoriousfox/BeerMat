@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Pinpoint: tap the picture (a second tap when going wide). Points are fractions of the picture, as the server
+/// Pinpoint: tap the picture (a second tap with a second guess). Points are fractions of the picture, as the server
 /// expects; the target appears once revealed.
 struct PinpointView: View {
     let server: String
@@ -13,7 +13,7 @@ struct PinpointView: View {
     private var url: URL? { URL(string: q.media.hasPrefix("http") ? q.media : server + q.media) }
 
     var body: some View {
-        Text(most == 2 ? t("Tap the picture. Go wide: a second tap scores {n} if your first misses.", ["n": goWidePoints]) : t("Tap the picture to place your answer"))
+        Text(most == 2 ? t("Tap the picture. Second guess: a second tap scores {n} if your first misses.", ["n": goWidePoints]) : t("Tap the picture to place your answer"))
             .foregroundStyle(Brand.muted)
         AsyncImage(url: url) { image in
             image.resizable().scaledToFit()
@@ -89,7 +89,7 @@ struct WordSnakeView: View {
         }
         HStack {
             if enabled && !path.isEmpty { Button(t("Start again")) { path = [] } }
-            if enabled && (q.raw["goWide"] as? Bool) == true && wide == nil { Button(t("Go wide (scores {n})", ["n": (q.raw["goWidePoints"] as? NSNumber)?.intValue ?? 0])) { model.goWide() } }
+            if enabled && (q.raw["goWide"] as? Bool) == true && wide == nil { HintButton(q: q) }
         }
     }
 }
@@ -174,4 +174,24 @@ func tileWord(_ letters: String, _ lengths: [Int]) -> String {
     let padded = Array(letters.padding(toLength: lengths.reduce(0, +), withPad: "_", startingAt: 0))
     var at = 0
     return lengths.map { n in defer { at += n }; return String(padded[at..<min(padded.count, at + n)]) }.joined(separator: " ")
+}
+
+/// Word trail's hint: asks first, then the decoy letters go.
+struct HintButton: View {
+    @EnvironmentObject var model: PlayerModel
+    let q: Question
+    @State private var asking = false
+    private var points: Int { (q.raw["goWidePoints"] as? NSNumber)?.intValue ?? 0 }
+    private var full: Int { (q.raw["points"] as? NSNumber)?.intValue ?? 0 }
+    private var label: String { t("Hint (scores {n})", ["n": points]) }
+
+    var body: some View {
+        Button(label) { asking = true }
+            .alert(label, isPresented: $asking) {
+                Button(label) { model.goWide() }
+                Button(t("Cancel"), role: .cancel) {}
+            } message: {
+                Text(t("Use the hint? The decoy letters disappear, but a right answer scores {wide} instead of {full}.", ["wide": points, "full": full]))
+            }
+    }
 }

@@ -218,7 +218,10 @@ class TvStageTest(unittest.TestCase):
                 yield from items(child)
         def drawn():
             return sorted(getCppPointer(o)[0] for o in items(self.stage) if o.metaObject().className().startswith(('ThemeScene', 'GlowText', 'QQuickImage')))
+        # From a settled screen: what the last test showed has gone before counting.
         self.show(state(q=question(), look='halloween'))
+        for _ in range(40):
+            app.processEvents(); time.sleep(0.02)
         before = drawn()
         painted = []
         background = self.stage.findChild(QObject, 'lookBackground')
@@ -270,6 +273,16 @@ class TvStageTest(unittest.TestCase):
         q = question(type='sequence', options=[], items=['One', 'Two', 'Three'], order=[2, 0, 1])
         self.show(state(q=q))
         self.assertEqual([text for _, text in rows()], ['•  Three', '•  One', '•  Two'])
+        # Before the answer's reveal they never slide: a change in the space (the window, the answer box) puts them
+        # straight in their new places.
+        lst = self.stage.findChild(QObject, 'sequenceList')
+        before = lst.property('row')
+        self.stage.setProperty('tv', state(q={**q, 'text': 'Put these in order, smallest first, as they were measured at the time, by the people whose job it was. ' * 2}))
+        for _ in range(8):     # the layout settles; a slide (700 ms or more) would still be on its way
+            app.processEvents(); time.sleep(0.01)
+        self.assertNotEqual(lst.property('row'), before, 'the rows got smaller')
+        self.assertEqual([round(y) for y, _ in rows()], [round(i * lst.property('row')) for i in range(3)])
+        self.show(state(q=q))
         # A new state for the same question (each update brings new arrays) keeps the rows, so they can slide.
         revealed = state(q={**q, 'open': False, 'live': False, 'revealed': True, 'order': [2, 0, 1], 'scorers': [{'name': 'Bears', 'ms': 4100, 'points': 2}]})
         self.show(revealed)
@@ -284,6 +297,22 @@ class TvStageTest(unittest.TestCase):
         self.assertNotIn('ANSWER', texts)
         self.assertFalse(any('→' in t for t in texts), texts)
         self.assertIn('1 team scored', texts)
+
+    def test_the_next_question_opens_at_its_full_size(self):
+        """After a revealed question, the next one's rows are their full size as it opens, not growing into the space
+        the answer box leaves."""
+        lst = self.stage.findChild(QObject, 'sequenceList')
+        q = lambda **over: question(type='sequence', options=[], items=['One', 'Two', 'Three'], order=[2, 0, 1], **over)
+        self.show(state(q=q(open=False, live=False, revealed=True, scorers=[{'name': 'Bears', 'ms': 4100, 'points': 2}])))
+        for _ in range(40):
+            app.processEvents(); time.sleep(0.02)
+        self.stage.setProperty('tv', state(q=q()))
+        for _ in range(5):
+            app.processEvents(); time.sleep(0.02)
+        opening = lst.property('row')
+        for _ in range(50):
+            app.processEvents(); time.sleep(0.02)
+        self.assertEqual(opening, lst.property('row'))
 
     def test_the_clip_playing_is_lit(self):
         """Sound clips: a disc for every clip, the one playing lit (also when the quizmaster plays one again)."""

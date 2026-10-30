@@ -303,7 +303,17 @@ try {
   for (const t of tiles.tiles) {const i = tiles.pieces.findIndex((p, j) => p === t && !usedTiles.has(j)); usedTiles.add(i); await player.locator(`#inputs .tiles button[data-index="${i}"]`).click();}
   assert.equal(await player.locator('#tileWord').textContent(), 'THE LION KING'); await submitted(player); await host.keyboard.press('c');
   await host.locator('#reveal').click(); await waitFor(projector, () => document.getElementById('solution').textContent.includes('The Lion King'));
-  log('word trail trace with restart and go wide; Letter tiles; TV shows the word pattern');
+  // 50/50: half the wrong choices go, on that team's phone only.
+  await host.locator('[data-tab=build]').click(); await saveQuestion('choice', 'Red planet fifty', {options: 'Venus\nMars\nJupiter\nSaturn', answer: 'Mars'});
+  await host.locator('[data-tab=build]').click(); await host.locator('#questionSelect').selectOption(await host.locator('#questionSelect option', {hasText: 'Red planet fifty'}).first().getAttribute('value'));
+  await host.locator('#qFifty').check(); await host.locator('#qFiftyPoints').fill('1'); await host.locator('#saveQuestion').click(); await waitFor(host, () => document.getElementById('editorStatus').textContent === 'Saved question loaded');
+  await play('Red planet fifty'); await visible(rival, '#fifty');
+  await rival.locator('#fifty').click();
+  await waitFor(rival, () => [...document.querySelectorAll('#inputs [data-value]')].filter(b => !b.hidden).length === 2 && document.getElementById('fifty').hidden);
+  assert.ok(await rival.locator('#inputs [data-value="Mars"]').isVisible(), 'the right answer stays');
+  assert.equal(await player.locator('#inputs [data-value]:visible').count(), 4, 'only for the team that took it');
+  await host.keyboard.press('c');
+  log('word trail trace with restart and the hint; Letter tiles; TV shows the word pattern; a 50/50 on one phone');
   await host.locator('[data-tab=teams]').click(); const owlCard = host.locator('#teamCards article', {hasText: 'Owl team'});
   await owlCard.locator('textarea').fill('Table 7'); await owlCard.locator('textarea').blur(); await waitFor(host, () => document.getElementById('message').textContent === 'Note saved');
   await owlCard.getByRole('button', {name: 'Move to a new phone'}).click(); await visible(host, '#recoveryDialog'); const moveCode = await host.locator('#recoveryCode').textContent(); await host.locator('#recoveryDialog button').click();

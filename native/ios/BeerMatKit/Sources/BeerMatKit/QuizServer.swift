@@ -64,6 +64,7 @@ public final class QuizServer: @unchecked Sendable {
     /// Sound clips: a tap during the clip the team thinks is the one.
     public func tap(_ secret: String, question: Int) async throws { _ = try await request("POST", "/api/tap", ["question": question], secret) }
     /// Word trail (and pinpoint) help: the decoys go, for fewer points.
+    public func fifty(_ secret: String, question: Int) async throws { _ = try await request("POST", "/api/fifty", ["question": question], secret) }
     public func goWide(_ secret: String, question: Int) async throws { _ = try await request("POST", "/api/gowide", ["question": question], secret) }
     public func sound(_ secret: String, index: Int) async throws { _ = try await request("POST", "/api/team/sound", ["sound": index], secret) }
     /// The team's photo for the TV: a square JPEG; the quizmaster approves it first.

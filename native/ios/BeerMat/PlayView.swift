@@ -164,6 +164,8 @@ private struct QuestionView: View {
     @State private var sheet: [String] = []
     @State private var points: [[Double]] = []
     @State private var loaded = false
+    /// The choices this team's 50/50 took away (none until it takes one).
+    private var fiftyRemoved: [String] { q.raw["fiftyRemoved"] as? [String] ?? [] }
 
     var body: some View {
         let game = model.game!
@@ -186,9 +188,11 @@ private struct QuestionView: View {
                 // or the options of a question asked on the fly.
                 case "choice" where q.fixedSix || q.onTheFly:
                     let valueOf = { (i: Int) in i < q.options.count ? q.options[i] : "#" + letters[i] }
-                    Keys(keys: (0..<(q.fixedSix ? 6 : q.options.count)).map { ($0, letters[$0]) }, colours: true, picked: { valueOf($0) == text }, enabled: !locked) { text = valueOf($0) }
+                    Keys(keys: (0..<(q.fixedSix ? 6 : q.options.count)).filter { !fiftyRemoved.contains(valueOf($0)) }.map { ($0, letters[$0]) }, colours: true, picked: { valueOf($0) == text }, enabled: !locked) { text = valueOf($0) }
+                    FiftyFifty(q: q, locked: locked, text: $text)
                 case "choice", "vote":
-                    Keys(keys: shuffle(q.options.count).map { ($0, "\(letters[$0]). \(q.options[$0])") }, colours: true, picked: { q.options[$0] == text }, enabled: !locked) { text = q.options[$0] }
+                    Keys(keys: shuffle(q.options.count).filter { !fiftyRemoved.contains(q.options[$0]) }.map { ($0, "\(letters[$0]). \(q.options[$0])") }, colours: true, picked: { q.options[$0] == text }, enabled: !locked) { text = q.options[$0] }
+                    if q.type == "choice" { FiftyFifty(q: q, locked: locked, text: $text) }
                 case "letter":
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 6), spacing: 8) {
                         ForEach(shuffle(26), id: \.self) { i in
@@ -414,6 +418,33 @@ private struct RevealTiles: View {
                     }
                 }
             }
+        }
+    }
+}
+
+/// 50/50 on a multiple choice question: asks first, then half the wrong choices go (a pick of one of them is cleared).
+struct FiftyFifty: View {
+    @EnvironmentObject var model: PlayerModel
+    let q: Question
+    let locked: Bool
+    @Binding var text: String
+    @State private var asking = false
+    private var removed: [String] { q.raw["fiftyRemoved"] as? [String] ?? [] }
+    private var points: Int { (q.raw["fiftyPoints"] as? NSNumber)?.intValue ?? 0 }
+    private var full: Int { (q.raw["points"] as? NSNumber)?.intValue ?? 0 }
+    private var offered: Bool { !locked && (q.raw["fiftyFifty"] as? Bool) == true && removed.isEmpty }
+    private var label: String { t("50/50 (scores {n})", ["n": points]) }
+
+    var body: some View {
+        Group {
+            if offered { Button(label) { asking = true } }
+        }
+        .onChange(of: removed) { now in if now.contains(text) { text = "" } }
+        .alert(label, isPresented: $asking) {
+            Button(label) { model.fifty() }
+            Button(t("Cancel"), role: .cancel) {}
+        } message: {
+            Text(t("50/50? Half the wrong answers disappear, but a right answer scores {fifty} instead of {full}.", ["fifty": points, "full": full]))
         }
     }
 }

@@ -86,6 +86,12 @@ function syncPicks() {
     $('snakeWord').textContent = list.map(i => q.grid.letters[i]).join('') || 'Tap the first letter';
     if ($('goWide')) $('goWide').hidden = !!q.wideCells;
   }
+  // 50/50 taken: the choices it took away go, and so does its button.
+  if (q.type === 'choice' && q.fiftyFifty) {
+    $('inputs').querySelectorAll('[data-value]').forEach(b => {b.hidden = !!q.fiftyRemoved?.includes(b.dataset.value);});
+    if ($('fifty')) $('fifty').hidden = !!q.fiftyRemoved;
+    if (q.fiftyRemoved?.includes(hidden.value)) pick('');
+  }
   if (q.type === 'tiles') {
     $('tileWord').textContent = tileWord(list.map(i => q.pieces[i]).join(''), q.wordLengths);
     $('inputs').querySelectorAll('[data-index]').forEach(b => b.classList.toggle('picked', list.includes(Number(b.dataset.index))));
@@ -132,9 +138,9 @@ function buildInputs(q) {
     const clear = element('button', t('Start again'), 'subtle'); clear.type = 'button'; clear.onclick = () => pick('[]');
     box.append(element('p', t('Trace the answer: each letter touches the last, diagonals too. Tapping a letter that does not touch starts again.'), 'muted'), area, word, clear);
     if (q.goWide) {
-      const wide = element('button', t('Go wide (scores {n})', {n: q.goWidePoints}), 'subtle'); wide.type = 'button'; wide.id = 'goWide';
+      const wide = element('button', t('Hint (scores {n})', {n: q.goWidePoints}), 'subtle'); wide.type = 'button'; wide.id = 'goWide';
       wide.onclick = async () => {
-        if (!confirm(t('Go wide? The decoy letters disappear, but a right answer scores {wide} instead of {full}.', {wide: q.goWidePoints, full: q.points}))) return;
+        if (!confirm(t('Use the hint? The decoy letters disappear, but a right answer scores {wide} instead of {full}.', {wide: q.goWidePoints, full: q.points}))) return;
         try {await api('gowide', {question: q.id}, secret); pick('[]'); await updates.update();} catch (e) {message(e.message, true);}
       };
       box.append(wide);
@@ -155,7 +161,7 @@ function buildInputs(q) {
   if (q.type === 'pinpoint') {
     hiddenInput(); const area = element('div'); area.id = 'pinArea';
     const undo = element('button', t('Undo tap'), 'subtle'); undo.type = 'button'; undo.onclick = () => pick(JSON.stringify(inputValue().slice(0, -1)));
-    box.append(element('p', q.goWide ? t('Tap the picture. Go wide: a second tap scores {n} if your first misses.', {n: q.goWidePoints}) : t('Tap the picture to place your answer'), 'muted'), area, undo); return;
+    box.append(element('p', q.goWide ? t('Tap the picture. Second guess: a second tap scores {n} if your first misses.', {n: q.goWidePoints}) : t('Tap the picture to place your answer'), 'muted'), area, undo); return;
   }
   if (q.type === 'sheet') {
     q.items.forEach((text, i) => {
@@ -183,7 +189,17 @@ function buildInputs(q) {
         const value = i < q.options.length ? q.options[i] : '#' + letter, b = element('button', letter); b.type = 'button'; b.dataset.value = value; b.className = `opt o${i}`; b.onclick = () => pick(value); return b;
       }));
     } else pad.append(...order(q.options.length).map(i => {const option = q.options[i], b = element('button', `${letters[i]}. ${option}`); b.type = 'button'; b.dataset.value = option; b.className = `opt o${i}`; b.onclick = () => pick(option); return b;}));
-    box.append(pad); return;
+    box.append(pad);
+    // 50/50: half the wrong choices go, for fewer points.
+    if (q.type === 'choice' && q.fiftyFifty) {
+      const fifty = element('button', t('50/50 (scores {n})', {n: q.fiftyPoints}), 'subtle'); fifty.type = 'button'; fifty.id = 'fifty';
+      fifty.onclick = async () => {
+        if (!confirm(t('50/50? Half the wrong answers disappear, but a right answer scores {fifty} instead of {full}.', {fifty: q.fiftyPoints, full: q.points}))) return;
+        try {await api('fifty', {question: q.id}, secret); await updates.update();} catch (e) {message(e.message, true);}
+      };
+      box.append(fifty);
+    }
+    return;
   }
   const label = element('label', q.type === 'nearest' ? t('Your number (closest wins)') : q.type === 'number' ? t('Your number') : t('Your answer')), input = element('input');
   input.name = 'answer-0'; input.autocomplete = 'off'; input.maxLength = 300; input.type = 'text';
@@ -304,7 +320,7 @@ function playerState(s) {
   const me = s.teams.find(team => team.id === s.team.id);
   $('myScore').textContent = !me ? '' : me.score === null ? t('#{rank}', {rank: me.rank}) : t('#{rank} · {score} pts', {rank: me.rank, score: me.score});
   $('menuButton').hidden = false;
-  if (q && listValue(q.type)) syncPicks();
+  if (q && (listValue(q.type) || q.fiftyFifty)) syncPicks();
   renderSolution($('solution'), q); updateControls();
 }
 // After a question: a clear ✓ / ✗ card with the points it earned.
@@ -425,12 +441,14 @@ function displayState(s) {
 }
 // Fastest fingers and closest wins: at the reveal, the team that came first fills the TV for a few seconds with its
 // photo, name and buzzer sound. Only a reveal seen happening does this, not one already shown when the page loads.
-// Put in order, once revealed: the items slide into the right order, numbered (each moves from where it was:
-// measured before and after, then animated back from the difference). Back in the shown order if the reveal is undone.
+// Put in order, once the answer is revealed: the items slide into the right order, numbered (each moves from where it
+// was: measured before and after, then animated back from the difference). Only a reveal seen happening slides; a TV
+// that first sees the question already revealed just shows it sorted. Back in the shown order if the reveal is undone.
 function sortSequence(list, q) {
-  const sorted = q.revealed ? 'yes' : '';
-  if ((list.dataset.sorted || '') === sorted) return;
+  const sorted = q.revealed ? 'yes' : '', was = list.dataset.sorted;
+  if (was === sorted || (was === undefined && !sorted)) {list.dataset.sorted = sorted; return;}
   list.dataset.sorted = sorted;
+  const slide = was !== undefined;
   const rows = [...list.children], before = new Map(rows.map(li => [li, li.getBoundingClientRect().top]));
   const position = li => sorted ? Number(li.dataset.item) : q.order.indexOf(Number(li.dataset.item));
   list.append(...rows.sort((a, b) => position(a) - position(b)));
@@ -439,7 +457,7 @@ function sortSequence(list, q) {
     li.textContent = sorted ? `${item + 1}. ${q.items[item]}` : q.items[item];
     li.classList.toggle('right', !!sorted);
     const moved = before.get(li) - li.getBoundingClientRect().top;
-    if (!sorted || !moved) continue;
+    if (!sorted || !moved || !slide) continue;
     li.style.transition = 'none'; li.style.transform = `translateY(${moved}px)`;
     void li.offsetWidth;
     li.style.transition = `transform .8s cubic-bezier(.2, .8, .2, 1) ${item * 0.08}s`; li.style.transform = '';

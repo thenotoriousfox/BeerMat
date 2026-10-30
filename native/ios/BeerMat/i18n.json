@@ -663,9 +663,9 @@
   "Touchez l’image pour placer votre réponse",
   "Tocad la imagen para marcar vuestra respuesta"
  ],
- "Tap the picture. Go wide: a second tap scores {n} if your first misses.": [
-  "Touchez l’image. Ratissez large : une 2e touche rapporte {n} si la 1re rate.",
-  "Tocad la imagen. Abrid el tiro: un 2.º toque suma {n} si el 1.º falla."
+ "Tap the picture. Second guess: a second tap scores {n} if your first misses.": [
+  "Touchez l’image. Deuxième essai : une 2e touche rapporte {n} si la 1re rate.",
+  "Tocad la imagen. Segundo intento: un 2.º toque suma {n} si el 1.º falla."
  ],
  "Trace the answer: each letter touches the last, diagonals too. Tapping a letter that does not touch starts again.": [
   "Tracez la réponse : chaque lettre touche la précédente, en diagonale aussi. Une lettre non voisine recommence.",
@@ -679,13 +679,21 @@
   "Recommencer",
   "Empezar de nuevo"
  ],
- "Go wide (scores {n})": [
-  "Ratisser large ({n} pts)",
-  "Abrir el tiro ({n} pts)"
+ "Hint (scores {n})": [
+  "Indice ({n} pts)",
+  "Pista ({n} pts)"
  ],
- "Go wide? The decoy letters disappear, but a right answer scores {wide} instead of {full}.": [
-  "Ratisser large ? Les leurres disparaissent, mais une bonne réponse rapporte {wide} au lieu de {full}.",
-  "¿Abrir el tiro? Las letras señuelo desaparecen, pero acertar suma {wide} en vez de {full}."
+ "Use the hint? The decoy letters disappear, but a right answer scores {wide} instead of {full}.": [
+  "Utiliser l’indice ? Les leurres disparaissent, mais une bonne réponse rapporte {wide} au lieu de {full}.",
+  "¿Usar la pista? Las letras señuelo desaparecen, pero acertar suma {wide} en vez de {full}."
+ ],
+ "50/50 (scores {n})": [
+  "50/50 ({n} pts)",
+  "50/50 ({n} pts)"
+ ],
+ "50/50? Half the wrong answers disappear, but a right answer scores {fifty} instead of {full}.": [
+  "50/50 ? La moitié des mauvaises réponses disparaît, mais une bonne réponse rapporte {fifty} au lieu de {full}.",
+  "¿50/50? Desaparece la mitad de las respuestas incorrectas, pero acertar suma {fifty} en vez de {full}."
  ],
  "Tap the tiles in order to build the answer": [
   "Touchez les tuiles dans l’ordre pour former la réponse",
@@ -1075,9 +1083,17 @@
   "Vous avez déjà touché",
   "Ya habéis tocado"
  ],
- "Going wide is not available now": [
-  "Impossible de ratisser large maintenant",
-  "Ahora no se puede abrir el tiro"
+ "The hint is not available now": [
+  "L’indice n’est pas disponible maintenant",
+  "Ahora no se puede usar la pista"
+ ],
+ "Cancel": [
+  "Annuler",
+  "Cancelar"
+ ],
+ "The 50/50 is not available now": [
+  "Le 50/50 n’est pas disponible maintenant",
+  "Ahora no se puede usar el 50/50"
  ],
  "That code is wrong or has expired. Ask the quizmaster for a new one.": [
   "Code faux ou expiré. Demandez-en un nouveau à l’animateur.",

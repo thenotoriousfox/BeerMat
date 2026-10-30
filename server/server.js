@@ -92,6 +92,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     CREATE TABLE IF NOT EXISTS agrees(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),at INTEGER NOT NULL,PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS host_sessions(hash TEXT PRIMARY KEY,expires INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS go_wide(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),PRIMARY KEY(team,question));
+    CREATE TABLE IF NOT EXISTS fifty(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS device_ips(ip TEXT PRIMARY KEY,team TEXT REFERENCES teams(id),seen INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS away(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),ms INTEGER NOT NULL DEFAULT 0,count INTEGER NOT NULL DEFAULT 0,since INTEGER,PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS clip_plays(question INTEGER REFERENCES questions(id),seq INTEGER NOT NULL,clip INTEGER NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(question,seq));
@@ -417,9 +418,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (data.type === 'sequence') result.order = shuffleOrder(data.items.length, q.id);
     if (snake) {
       result.grid = {size: snake.size, letters: snake.grid};
-      // Going wide shows a team only the squares on the answer's path.
+      // The hint shows a team only the squares on the answer's path.
       if (teamId && one('SELECT 1 FROM go_wide WHERE team=? AND question=?', teamId, q.id)) result.wideCells = snake.path;
     }
+    // A team that took the 50/50 sees which choices it took away.
+    if (teamId && data.fiftyFifty && one('SELECT 1 FROM fifty WHERE team=? AND question=?', teamId, q.id)) result.fiftyRemoved = fiftyRemoved(data, teamId, q.id);
     if (q.held) result.held = true;
     if (data.type === 'musicbingo' && data.reactions) result.reactionTable = reactionTable(q);
     if (!host) {
@@ -463,6 +466,13 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       .map(a => ({...a, ms: Math.max(0, a.submitted - q.opened - lateness(q, a.team))}))
       .sort((a, b) => (nearest ? b.points - a.points : 0) || a.ms - b.ms || a.name.localeCompare(b.name))[0];
     return best ? {kind: nearest ? 'nearest' : 'fastest', name: best.name, sound: best.sound, photo: publicPhoto(best), ms: best.ms, ...nearest && {answer: best.value}} : null;
+  }
+  // The wrong choices a 50/50 takes away: half the choices (always leaving one wrong one), the same each time for a
+  // team, different from team to team.
+  function fiftyRemoved(data, teamId, questionId) {
+    const wrong = data.options.filter(o => o !== data.answer), count = Math.min(wrong.length - 1, Math.floor(data.options.length / 2));
+    return wrong.map(o => [hash(`${teamId}:${questionId}:${o}`), o]).sort((a, b) => a[0].localeCompare(b[0])).slice(0, count).map(([, o]) => o)
+      .sort((a, b) => data.options.indexOf(a) - data.options.indexOf(b));
   }
   function shuffleOrder(length, seed) {
     const order = Array.from({length}, (_, i) => i); let s = seed * 9301 + 49297;
@@ -634,7 +644,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       requireValue(!step.answers || discard === true, `${step.answers} ${step.answers === 1 ? 'team has' : 'teams have'} answered: taking the question back throws those answers away`, 409);
       if (usesSpotify(dataOf(q)) && spotify.connected()) spotify.pause();
       transaction(() => {
-        for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'music_reactions', 'marking_log']) run(`DELETE FROM ${table} WHERE question=?`, q.id);
+        for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'fifty', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'music_reactions', 'marking_log']) run(`DELETE FROM ${table} WHERE question=?`, q.id);
         run('DELETE FROM questions WHERE id=?', q.id);
       });
     }
@@ -826,7 +836,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     simulator?.stop(); simulator = null; rehearsalLog = [];
     const photos = rows('SELECT photo FROM teams WHERE photo IS NOT NULL AND photo NOT IN (SELECT photo FROM regulars WHERE photo IS NOT NULL)').map(t => t.photo);
     transaction(() => {
-      for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'music_reactions', 'marking_log', 'adjustments', 'device_ips', 'actions', 'questions', 'teams']) run(`DELETE FROM ${table}`);
+      for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'fifty', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'music_reactions', 'marking_log', 'adjustments', 'device_ips', 'actions', 'questions', 'teams']) run(`DELETE FROM ${table}`);
       if (nextLibrary) {keepQuiz(library()); setMeta('library', {...nextLibrary, revision: library().revision + 1});}
       setMeta('timer', null); setMeta('wheel', null); setMeta('board', null); setMeta('fastTrack', null); setMeta('event', token().slice(0, 12));
       setMeta('settings', {...settings(), title: title || nextLibrary?.title || library().title, ended: false, registrationOpen: true, displayMode: 'auto'});
@@ -1048,7 +1058,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function speedBonusTeams(q, data) {
     if (data.bonusMode !== 'fixed' || !speedBonusOf(data)) return [];
     return rows('SELECT team,value,submitted FROM answers WHERE question=? AND submitted IS NOT NULL', q.id)
-      .filter(a => basePoints(a.value, data) === data.points && isCorrect(a.value, data))
+      .filter(a => basePoints(a.value, data) === data.points && isCorrect(a.value, data) && !(data.fiftyFifty && one('SELECT 1 FROM fifty WHERE team=? AND question=?', a.team, q.id)))
       .map(a => ({team: a.team, ms: a.submitted - q.opened - lateness(q, a.team), submitted: a.submitted}))
       .sort((a, b) => a.ms - b.ms || a.submitted - b.submitted).slice(0, data.bonusPlaces).map(a => a.team);
   }
@@ -1101,7 +1111,10 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       const marks = data.items.map((_, i) => data.itemAnswers?.[i] ? Number(isCorrect(values[i], {type: 'text', answer: data.itemAnswers[i], aliases: data.itemAliases?.[i] || []})) : null);
       return {points: sheetPoints(marks, data), marks};
     }
-    const base = basePoints(value, data);
+    // A 50/50 taken: a right answer scores its 50/50 points, and no speed bonus.
+    const fifty = data.fiftyFifty && teamId && one('SELECT 1 FROM fifty WHERE team=? AND question=?', teamId, q.id);
+    const base = fifty ? (isCorrect(value, data) ? data.fiftyPoints : 0) : basePoints(value, data);
+    if (fifty && base) return {points: base, marks: null};
     // Risk It: an answer that scores nothing loses the question's points.
     if (data.evil && base === 0 && autoMarked(data)) return {points: -data.points, marks: null};
     // Only a fully right answer earns the speed bonus (every right tick for multi-tap, the first tap for pinpoint).
@@ -2213,9 +2226,15 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         return send(200, {ok: true});
       }
       if (p === '/api/gowide') {
-        const q = latest(); requireValue(q && body.question === q.id && accepting(q) && dataOf(q).type === 'wordsnake' && dataOf(q).goWide, 'Going wide is not available now', 409);
+        const q = latest(); requireValue(q && body.question === q.id && accepting(q) && dataOf(q).type === 'wordsnake' && dataOf(q).goWide, 'The hint is not available now', 409);
         requireValue(!one('SELECT 1 FROM answers WHERE team=? AND question=?', team.id, q.id), 'Already submitted', 409);
         run('INSERT OR IGNORE INTO go_wide VALUES(?,?)', team.id, q.id); return send(200, {cells: dataOf(q).snake.path});
+      }
+      // 50/50 on a multiple choice question: half the wrong choices go, for this team only (fiftyRemoved in its state).
+      if (p === '/api/fifty') {
+        const q = latest(); requireValue(q && body.question === q.id && accepting(q) && dataOf(q).type === 'choice' && dataOf(q).fiftyFifty, 'The 50/50 is not available now', 409);
+        requireValue(!one('SELECT 1 FROM answers WHERE team=? AND question=?', team.id, q.id), 'Already submitted', 409);
+        run('INSERT OR IGNORE INTO fifty VALUES(?,?)', team.id, q.id); return send(200, {removed: fiftyRemoved(dataOf(q), team.id, q.id)});
       }
       if (p === '/api/tap') {
         const q = latest(); requireValue(q && body.question === q.id && pending(q) && q.paused_ms === null && dataOf(q).type === 'clips' && !settings().ended, 'No live sound clips game', 409);

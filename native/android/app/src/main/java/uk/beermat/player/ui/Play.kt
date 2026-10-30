@@ -230,11 +230,19 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
     when (q.type) {
         // Letters only: six fixed A–F buttons (a letter past the last option is a wrong answer, sent as "#E"), or the
         // options of a question asked on the fly.
-        "choice" -> if (q.fixedSix || q.onTheFly) {
-            val count = if (q.fixedSix) 6 else q.options.size
-            val valueOf: (Int) -> String = { i -> q.options.getOrNull(i) ?: "#${LETTERS[i]}" }
-            Keys(List(count) { it to LETTERS[it].toString() }, colours = true, picked = { valueOf(it) == value }, enabled = !locked) { value = valueOf(it) }
-        } else Keys(order(q.options.size).map { it to "${LETTERS[it]}. ${q.options[it]}" }, colours = true, picked = { q.options[it] == value }, enabled = !locked) { value = q.options[it] }
+        "choice" -> {
+            // A 50/50 taken: the choices it took away go (and a pick of one of them is cleared).
+            val removed = q.raw.optJSONArray("fiftyRemoved")?.let { a -> List(a.length()) { a.optString(it) } }
+            LaunchedEffect(removed) { if (removed != null && value in removed) value = initial(q, null) }
+            if (q.fixedSix || q.onTheFly) {
+                val count = if (q.fixedSix) 6 else q.options.size
+                val valueOf: (Int) -> String = { i -> q.options.getOrNull(i) ?: "#${LETTERS[i]}" }
+                Keys(List(count) { it }.filter { removed == null || valueOf(it) !in removed }.map { it to LETTERS[it].toString() }, colours = true, picked = { valueOf(it) == value }, enabled = !locked) { value = valueOf(it) }
+            } else Keys(order(q.options.size).filter { removed == null || q.options[it] !in removed }.map { it to "${LETTERS[it]}. ${q.options[it]}" }, colours = true, picked = { q.options[it] == value }, enabled = !locked) { value = q.options[it] }
+            if (!locked && q.raw.optBoolean("fiftyFifty") && removed == null)
+                ConfirmButton(t("50/50 (scores {n})", "n" to q.raw.optInt("fiftyPoints")),
+                    t("50/50? Half the wrong answers disappear, but a right answer scores {fifty} instead of {full}.", "fifty" to q.raw.optInt("fiftyPoints"), "full" to q.raw.optInt("points"))) { vm.fifty() }
+        }
         "vote" -> Keys(order(q.options.size).map { it to "${LETTERS[it]}. ${q.options[it]}" }, colours = true, picked = { q.options[it] == value }, enabled = !locked) { value = q.options[it] }
         "letter" -> LetterPad(order(26), value as? String ?: "", enabled = !locked) { value = it }
         "multi" -> {
@@ -456,4 +464,16 @@ private fun revealShare(q: Question, now: Long, offset: Long): Float {
     if (q.held) return 0f
     val left = if (q.paused) q.remaining else maxOf(0L, q.deadline - now - offset)
     return (1f - left.toFloat() / (q.seconds * 1000f)).coerceIn(0f, 1f)
+}
+
+/** A button that asks first: for the hint and the 50/50, which cost points. */
+@Composable
+internal fun ConfirmButton(label: String, question: String, onConfirm: () -> Unit) {
+    var asking by remember { mutableStateOf(false) }
+    TextButton({ asking = true }) { Text(label) }
+    if (asking) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { asking = false },
+        text = { Text(question) },
+        confirmButton = { TextButton({ asking = false; onConfirm() }) { Text(label) } },
+        dismissButton = { TextButton({ asking = false }) { Text(t("Cancel")) } })
 }
