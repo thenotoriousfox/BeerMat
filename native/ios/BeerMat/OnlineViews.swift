@@ -14,8 +14,12 @@ struct OnlineMessage: View {
 // ---- Profile ----
 struct ProfileView: View {
     @EnvironmentObject var online: OnlineModel
-    @State private var email = "", password = "", name = "", service = ""
-    @State private var advanced = false, confirmDelete = false
+    @State private var email = ""
+    @State private var password = ""
+    @State private var name = ""
+    @State private var service = ""
+    @State private var advanced = false
+    @State private var confirmDelete = false
     @State private var export: String?
     var body: some View {
         ScrollView {
