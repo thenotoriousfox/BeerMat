@@ -99,6 +99,9 @@ Android `versionCode` (+1) and `versionName` in `native/android/app/build.gradle
 to `docs/NATIVE-MIGRATION.md`; merge; then push the tag `vX.Y.Z` on the merge commit. That runs
 `.github/workflows/release.yml`: the Qt desk for Windows and Linux, the Android APK and an unsigned iPhone `.ipa`, then
 the download site, the apps' `latest.json` and the website.
+Or **Actions → New release** (run on `main`, choose patch, minor or major): it does the bump (Android and iPhone too)
+with `scripts/bump-version.mjs`, merges it, tags it and starts Release on the tag. Release's build files are deleted
+from Actions storage once it publishes; a test build (Release run by hand on a branch) loses them as soon as it ends.
 
 Watch the run to the end (`gh run watch`), then check what it made: the GitHub release's files, that
 `https://downloads.beermatquiz.co.uk/latest.json` names the version and its signature passes `readManifest` in
