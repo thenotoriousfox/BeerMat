@@ -55,6 +55,13 @@ year: never change them, or Stripe, without the user saying so.
   every quiz, kept on save and before another replaces it) and `quiz-library/` (downloads). Read it with
   `sqlite3 -readonly` (not `immutable=1`: that misses recent writes).
 
+## The example quiz
+
+`examples/example-quiz.json` ships with the desk: one question in every format, pictures and sounds inside, offered as
+Try the example quiz on the Quizzes page (`/api/host/my-quizzes` lists it). `scripts/make-example-quiz.py` makes it
+(the flag, the Natural Earth map and the music bingo tunes are drawn or played there); change the quiz there, not in
+the JSON. A new format needs a question in it: `tests/example-quiz.test.js` checks every format is there and opens.
+
 ## Themes and libraries
 
 - `themes/` ships in every build; `library/` (Halloween) doesn't: it's offered only in the theme library, uploaded

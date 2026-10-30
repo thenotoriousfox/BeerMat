@@ -143,6 +143,22 @@ class QuizShelfTest(DeskCase):
         self.assertEqual((w.property('workspace'), library.property('quizTab')), (5, 1))
         self.assertEqual(problems, [])
 
+    def test_the_example_quiz(self):
+        """The example quiz BeerMat comes with loads from the Quizzes page, pictures and sounds and all."""
+        desk, w = self.desk, self.window
+        desk.start()
+        wait(lambda: desk.connected and desk.view.get('phase'), what='the server')
+        shelf = w.findChild(QObject, 'quizShelf')
+        w.setProperty('workspace', 2)
+        wait(lambda: desk.prefs.myQuizzes.get('example'), what='the example quiz listed')
+        pump(5)
+        press(shelf, 'exampleQuiz')
+        wait(lambda: desk.view.get('title') == 'BeerMat Example Quiz', what='the example quiz loaded', log=self.toasts)
+        self.assertEqual(desk.view.get('questions'), 18)
+        media = list((Path(self.dir.name) / 'data' / 'media').iterdir())
+        self.assertEqual(len(media), 1 + 1 + 1 + 4 + 15, 'flag, speech, map, four clips and fifteen tunes')
+        self.assertFalse([e for e in self.toasts if e[1]], self.toasts)
+
     def test_a_theme_picture_opens_large(self):
         desk, w = self.desk, self.window
         desk.start()
