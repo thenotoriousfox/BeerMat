@@ -120,10 +120,11 @@ private struct BrowserRound: View {
 private struct QuestionHead: View {
     @EnvironmentObject var model: PlayerModel
     let q: Question
+    private var heading: String { q.held ? t("Listen to the quizmaster…") : q.text.isEmpty ? t("Listen to the quizmaster") : q.text }
     var body: some View {
         Text(q.round.uppercased()).font(.footnote.bold()).tracking(2).foregroundStyle(Brand.gold)
         // Waiting for the quizmaster's Send, or wording kept off phones: the team listens.
-        Text(q.held ? t("Listen to the quizmaster…") : q.text.isEmpty ? t("Listen to the quizmaster") : q.text).font(Brand.display(26, .title2)).padding(.bottom, 6)
+        Text(heading).font(Brand.display(26, .title2)).padding(.bottom, 6)
         if q.isTimed { Countdown(q: q, offset: model.offset) }
     }
 }
@@ -131,13 +132,19 @@ private struct QuestionHead: View {
 /// Time left, from the server's deadline; only a display, as the server decides lateness.
 private struct Countdown: View {
     let q: Question, offset: Double
+    private func status(left: Double) -> String {
+        if q.held { return t("Listen: the question comes to your phone when it’s been read out") }
+        if q.paused { return t("Paused · {n}s remaining", ["n": Int(ceil(q.remaining / 1000))]) }
+        if !q.open || left <= 0 { return q.revealed ? t("Answer revealed") : t("Answers closed") }
+        return t("{n}s remaining", ["n": Int(ceil(left / 1000))])
+    }
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.2)) { context in
             let now = context.date.timeIntervalSince1970 * 1000
             let left = q.paused ? q.remaining : max(0, q.deadline - now - offset)
             let low = q.open && !q.paused && left > 0 && left <= 10000
             VStack(alignment: .leading) {
-                Text(q.held ? t("Listen: the question comes to your phone when it’s been read out") : q.paused ? t("Paused · {n}s remaining", ["n": Int(ceil(q.remaining / 1000))]) : !q.open || left <= 0 ? (q.revealed ? t("Answer revealed") : t("Answers closed")) : t("{n}s remaining", ["n": Int(ceil(left / 1000))]))
+                Text(status(left: left))
                     .font(Brand.display(22, .headline)).foregroundStyle(q.open ? (low ? Brand.bad : Brand.goldHi) : Brand.muted)
                     .animation(.easeInOut, value: low)
                 if q.open && q.seconds > 0 {

@@ -7,34 +7,55 @@ struct PinpointView: View {
     let q: Question
     @Binding var taps: [[Double]]
     let enabled: Bool
+    // In parts with their types spelled out: as one expression it was too much for the compiler to type-check.
+    private var most: Int { (q.raw["goWide"] as? Bool) == true ? 2 : 1 }
+    private var goWidePoints: Int { (q.raw["goWidePoints"] as? NSNumber)?.intValue ?? 0 }
+    private var url: URL? { URL(string: q.media.hasPrefix("http") ? q.media : server + q.media) }
+
     var body: some View {
-        let most = (q.raw["goWide"] as? Bool) == true ? 2 : 1
-        let target = q.raw["target"] as? [String: Any]
-        Text(most == 2 ? t("Tap the picture. Go wide: a second tap scores {n} if your first misses.", ["n": (q.raw["goWidePoints"] as? NSNumber)?.intValue ?? 0]) : t("Tap the picture to place your answer"))
+        Text(most == 2 ? t("Tap the picture. Go wide: a second tap scores {n} if your first misses.", ["n": goWidePoints]) : t("Tap the picture to place your answer"))
             .foregroundStyle(Brand.muted)
-        AsyncImage(url: URL(string: q.media.hasPrefix("http") ? q.media : server + q.media)) { image in
-            image.resizable().scaledToFit().overlay {
-                GeometryReader { geo in
-                    ZStack {
-                        Color.clear.contentShape(Rectangle())
-                            .onTapGesture(coordinateSpace: .local) { at in
-                                guard enabled else { return }
-                                let point = [min(1, max(0, at.x / geo.size.width)), min(1, max(0, at.y / geo.size.height))]
-                                taps = taps.count < most ? taps + [point] : Array(taps.dropLast()) + [point]
-                            }
-                        ForEach(Array(taps.enumerated()), id: \.offset) { i, t in
-                            Circle().fill(i == 0 ? Brand.pink : Brand.gold).overlay(Circle().stroke(Brand.text, lineWidth: 3))
-                                .frame(width: 28, height: 28).position(x: t[0] * geo.size.width, y: t[1] * geo.size.height)
-                        }
-                        if q.revealed, let t = target, let x = number(t["x"]), let y = number(t["y"]), let r = number(t["r"]) {
-                            Circle().stroke(Brand.good, lineWidth: 4).frame(width: r * 2 * geo.size.width, height: r * 2 * geo.size.width)
-                                .position(x: x * geo.size.width, y: y * geo.size.height)
-                        }
-                    }
-                }
-            }.clipShape(RoundedRectangle(cornerRadius: 12)).accessibilityLabel(t("Quiz picture: tap to place your answer"))
+        AsyncImage(url: url) { image in
+            image.resizable().scaledToFit()
+                .overlay { GeometryReader { geo in PinpointMarks(q: q, taps: $taps, most: most, enabled: enabled, size: geo.size) } }
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .accessibilityLabel(t("Quiz picture: tap to place your answer"))
         } placeholder: { ProgressView() }
         if enabled && !taps.isEmpty { Button(t("Undo tap")) { taps.removeLast() } }
+    }
+}
+
+/// The taps on a pinpoint picture, and the target once revealed, in the picture's own size.
+private struct PinpointMarks: View {
+    let q: Question
+    @Binding var taps: [[Double]]
+    let most: Int, enabled: Bool, size: CGSize
+
+    var body: some View {
+        ZStack {
+            Color.clear.contentShape(Rectangle())
+                .onTapGesture(coordinateSpace: .local) { (at: CGPoint) in tap(at) }
+            ForEach(Array(taps.enumerated()), id: \.offset) { (i: Int, point: [Double]) in
+                Circle().fill(i == 0 ? Brand.pink : Brand.gold).overlay(Circle().stroke(Brand.text, lineWidth: 3))
+                    .frame(width: 28, height: 28).position(x: point[0] * size.width, y: point[1] * size.height)
+            }
+            if let target {
+                Circle().stroke(Brand.good, lineWidth: 4).frame(width: target.r * 2 * size.width, height: target.r * 2 * size.width)
+                    .position(x: target.x * size.width, y: target.y * size.height)
+            }
+        }
+    }
+
+    private func tap(_ at: CGPoint) {
+        guard enabled else { return }
+        let point: [Double] = [min(1, max(0, Double(at.x / size.width))), min(1, max(0, Double(at.y / size.height)))]
+        taps = taps.count < most ? taps + [point] : Array(taps.dropLast()) + [point]
+    }
+
+    /// The target circle, once the answer is revealed: its centre and radius as fractions of the picture's width.
+    private var target: (x: Double, y: Double, r: Double)? {
+        guard q.revealed, let t = q.raw["target"] as? [String: Any], let x = number(t["x"]), let y = number(t["y"]), let r = number(t["r"]) else { return nil }
+        return (x, y, r)
     }
 }
 
@@ -112,12 +133,14 @@ struct BingoView: View {
             let song = (table["song"] as? NSNumber)?.intValue ?? 0
             let now = table["now"] as? [[String: Any]] ?? []
             Text(t("Dab the song as soon as you know it: the quickest team on each song is on the TV.")).font(.footnote).foregroundStyle(Brand.muted)
-            Button(t("Not on my ticket")) { model.react(nil) }.buttonStyle(.bordered).frame(maxWidth: .infinity)
-                .disabled(!(model.connected && q.live && !q.paused && song > 0 && !model.reacted.contains("\(q.id):\(song)")))
+            let canPass: Bool = model.connected && q.live && !q.paused && song > 0 && !model.reacted.contains("\(q.id):\(song)")
+            Button(t("Not on my ticket")) { model.react(nil) }.buttonStyle(.bordered).frame(maxWidth: .infinity).disabled(!canPass)
             if !now.isEmpty {
                 Text(t("Reactions · song {n}", ["n": song])).bold().foregroundStyle(Brand.teal)
                 ForEach(Array(now.prefix(5).enumerated()), id: \.offset) { i, r in
-                    Text("\(i + 1). \(r["name"] as? String ?? "")  \(String(format: "%.1f", ((r["ms"] as? NSNumber)?.doubleValue ?? 0) / 1000))s").foregroundStyle(i == 0 ? Brand.goldHi : Brand.text)
+                    let name: String = r["name"] as? String ?? ""
+                    let seconds: Double = ((r["ms"] as? NSNumber)?.doubleValue ?? 0) / 1000
+                    Text("\(i + 1). \(name)  \(String(format: "%.1f", seconds))s").foregroundStyle(i == 0 ? Brand.goldHi : Brand.text)
                 }
             }
         }
