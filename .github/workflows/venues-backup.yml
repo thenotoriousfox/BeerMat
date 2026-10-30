@@ -1,9 +1,9 @@
 name: Venue list backup
-# Every night, copies BeerMat Online's venues (kept and edited in its admin console) into venues.json here: a public
+# Every Monday morning (each run counts against the Actions allowance), copies BeerMat Online's venues (kept and edited in its admin console) into venues.json here: a public
 # backup, and the player app's fallback when the service can't be reached. Commits only when something changed.
 on:
   schedule:
-    - cron: '30 3 * * *'
+    - cron: '30 3 * * 1'
   workflow_dispatch:
 permissions:
   contents: write
