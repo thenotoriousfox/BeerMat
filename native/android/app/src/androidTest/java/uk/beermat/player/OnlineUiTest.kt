@@ -77,10 +77,8 @@ class OnlineUiTest {
         assumeTrue("needs the ui-test.sh servers", online.isNotEmpty() && server.isNotEmpty())
         // Profile: point the app at the test service, create an account.
         rule.onNodeWithTag("tab-Profile").performClick()
-        rule.onNodeWithText("Advanced").performScrollTo().performClick()
-        rule.onNodeWithTag("service").performScrollTo().performTextClearance()
-        rule.onNodeWithTag("service").performTextInput(online)
-        rule.onNodeWithText("Use this address").performScrollTo().performClick()
+        // (The app has no setting for this: players always use BeerMat's own service.)
+        rule.runOnUiThread { androidx.lifecycle.ViewModelProvider(rule.activity)[uk.beermat.player.online.OnlineViewModel::class.java].setService(online) }
         rule.onNodeWithTag("email").performScrollTo().performTextInput("player@example.com")
         rule.onNodeWithTag("password").performTextInput("correct horse battery")
         rule.onNodeWithTag("displayName").performTextInput("Pat")

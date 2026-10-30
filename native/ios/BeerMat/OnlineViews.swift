@@ -17,8 +17,6 @@ struct ProfileView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var name = ""
-    @State private var service = ""
-    @State private var advanced = false
     @State private var confirmDelete = false
     @State private var export: String?
     var body: some View {
@@ -51,12 +49,6 @@ struct ProfileView: View {
                     if online.outbox > 0 { Text(t("{n} result(s) kept on this phone: sign in to add them.", ["n": online.outbox])).foregroundStyle(Brand.goldHi) }
                 }
                 OnlineMessage()
-                Button(advanced ? t("Hide advanced") : t("Advanced")) { advanced.toggle(); service = online.client.baseUrl }.padding(.top, 12)
-                if advanced {
-                    TextField(t("BeerMat Online address"), text: $service).keyboardType(.URL).textInputAutocapitalization(.never).padding(12).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12))
-                    Button(t("Use this address")) { online.setService(service) }.buttonStyle(.bordered)
-                    Text(t("Default: {url}", ["url": OnlineModel.defaultService])).font(.footnote).foregroundStyle(Brand.faint)
-                }
             }.padding(24)
         }
     }
