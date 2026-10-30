@@ -446,14 +446,14 @@ for (const id of ['close', 'pause', 'resume']) $(id).onclick = () => action(() =
 for (const [id, act, done] of [['buzzCorrect', 'correct', 'Marked correct'], ['buzzWrong', 'wrong', 'Marked wrong'], ['buzzPass', 'pass', 'Passed to the next buzzer'], ['startAgree', 'agree', 'Agree countdown started']]) {
   $(id).onclick = () => action(() => request('buzz', {question: state.question.id, action: act, announced: $('announced').value}), done);
 }
-// The desk plays the clips in order and tells the server when each one starts and ends.
+// The desk plays the clips in order (or just one: `only`) and tells the server when each one starts and ends.
 function stopClips() {
   $('clipAudio').pause();
   if (clipRun?.spotify) request('spotify/pause').catch(() => {});
   if (clipRun) request('clip', {question: clipRun.question, clip: -1}).catch(() => {});
   clipRun = null; if (state) renderClipsPanel(state.question);
 }
-function playClip(i) {
+function playClip(i, only = false) {
   const q = state.question;
   if (!q?.live || q.type !== 'clips' || i >= q.clips.length) return stopClips();
   // A Spotify clip plays on the laptop's Spotify app for the question's clip length; the server logs its start.
@@ -462,6 +462,7 @@ function playClip(i) {
     request('spotify/play', {question: q.id, clip: i}).then(() => setTimeout(async () => {
       if (clipRun !== run) return;
       await request('spotify/pause').catch(() => {}); await request('clip', {question: q.id, clip: -1}).catch(() => {});
+      if (only) return stopClips();
       setTimeout(() => {if (clipRun === run) playClip(i + 1);}, 1500);
     }, (q.clips[i].seconds ?? q.clipSeconds) * 1000)).catch(e => {message(e.message, true); if (clipRun === run) stopClips();});
     return renderClipsPanel(q);
@@ -471,6 +472,7 @@ function playClip(i) {
   audio.onplaying = () => {if (!started && clipRun === run) {started = true; request('clip', {question: q.id, clip: i}).catch(e => message(e.message, true));}};
   audio.onended = async () => {
     if (clipRun !== run) return;
+    if (only) return stopClips();
     await request('clip', {question: q.id, clip: -1}).catch(() => {});
     setTimeout(() => {if (clipRun === run) playClip(i + 1);}, 1500);
   };
@@ -499,6 +501,15 @@ function renderClipsPanel(q) {
   const i = clipRun?.question === q.id ? clipRun.index : null;
   $('clipInfo').textContent = i === null ? `${c.count} clips ready · ${c.taps} taps` : `Playing clip ${i + 1}: ${q.clips[i].label || '(unnamed)'}${i === q.targetClip ? ' — ✓ the right clip' : ''} · ${c.taps} taps`;
   $('playClips').disabled = i !== null || busy; $('stopClips').disabled = i === null;
+  // Or just one: to play it again, or out of order. ✓ marks the clip teams should tap for.
+  if ($('clipOne').dataset.question !== String(q.id)) {
+    $('clipOne').dataset.question = q.id;
+    $('clipOne').replaceChildren(...q.clips.map((clip, n) => {
+      const b = element('button', `▶ ${n + 1}${clip.label ? ` · ${clip.label}` : ''}${n === q.targetClip ? ' ✓' : ''}`, 'subtle'); b.type = 'button';
+      b.onclick = () => {enableSound(); if (clipRun) stopClips(); playClip(n, true);};
+      return b;
+    }));
+  }
 }
 $('playClips').onclick = () => {enableSound(); playClip(0);};
 $('stopClips').onclick = stopClips;

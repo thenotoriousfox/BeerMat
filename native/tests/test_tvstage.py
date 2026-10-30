@@ -63,6 +63,24 @@ def state(view='question', q=None, **over):
     return s
 
 
+def items(item):
+    """Every item under this one; PySide now and then hands back a stale wrapper, which is skipped."""
+    yield item
+    try:
+        children = item.childItems()
+    except (TypeError, AttributeError):
+        return
+    for child in children:
+        yield from items(child)
+
+
+def safe_name(o):
+    try:
+        return o.objectName()
+    except (TypeError, AttributeError):
+        return ''
+
+
 CASES = {
     'join': state('join'),
     'choice-open': state(q=question()),
@@ -73,7 +91,7 @@ CASES = {
     'wordsnake': state(q=question(type='wordsnake', options=[], grid={'size': 3, 'letters': list('LONDXQWEN')}, revealed=True, snakePath=[0, 1, 2, 3])),
     'buzzer': state(q=question(type='buzzer', options=[], buzz={'active': {'name': 'Owls'}, 'queue': [{'team': 'b', 'name': 'Bears', 'status': 'queued'}], 'agreeOpen': False})),
     'bingo': state(q=question(type='bingo', options=[], bingo={'count': 12, 'last': 42, 'called': [1, 5, 42], 'winners': [], 'board': True, 'music': False})),
-    'clips': state(q=question(type='clips', options=[], clipGame={'playing': 2, 'count': 5, 'taps': 3})),
+    'clips': state(q=question(type='clips', options=[], clipGame={'playing': 2, 'count': 5, 'taps': 3, 'played': [1, 2, 4]})),
     # A long answer and note, and a full list of scorers with their times: everything must fit the box.
     'text-revealed-long': state(q=question(type='text', options=[], open=False, revealed=True,
         answer='The Treaty of Westphalia, signed in Osnabrück and Münster in 1648',
@@ -237,6 +255,45 @@ class TvStageTest(unittest.TestCase):
         self.assertTrue(results.property('visible'))
         rows = [o for o in items(results) if o.property('text') == 'Team 11']
         self.assertTrue(rows and inside(rows[0]), 'the last team’s row on the screen')
+
+    def test_put_in_order_sorts_itself_on_the_reveal(self):
+        """Shown shuffled; revealed, each item slides to its right place, numbered, and the box only says who got it right."""
+        def rows():
+            out = []
+            for row in self.stage.findChild(QObject, 'sequenceList').childItems():
+                try:
+                    if row.objectName() == 'sequenceItem' and row.property('visible'):
+                        out.append((row.property('y'), row.childItems()[0].property('text')))
+                except (TypeError, AttributeError, IndexError):
+                    continue
+            return sorted(out, key=lambda r: r[0])
+        q = question(type='sequence', options=[], items=['One', 'Two', 'Three'], order=[2, 0, 1])
+        self.show(state(q=q))
+        self.assertEqual([text for _, text in rows()], ['•  Three', '•  One', '•  Two'])
+        # A new state for the same question (each update brings new arrays) keeps the rows, so they can slide.
+        revealed = state(q={**q, 'open': False, 'live': False, 'revealed': True, 'order': [2, 0, 1], 'scorers': [{'name': 'Bears', 'ms': 4100, 'points': 2}]})
+        self.show(revealed)
+        moving = rows()
+        for _ in range(80):
+            app.processEvents(); time.sleep(0.02)
+        self.assertEqual([text for _, text in rows()], ['1.  One', '2.  Two', '3.  Three'])
+        self.assertNotEqual([y for y, _ in moving], [y for y, _ in rows()], 'the rows were still on their way when first drawn')
+        self.show(revealed, 'sequence-revealed')
+        box = self.stage.findChild(QObject, 'revealContent')
+        texts = [o.property('text') for o in box.findChildren(QObject) if isinstance(o.property('text'), str) and o.property('visible')]
+        self.assertNotIn('ANSWER', texts)
+        self.assertFalse(any('→' in t for t in texts), texts)
+        self.assertIn('1 team scored', texts)
+
+    def test_the_clip_playing_is_lit(self):
+        """Sound clips: a disc for every clip, the one playing lit (also when the quizmaster plays one again)."""
+        self.show(CASES['clips'])
+        discs = [o for o in self.stage.findChildren(QObject, 'clipDisc') if o.property('visible')]
+        if not discs:   # Repeater delegates may not be QObject children: walk the items
+            discs = [o for o in items(self.stage) if safe_name(o) == 'clipDisc']
+        self.assertEqual(len(discs), 5)
+        self.assertEqual([d.property('playing') for d in discs], [False, True, False, False, False])
+        self.assertEqual([d.property('played') for d in discs], [True, True, False, True, False])
 
     def test_the_answer_box_fits_its_answer_note_and_scorers(self):
         reveal, content = self.stage.findChild(QObject, 'reveal'), self.stage.findChild(QObject, 'revealContent')

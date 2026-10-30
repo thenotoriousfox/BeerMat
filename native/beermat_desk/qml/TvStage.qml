@@ -240,14 +240,18 @@ Item {
                 readonly property real msLeft: !q ? 0 : q.paused ? q.remaining : Math.max(0, q.deadline - root.serverNow)
                 readonly property bool bingo: !!q && (q.type === "bingo" || q.type === "musicbingo")
                 readonly property var items: !q ? [] : ["choice", "vote", "multi"].includes(q.type) ? q.options
-                                           : q.type === "sequence" && q.order ? q.order.map(i => q.items[i]) : q.type === "sheet" ? (q.items || [])
+                                           : q.type === "sheet" ? (q.items || [])
                                            : q.type === "tiles" ? [(q.wordLengths || []).map(n => "_".repeat(n)).join("  "), (q.pieces || []).join("  ·  ")] : []
                 readonly property bool isImage: !!q && !!q.media && !/\.(mp3|ogg|wav)$/i.test(q.media)
                 readonly property bool isAudio: !!q && !!q.media && /\.(mp3|ogg|wav)$/i.test(q.media)
+                // A picture with nothing beside it (no options or list) takes the whole width.
+                readonly property bool pictureAlone: isImage && items.length === 0 && !(q.type === "sequence")
 
                 ColumnLayout {
                     id: questionColumn
-                    anchors.fill: parent
+                    // Once the answer box is up, what's on screen shrinks to fit above it rather than hide behind it.
+                    anchors.fill: parent; anchors.bottomMargin: reveal.shown ? reveal.height + 24 : 0
+                    Behavior on anchors.bottomMargin { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
                     spacing: 22
                     Text { text: questionView.q ? (questionView.q.round || "").toUpperCase() : ""; color: root.pal.gold; font.pixelSize: 30; font.weight: Font.Bold; font.letterSpacing: 4 }
                     Text {
@@ -284,7 +288,7 @@ Item {
                         Image {
                             visible: questionView.isImage
                             source: questionView.isImage ? (questionView.q.media.startsWith("http") ? questionView.q.media : root.serverUrl + questionView.q.media) : ""
-                            Layout.fillHeight: true; Layout.preferredWidth: visible ? 760 : 0
+                            Layout.fillHeight: true; Layout.fillWidth: questionView.pictureAlone; Layout.preferredWidth: visible ? 760 : 0
                             fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true
                             // A picture revealed over the question's time (reveal: blur or tiles): how much shows, 0–1.
                             readonly property string revealMode: questionView.q && questionView.q.reveal ? questionView.q.reveal : ""
@@ -319,14 +323,19 @@ Item {
                                 y: !target ? 0 : (parent.height - parent.paintedHeight) / 2 + target.y * parent.paintedHeight - 22
                             }
                         }
-                        Text { visible: questionView.isAudio; text: root.t("♪  Listen"); color: root.pal.teal; font.family: Theme.display; font.pixelSize: 64; font.weight: Font.Bold }
+                        Text { visible: questionView.isAudio; text: root.t("♪  Listen"); color: root.pal.teal; font.family: Theme.display; font.pixelSize: 110; font.weight: Font.Bold }
                         ColumnLayout {
+                            id: answers
+                            visible: !questionView.pictureAlone
                             Layout.fillWidth: true; Layout.fillHeight: true
                             spacing: 18
                             // Options as coloured tiles matching the phone keypad; items in a list.
                             GridLayout {
+                                id: optionTiles
                                 visible: questionView.items.length > 0
-                                Layout.fillWidth: true
+                                Layout.fillWidth: true; Layout.fillHeight: true; Layout.verticalStretchFactor: 1000
+                                // Tiles grow into the space, up to a comfortable size.
+                                Layout.maximumHeight: Math.ceil(questionView.items.length / columns) * (190 + rowSpacing)
                                 columns: questionView.isImage || questionView.items.length > 6 || !questionView.q || !["choice", "vote", "multi"].includes(questionView.q.type) ? 1 : 2
                                 columnSpacing: 18; rowSpacing: 16
                                 Repeater {
@@ -338,14 +347,15 @@ Item {
                                         readonly property bool options: !!questionView.q && ["choice", "vote", "multi"].includes(questionView.q.type)
                                         readonly property color tone: options ? tones[index % 6] : root.pal.violet
                                         readonly property bool correct: !!questionView.q && questionView.q.revealed && (questionView.q.answer === modelData || (questionView.q.correct || []).includes(modelData))
-                                        Layout.fillWidth: true; implicitHeight: 92; radius: 20
+                                        Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 64; implicitHeight: 92; radius: 20
+                                        readonly property real textSize: Math.max(32, Math.min(64, height * 0.44))
                                         color: Qt.rgba(tone.r, tone.g, tone.b, questionView.q && questionView.q.revealed && options && !correct ? 0.1 : 0.28)
                                         border.color: correct ? root.pal.good : Qt.rgba(tone.r, tone.g, tone.b, 0.7); border.width: correct ? 5 : 2
                                         Behavior on color { ColorAnimation { duration: 400 } }
                                         Text {
                                             anchors.fill: parent; anchors.leftMargin: 28; anchors.rightMargin: 28; verticalAlignment: Text.AlignVCenter
                                             text: `${parent.options ? String.fromCharCode(65 + index) + ".  " : questionView.q && questionView.q.type === "sheet" ? (index + 1) + ".  " : questionView.q && questionView.q.type === "tiles" ? "" : "•  "}${modelData}`
-                                            color: root.pal.text; font.pixelSize: 42; font.weight: Font.Bold; elide: Text.ElideRight
+                                            color: root.pal.text; font.pixelSize: parent.textSize; font.weight: Font.Bold; elide: Text.ElideRight
                                             rightPadding: 90
                                         }
                                         // How many teams picked it, once revealed.
@@ -353,27 +363,79 @@ Item {
                                             visible: parent.options && !!questionView.q && questionView.q.revealed && !!questionView.q.tally
                                             anchors.right: parent.right; anchors.rightMargin: 28; anchors.verticalCenter: parent.verticalCenter
                                             text: questionView.q && questionView.q.tally ? (questionView.q.tally[modelData] || 0) : ""
-                                            color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 44; font.weight: Font.Bold
+                                            color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: parent.textSize + 2; font.weight: Font.Bold
                                         }
                                     }
                                 }
                             }
+                            // Put in order: the items as shown on phones; once revealed, each slides to its right place,
+                            // numbered (q.items is the right order, q.order the shuffled one).
+                            Item {
+                                id: sequenceList
+                                objectName: "sequenceList"
+                                readonly property var q: questionView.q
+                                readonly property bool sorted: !!q && !!q.revealed
+                                // Rows grow into the space, up to a comfortable size.
+                                readonly property real rowHeight: Math.max(64, Math.min(170, order.length ? (height + 16) / order.length - 16 : 92))
+                                readonly property real row: rowHeight + 16
+                                // Kept per question: every state update brings a new q.order, which would rebuild the rows
+                                // (and skip the slide) just as the reveal arrives.
+                                property var order: []
+                                property int question: 0
+                                onQChanged: if (!q || q.type !== "sequence" || !q.order) { order = []; question = 0 }
+                                            else if (q.id !== question) { question = q.id; order = q.order }
+                                visible: order.length > 0
+                                Layout.fillWidth: true; Layout.fillHeight: visible; Layout.verticalStretchFactor: 1000; Layout.maximumHeight: order.length * (170 + 16)
+                                implicitHeight: visible ? order.length * (92 + 16) - 16 : 0
+                                Repeater {
+                                    model: sequenceList.order
+                                    delegate: Rectangle {
+                                        required property int modelData     // the item, which is also its right place
+                                        required property int index         // where it's shown before the reveal
+                                        objectName: "sequenceItem"
+                                        width: sequenceList.width; height: sequenceList.rowHeight; radius: 20
+                                        y: (sequenceList.sorted ? modelData : index) * sequenceList.row
+                                        Behavior on y { SequentialAnimation {
+                                            PauseAnimation { duration: sequenceList.sorted ? modelData * 80 : 0 }
+                                            NumberAnimation { duration: sequenceList.sorted ? 800 : 0; easing.type: Easing.OutCubic } } }
+                                        color: Qt.rgba(root.pal.violet.r, root.pal.violet.g, root.pal.violet.b, 0.28)
+                                        border.color: sequenceList.sorted ? root.pal.good : Qt.rgba(root.pal.violet.r, root.pal.violet.g, root.pal.violet.b, 0.7)
+                                        border.width: sequenceList.sorted ? 5 : 2
+                                        Text {
+                                            anchors.fill: parent; anchors.leftMargin: 28; anchors.rightMargin: 28; verticalAlignment: Text.AlignVCenter
+                                            text: `${sequenceList.sorted ? (modelData + 1) + "." : "•"}  ${sequenceList.q.items[modelData]}`
+                                            color: root.pal.text; font.pixelSize: Math.max(32, Math.min(64, sequenceList.rowHeight * 0.44)); font.weight: Font.Bold; elide: Text.ElideRight
+                                        }
+                                    }
+                                }
+                            }
+                            // A buzzer or a clip sits in the middle of the space.
+                            Item { Layout.fillHeight: buzzerBox.visible || clipsBox.visible }
                             // Buzzers: who's on, who's queued, agreeing.
                             Column {
+                                id: buzzerBox
                                 readonly property var b: questionView.q ? questionView.q.buzz : null
                                 visible: !!b
+                                Layout.alignment: Qt.AlignHCenter
                                 spacing: 12
                                 Image { visible: !!(parent.b && parent.b.active && parent.b.active.photo); source: visible ? root.serverUrl + parent.b.active.photo : ""; sourceSize.height: 160; height: 160; fillMode: Image.PreserveAspectFit }
                                 Text { text: parent.b && parent.b.active ? `🔔 ${parent.b.active.name}` : questionView.q && questionView.q.open ? root.t("Buzzers open") : ""
-                                       color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 96; font.weight: Font.Bold }
+                                       color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 150; font.weight: Font.Bold }
                                 Text { text: !parent.b ? "" : parent.b.agreeOpen ? root.t("“{answer}” — agree now! {n} agreed", {answer: parent.b.announced, n: parent.b.agreeCount}) : (parent.b.queue || []).filter(x => x.status === "queued").map(x => x.name).join(" · ")
-                                       color: root.pal.text; font.pixelSize: 40 }
+                                       color: root.pal.text; font.pixelSize: 56 }
                             }
                             // Word trail: the grid; once revealed, the answer's path lights up in order.
+                            Item {
+                                id: snakeBox
+                                visible: !!questionView.q && questionView.q.type === "wordsnake" && !!questionView.q.grid
+                                Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredHeight: 300; Layout.verticalStretchFactor: 1000
+                                // Letters as big as the space allows.
+                                readonly property int size: visible ? questionView.q.grid.size : 1
+                                readonly property real cell: Math.max(56, Math.min(170, (height - (size - 1) * 8) / size, (width - (size - 1) * 8) / size))
                             Grid {
                                 readonly property var g: questionView.q ? questionView.q.grid : null
                                 readonly property var path: questionView.q && questionView.q.revealed ? (questionView.q.snakePath || []) : []
-                                visible: !!g && questionView.q.type === "wordsnake"
+                                visible: snakeBox.visible
                                 columns: g ? g.size : 1; spacing: 8
                                 Repeater {
                                     model: parent.g ? parent.g.letters : []
@@ -381,25 +443,31 @@ Item {
                                         required property string modelData
                                         required property int index
                                         readonly property int step: parent.path.indexOf(index)
-                                        width: 92; height: 92; radius: 16
+                                        width: snakeBox.cell; height: snakeBox.cell; radius: snakeBox.cell / 6
                                         color: step >= 0 ? root.pal.gold : Qt.rgba(1, 1, 1, 0.07)
                                         border.color: root.pal.lineStrong
                                         Behavior on color { ColorAnimation { duration: 300 } }
-                                        Text { anchors.centerIn: parent; text: modelData; color: parent.step >= 0 ? root.pal.onAccent : root.pal.text; font.family: Theme.display; font.pixelSize: 48; font.weight: Font.Bold }
-                                        Text { visible: parent.step >= 0; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6; text: parent.step + 1; color: root.pal.onAccent; font.pixelSize: 18; font.weight: Font.Bold }
+                                        Text { anchors.centerIn: parent; text: modelData; color: parent.step >= 0 ? root.pal.onAccent : root.pal.text; font.family: Theme.display; font.pixelSize: snakeBox.cell * 0.52; font.weight: Font.Bold }
+                                        Text { visible: parent.step >= 0; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6; text: parent.step + 1; color: root.pal.onAccent; font.pixelSize: Math.max(18, snakeBox.cell * 0.2); font.weight: Font.Bold }
                                     }
                                 }
                             }
+                            }
                             // Bingo: the last ball and the board.
                             Column {
+                                id: bingoBox
                                 readonly property var g: questionView.q ? questionView.q.bingo : null
                                 visible: !!g
                                 spacing: 16
-                                Text { text: !parent.g ? "" : parent.g.music ? (parent.g.played ? "🎵 " + root.t("Song {n}", {n: parent.g.played}) : "🎵") : (parent.g.last !== null && parent.g.last !== undefined ? parent.g.last : "–")
+                                Layout.fillWidth: true; Layout.fillHeight: visible; Layout.preferredHeight: 300; Layout.verticalStretchFactor: 1000
+                                // The board across the width, its numbers as tall as the space under the ball allows.
+                                readonly property real cellWidth: Math.max(54, Math.min(140, (width - 14 * 6) / 15))
+                                readonly property real cellHeight: Math.max(42, Math.min(cellWidth * 0.75, (height - ball.height - phrase.height - called.height - 4 * spacing - 5 * 6) / 6))
+                                Text { id: ball; text: !parent.g ? "" : parent.g.music ? (parent.g.played ? "🎵 " + root.t("Song {n}", {n: parent.g.played}) : "🎵") : (parent.g.last !== null && parent.g.last !== undefined ? parent.g.last : "–")
                                        color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 160; font.weight: Font.Bold }
-                                Text { text: !parent.g ? "" : parent.g.music ? (parent.g.titles && parent.g.titles.length ? root.t("Last revealed: {title}", {title: parent.g.titles[parent.g.titles.length - 1]}) : "") : (root.settings.bingoPhrases && parent.g.phrase ? parent.g.phrase : "")
+                                Text { id: phrase; text: !parent.g ? "" : parent.g.music ? (parent.g.titles && parent.g.titles.length ? root.t("Last revealed: {title}", {title: parent.g.titles[parent.g.titles.length - 1]}) : "") : (root.settings.bingoPhrases && parent.g.phrase ? parent.g.phrase : "")
                                        color: root.pal.text; font.pixelSize: 40 }
-                                Text { text: parent.g && parent.g.winners && parent.g.winners.length ? root.t("Winner: {names}", {names: parent.g.winners.map(w => w.name || w).join(", ")}) : parent.g && !parent.g.music ? root.t("{n} called", {n: parent.g.count || 0}) : ""
+                                Text { id: called; text: parent.g && parent.g.winners && parent.g.winners.length ? root.t("Winner: {names}", {names: parent.g.winners.map(w => w.name || w).join(", ")}) : parent.g && !parent.g.music ? root.t("{n} called", {n: parent.g.count || 0}) : ""
                                        color: root.pal.muted; font.pixelSize: 34 }
                                 Grid {
                                     visible: !!parent.g && !parent.g.music && !!parent.g.board
@@ -409,9 +477,9 @@ Item {
                                         delegate: Rectangle {
                                             required property int index
                                             readonly property bool called: !!questionView.q && !!questionView.q.bingo && (questionView.q.bingo.called || []).includes(index + 1)
-                                            width: 54; height: 42; radius: 8
+                                            width: bingoBox.cellWidth; height: bingoBox.cellHeight; radius: 8
                                             color: called ? root.pal.gold : Qt.rgba(1, 1, 1, 0.06)
-                                            Text { anchors.centerIn: parent; text: index + 1; color: parent.called ? root.pal.onAccent : root.pal.faint; font.pixelSize: 20; font.weight: Font.Bold }
+                                            Text { anchors.centerIn: parent; text: index + 1; color: parent.called ? root.pal.onAccent : root.pal.faint; font.pixelSize: Math.max(20, bingoBox.cellHeight * 0.48); font.weight: Font.Bold }
                                         }
                                     }
                                 }
@@ -432,13 +500,37 @@ Item {
                             }
                             // Sound clips game
                             Column {
+                                id: clipsBox
                                 readonly property var c: questionView.q ? questionView.q.clipGame : null
                                 visible: !!c
+                                Layout.alignment: Qt.AlignHCenter
                                 Text { text: !parent.c ? "" : parent.c.playing ? root.t("🎵 Clip {n} of {count}", {n: parent.c.playing, count: parent.c.count}) : questionView.q.live ? root.t("Listen carefully…") : root.t("Clips finished")
-                                       color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 84; font.weight: Font.Bold }
-                                Text { text: parent.c ? root.t("{n} teams have tapped", {n: parent.c.taps}) : ""; color: root.pal.text; font.pixelSize: 40 }
+                                       color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 130; font.weight: Font.Bold }
+                                Text { text: parent.c ? root.t("{n} teams have tapped", {n: parent.c.taps}) : ""; color: root.pal.text; font.pixelSize: 56 }
+                                // Every clip as a numbered disc: the one playing lit, those already heard dimmed.
+                                Row {
+                                    spacing: 14; topPadding: 18
+                                    Repeater {
+                                        model: clipsBox.c ? clipsBox.c.count : 0
+                                        delegate: Rectangle {
+                                            required property int index
+                                            readonly property bool playing: !!clipsBox.c && clipsBox.c.playing === index + 1
+                                            readonly property bool played: !!clipsBox.c && (clipsBox.c.played || []).includes(index + 1)
+                                            objectName: "clipDisc"
+                                            width: 84; height: 84; radius: 42
+                                            color: playing ? root.pal.gold : played ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.05)
+                                            border.color: playing ? root.pal.goldHi : root.pal.lineStrong; border.width: playing ? 4 : 2
+                                            scale: playing ? 1.15 : 1
+                                            Behavior on scale { NumberAnimation { duration: 250 } }
+                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                            Text { anchors.centerIn: parent; text: index + 1; font.family: Theme.display; font.pixelSize: 40; font.weight: Font.Bold
+                                                   color: parent.playing ? root.pal.onAccent : parent.played ? root.pal.muted : root.pal.text }
+                                        }
+                                    }
+                                }
                             }
-                            Item { Layout.fillHeight: true }
+                            // What's left once the tiles and lists have grown: below them, or below a centred buzzer or clip.
+                            Item { Layout.fillHeight: true; Layout.verticalStretchFactor: 1 }
                         }
                     }
                 }
@@ -449,10 +541,10 @@ Item {
                     objectName: "reveal"
                     readonly property var q: questionView.q
                     readonly property bool shown: !!q && !!q.revealed
-                    // Choices are marked on their tiles; the box then only says who scored.
-                    readonly property bool tiles: !!q && ["choice", "vote", "multi"].includes(q.type)
+                    // Choices are marked on their tiles, and a put-in-order list sorts itself: the box then only says who scored.
+                    readonly property bool tiles: !!q && ["choice", "vote", "multi", "sequence"].includes(q.type)
                     readonly property string answer: !q ? "" : q.type === "sheet" ? (q.items || []).map((item, i) => `${i + 1}. ${(q.itemAnswers || [])[i] || root.t("Marked by quizmaster")}`).join("   ")
-                        : q.type === "sequence" ? (q.items || []).join("  →  ") : (q.answer || root.t("Marked by quizmaster"))
+                        : (q.answer || root.t("Marked by quizmaster"))
                     // Who scored, fastest first (closest first for nearest wins), each with its time or answer and points,
                     // as the web TV (renderSolution in web/app.js).
                     readonly property var scorers: q && q.type !== "vote" && q.scorers ? q.scorers : null

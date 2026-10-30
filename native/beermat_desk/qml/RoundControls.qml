@@ -95,17 +95,37 @@ ColumnLayout {
     // ---- sound clips ----
     Rectangle {
         visible: controls.type === "clips"
-        Layout.fillWidth: true; implicitHeight: 64; radius: 12
+        Layout.fillWidth: true; implicitHeight: clipsColumn.implicitHeight + 24; radius: 12
         color: Qt.rgba(Theme.teal.r, Theme.teal.g, Theme.teal.b, 0.08); border.color: Qt.rgba(Theme.teal.r, Theme.teal.g, Theme.teal.b, 0.4)
-        RowLayout {
-            anchors.fill: parent; anchors.margins: 12; spacing: 10
-            DeskButton { text: controls.view.clipsRunning >= 0 ? "Stop clips" : "Play clips"; kind: controls.view.clipsRunning >= 0 ? "danger" : "primary"; enabled: !!controls.q.live
-                         onClicked: controls.view.clipsRunning >= 0 ? desk.live.stopClips() : desk.live.playClips() }
-            Text {
-                text: controls.view.clipsRunning >= 0 ? `🎵 Clip ${controls.view.clipsRunning + 1} of ${(controls.q.clips || []).length} playing on the TV` : `${(controls.q.clips || []).length} clips, played in order through the TV's sound`
-                color: Theme.text; font.pixelSize: 15; Layout.fillWidth: true
+        ColumnLayout {
+            id: clipsColumn
+            anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 12; spacing: 8
+            RowLayout {
+                spacing: 10
+                DeskButton { text: controls.view.clipsRunning >= 0 ? "Stop clips" : "Play all clips"; kind: controls.view.clipsRunning >= 0 ? "danger" : "primary"; enabled: !!controls.q.live
+                             onClicked: controls.view.clipsRunning >= 0 ? desk.live.stopClips() : desk.live.playClips() }
+                Text {
+                    text: controls.view.clipsRunning >= 0 ? `🎵 Clip ${controls.view.clipsRunning + 1} of ${(controls.q.clips || []).length} playing on the TV` : `${(controls.q.clips || []).length} clips, played in order through the TV's sound`
+                    color: Theme.text; font.pixelSize: 15; Layout.fillWidth: true
+                }
+                Text { text: controls.q.clipGame ? `${controls.q.clipGame.taps || 0} taps` : ""; color: Theme.muted; font.pixelSize: 13 }
             }
-            Text { text: controls.q.clipGame ? `${controls.q.clipGame.taps || 0} taps` : ""; color: Theme.muted; font.pixelSize: 13 }
+            // Or just one: to play it again, or out of order. ✓ marks the clip teams should tap for.
+            Flow {
+                Layout.fillWidth: true; spacing: 6
+                Repeater {
+                    model: controls.type === "clips" ? (controls.q.clips || []) : []
+                    delegate: DeskButton {
+                        required property var modelData
+                        required property int index
+                        objectName: "playClip" + index
+                        implicitHeight: 32; enabled: !!controls.q.live
+                        kind: controls.view.clipsRunning === index ? "primary" : "quiet"
+                        text: `▶ ${index + 1}${modelData.label ? " · " + modelData.label : ""}${index === controls.q.targetClip ? "  ✓" : ""}`
+                        onClicked: desk.live.playClip(index)
+                    }
+                }
+            }
         }
     }
 
@@ -113,7 +133,9 @@ ColumnLayout {
     RowLayout {
         visible: controls.isAudio && controls.type !== "clips"
         spacing: 10
-        DeskButton { text: "▶ / ❚❚  Play the sound on the TV"; onClicked: desk.live.playAudio() }
-        Text { text: "Plays through the TV's sound (Settings → Screens)."; color: Theme.faint; font.pixelSize: 12 }
+        DeskButton { objectName: "playAudio"; text: "▶  Play again from the start"; onClicked: desk.live.playAudio() }
+        DeskButton { objectName: "pauseAudio"; text: "❚❚  Pause / carry on"; onClicked: desk.live.pauseAudio() }
+        Text { text: "It plays by itself on the TV as the question opens (Settings → Screens chooses the TV's sound)."; color: Theme.faint; font.pixelSize: 12
+               Layout.fillWidth: true; wrapMode: Text.WordWrap }
     }
 }

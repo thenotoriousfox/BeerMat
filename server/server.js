@@ -391,7 +391,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function clipState(q, data, teamId) {
     if (data.type !== 'clips') return null;
     const playing = nowPlaying(q), tap = teamId && one('SELECT value FROM answers WHERE team=? AND question=?', teamId, q.id);
+    // played: the clips heard so far (1-based), so the TV can show which have played when the quizmaster plays one again.
     return {count: data.clips.length, playing: playing && playing.clip >= 0 ? playing.clip + 1 : null, taps: one('SELECT COUNT(*) n FROM answers WHERE question=?', q.id).n,
+      played: rows('SELECT DISTINCT clip FROM clip_plays WHERE question=? AND clip>=0 ORDER BY clip', q.id).map(r => r.clip + 1),
       ...(teamId ? {tapped: tap ? tap.value : null} : {})};
   }
   // Music bingo's reaction table: for the song now playing, how quickly each team dabbed it on its ticket.

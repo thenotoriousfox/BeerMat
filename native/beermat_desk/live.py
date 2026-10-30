@@ -121,6 +121,14 @@ class LiveTools(QObject):
         if q and q.get('type') == 'clips' and q.get('live'):
             self._play_clip(q, 0)
 
+    @Slot(int)
+    def playClip(self, i):
+        """Just one clip (to play it again, or out of order); Play clips plays them all."""
+        q = self._q()
+        if q and q.get('type') == 'clips' and q.get('live'):
+            self.stopClips()
+            self._play_clip(q, i, only=True)
+
     @Slot()
     def stopClips(self):
         run, self._clips = self._clips, None
@@ -132,7 +140,7 @@ class LiveTools(QObject):
             self.api.host('clip', {'question': run['question'], 'clip': -1})
         self.clipsChanged.emit()
 
-    def _play_clip(self, q, i):
+    def _play_clip(self, q, i, only=False):
         live = self._q()
         clips = q.get('clips') or []
         if not live or live.get('id') != q['id'] or not live.get('live') or i >= len(clips):
@@ -144,6 +152,8 @@ class LiveTools(QObject):
         def finished():
             if self._clips is not run:
                 return
+            if only:
+                return self.stopClips()
             self.api.host('clip', {'question': q['id'], 'clip': -1}, lambda _: QTimer.singleShot(1500, lambda: self._clips is run and self._play_clip(q, i + 1)))
 
         if clip.get('spotify'):
@@ -181,17 +191,27 @@ class LiveTools(QObject):
         return self._clips
 
     # ---- audio question (an uploaded sound plays through the TV) ----
+    # It plays by itself as the question opens (tvsound.py); these play it again, and pause it.
     @Slot()
     def playAudio(self):
-        q = self._q()
-        media = (q or {}).get('media') or ''
-        if not media.lower().endswith(('.mp3', '.ogg', '.wav')):
-            return
-        player = self.sound._players.get(media, (None,))[0]
+        """From the start."""
+        media = self._audio()
+        if media and not self.sound.play_file(media):
+            self.desk.toast.emit('Open the TV to play the sound through it', True)
+
+    @Slot()
+    def pauseAudio(self):
+        """Pauses it, or carries on from where it paused."""
+        media = self._audio()
+        player = self.sound._players.get(media, (None,))[0] if media else None
         if player and player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             player.pause()
-        elif not self.sound.play_file(media, position_ms=player.position() if player else 0):
-            self.desk.toast.emit('Open the TV to play the sound through it', True)
+        elif player and player.playbackState() == QMediaPlayer.PlaybackState.PausedState:
+            player.play()
+
+    def _audio(self):
+        media = (self._q() or {}).get('media') or ''
+        return media if media.lower().endswith(('.mp3', '.ogg', '.wav')) else ''
 
     # ---- wheel, countdown, TV mode, tie-breaker ----
     @Slot(str)

@@ -82,6 +82,7 @@ The **question** (`publicQuestion`) never carries the answer before the reveal:
 `id, type, round, text, options?, items?, order?, grid?, tiles?, media?, points, seconds, deadline, remaining, open,
 live, paused, revealed, revealing, buzz?, bingo?, clipGame?`, and after the reveal the solution fields. Newer, optional:
 
+- `clipGame.played`: the clips heard so far (1-based, like `playing`), for a quizmaster playing one again.
 - `held: true`: the quizmaster hasn't sent the question yet (Send Question). A team's copy then has an empty `text`,
   no `options`, `items`, `media` or grid, and `paused` is true; show "listen to the quizmaster" and build the inputs
   once a state without `held` arrives (same `id`).
