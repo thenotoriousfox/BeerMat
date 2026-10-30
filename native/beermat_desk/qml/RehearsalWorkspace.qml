@@ -22,7 +22,7 @@ RowLayout {
         // ---- mode and plan ----
         Panel {
             Layout.fillWidth: true
-            implicitHeight: 150
+            implicitHeight: Math.max(150, fitHeight)
             title: rehearsing ? "Rehearsal" : "Live quiz"
             headerExtra: Pill { text: view.plan ? view.plan.name : ""; tone: view.plan && view.plan.live ? Theme.gold : Theme.muted }
             ColumnLayout {
@@ -35,8 +35,9 @@ RowLayout {
                                            : "Rehearse the whole quiz with simulated teams: every format, timer, buzzer and the leaderboard, scored by the real quiz server. Real phones can join to test their connection.")
                         : "Real teams are playing. Starting a rehearsal ends this quiz (its results are saved first)."
                 }
-                RowLayout {
-                    spacing: 10
+                // Wraps in a narrow window.
+                Flow {
+                    Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 10
                     DeskButton {
                         text: view.rehearsing ? "Restart rehearsal" : "Start rehearsal"; kind: "primary"; enabled: !desk.busy
                         onClicked: rehearsing ? desk.startRehearsalWith(chosen()) : rehearsal.confirmEndLive()
@@ -47,7 +48,7 @@ RowLayout {
                         onClicked: rehearsal.confirmGoLive()
                         ToolTip.visible: hovered && !view.canGoLive; ToolTip.text: "Hosting a live quiz with real teams is part of BeerMat Pro (Settings → Plan)."
                     }
-                    Text { visible: rehearsing && !view.canGoLive; text: "Going live needs BeerMat Pro."; color: Theme.faint; font.pixelSize: 12 }
+                    Text { visible: rehearsing && !view.canGoLive; text: "Going live needs BeerMat Pro."; color: Theme.faint; font.pixelSize: 12; height: 34; verticalAlignment: Text.AlignVCenter }
                 }
             }
         }
@@ -55,11 +56,13 @@ RowLayout {
         // ---- options ----
         Panel {
             Layout.fillWidth: true
-            implicitHeight: 210
+            implicitHeight: Math.max(210, fitHeight)
             title: "Rehearsal options"
             GridLayout {
+                id: rehearsalOptions
                 anchors.fill: parent
-                columns: 4; columnSpacing: 18; rowSpacing: 8
+                // Four across, or two in a narrow window.
+                columns: width < 900 ? 2 : 4; columnSpacing: 18; rowSpacing: 8
                 Label { text: "Simulated teams"; color: Theme.muted }
                 SpinBox { id: teamCount; from: 0; to: 30; value: options.teams !== undefined ? options.teams : 6; editable: true }
                 Label { text: "Right answers"; color: Theme.muted }
@@ -72,7 +75,7 @@ RowLayout {
                 CheckBox { id: buzzers; text: "Teams buzz in"; checked: options.buzzers !== false; palette.windowText: Theme.text }
                 CheckBox { id: drops; text: "Simulate dropped connections"; checked: options.disconnects === true; palette.windowText: Theme.text }
                 Text {
-                    Layout.columnSpan: 4; Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 12
+                    Layout.columnSpan: rehearsalOptions.columns; Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 12
                     text: "Options take effect when the rehearsal (re)starts. Nothing from a rehearsal is kept: no results, history or sharing."
                 }
             }
@@ -91,20 +94,30 @@ RowLayout {
                 delegate: Rectangle {
                     id: simRow
                     required property var modelData
-                    width: ListView.view.width; height: 46; radius: 10
+                    // The test buttons wrap onto a second line in a narrow window.
+                    width: ListView.view.width; height: simContent.implicitHeight + 14; radius: 10
                     color: Theme.panelRaised; border.color: Theme.line
-                    RowLayout {
-                        anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 6
-                        Rectangle { width: 8; height: 8; radius: 4; color: modelData.connected ? Theme.good : Theme.bad }
-                        Text { text: modelData.name; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
-                        CheckBox { text: "Manual"; checked: modelData.manual; palette.windowText: Theme.muted; onToggled: desk.simManual(modelData.name, checked) }
-                        Repeater {
-                            model: [["right", "✓ Right"], ["wrong", "✗ Wrong"], ["buzz", "Buzz"], ["agree", "Agree"], ["duplicate", "Twice"], ["invalid", "Invalid"], ["stale", "Late"],
-                                    [modelData.connected ? "disconnect" : "reconnect", modelData.connected ? "Drop" : "Reconnect"]]
-                            delegate: DeskButton {
-                                required property var modelData
-                                text: modelData[1]; implicitHeight: 32; leftPadding: 10; rightPadding: 10
-                                onClicked: desk.simAct(simRow.modelData.name, modelData[0])
+                    // The team on top, its test buttons on the line below (wrapping in a narrow window).
+                    ColumnLayout {
+                        id: simContent
+                        anchors.left: parent.left; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 4
+                        RowLayout {
+                            spacing: 6
+                            Rectangle { width: 8; height: 8; radius: 4; color: simRow.modelData.connected ? Theme.good : Theme.bad }
+                            Text { text: simRow.modelData.name; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
+                            CheckBox { text: "Manual"; checked: simRow.modelData.manual; palette.windowText: Theme.muted; onToggled: desk.simManual(simRow.modelData.name, checked) }
+                        }
+                        Flow {
+                            Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 6
+                            Repeater {
+                                model: [["right", "✓ Right"], ["wrong", "✗ Wrong"], ["buzz", "Buzz"], ["agree", "Agree"], ["duplicate", "Twice"], ["invalid", "Invalid"], ["stale", "Late"],
+                                        [simRow.modelData.connected ? "disconnect" : "reconnect", simRow.modelData.connected ? "Drop" : "Reconnect"]]
+                                delegate: DeskButton {
+                                    required property var modelData
+                                    text: modelData[1]; implicitHeight: 32; leftPadding: 10; rightPadding: 10
+                                    onClicked: desk.simAct(simRow.modelData.name, modelData[0])
+                                }
                             }
                         }
                     }

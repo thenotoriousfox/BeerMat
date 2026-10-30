@@ -251,7 +251,9 @@ Item {
                     id: questionColumn
                     // Once the answer box is up, what's on screen shrinks to fit above it rather than hide behind it.
                     anchors.fill: parent; anchors.bottomMargin: reveal.shown ? reveal.height + 24 : 0
-                    Behavior on anchors.bottomMargin { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+                    // Only as the box comes up: when it goes (the next question opening) the space is back at once, so the
+                    // new question's tiles and lists don't grow into place in front of the room.
+                    Behavior on anchors.bottomMargin { enabled: reveal.shown; NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
                     spacing: 22
                     Text { text: questionView.q ? (questionView.q.round || "").toUpperCase() : ""; color: root.pal.gold; font.pixelSize: 30; font.weight: Font.Bold; font.letterSpacing: 4 }
                     Text {
@@ -375,6 +377,11 @@ Item {
                                 objectName: "sequenceList"
                                 readonly property var q: questionView.q
                                 readonly property bool sorted: !!q && !!q.revealed
+                                // The rows only slide for the answer's reveal; any other change (the screen settling as the
+                                // question appears, the answer box coming up) puts them straight in place.
+                                property bool sliding: false
+                                onSortedChanged: if (sorted && order.length) { sliding = true; slideEnd.restart() }
+                                Timer { id: slideEnd; interval: 800 + 90 * sequenceList.order.length; onTriggered: sequenceList.sliding = false }
                                 // Rows grow into the space, up to a comfortable size.
                                 readonly property real rowHeight: Math.max(64, Math.min(170, order.length ? (height + 16) / order.length - 16 : 92))
                                 readonly property real row: rowHeight + 16
@@ -395,9 +402,8 @@ Item {
                                         objectName: "sequenceItem"
                                         width: sequenceList.width; height: sequenceList.rowHeight; radius: 20
                                         y: (sequenceList.sorted ? modelData : index) * sequenceList.row
-                                        Behavior on y { SequentialAnimation {
-                                            PauseAnimation { duration: sequenceList.sorted ? modelData * 80 : 0 }
-                                            NumberAnimation { duration: sequenceList.sorted ? 800 : 0; easing.type: Easing.OutCubic } } }
+                                        Behavior on y { enabled: sequenceList.sliding
+                                            NumberAnimation { duration: 700 + modelData * 90; easing.type: Easing.OutCubic } }
                                         color: Qt.rgba(root.pal.violet.r, root.pal.violet.g, root.pal.violet.b, 0.28)
                                         border.color: sequenceList.sorted ? root.pal.good : Qt.rgba(root.pal.violet.r, root.pal.violet.g, root.pal.violet.b, 0.7)
                                         border.width: sequenceList.sorted ? 5 : 2

@@ -18,17 +18,20 @@ RowLayout {
 
     // ---- answers and marking ----
     Panel {
+        id: answersPanel
         Layout.fillWidth: true; Layout.fillHeight: true
         title: view.marking && view.marking.id ? `Answers · ${view.marking.text}` : "Answers"
         headerExtra: RowLayout {
             spacing: 8
             Text {
+                id: markingState
                 text: !(view.marking && view.marking.id) ? "" : view.canMark ? "Closed: mark below" : "Close answers to mark them"
                 color: view.canMark ? Theme.good : Theme.muted; font.pixelSize: 12; font.weight: Font.Bold
             }
             // Any question played so far can be marked again (paper answers, a disputed mark).
             ComboBox {
-                Layout.preferredWidth: 320
+                // Narrower in a narrow window, leaving the title room.
+                Layout.preferredWidth: Math.max(120, Math.min(320, answersPanel.width - 32 - 80 - markingState.implicitWidth - 16))
                 textRole: "text"; valueRole: "value"
                 model: [{value: 0, text: "The current question"}].concat((view.history || []).map(h => ({value: h.id, text: `${h.round ? h.round + " · " : ""}${h.text}`})))
                 currentIndex: view.marking && view.marking.past ? Math.max(0, indexOfValue(view.marking.id)) : 0

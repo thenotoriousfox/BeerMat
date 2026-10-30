@@ -54,7 +54,7 @@ private fun JSONArray?.ints() = if (this == null) emptyList() else List(length()
 private fun JSONArray?.strings() = if (this == null) emptyList() else List(length()) { optString(it) }
 
 /**
- * Pinpoint: tap the picture. Go wide allows a second tap, scored lower if the first misses. Points are fractions of
+ * Pinpoint: tap the picture. A second guess allows a second tap, scored lower if the first misses. Points are fractions of
  * the picture, as the server expects ([[x, y], …]); the target appears once revealed.
  */
 @Composable
@@ -65,7 +65,7 @@ fun Pinpoint(server: String, q: Question, taps: List<List<Double>>, enabled: Boo
     }
     val most = if (q.raw.optBoolean("goWide")) 2 else 1
     val target = q.raw.optJSONObject("target")
-    Text(if (most == 2) t("Tap the picture. Go wide: a second tap scores {n} if your first misses.", "n" to q.raw.optInt("goWidePoints")) else t("Tap the picture to place your answer"),
+    Text(if (most == 2) t("Tap the picture. Second guess: a second tap scores {n} if your first misses.", "n" to q.raw.optInt("goWidePoints")) else t("Tap the picture to place your answer"),
         color = Brand.muted, modifier = Modifier.padding(bottom = 8.dp))
     val image = bitmap ?: return Text(t("Loading the picture…"), color = Brand.faint)
     Box(Modifier.fillMaxWidth().aspectRatio(image.width.toFloat() / image.height).clip(RoundedCornerShape(12.dp))
@@ -122,7 +122,9 @@ fun WordSnake(vm: PlayerViewModel, q: Question, path: List<Int>, enabled: Boolea
     }
     Row {
         if (enabled && path.isNotEmpty()) TextButton({ onPath(emptyList()) }) { Text(t("Start again")) }
-        if (enabled && q.raw.optBoolean("goWide") && wide == null) TextButton({ vm.goWide() }) { Text(t("Go wide (scores {n})", "n" to q.raw.optInt("goWidePoints"))) }
+        if (enabled && q.raw.optBoolean("goWide") && wide == null)
+            ConfirmButton(t("Hint (scores {n})", "n" to q.raw.optInt("goWidePoints")),
+                t("Use the hint? The decoy letters disappear, but a right answer scores {wide} instead of {full}.", "wide" to q.raw.optInt("goWidePoints"), "full" to q.raw.optInt("points"))) { vm.goWide() }
     }
 }
 

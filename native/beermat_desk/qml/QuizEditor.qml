@@ -105,7 +105,11 @@ RowLayout {
             contentWidth: availableWidth
             ColumnLayout {
                 width: parent.width; spacing: 10
-                RowLayout {
+                // Format, points and time; they wrap onto a second line in a narrow window.
+                Flow {
+                    objectName: "questionBasics"
+                    Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 10
+                    RowLayout {
                     spacing: 10
                     Label { text: "Format"; color: Theme.muted }
                     ComboBox {
@@ -116,13 +120,21 @@ RowLayout {
                         currentIndex: Math.max(0, shown.findIndex(t => t.value === q.type))
                         onActivated: lib.setType(currentValue)
                     }
+                    }
+                    RowLayout {
+                    spacing: 10
                     Label { text: "Points"; color: Theme.muted }
                     SpinBox { from: 0; to: 100; editable: true; value: q.points !== undefined ? q.points : 1; onValueModified: lib.setField("points", value) }
+                    }
+                    RowLayout {
+                    spacing: 10
                     Label { text: "Seconds"; color: Theme.muted }
                     SpinBox { from: 5; to: 7200; editable: true; value: q.seconds !== undefined ? q.seconds : 30; onValueModified: lib.setField("seconds", value) }
+                    }
                 }
-                RowLayout {
-                    spacing: 6
+                Flow {
+                    objectName: "questionActions"
+                    Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 6
                     DeskButton { text: "↑ Move up"; implicitHeight: 32; onClicked: lib.moveQuestion(-1) }
                     DeskButton { text: "↓ Move down"; implicitHeight: 32; onClicked: lib.moveQuestion(1) }
                     DeskButton { text: "Duplicate"; implicitHeight: 32; onClicked: lib.duplicateQuestion() }
@@ -151,10 +163,10 @@ RowLayout {
                 // ---- picture or sound ----
                 RowLayout {
                     visible: ["picture", "audio", "pinpoint", "text", "choice", "multi", "letter", "number", "nearest", "sequence", "tiles", "wordsnake", "vote", "buzzer", "sheet"].includes(q.type)
-                    spacing: 8
+                    Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 8
                     DeskButton { text: q.media ? "Replace the picture or sound…" : "Add a picture or sound…"; implicitHeight: 34; onClicked: mediaFile.open() }
                     DeskButton { visible: !!q.media; text: "Remove"; implicitHeight: 34; onClicked: lib.setField("media", "") }
-                    Text { text: q.media ? q.media.split("/").pop() : ""; color: Theme.muted; font.pixelSize: 12 }
+                    Text { text: q.media ? q.media.split("/").pop() : ""; color: Theme.muted; font.pixelSize: 12; Layout.fillWidth: true; elide: Text.ElideMiddle }
                 }
                 // The picture; for a pinpoint question, click it to place the target.
                 Image {
@@ -234,7 +246,8 @@ RowLayout {
                             required property var modelData
                             required property int index
                             width: ListView.view.width; spacing: 6
-                            Field { text: modelData.title; Layout.preferredWidth: 240; onEditingFinished: lib.setItem("song", index, "title", text) }
+                            Field { text: modelData.title; Layout.preferredWidth: 240; Layout.fillWidth: true; Layout.minimumWidth: 100; Layout.maximumWidth: 240
+                                    onEditingFinished: lib.setItem("song", index, "title", text) }
                             Text { visible: !!modelData.media; text: modelData.media.split("/").pop(); color: Theme.muted; font.pixelSize: 12; Layout.fillWidth: true; elide: Text.ElideMiddle }
                             Field { visible: !modelData.media; text: modelData.spotify; placeholderText: "Spotify track link"; Layout.fillWidth: true; onEditingFinished: lib.setItem("song", index, "spotify", text) }
                             Field { text: String(modelData.start); placeholderText: "Start"; implicitWidth: 70; onEditingFinished: lib.setItem("song", index, "start", text) }
@@ -255,19 +268,30 @@ RowLayout {
                 // ---- this format's options ----
                 Text { visible: (q.options_ || []).length > 0; text: "Options"; color: Theme.text; font.weight: Font.DemiBold; Layout.topMargin: 6 }
                 GridLayout {
-                    Layout.fillWidth: true; columns: 2; columnSpacing: 16; rowSpacing: 4
+                    id: optionGrid
+                    // Two equal columns, or one when the editor is narrow; every label wraps beside its control.
+                    Layout.fillWidth: true; Layout.maximumWidth: parent.width; columns: parent.width < 760 ? 1 : 2; columnSpacing: 16; rowSpacing: 4
                     Repeater {
                         // Simple mode shows only the options most quizzes use.
                         model: (desk.view.settings || {}).simpleMode ? (q.options_ || []).filter(o => ["fastestFingers", "speedBonus", "mode", "variation", "places", "tieBreaker", "partScoring"].includes(o.key)) : (q.options_ || [])
                         delegate: RowLayout {
+                            id: option
                             required property var modelData
-                            Layout.fillWidth: true; spacing: 8
-                            CheckBox { visible: modelData.kind === "bool"; text: modelData.label; checked: modelData.value === true; palette.windowText: Theme.text
-                                       onToggled: lib.setOption(modelData.key, checked ? "true" : "false") }
-                            Text { visible: modelData.kind !== "bool"; text: modelData.label; color: Theme.muted; font.pixelSize: 13; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                            objectName: "option-" + modelData.key
+                            Layout.fillWidth: true; Layout.preferredWidth: 1; spacing: 8
+                            CheckBox { id: tick; visible: option.modelData.kind === "bool"; checked: option.modelData.value === true
+                                       onToggled: lib.setOption(option.modelData.key, checked ? "true" : "false") }
+                            Text {
+                                objectName: "optionLabel"
+                                text: option.modelData.label; color: option.modelData.kind === "bool" ? Theme.text : Theme.muted; font.pixelSize: 13
+                                Layout.fillWidth: true; Layout.minimumWidth: 110; wrapMode: Text.WordWrap
+                                // A tick box's label ticks it, as a CheckBox's own text would.
+                                MouseArea { anchors.fill: parent; enabled: option.modelData.kind === "bool"; onClicked: { tick.toggle(); tick.toggled() } }
+                            }
                             SpinBox { visible: modelData.kind === "int"; from: modelData.range[0] || 0; to: modelData.range[1] || 100; editable: true
                                       value: typeof modelData.value === "number" ? modelData.value : 0; onValueModified: lib.setOption(modelData.key, String(value)) }
-                            ComboBox { visible: modelData.kind === "choice"; Layout.preferredWidth: 260; textRole: "text"; valueRole: "value"; model: modelData.choices
+                            ComboBox { visible: modelData.kind === "choice"; Layout.preferredWidth: 260; Layout.minimumWidth: 160; Layout.fillWidth: true; Layout.maximumWidth: 260
+                                       textRole: "text"; valueRole: "value"; model: modelData.choices
                                        currentIndex: Math.max(0, indexOfValue(modelData.value)); onActivated: lib.setOption(modelData.key, currentValue) }
                             Field { visible: modelData.kind === "ints"; text: String(modelData.value || ""); placeholderText: "2, 3, 5"; implicitWidth: 120
                                     onEditingFinished: lib.setOption(modelData.key, text) }

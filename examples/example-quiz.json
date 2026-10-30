@@ -10,7 +10,7 @@
      "type": "choice",
      "text": "Which is the longest river in the United Kingdom?",
      "seconds": 20,
-     "points": 1,
+     "points": 2,
      "options": [
       "Thames",
       "Severn",
@@ -18,7 +18,9 @@
       "Tay"
      ],
      "answer": "Severn",
-     "answerNote": "The Severn runs about 220 miles (354 km)."
+     "answerNote": "The Severn runs about 220 miles (354 km).",
+     "fiftyFifty": true,
+     "fiftyPoints": 1
     },
     {
      "id": "example-q2",
@@ -155,7 +157,9 @@
      "text": "Trace the largest ocean on Earth.",
      "seconds": 45,
      "points": 2,
-     "answer": "Pacific"
+     "answer": "Pacific",
+     "goWide": true,
+     "goWidePoints": 1
     },
     {
      "id": "example-q12",

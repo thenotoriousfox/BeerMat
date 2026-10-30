@@ -82,6 +82,7 @@ The **question** (`publicQuestion`) never carries the answer before the reveal:
 `id, type, round, text, options?, items?, order?, grid?, tiles?, media?, points, seconds, deadline, remaining, open,
 live, paused, revealed, revealing, buzz?, bingo?, clipGame?`, and after the reveal the solution fields. Newer, optional:
 
+- `fiftyFifty`, `fiftyPoints` on `choice`: the team may take a 50/50 (`/api/fifty`); afterwards `fiftyRemoved` lists the choices to hide.
 - `clipGame.played`: the clips heard so far (1-based, like `playing`), for a quizmaster playing one again.
 - `held: true`: the quizmaster hasn't sent the question yet (Send Question). A team's copy then has an empty `text`,
   no `options`, `items`, `media` or grid, and `paused` is true; show "listen to the quizmaster" and build the inputs
@@ -118,7 +119,7 @@ run on the local monotonic clock; it is only a display. The server decides laten
 | `clips` | `POST /api/tap` |
 
 Also: `/api/react` `{question, title}` or `{question, pass: true}` (music bingo's reaction table: the team dabbed a
-song on its ticket, one go per song played), `/api/gowide` (word trail help), `/api/away` `{question, state}` (the player left the app mid-question; the desk
+song on its ticket, one go per song played), `/api/gowide` (word trail's hint), `/api/fifty` `{question}` (multiple choice's 50/50; the team's state then has `fiftyRemoved`: the choices to hide), `/api/away` `{question, state}` (the player left the app mid-question; the desk
 sees it), `/api/team/sound`, `/api/team/photo` (JPEG body), `/api/team/result` (signed result after a live quiz),
 `GET /api/leaderboard`.
 

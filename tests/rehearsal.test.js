@@ -93,7 +93,7 @@ test('a Free rehearsal: the whole quiz played by simulated teams while a real ph
       if (n === 0) assert.equal(q.seconds, fastSeconds(library.rounds[0].questions[0].seconds), 'fast timers');
       // The real phone tries everything a player can do.
       for (const [route, body] of [['/api/answer', {question: q.id, value: 'Mars'}], ['/api/draft', {question: q.id, value: 'M'}], ['/api/buzz', {question: q.id}],
-        ['/api/agree', {question: q.id}], ['/api/bingo', {question: q.id}], ['/api/tap', {question: q.id}], ['/api/gowide', {question: q.id}], ['/api/team/sound', {sound: 1}], ['/api/team/result', {}]]) {
+        ['/api/agree', {question: q.id}], ['/api/bingo', {question: q.id}], ['/api/tap', {question: q.id}], ['/api/gowide', {question: q.id}], ['/api/fifty', {question: q.id}], ['/api/team/sound', {sound: 1}], ['/api/team/result', {}]]) {
         const r = await s.post(route, body, phone.secret); if (r.status !== 403) blocked.push(`${route} gave ${r.status}`);
       }
       assert.equal((await s.post('/api/state', {}, phone.secret)).question, null, 'no question reaches the phone');

@@ -103,7 +103,8 @@ ScrollView {
         Layout.fillWidth: true; implicitHeight: Math.max(170, fitHeight)
         title: "Quiz room"
         GridLayout {
-            anchors.fill: parent; columns: 4; columnSpacing: 14; rowSpacing: 8
+            // Four across, or two in a narrow window.
+            anchors.fill: parent; columns: width < 900 ? 2 : 4; columnSpacing: 14; rowSpacing: 8
             Label { text: "Quiz name"; color: Theme.muted }
             Field { text: settings.room.title || ""; Layout.fillWidth: true; maximumLength: 80; onEditingFinished: if (text !== settings.room.title) desk.prefs.set("title", text) }
             Label { text: "Team limit (0: none)"; color: Theme.muted }
@@ -185,7 +186,7 @@ ScrollView {
             anchors.fill: parent; spacing: 20
             ColumnLayout {
                 // A fixed column: its long description would otherwise take the whole width from the format list.
-                Layout.preferredWidth: 380; Layout.maximumWidth: 380; Layout.fillWidth: false; Layout.alignment: Qt.AlignTop; spacing: 8
+                Layout.preferredWidth: 380; Layout.maximumWidth: 380; Layout.minimumWidth: 240; Layout.fillWidth: false; Layout.alignment: Qt.AlignTop; spacing: 8
                 Text { Layout.fillWidth: true; Layout.maximumWidth: 380; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 13
                        text: "A look colours the TV and phones; a sound theme sets the moments' sounds. Either can follow the question's format: choose “By format”, then pick for each format on the right." }
                 Label { text: "Look"; color: Theme.muted }
@@ -203,7 +204,7 @@ ScrollView {
                 }
             }
             ListView {
-                Layout.fillWidth: true; Layout.minimumWidth: 520; Layout.fillHeight: true; clip: true; spacing: 2
+                Layout.fillWidth: true; Layout.minimumWidth: 420; Layout.fillHeight: true; clip: true; spacing: 2
                 ScrollBar.vertical: ScrollBar {}
                 header: RowLayout {
                     width: ListView.view.width; spacing: 8
@@ -286,7 +287,10 @@ ScrollView {
         title: "Screens"
         ColumnLayout {
             anchors.fill: parent; spacing: 8
-            RowLayout {
+            // Each row wraps in a narrow window.
+            Flow {
+                Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 10
+                RowLayout {
                 spacing: 10
                 Label { text: "TV screen"; color: Theme.muted }
                 ComboBox {
@@ -297,10 +301,13 @@ ScrollView {
                     Component.onCompleted: currentIndex = Math.max(0, indexOfValue(screens.chosenName))
                     onActivated: screens.choose(currentValue)
                 }
+                }
                 DeskButton { text: "Swap desk and TV screens"; implicitHeight: 34; enabled: screens.displays.length > 1 && screens.canPlace; onClicked: settings.swapScreens() }
                 CheckBox { text: "Open the TV by itself when a screen is connected"; checked: screens.autoOpen; palette.windowText: Theme.text; onToggled: screens.setAutoOpen(checked) }
             }
-            RowLayout {
+            Flow {
+                Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 10
+                RowLayout {
                 spacing: 10
                 Label { text: "TV sound"; color: Theme.muted }
                 ComboBox {
@@ -310,9 +317,11 @@ ScrollView {
                     currentIndex: Math.max(0, indexOfValue(desk.sound.output))
                     onActivated: desk.sound.chooseOutput(currentValue)
                 }
+                }
                 DeskButton { text: "Test sound"; implicitHeight: 34; onClicked: desk.sound.test() }
-                Text { text: `Playing on: ${desk.sound.activeOutput}. Sound effects, music, clips and songs play here while the TV is open.`; color: Theme.faint; font.pixelSize: 12 }
             }
+            Text { text: `Playing on: ${desk.sound.activeOutput}. Sound effects, music, clips and songs play here while the TV is open.`; color: Theme.faint; font.pixelSize: 12
+                   Layout.fillWidth: true; wrapMode: Text.WordWrap }
             Text {
                 Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 12
                 text: (screens.displays.length > 1 ? `${screens.displays.length} screens connected. ` : "One screen: the TV opens in a window you can drag to a projector. ")

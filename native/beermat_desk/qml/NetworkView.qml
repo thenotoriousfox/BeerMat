@@ -97,15 +97,15 @@ RowLayout {
                 Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
                        text: "Phones on the venue's Wi-Fi open this laptop's address there. No quiz Wi-Fi needed, but some guest networks keep devices apart: check below." }
                 RowLayout {
-                    spacing: 8
+                    Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 8
                     ComboBox {
-                        id: address; Layout.preferredWidth: 360
+                        id: address; Layout.preferredWidth: 360; Layout.fillWidth: true; Layout.minimumWidth: 160; Layout.maximumWidth: 360
                         readonly property var usable: (net.addresses || []).filter(a => a.kind !== "hotspot")
                         textRole: "text"; valueRole: "value"
                         model: usable.length ? usable.map(a => ({text: `${a.address} — ${a.name}${a.kind === "virtual" ? " (virtual: phones can't reach it)" : ""}`, value: a.address}))
                                              : [{text: "Not on a network", value: ""}]
                     }
-                    Field { id: lanSsid; placeholderText: "Venue Wi-Fi name (for the TV)"; Layout.preferredWidth: 220 }
+                    Field { id: lanSsid; placeholderText: "Venue Wi-Fi name (for the TV)"; Layout.preferredWidth: 220; Layout.fillWidth: true; Layout.minimumWidth: 120; Layout.maximumWidth: 220 }
                 }
                 Item { Layout.fillHeight: true }
                 RowLayout {

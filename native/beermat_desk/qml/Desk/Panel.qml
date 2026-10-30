@@ -23,7 +23,9 @@ Rectangle {
             id: header
             visible: panel.title !== ""
             Layout.fillWidth: true
-            Text { text: panel.title; color: Theme.text; font.family: Theme.display; font.pixelSize: 18; font.weight: Font.Bold; Layout.fillWidth: true }
+            // A long title (a question's wording) shortens rather than push the header's buttons out of the panel.
+            Text { text: panel.title; color: Theme.text; font.family: Theme.display; font.pixelSize: 18; font.weight: Font.Bold; Layout.fillWidth: true
+                   Layout.minimumWidth: 80; elide: Text.ElideRight }
             Item { id: extra; implicitWidth: childrenRect.width; implicitHeight: childrenRect.height }
         }
         Item { id: body; Layout.fillWidth: true; Layout.fillHeight: true }

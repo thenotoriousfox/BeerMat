@@ -159,6 +159,7 @@ final class PlayerModel: ObservableObject {
         }
     }
     func tap() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.tap(self.secret, question: q.id); self.say(t("Tap recorded")); await self.refresh() } }
+    func fifty() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.fifty(self.secret, question: q.id); await self.refresh() } }
     func goWide() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.goWide(self.secret, question: q.id); await self.refresh() } }
     func setSound(_ index: Int) { work(quiet: true) { try await self.server!.sound(self.secret, index: index); self.say(t("Buzzer sound saved")); await self.refresh() } }
 

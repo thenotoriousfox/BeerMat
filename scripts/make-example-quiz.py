@@ -145,8 +145,9 @@ def quiz(land_file):
     q = lambda n, **fields: {'id': f'example-q{n}', **fields}
     rounds = [
         ('Keypad warm-up', [
-            q(1, type='choice', text='Which is the longest river in the United Kingdom?', seconds=20, points=1,
-              options=['Thames', 'Severn', 'Trent', 'Tay'], answer='Severn', answerNote='The Severn runs about 220 miles (354 km).'),
+            q(1, type='choice', text='Which is the longest river in the United Kingdom?', seconds=20, points=2,
+              options=['Thames', 'Severn', 'Trent', 'Tay'], answer='Severn', answerNote='The Severn runs about 220 miles (354 km).',
+              fiftyFifty=True, fiftyPoints=1),
             q(2, type='multi', text='Which of these are planets in our Solar System? Tick all that apply.', seconds=30, points=2,
               options=['Mercury', 'Pluto', 'Neptune', 'Ceres', 'Venus', 'Titan'], correct=['Mercury', 'Neptune', 'Venus'],
               answerNote='Pluto and Ceres are dwarf planets; Titan is a moon of Saturn.'),
@@ -171,7 +172,7 @@ def quiz(land_file):
               answerNote='Risk It: a wrong answer loses 2 points. Fe is from ferrum.'),
         ]),
         ('Word games', [
-            q(11, type='wordsnake', text='Trace the largest ocean on Earth.', seconds=45, points=2, answer='Pacific'),
+            q(11, type='wordsnake', text='Trace the largest ocean on Earth.', seconds=45, points=2, answer='Pacific', goWide=True, goWidePoints=1),
             q(12, type='tiles', text='Rebuild the answer: who wrote Pride and Prejudice?', seconds=45, points=2, answer='Jane Austen'),
             q(13, type='nearest', text='How many bones are there in the adult human body?', seconds=30, points=3, answer='206', places=3),
         ]),
