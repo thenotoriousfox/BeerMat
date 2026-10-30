@@ -67,6 +67,10 @@ def python_packages(internal):
 def owner(lib, found):
     """The system package a library came from, and its copyright text (Debian/Ubuntu, where releases are built; Arch for a local build)."""
     paths = [line.split(' => ')[1] for line in found.splitlines() if line.strip().startswith(lib.name + ' ') and ' => ' in line]
+    # Not in the linker cache: a library in a subfolder (PulseAudio's) or kept under a longer name (libbz2.so.1.0).
+    if not paths:
+        paths = [str(p) for top in ('/usr/lib', '/lib', '/usr/lib64') if Path(top).is_dir()
+                 for p in Path(top).rglob(lib.name + '*') if p.is_file() and p.name.split('.so')[0] == lib.name.split('.so')[0]][:3]
     for path in paths + [str(Path(p).resolve()) for p in paths]:
         if shutil.which('dpkg-query'):
             r = subprocess.run(['dpkg-query', '-S', path], capture_output=True, text=True)
