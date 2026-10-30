@@ -93,6 +93,7 @@ jobs:
   # Its version is package.json's and its build number the Android app's versionCode.
   ios:
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

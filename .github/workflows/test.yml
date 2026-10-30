@@ -22,11 +22,15 @@ jobs:
   # whole app built for the simulator, unsigned.
   ios:
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      # A test waiting forever fails here with its log (each test's start and end), not after GitHub's six hours.
       - run: swift test
         working-directory: native/ios/BeerMatKit
+        timeout-minutes: 10
       - run: xcodebuild -project native/ios/BeerMat.xcodeproj -target BeerMat -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build
+        timeout-minutes: 15
