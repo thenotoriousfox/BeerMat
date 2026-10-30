@@ -182,6 +182,10 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
   releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
   `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
+* **Release 0.6.2**: 50/50, hint and second guess, options only where they apply, narrow-window fixes; TV: put in order
+  sorts itself, audio autoplays, clips one at a time, fuller screens; An example quiz with a question in every format;
+  Drop the CC BY music buzzers; one licences file per app; Android update prompt on resume, no Advanced setting, faster
+  scores for big rooms; Release workflow: New release button, build files kept only for releases.
 * **Release 0.6.1**: BeerMat TV offers its own updates (Update on its address screen; TVs on 0.6.0 need this version
   installed by hand once), a map pin in the apps opens a popup with the venue and its next quiz, the website's new ways
   to play with fresh screenshots, music bingo without "0 called" on the Qt TV, and time limits on every CI job.
