@@ -53,7 +53,8 @@ const post = async (route, body, key = '') => {
 const {key} = await post('login', {key: 'screenshot-quiz-key-0123'});
 const host = (route, body = {}) => post('host/' + route, body, key);
 await host('settings', {title: 'Tuesday Quiz Night', waitingRoom: false, teamPhotos: false});
-for (const name of ['Quiz Team Aguilera', 'Les Quizerables', 'Agatha Quiztie', 'Universally Challenged', 'Tequila Mockingbird']) await post('join', {name});
+const teams = [];
+for (const name of ['Quiz Team Aguilera', 'Les Quizerables', 'Agatha Quiztie', 'Universally Challenged', 'Tequila Mockingbird']) teams.push(await post('join', {name}));
 
 // The phone's capture, without the gesture bar, at the site's phone size (780×1688, as the browser shots were).
 function shot(name) {
@@ -97,6 +98,31 @@ try {
   for (const [id, name] of [['test-q12', 'phone-wordsnake'], ['test-q11', 'phone-pinpoint'], ['test-q13', 'phone-tiles'], ['test-q5', 'phone-sequence'], ['test-q16', 'phone-buzzer'], ['test-q19', 'phone-bingo']]) {
     await open(id); shot(name);
   }
+  // Ways to play: a picture under tiles part-way through, and music bingo's reaction table.
+  const saved = (await host('library')).rounds.flatMap(r => r.questions), picture = saved.find(q => q.type === 'picture');
+  await host('close', {expectedQuestion: current}).catch(() => {});
+  await host('open', {text: 'What shape is under the tiles?', type: 'picture', media: picture.media, answer: picture.answer, round: 'Pictures', seconds: 30, points: 1, reveal: 'tiles'});
+  current = (await host('state')).question.id; await sleep(13000); shot('phone-reveal');
+  await host('close', {expectedQuestion: current});
+  await host('open', {text: 'Music bingo: dab each song as soon as you know it', type: 'musicbingo', mode: 'line', round: 'Music bingo', seconds: 1800, points: 3,
+    songs: saved.find(q => q.type === 'musicbingo').songs, reactions: true, reactionPoints: 1});
+  current = (await host('state')).question.id;
+  // Songs until one is on several teams' tickets, the app's team's among them, so the table has a few teams on it.
+  let title = '';
+  for (let i = 0; i < 25; i++) {
+    await host('bingo', {question: current}); title = (await host('state')).question.bingo.current.title;
+    await sleep(1200);
+    const others = (await Promise.all(teams.map(t => post('state', {}, t.secret)))).filter(s => s.question.bingo.card.flat().includes(title)).length;
+    if (others >= 2 && screen().some(n => n.text === title)) break;
+  }
+  // The other teams that have the song dab it, a moment apart; then the app's team, if its ticket has it.
+  for (const team of teams) {
+    const card = (await post('state', {}, team.secret)).question.bingo.card.flat();
+    if (card.includes(title)) {await sleep(700); await post('react', {question: current, title}, team.secret);}
+  }
+  await sleep(2500);
+  if (screen().some(n => n.text === title)) await tap(title);
+  await sleep(2500); shot('phone-reactions');
   console.log(`Screenshots saved in ${path.relative(root, out)}`);
 } finally {
   try {demo('exit');} catch {}

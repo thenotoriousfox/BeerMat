@@ -399,7 +399,7 @@ Item {
                                        color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 160; font.weight: Font.Bold }
                                 Text { text: !parent.g ? "" : parent.g.music ? (parent.g.titles && parent.g.titles.length ? root.t("Last revealed: {title}", {title: parent.g.titles[parent.g.titles.length - 1]}) : "") : (root.settings.bingoPhrases && parent.g.phrase ? parent.g.phrase : "")
                                        color: root.pal.text; font.pixelSize: 40 }
-                                Text { text: parent.g && parent.g.winners && parent.g.winners.length ? root.t("Winner: {names}", {names: parent.g.winners.map(w => w.name || w).join(", ")}) : parent.g ? root.t("{n} called", {n: parent.g.count || 0}) : ""
+                                Text { text: parent.g && parent.g.winners && parent.g.winners.length ? root.t("Winner: {names}", {names: parent.g.winners.map(w => w.name || w).join(", ")}) : parent.g && !parent.g.music ? root.t("{n} called", {n: parent.g.count || 0}) : ""
                                        color: root.pal.muted; font.pixelSize: 34 }
                                 Grid {
                                     visible: !!parent.g && !parent.g.music && !!parent.g.board
