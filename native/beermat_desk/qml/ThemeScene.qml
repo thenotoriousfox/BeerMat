@@ -42,7 +42,7 @@ Item {
             opacity: (modelData.opacity ?? 1) * at(3)
 
             Image {
-                visible: !!layer.modelData.image
+                visible: !!layer.modelData.image && !layer.modelData.shapeMotion
                 anchors.fill: parent
                 source: layer.modelData.image ? scene.base + layer.modelData.image : ""
                 sourceSize: Qt.size(Math.ceil(parent.width * 2), Math.ceil(parent.height * 2))
@@ -50,6 +50,20 @@ Item {
                 verticalAlignment: layer.modelData.align === "bottom" ? Image.AlignBottom : layer.modelData.align === "top" ? Image.AlignTop : Image.AlignVCenter
                 mirror: !!layer.modelData.mirror
                 smooth: true
+            }
+            // An SVG whose shape is animated (the bat's wingbeat), which Qt's SVG renderer draws still: its frames,
+            // worked out by svgmotion.py, played in a loop and blended between.
+            AnimatedSprite {
+                readonly property var sm: layer.modelData.shapeMotion || null
+                readonly property int fw: Math.ceil(layer.width * 2)
+                readonly property int fh: Math.ceil(layer.height * 2)
+                visible: !!sm
+                anchors.fill: parent
+                source: sm ? "image://svgmotion/" + sm.frames + "/" + fw + "/" + fh + "/" + scene.base + layer.modelData.image : ""
+                frameCount: sm ? sm.frames : 1; frameWidth: fw; frameHeight: fh
+                frameDuration: sm ? Math.max(1, Math.round(sm.duration / sm.frames)) : 1000
+                interpolate: true; loops: AnimatedSprite.Infinite; running: !!sm
+                transform: Scale { origin.x: layer.width / 2; xScale: layer.modelData.mirror ? -1 : 1 }
             }
             // A glowing dot (an ember, a star): a soft halo, then the dot.
             Rectangle {

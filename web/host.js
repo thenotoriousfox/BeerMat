@@ -5,7 +5,7 @@ const uid = () => 'id-' + crypto.getRandomValues(new Uint32Array(4)).join('-');
 const request = (p, body = {}) => api('host/' + p, body, key);
 let offset = 0, selectedRoundId = '', lastBuzz = '', liveQuestion = null, pinTarget = null, clipItems = [], targetClip = 0, clipRun = null;
 const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
-// Formats marked right or wrong automatically (with a correct answer set): Evil Mode and a fixed bonus apply to these.
+// Formats marked right or wrong automatically (with a correct answer set): Risk It and a fixed bonus apply to these.
 const markedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio'];
 const modes = {progressive: 'full game (line, two lines, full house)', line: 'one line', twoLines: 'two lines', fullHouse: 'full house'}, stageNames = {line: 'Line', twoLines: 'Two lines', fullHouse: 'Full house'};
 const isBingoType = type => type === 'bingo' || type === 'musicbingo';
@@ -128,6 +128,8 @@ function formTypes() {
   // Speed bonus settings only appear once fastest fingers first is ticked.
   const fastest = speedTypes.includes(type) && $('qFastest').checked;
   show('pointsLabel', (type !== 'sheet' || $('qPartScoring').value !== 'each') && !(isBingoType(type) && $('qMode').value === 'progressive')); show('fastestLabel', speedTypes.includes(type)); show('speedLabel', fastest);
+  show('bingoExtras', type === 'bingo');
+  show('hideTextLabel', !['bingo', 'musicbingo', 'clips'].includes(type)); show('revealLabel', !['pinpoint', 'audio'].includes(type) && !/\.(mp3|ogg|wav)$/i.test($('qMedia').value));
   show('bonusModeLabel', fastest && markedTypes.includes(type)); show('bonusPlacesLabel', fastest && markedTypes.includes(type) && $('qBonusMode').value === 'fixed'); show('evilLabel', markedTypes.includes(type));
   $('answerLabel').textContent = {choice: 'Correct choice (copy one line from above; blank for manual marking)', letter: 'Correct letter (A–Z)', wordsnake: 'Answer word (letters only, 3–20; spaces are removed)', tiles: 'Answer (4–40 letters; spaces mark separate words)', number: 'Correct number', nearest: 'Correct number', buzzer: 'Expected answer (shown only to you)'}[type] || 'Correct answer (blank for manual marking)';
   $('pointsText').textContent = {nearest: 'Points for the closest team', buzzer: 'Points for a correct buzz', vote: 'Points (votes score nothing)', multi: 'Points for every right tick', pinpoint: 'Points for a first-tap hit', bingo: 'Points for a valid bingo', musicbingo: 'Points for a valid bingo', clips: 'Points for tapping the right clip'}[type] || 'Correct answer points';
@@ -227,6 +229,8 @@ function fillQuestion(q = null) {
   $('qSongs').value = (q?.songs || []).map(s => s.media || s.spotify ? `${s.title} | ${s.media || s.spotify}${s.start !== undefined || s.seconds !== undefined ? ` | ${s.start ?? ''} | ${s.seconds ?? ''}` : ''}` : s.title).join('\n'); $('qStartAt').value = q?.startAt ?? 0; $('qSongSeconds').value = q?.songSeconds ?? 0; $('qAutoNext').checked = !!q?.autoNext; $('qClipSeconds').value = q?.clipSeconds ?? 15; $('qRevealNow').checked = !!q?.revealNow;
   clipItems = structuredClone(q?.clips || []); targetClip = q?.targetClip ?? 0; renderClipList();
   $('qFastest').checked = !!q?.fastestFingers; $('qBonusMode').value = q?.bonusMode || 'sliding'; $('qBonusPlaces').value = q?.bonusPlaces ?? 1; $('qEvil').checked = !!q?.evil;
+  $('qHideText').checked = !!q?.hideText; $('qReveal').value = q?.reveal || ''; $('qWipeout').checked = !!q?.wipeout;
+  $('qPerCall').value = String(q?.perCall || 1); $('qSpeedBingo').checked = !!q?.speed; $('qReactions').checked = !!q?.reactions; $('qReactionPoints').value = q?.reactionPoints ?? 0;
   $('qGoWide').checked = !!q?.goWide; $('qGoWidePoints').value = q?.goWidePoints ?? 0; $('qMode').value = q?.mode || 'progressive';
   [$('qLinePoints').value, $('qTwoLinePoints').value, $('qHousePoints').value] = q?.stagePoints || [1, 2, 3];
   $('qVariation').value = q?.variation || 'classic'; $('qPenalty').value = q?.penalty ?? 0; $('qPassPenalty').value = q?.passPenalty ?? 0; $('qAgreePoints').value = q?.agreePoints ?? 1; $('qAgreeSeconds').value = q?.agreeSeconds ?? 10;
@@ -278,12 +282,14 @@ function readQuestion() {
     speedBonus: speedTypes.includes(type) ? Number($('qSpeed').value) : 0, fastestFingers: speedTypes.includes(type) && $('qFastest').checked, answer: $('qAnswer').value.trim(), answerNote: $('qNote').value.trim(), aliases: lines('qAliases'), media: $('qMedia').value};
   if (markedTypes.includes(type)) Object.assign(q, {evil: $('qEvil').checked, bonusMode: $('qBonusMode').value, bonusPlaces: Number($('qBonusPlaces').value)});
   if (['choice', 'vote', 'multi'].includes(type)) q.options = lines('qOptions');
-  if (type === 'multi') q.correct = lines('qCorrect');
+  if (type === 'multi') Object.assign(q, {correct: lines('qCorrect'), wipeout: $('qWipeout').checked});
+  if (!['bingo', 'musicbingo', 'clips'].includes(type) && $('qHideText').checked) q.hideText = true;
+  if ($('qReveal').value && !['pinpoint', 'audio', 'bingo', 'musicbingo', 'clips'].includes(type)) q.reveal = $('qReveal').value;
   if (type === 'pinpoint') q.target = pinTarget;
   if (type === 'pinpoint' || type === 'wordsnake') Object.assign(q, {goWide: $('qGoWide').checked, goWidePoints: Number($('qGoWidePoints').value)});
   const stagePoints = $('qMode').value === 'progressive' ? {stagePoints: [Number($('qLinePoints').value), Number($('qTwoLinePoints').value), Number($('qHousePoints').value)]} : {};
-  if (type === 'bingo') Object.assign(q, {mode: $('qMode').value, media: '', ...stagePoints});
-  if (type === 'musicbingo') Object.assign(q, {...stagePoints, mode: $('qMode').value, revealNow: $('qRevealNow').checked, startAt: Number($('qStartAt').value), songSeconds: Number($('qSongSeconds').value), autoNext: $('qAutoNext').checked, media: '', songs: lines('qSongs').map(songLine)});
+  if (type === 'bingo') Object.assign(q, {mode: $('qMode').value, media: '', perCall: Number($('qPerCall').value), speed: $('qSpeedBingo').checked, ...stagePoints});
+  if (type === 'musicbingo') Object.assign(q, {...stagePoints, reactions: $('qReactions').checked, reactionPoints: Number($('qReactionPoints').value), mode: $('qMode').value, revealNow: $('qRevealNow').checked, startAt: Number($('qStartAt').value), songSeconds: Number($('qSongSeconds').value), autoNext: $('qAutoNext').checked, media: '', songs: lines('qSongs').map(songLine)});
   if (type === 'clips') Object.assign(q, {clips: clipItems.map(c => c.spotify ? {spotify: c.spotify, start: c.start ?? 0, ...(c.seconds !== undefined && {seconds: c.seconds}), label: c.label.trim()} : {media: c.media, label: c.label.trim()}), targetClip, clipSeconds: Number($('qClipSeconds').value), media: ''});
   if (type === 'sequence') q.items = lines('qItems');
   // A sheet answer can list alternatives after the answer: "Shakespeare / William Shakespeare".
@@ -716,7 +722,7 @@ const shortcuts = {backspace: 'back', n: 'next', c: 'close', r: 'reveal', 1: 'bu
 document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || $('panel').hidden || e.target.closest('input,textarea,select,dialog')) return;
   const key = e.key.toLowerCase(), shout = state?.question?.bingo?.pending && {1: 'shoutCorrect', 2: 'shoutWrong'}[key];
-  const id = shout || (key === 'p' ? (state?.question?.paused ? 'resume' : 'pause') : shortcuts[key]);
+  const id = shout || (key === 'p' ? (state?.question?.paused ? 'resume' : 'pause') : key === 's' && state?.question?.held ? 'send' : shortcuts[key]);
   const button = id && $(id);
   if (!button || button.disabled || button.closest('[hidden]')) return;
   e.preventDefault(); if (tab !== 'live') chooseTab('live'); button.click();
@@ -744,6 +750,64 @@ $('titleForm').onsubmit = e => {e.preventDefault(); const title = $('eventName')
 $('registration').onclick = () => action(() => request('settings', {registrationOpen: !state.settings.registrationOpen}));
 $('visibility').onclick = () => action(() => request('settings', {leaderboardVisible: !state.settings.leaderboardVisible}));
 $('scramble').onclick = () => action(() => request('settings', {scrambleKeypads: !state.settings.scrambleKeypads}), 'Keypad scrambling updated — applies from the next question');
+// Room switches added with Send Question: each a boolean setting, its button saying whether it's on.
+const switches = {sendQuestion: 'Send Question', fixedSix: 'Multiple choice A–F', askTable: 'Ask for table numbers', groupBoard: 'Team groups on the TV', slidesAuto: 'Slides after each round', simpleMode: 'Simple mode', countQuizzes: 'Count this venue’s quizzes'};
+for (const name of Object.keys(switches)) $(name).onclick = () => action(() => request('settings', {[name]: !state.settings[name]}), `${switches[name]}: ${state.settings[name] ? 'off' : 'on'}`);
+$('send').onclick = () => action(() => request('send'), 'Question sent to the phones');
+$('flyAnswerForm').onsubmit = e => {e.preventDefault(); const answer = $('flyAnswer').value; action(async () => {await request('fly/answer', {question: state.question.id, answer}); $('flyAnswer').value = '';}, 'Answer set: teams marked');};
+$('flyForm').onsubmit = e => {
+  e.preventDefault();
+  const body = {type: $('flyType').value, options: Number($('flyOptions').value), seconds: Number($('flySeconds').value), points: Number($('flyPoints').value), text: $('flyText').value};
+  action(() => request('fly', body), 'On the fly: read it out now');
+};
+// Wheels: weighted teams, a random number, saved lists and rollover jackpots (server.js spinWheel).
+const spin = body => action(async () => {
+  if (!['auto', 'wheel'].includes(state.settings.displayMode)) await request('settings', {displayMode: 'wheel'});
+  const wheel = await request('wheel', body);
+  $('wheelLast').textContent = `Last spin: ${wheel.items[wheel.result]}${wheel.note ? ` · ${wheel.note}` : ''}`;
+  return `Spinning on the TV${wheel.note ? ` · ${wheel.note}` : ''}`;
+});
+$('spinWeighted').onclick = () => spin({kind: 'weighted'});
+$('spinNumber').onclick = () => {const min = Number($('wheelFrom').value), max = Number($('wheelTo').value); spin({kind: 'number', min, max});};
+$('saveWheel').onclick = () => {const items = $('wheelItems').value.split('\n').map(x => x.trim()).filter(Boolean), name = $('wheelName').value; action(() => request('wheels', {action: 'save', wheel: {name, kind: 'custom', items}}), `Wheel saved: ${name}`);};
+$('saveRollover').onclick = () => {
+  const wheel = {name: $('rolloverName').value, kind: 'rollover', prize: $('rolloverPrize').value, base: Number($('rolloverBase').value), step: Number($('rolloverStep').value), slices: Number($('rolloverSlices').value)};
+  action(() => request('wheels', {action: 'save', wheel}), `Jackpot saved: ${wheel.name}`);
+};
+function renderWheels(s) {
+  const signature = JSON.stringify(s.wheels); if ($('savedWheels').dataset.wheels === signature) return; $('savedWheels').dataset.wheels = signature;
+  $('savedWheels').replaceChildren(...s.wheels.map(w => {
+    const li = element('li'), go = element('button', 'Spin', 'subtle'), remove = element('button', 'Delete', 'danger subtle'); go.type = remove.type = 'button';
+    go.onclick = () => spin({saved: w.id}); remove.onclick = () => action(() => request('wheels', {action: 'delete', id: w.id}), 'Wheel deleted');
+    li.append(element('span', `${w.name} · ${w.kind === 'rollover' ? `jackpot ${w.prize}${w.amount}` : w.kind === 'number' ? `${w.min}–${w.max}` : `${w.items.length} slices`}`), go, remove);
+    return li;
+  }));
+}
+$('fastFirst').onclick = () => {const team = $('fastTeam').value; action(async () => `Fast Track: +${(await request('fasttrack', {team, action: 'first'})).points} points, into first place`);};
+$('fastWheel').onclick = () => {const team = $('fastTeam').value; action(async () => {
+  if (!['auto', 'wheel'].includes(state.settings.displayMode)) await request('settings', {displayMode: 'wheel'});
+  const wheel = await request('fasttrack', {team, action: 'wheel'}); return `Fast Track wheel: ${wheel.items[wheel.result]}${wheel.note ? ` · ${wheel.note}` : ''}`;
+});};
+// Slides between rounds: pictures uploaded to the quiz's media, each shown for its own time.
+$('slideUpload').onchange = () => action(async () => {
+  const slides = [...state.slides]; for (const file of $('slideUpload').files) slides.push({media: await uploadMedia(file), seconds: Number($('slideSeconds').value)});
+  $('slideUpload').value = ''; await request('slides', {slides});
+}, 'Slides added');
+$('slideUse').onclick = () => {const seconds = Number($('slideSeconds').value); action(() => request('slides', {slides: state.slides.map(x => ({media: x.media, seconds}))}), 'Slide time saved');};
+$('slideClear').onclick = () => action(() => request('slides', {slides: []}), 'Slides removed');
+// How each question went: the share of teams that scored and their average time.
+async function showReport(event) {
+  const {questions} = await request('report', event ? {event} : {});
+  $('reportList').replaceChildren(...questions.map(q => {
+    const li = element('li'), share = q.answered ? q.scored / q.answered : 0, bar = element('span', undefined, 'bar'), fill = element('span', undefined, share >= 0.66 ? '' : share >= 0.33 ? 'mid' : 'low');
+    fill.style.width = `${Math.round(share * 100)}%`; bar.append(fill);
+    li.append(element('span', q.text), bar, element('span', q.answered ? `${Math.round(share * 100)}% of ${q.answered}` : 'no answers'), element('span', q.averageMs === null ? '' : `${(q.averageMs / 1000).toFixed(1)}s`, 'muted'));
+    return li;
+  }));
+  if (!questions.length) $('reportList').append(element('li', 'No questions finished yet.', 'muted'));
+  $('reportDialog').showModal();
+}
+$('reportNow').onclick = () => showReport('').catch(e => message(e.message, true));
 $('phrases').onclick = () => action(() => request('settings', {bingoPhrases: !state.settings.bingoPhrases}));
 $('caller').onclick = () => action(() => request('settings', {bingoVoice: !state.settings.bingoVoice}));
 $('board').onclick = () => action(() => request('settings', {bingoBoard: !state.settings.bingoBoard}));
@@ -829,6 +893,8 @@ function renderHistory() {
   $('historyPanel').hidden = !past || !state; if (!past || !state) return;
   $('historyList').replaceChildren(...past.events.map(e => {
     const li = element('li', `${new Date(e.finished).toLocaleDateString()} — ${e.title}: ${e.teams} teams${e.winner ? `, won by ${e.winner}` : ''} `);
+    const report = element('button', '📊 Report', 'subtle'); report.type = 'button'; report.onclick = () => showReport(e.event).catch(err => message(err.message, true));
+    li.append(report);
     const remove = element('button', 'Delete', 'subtle'); remove.type = 'button';
     remove.onclick = () => {if (confirm(`Delete the results of “${e.title}” from this laptop?`)) action(async () => {await request('results/delete', {event: e.event}); await loadHistory();}, 'Results deleted');};
     li.append(remove); return li;
@@ -1090,12 +1156,22 @@ $('printSheets').onclick = () => {
     }
   }} window.print();
 };
+// The signal monitor: a phone's last round trip, green under half a second, amber under two, red beyond.
+const signalClass = ms => ms < 500 ? 'good' : ms < 2000 ? 'ok' : 'poor';
 function teamControls(team) {
   const box = element('article', undefined, 'card'); box.append(element('h3', team.name), element('p', `${team.score} pts · ${!team.enabled ? 'Disabled' : team.waiting ? '🚪 In the waiting room' : team.connected ? 'Connected' : 'Disconnected'}`));
   const photoActions = team.photo ? (team.photo_status === 'pending' ? [['Approve photo', 'approvePhoto'], ['Reject photo', 'rejectPhoto']] : [['Remove photo', 'rejectPhoto']]) : [];
   if (team.photo) box.append(avatar(team.photo), element('p', team.photo_status === 'pending' ? 'Photo waiting for approval' : 'Photo approved', 'muted'));
   const {answered, scored, fastest} = team.stats;
   box.append(element('p', `${answered} answered · ${scored} scored${fastest !== null ? ` · fastest scoring answer ${(fastest / 1000).toFixed(1)}s` : ''}`, 'muted'));
+  if (team.rtt !== null && team.rtt !== undefined) box.append(element('p', `Phone round trip: ${team.rtt} ms`, `signal ${signalClass(team.rtt)}`));
+  // Team groups (department against department) and the room map (which table a team sits at).
+  const place = element('div', undefined, 'row'), group = element('input'), table = element('input');
+  group.maxLength = 30; group.placeholder = 'Group (e.g. Sales)'; group.value = team.grp || ''; group.setAttribute('aria-label', `Group for ${team.name}`);
+  table.type = 'number'; table.min = '0'; table.max = '500'; table.placeholder = 'Table'; table.value = team.table_no || ''; table.setAttribute('aria-label', `Table for ${team.name}`);
+  group.onchange = () => action(() => request('team', {id: team.id, action: 'group', group: group.value}), 'Group saved');
+  table.onchange = () => action(() => request('team', {id: team.id, action: 'table', table: Number(table.value) || null}), 'Table saved');
+  place.append(group, table); box.append(place);
   const note = element('textarea'); note.rows = 2; note.maxLength = 500; note.placeholder = 'Private notes (only on this desk)'; note.value = team.note || '';
   note.setAttribute('aria-label', `Notes for ${team.name}`);
   note.onchange = () => action(() => request('team', {id: team.id, action: 'note', note: note.value}), 'Note saved');
@@ -1189,7 +1265,7 @@ function renderState(s) {
   $('joinUrlHint').textContent = s.settings.joinUrl;
   const q = s.question, pending = q?.live;
   $('liveRound').textContent = (q?.secret && !s.settings.ended ? '🤫 Secret round · ' : '') + (q?.round || ''); $('liveText').textContent = q?.text || 'Ready when you are'; $('liveTimer').textContent = timeText(q, offset);
-  $('liveKey').textContent = q ? answerKey(q) : '';
+  $('liveKey').textContent = q ? (q.held ? 'Read it out, then Send question (S): phones see it and the clock starts. · ' : '') + answerKey(q) : '';
   if (q?.id !== liveQuestion) {liveQuestion = q?.id; $('announced').value = '';}
   renderBuzzPanel(q); renderBingoPanel(q); audioClipCue(q); showDeskPlayer(); renderSounds(s); useSounds(s.sounds); renderLooks(s); renderTie(s);
   if (clipRun && (q?.id !== clipRun.question || !q.live)) stopClips(); else renderClipsPanel(q);
@@ -1197,7 +1273,7 @@ function renderState(s) {
   renderMedia($('liveMedia'), q); renderSolution($('liveSolution'), q);
   // Back undoes the last step Next took (the server says which, so it can label it).
   $('back').disabled = !s.back; $('back').title = s.back ? `${s.back.label} (Backspace)` : 'Nothing to go back to';
-  const step = nextStep(s); $('next').disabled = !!q?.live || !step; $('next').textContent = nextLabels[step] || 'Quiz finished'; $('close').textContent = ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type) ? 'End game' : 'Close answers'; $('close').disabled = !pending; $('pause').disabled = !q?.open; $('resume').disabled = !q?.paused; $('reveal').disabled = !q || !!pending;
+  const step = nextStep(s); $('next').disabled = !!q?.live || !step; $('next').textContent = nextLabels[step] || 'Quiz finished'; $('close').textContent = ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type) ? 'End game' : 'Close answers'; $('close').disabled = !pending; $('pause').disabled = !q?.open; $('resume').disabled = !q?.paused || !!q?.held; $('reveal').disabled = !q || !!pending;
   $('reveal').textContent = q?.revealing ? 'Revealing…' : q?.revealed ? 'Hide answer reveal' : 'Reveal answer';
   $('registration').textContent = s.settings.registrationOpen ? 'Close registration' : 'Open registration'; $('registration').disabled = s.settings.ended;
   $('visibility').textContent = s.settings.leaderboardVisible ? 'Hide leaderboard' : 'Show leaderboard';
@@ -1212,6 +1288,18 @@ function renderState(s) {
   $('showScores').textContent = `Board shows: ${s.settings.showScores ? 'scores' : 'positions only'}`;
   if (!$('maxTeamsForm').contains(document.activeElement)) $('maxTeams').value = s.settings.maxTeams;
   renderTimer();
+  for (const [name, label] of Object.entries(switches)) $(name).textContent = `${label}: ${s.settings[name] ? 'on' : 'off'}`;
+  document.body.classList.toggle('simple', !!s.settings.simpleMode);
+  $('send').hidden = !q?.held; $('send').disabled = busy;
+  $('flyAnswerForm').hidden = !(q?.onTheFly && !q.live && !q.answer);
+  const reactions = q?.reactionTable; $('reactionPanel').hidden = !reactions;
+  if (reactions) {
+    $('reactionNow').textContent = reactions.now.length ? `Song ${reactions.song}: ` + reactions.now.map((r, i) => `${i + 1}. ${r.name} ${(r.ms / 1000).toFixed(1)}s`).join('  ') : `Song ${reactions.song}: nobody has dabbed it yet`;
+    $('reactionLeaders').textContent = reactions.leaders.length ? 'Quickest on most songs: ' + reactions.leaders.map(l => `${l.name} (${l.songs})`).join(', ') : '';
+  }
+  renderWheels(s);
+  selectOptions($('fastTeam'), s.teams.filter(t => t.enabled && !t.waiting).map(t => [t.id, t.name]), $('fastTeam').value);
+  $('slidesInfo').textContent = `${s.slides.length ? `${s.slides.length} ${s.slides.length === 1 ? 'picture' : 'pictures'}` : 'No pictures yet'}: your adverts, food, next week’s quiz. With “Slides after each round” on, the TV plays them 20 seconds after a round’s leaderboard is fully revealed (or a minute after the round if you don’t show it); TV shows → Slides plays them now.`;
   $('scramble').textContent = `Scramble keypads: ${s.settings.scrambleKeypads ? 'on' : 'off'}`; $('phrases').textContent = `Bingo phrases: ${s.settings.bingoPhrases ? 'on' : 'off'}`; $('caller').textContent = `Bingo caller voice: ${s.settings.bingoVoice ? 'on' : 'off'}`; $('board').textContent = `TV shows called numbers: ${s.settings.bingoBoard ? 'on' : 'off'}`;
   if (!$('blockedForm').contains(document.activeElement)) $('blockedWords').value = s.blockedWords.join('\n'); $('displayMode').value = s.settings.displayMode; $('autoView').textContent = s.settings.displayMode === 'auto' ? `(now: ${{join: 'join screen', leaderboard: 'leaderboard', question: 'question', winner: 'winner'}[s.view] || s.view})` : ''; $('tvLanguage').value = s.settings.language; $('finish').textContent = s.settings.ended ? 'Resume quiz' : 'Finish quiz';
   const offline = s.teams.filter(t => t.enabled && !t.waiting && !t.connected), photos = s.teams.filter(t => t.photo_status === 'pending').length;
@@ -1295,12 +1383,13 @@ function renderTonight(s) {
   // Who's in, who has answered the open question, and their scores.
   const answered = new Set(s.answers.filter(a => a.submitted).map(a => a.team));
   $('roomCount').textContent = `${active.length} ${active.length === 1 ? 'team' : 'teams'}${q?.live ? ` · ${active.filter(t => answered.has(t.id)).length} answered` : ''}`;
-  const roomSig = JSON.stringify([s.teams.map(t => [t.id, t.name, t.score, t.connected, t.waiting, t.enabled, t.photo]), [...answered], q?.id, q?.live]);
+  const roomSig = JSON.stringify([s.teams.map(t => [t.id, t.name, t.score, t.connected, t.waiting, t.enabled, t.photo, t.table_no, t.rtt === null || t.rtt === undefined ? null : signalClass(t.rtt)]), [...answered], q?.id, q?.live]);
   if (roomSig !== renderTonight.room) {
     renderTonight.room = roomSig;
     $('roomTeams').replaceChildren(...[...s.teams].filter(t => t.enabled).sort((a, b) => a.waiting - b.waiting || (b.score ?? 0) - (a.score ?? 0)).map(t => {
       const li = element('li', undefined, [t.waiting ? 'waiting' : '', !t.connected && !t.waiting ? 'offline' : '', q?.live && answered.has(t.id) ? 'answered' : ''].join(' ').trim());
-      li.append(t.photo ? avatar(t.photo) : element('span', t.name.slice(0, 1).toUpperCase(), 'avatar'), element('span', t.name, 'name'),
+      li.append(t.photo ? avatar(t.photo) : element('span', t.name.slice(0, 1).toUpperCase(), 'avatar'), element('span', t.name + (t.table_no ? ` · T${t.table_no}` : ''), 'name'),
+        ...t.rtt === null || t.rtt === undefined ? [] : [element('span', '▂▄▆'.slice(0, signalClass(t.rtt) === 'good' ? 3 : signalClass(t.rtt) === 'ok' ? 2 : 1), `signal ${signalClass(t.rtt)}`)],
         element('span', t.waiting ? 'waiting' : q?.live ? (answered.has(t.id) ? '✓ answered' : '…') : !t.connected ? 'offline' : '', 'status'), element('strong', String(t.score ?? 0), 'score'));
       return li;
     }));

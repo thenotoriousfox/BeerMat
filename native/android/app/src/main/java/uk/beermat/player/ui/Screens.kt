@@ -226,9 +226,10 @@ fun ConnectScreen(vm: PlayerViewModel, ui: UiState, scan: () -> Unit) {
 @Composable
 fun JoinScreen(vm: PlayerViewModel, ui: UiState) {
     var name by rememberSaveable { mutableStateOf("") }
+    var table by rememberSaveable { mutableStateOf("") }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val focus = androidx.compose.ui.platform.LocalFocusManager.current
-    val join = { focus.clearFocus(); keyboard?.hide(); vm.join(name) }
+    val join = { focus.clearFocus(); keyboard?.hide(); vm.join(name, table.toIntOrNull()?.takeIf { it in 1..500 }) }
     var code by rememberSaveable { mutableStateOf("") }
     val hello = ui.hello
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
@@ -239,6 +240,11 @@ fun JoinScreen(vm: PlayerViewModel, ui: UiState) {
             name, { if (it.length <= 40) name = it }, singleLine = true, label = { Text(t("Team name")) },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (name.trim().length >= 2) join() }),
             modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).testTag("teamName"),
+        )
+        // The room map: the quizmaster asks which table each team sits at.
+        if (hello?.askTable == true) OutlinedTextField(
+            table, { v -> if (v.length <= 3 && v.all(Char::isDigit)) table = v }, singleLine = true, label = { Text(t("Table number")) },
+            keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number), modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).testTag("tableNumber"),
         )
         BigButton(t("Join the quiz"), enabled = name.trim().length >= 2 && !ui.busy && hello?.registrationOpen != false) { join() }
         if (hello?.registrationOpen == false) Text(t("Registration is closed. Ask the quizmaster."), color = Brand.muted, modifier = Modifier.padding(top = 8.dp))

@@ -42,6 +42,7 @@ ApplicationWindow {
     Shortcut { sequence: "N"; onActivated: desk.next() }
     Shortcut { sequence: "Backspace"; onActivated: desk.back() }
     Shortcut { sequence: "C"; onActivated: desk.closeAnswers() }
+    Shortcut { sequence: "S"; onActivated: desk.send() }
     Shortcut { sequence: "R"; onActivated: desk.reveal() }
     Shortcut { sequence: "P"; onActivated: window.view.canResume ? desk.resume() : desk.pause() }
     Shortcut { sequences: [StandardKey.Open]; onActivated: openQuiz.open() }

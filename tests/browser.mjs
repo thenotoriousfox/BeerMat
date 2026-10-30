@@ -303,7 +303,7 @@ try {
   for (const t of tiles.tiles) {const i = tiles.pieces.findIndex((p, j) => p === t && !usedTiles.has(j)); usedTiles.add(i); await player.locator(`#inputs .tiles button[data-index="${i}"]`).click();}
   assert.equal(await player.locator('#tileWord').textContent(), 'THE LION KING'); await submitted(player); await host.keyboard.press('c');
   await host.locator('#reveal').click(); await waitFor(projector, () => document.getElementById('solution').textContent.includes('The Lion King'));
-  log('word snake trace with restart and go wide; Seven Squares-style tiles; TV shows the word pattern');
+  log('word trail trace with restart and go wide; Letter tiles; TV shows the word pattern');
   await host.locator('[data-tab=teams]').click(); const owlCard = host.locator('#teamCards article', {hasText: 'Owl team'});
   await owlCard.locator('textarea').fill('Table 7'); await owlCard.locator('textarea').blur(); await waitFor(host, () => document.getElementById('message').textContent === 'Note saved');
   await owlCard.getByRole('button', {name: 'Move to a new phone'}).click(); await visible(host, '#recoveryDialog'); const moveCode = await host.locator('#recoveryCode').textContent(); await host.locator('#recoveryDialog button').click();
@@ -349,7 +349,7 @@ try {
   await host.locator('#saveQuestion').click(); await waitFor(host, () => document.getElementById('editorStatus').textContent === 'Saved question loaded');
   const saved = (await hostApi('library')).rounds.flatMap(r => r.questions).find(q => q.text === 'Evil capital');
   assert.deepEqual([saved.evil, saved.fastestFingers, saved.bonusMode, saved.bonusPlaces, saved.speedBonus], [true, true, 'fixed', 2, 3]);
-  log('builder: Evil Mode and fixed speed bonus fields save with the question');
+  log('builder: Risk It and fixed speed bonus fields save with the question');
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard'); await host.evaluate(() => {document.getElementById('finish').closest('details').open = true;}); await host.locator('#finish').click(); await waitFor(projector, () => document.getElementById('boardStatus').textContent === 'Final standings');
   await visible(projector, '#boardSection'); await host.locator('#displayMode').selectOption('winner');
   await visible(projector, '#winnerSection'); await waitFor(projector, () => document.getElementById('winnerName').textContent === 'Fox team' && document.querySelectorAll('#confetti span').length === 80);

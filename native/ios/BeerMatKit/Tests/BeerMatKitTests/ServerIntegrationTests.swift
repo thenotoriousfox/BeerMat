@@ -1,5 +1,8 @@
 #if os(macOS) || os(Linux)
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import XCTest
 @testable import BeerMatKit
 
@@ -61,9 +64,42 @@ final class ServerIntegrationTests: XCTestCase {
         XCTAssertEqual(board["iPhone Inquisitors"], 1); XCTAssertEqual(board["Browser Brains"], 0)
     }
 
+    /// Send Question, six fixed buttons, the table number at join and music bingo's reaction table, as this app sends them.
+    func testSendQuestionFixedSixTablesAndReactions() async throws {
+        let (server, host) = try start("pro")
+        try await call(server, "/api/host/settings", ["askTable": true, "sendQuestion": true, "fixedSix": true], host)
+        let hello = try await server.hello()
+        XCTAssertTrue(hello.askTable)
+        let app = try await server.join("iPhone Inquisitors", table: 9)
+        let teams = try await call(server, "/api/host/state", [:], host)["teams"] as! [[String: Any]]
+        XCTAssertEqual(teams.first { $0.str("name") == "iPhone Inquisitors" }?.int("table_no"), 9)
+
+        try await call(server, "/api/host/open", ["text": "Red planet?", "type": "choice", "options": ["Venus", "Mars"], "answer": "Mars", "seconds": 30, "points": 1], host)
+        let held = try await server.state(app.secret).question!
+        XCTAssertTrue(held.held); XCTAssertEqual(held.text, ""); XCTAssertTrue(held.options.isEmpty)
+        try await call(server, "/api/host/send", [:], host)
+        let sent = try await server.state(app.secret).question!
+        XCTAssertFalse(sent.held); XCTAssertTrue(sent.open); XCTAssertTrue(sent.fixedSix)
+        try await server.answer(app.secret, question: sent.id, value: "#E")
+        try await call(server, "/api/host/close", [:], host)
+        let marked = try await server.state(app.secret)
+        XCTAssertEqual(marked.teams.first { $0.name == "iPhone Inquisitors" }?.score, 0)
+
+        try await call(server, "/api/host/settings", ["sendQuestion": false], host)
+        let songs = (1...15).map { ["title": "Song \($0)"] }
+        try await call(server, "/api/host/open", ["text": "Music bingo", "type": "musicbingo", "mode": "line", "songs": songs, "reactions": true, "seconds": 600, "points": 3], host)
+        let q = try await server.state(app.secret).question!
+        let number = try await call(server, "/api/host/bingo", ["question": q.id], host).int("number")
+        try await server.react(app.secret, question: q.id, title: "Song \(number)")
+        let table = try await server.state(app.secret).question!.raw["reactionTable"] as! [String: Any]
+        XCTAssertEqual((table["now"] as! [[String: Any]]).first?.str("name"), "iPhone Inquisitors")
+        do { try await server.react(app.secret, question: q.id, title: nil); XCTFail("one go per song") } catch let e as QuizError { XCTAssertEqual(e.status, 409) }
+    }
+
     func testRehearsalKeepsTheAppOutOfTheGame() async throws {
         let (server, host) = try start("free")
-        XCTAssertTrue(try await server.hello().rehearsal)
+        let hello = try await server.hello()
+        XCTAssertTrue(hello.rehearsal)
         try await call(server, "/api/host/rehearsal/start", ["options": ["teams": 2, "auto": false]], host)
         let phone = try await server.join("Test iPhone")
         XCTAssertTrue(phone.rehearsal)

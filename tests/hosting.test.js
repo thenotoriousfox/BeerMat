@@ -22,7 +22,7 @@ async function fixture(fn) {
 }
 const score = (s, name) => s.teams.find(t => t.name === name).score;
 
-test('Evil Mode: wrong answers lose the points, no answer loses nothing', () => fixture(async ({call}) => {
+test('Risk It: wrong answers lose the points, no answer loses nothing', () => fixture(async ({call}) => {
   const [right, wrong, silent] = [await call('join', {name: 'Right'}), await call('join', {name: 'Wrong'}), await call('join', {name: 'Silent'})];
   const {id} = await call('host/open', question({evil: true}));
   await call('answer', {question: id, value: 'Cardiff'}, right.secret);
@@ -31,7 +31,7 @@ test('Evil Mode: wrong answers lose the points, no answer loses nothing', () => 
   const s = await call('host/state');
   assert.deepEqual([score(s, 'Right'), score(s, 'Wrong'), score(s, 'Silent')], [2, -2, 0]);
   assert.equal((await call('state', {}, wrong.secret)).answer.points, -2);
-  // Without a correct answer to mark against, Evil Mode is refused.
+  // Without a correct answer to mark against, Risk It is refused.
   assert.equal((await call('host/open', question({evil: true, answer: ''}))).status, 400);
   assert.equal((await call('host/open', question({type: 'vote', options: ['A', 'B'], evil: true}))).status, 400);
 }));
@@ -208,7 +208,7 @@ test('a secret round hides marks, the reveal and the leaderboard from teams and 
   assert.equal((await call('state', {}, team.secret)).answer.points, 2);
 }));
 
-test('after a secret round, Next goes back through it: each answer with how every team did (Evil Mode’s losses too), then the round’s results', () => fixture(async ({call, board}) => {
+test('after a secret round, Next goes back through it: each answer with how every team did (Risk It’s losses too), then the round’s results', () => fixture(async ({call, board}) => {
   const owls = await call('join', {name: 'Owls'}), bats = await call('join', {name: 'Bats'});
   await call('host/library/save', {revision: 0, quiz: {title: 'Secret', rounds: [{id: 'r1', title: 'Round 1', questions: [{id: 'a', ...question()}]},
     {id: 'r2', title: 'The Final', secret: true, questions: [{id: 'b', ...question({text: 'Capital of Scotland?', answer: 'Edinburgh'})}, {id: 'c', ...question({text: 'Capital of Ireland?', answer: 'Dublin', evil: true})}]}]}});

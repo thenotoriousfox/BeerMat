@@ -3,8 +3,8 @@ export const $ = id => document.getElementById(id);
 export const element = (tag, text, className) => {const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (className) el.className = className; return el;};
 export function readStorage(key, session = false) {try {return (session ? sessionStorage : localStorage).getItem(key) || '';} catch {return '';}}
 export function writeStorage(key, value, session = false) {try {(session ? sessionStorage : localStorage).setItem(key, value); return true;} catch {return false;}}
-export async function api(route, body = {}, key = '') {
-  const response = await fetch('/api/' + route, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body), signal: AbortSignal.timeout(8000)});
+export async function api(route, body = {}, key = '', headers = {}) {
+  const response = await fetch('/api/' + route, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key, ...headers}, body: JSON.stringify(body), signal: AbortSignal.timeout(8000)});
   const data = await response.json();
   if (!response.ok) {const error = Error(t(data.error || 'Request failed')); error.status = response.status; throw error;}
   return data;
@@ -27,6 +27,25 @@ export function renderMedia(container, question) {
   const media = element(isAudio(value) ? 'audio' : 'img'); media.src = value;
   if (isAudio(value)) {media.controls = true; media.preload = 'metadata';} else media.alt = 'Quiz picture';
   container.append(media);
+}
+// A picture that shows itself over the question's time (reveal: blur or tiles): sharp, or every tile gone, once
+// answers close. Called on every tick; the tiles go in an order fixed by the question, the same on every screen.
+export function revealPicture(container, question, offset = 0) {
+  const img = container.querySelector('img'), mode = question?.reveal;
+  let cover = container.querySelector('.reveal-tiles');
+  if (cover && cover.dataset.question !== String(question?.id)) {cover.remove(); cover = null;}
+  if (!img || !mode) {cover?.remove(); container.classList.remove('revealing-picture'); if (img) img.style.filter = ''; return;}
+  const total = question.seconds * 1000, left = question.held ? total : question.paused ? question.remaining : Math.max(0, question.deadline - Date.now() - offset);
+  const shown = !question.live || question.revealed ? 1 : Math.min(1, Math.max(0, 1 - left / total));
+  container.classList.add('revealing-picture');
+  if (mode === 'blur') {img.style.filter = shown >= 1 ? '' : `blur(${Math.round((1 - shown) * 28)}px)`; cover?.remove(); return;}
+  if (!cover) {
+    cover = element('div', undefined, 'reveal-tiles'); cover.dataset.question = String(question.id);
+    cover.append(...seededOrder(12, `tiles:${question.id}`).map(order => {const tile = element('span'); tile.dataset.order = order; return tile;}));
+    container.append(cover);
+  }
+  const gone = Math.floor(shown * 12);
+  for (const tile of cover.children) tile.classList.toggle('gone', Number(tile.dataset.order) < gone);
 }
 export function avatar(src) {const img = element('img', undefined, 'avatar'); img.src = src; img.alt = ''; return img;}
 // Leaderboard rows slide from their old position to the new one when the order changes.
@@ -53,6 +72,7 @@ export function renderBoard(container, teams) {
 export function timeText(question, offset = 0) {
   if (!question) return t('Waiting for the quizmaster');
   if (question.type === 'bingo' || question.type === 'musicbingo') return t(question.paused ? 'Paused' : question.live ? 'Eyes down — game in progress' : 'Game over');
+  if (question.held) return t('Get ready: the question is on its way');
   if (question.paused) return t('Paused · {n}s remaining', {n: Math.ceil(question.remaining / 1000)});
   if (!question.open || question.deadline <= Date.now() + offset) return t('Answers closed');
   return t('{n}s remaining', {n: Math.max(0, Math.ceil((question.deadline - Date.now() - offset) / 1000))});
@@ -242,7 +262,7 @@ export function fanfare() {
     osc.connect(gain).connect(audio.destination); osc.start(t); osc.stop(t + 0.32);
   });
 }
-// Word snake grid. path: squares picked so far; shown: squares still visible after going wide (null = all).
+// Word trail grid. path: squares picked so far; shown: squares still visible after going wide (null = all).
 export const adjacent = (a, b, size) => a !== b && Math.abs(Math.floor(a / size) - Math.floor(b / size)) <= 1 && Math.abs(a % size - b % size) <= 1;
 export function renderSnake(container, grid, path = [], shown = null, onTap = null) {
   const key = JSON.stringify([grid.letters, path, shown, !!onTap]);

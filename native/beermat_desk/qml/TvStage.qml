@@ -38,7 +38,14 @@ Item {
     readonly property string view: blanked ? "blank" : (tv.view || "")
     readonly property real offset: tv.offset || 0
     property real now: Date.now()
-    Timer { interval: 100; running: root.visible && (!!root.q || !!root.tv.timer); repeat: true; onTriggered: root.now = Date.now() }
+    Timer { interval: 100; running: root.visible && (!!root.q || !!root.tv.timer || root.view === "slides"); repeat: true; onTriggered: root.now = Date.now() }
+    // The same shuffle as the web pages' (web/app.js seededOrder), so a picture's tiles go in the same order everywhere.
+    function seededOrder(length, seed) {
+        let h = 2166136261; for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619)
+        const order = Array.from({length: length}, (_, i) => i)
+        for (let i = length - 1; i > 0; i--) { h = Math.imul(h ^ (h >>> 15), 2246822507) ^ i; const j = (h >>> 0) % (i + 1); const x = order[i]; order[i] = order[j]; order[j] = x }
+        return order
+    }
     readonly property real serverNow: now + offset
     clip: true
 
@@ -255,6 +262,7 @@ Item {
                         spacing: 24
                         Text {
                             text: !questionView.q ? "" : questionView.bingo ? (questionView.q.paused ? root.t("Paused") : questionView.q.live ? root.t("Eyes down — game in progress") : root.t("Game over"))
+                                : questionView.q.held ? root.t("Get ready: the question is on its way")
                                 : questionView.q.paused ? root.t("Paused · {n}s remaining", {n: Math.ceil(questionView.q.remaining / 1000)})
                                 : !questionView.q.open || questionView.msLeft <= 0 ? root.t("Answers closed") : root.t("{n}s remaining", {n: Math.ceil(questionView.msLeft / 1000)})
                             color: questionView.q && questionView.q.open ? root.pal.goldHi : root.pal.muted; font.family: Theme.display; font.pixelSize: 40; font.weight: Font.DemiBold
@@ -278,6 +286,30 @@ Item {
                             source: questionView.isImage ? (questionView.q.media.startsWith("http") ? questionView.q.media : root.serverUrl + questionView.q.media) : ""
                             Layout.fillHeight: true; Layout.preferredWidth: visible ? 760 : 0
                             fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true
+                            // A picture revealed over the question's time (reveal: blur or tiles): how much shows, 0–1.
+                            readonly property string revealMode: questionView.q && questionView.q.reveal ? questionView.q.reveal : ""
+                            readonly property real shownShare: !revealMode || !questionView.q.live || questionView.q.revealed ? 1 : questionView.q.held ? 0
+                                : Math.min(1, Math.max(0, 1 - questionView.msLeft / (questionView.q.seconds * 1000)))
+                            // Blur: the picture loaded tiny and stretched (soft), sharper step by step; 0 is its own size.
+                            sourceSize.width: revealMode === "blur" && shownShare < 1 ? [6, 8, 12, 16, 24, 32, 48, 72, 112, 176][Math.floor(shownShare * 10)] : 0
+                            retainWhileLoading: true
+                            Grid {
+                                id: revealTiles
+                                visible: parent.revealMode === "tiles" && parent.status === Image.Ready
+                                readonly property var order: questionView.q ? root.seededOrder(12, `tiles:${questionView.q.id}`) : []
+                                x: (parent.width - parent.paintedWidth) / 2; y: (parent.height - parent.paintedHeight) / 2
+                                width: parent.paintedWidth; height: parent.paintedHeight; columns: 4; spacing: 4
+                                Repeater {
+                                    model: 12
+                                    delegate: Rectangle {
+                                        required property int index
+                                        width: (revealTiles.width - 12) / 4; height: (revealTiles.height - 8) / 3; radius: 8
+                                        color: root.pal.violet; border.color: root.pal.lineStrong
+                                        opacity: revealTiles.order[index] < Math.floor(revealTiles.parent.shownShare * 12) ? 0 : 1
+                                        Behavior on opacity { NumberAnimation { duration: 500 } }
+                                    }
+                                }
+                            }
                             // Pinpoint: the target appears on the picture once revealed.
                             Rectangle {
                                 readonly property var target: questionView.q && questionView.q.revealed ? questionView.q.target : null
@@ -337,7 +369,7 @@ Item {
                                 Text { text: !parent.b ? "" : parent.b.agreeOpen ? root.t("“{answer}” — agree now! {n} agreed", {answer: parent.b.announced, n: parent.b.agreeCount}) : (parent.b.queue || []).filter(x => x.status === "queued").map(x => x.name).join(" · ")
                                        color: root.pal.text; font.pixelSize: 40 }
                             }
-                            // Word snake: the grid; once revealed, the answer's path lights up in order.
+                            // Word trail: the grid; once revealed, the answer's path lights up in order.
                             Grid {
                                 readonly property var g: questionView.q ? questionView.q.grid : null
                                 readonly property var path: questionView.q && questionView.q.revealed ? (questionView.q.snakePath || []) : []
@@ -383,6 +415,20 @@ Item {
                                         }
                                     }
                                 }
+                            }
+                            // Music bingo's reaction table: who dabbed the song playing, quickest first.
+                            Column {
+                                readonly property var r: questionView.q ? questionView.q.reactionTable : null
+                                visible: !!r
+                                spacing: 8
+                                Text { text: parent.r ? root.t("Reactions · song {n}", {n: parent.r.song}) : ""; color: root.pal.teal; font.pixelSize: 34; font.weight: Font.Bold }
+                                Repeater {
+                                    model: parent.r ? parent.r.now.slice(0, 5) : []
+                                    delegate: Text { required property var modelData; required property int index
+                                                     text: `${index + 1}. ${modelData.name}  ${(modelData.ms / 1000).toFixed(1)}s`; color: index === 0 ? root.pal.goldHi : root.pal.text; font.pixelSize: 36; font.weight: Font.DemiBold }
+                                }
+                                Text { visible: !!parent.r && parent.r.leaders.length > 0; color: root.pal.muted; font.pixelSize: 28
+                                       text: parent.r ? root.t("Quickest on most songs") + ": " + parent.r.leaders.map(l => `${l.name} (${l.songs})`).join(" · ") : "" }
                             }
                             // Sound clips game
                             Column {
@@ -491,9 +537,28 @@ Item {
                     text: root.settings.secretRound ? root.t("Secret round: the scores stay hidden until the end of the quiz.") : !root.settings.leaderboardVisible ? root.t("The quizmaster has hidden scores for now.") : root.settings.ended ? root.t("Final standings") : ""
                     color: root.pal.muted; font.pixelSize: 32
                 }
+                // Team groups (groupBoard): each group's average, best first.
+                Row {
+                    id: groupRow
+                    readonly property var groups: root.tv.groups || []
+                    visible: groups.length > 0
+                    anchors.top: boardTitle.bottom; anchors.topMargin: 20; spacing: 18
+                    Text { text: root.t("Groups"); color: root.pal.gold; font.pixelSize: 30; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
+                    Repeater {
+                        model: groupRow.groups
+                        delegate: Rectangle {
+                            required property var modelData
+                            width: groupText.implicitWidth + 36; height: 64; radius: 16
+                            color: modelData.rank === 1 ? Qt.rgba(root.pal.gold.r, root.pal.gold.g, root.pal.gold.b, 0.24) : Qt.rgba(1, 1, 1, 0.06)
+                            border.color: modelData.rank === 1 ? root.pal.gold : root.pal.line
+                            Text { id: groupText; anchors.centerIn: parent; color: root.pal.text; font.pixelSize: 30; font.weight: Font.DemiBold
+                                   text: `${modelData.name}  ` + (modelData.average === null ? "" : modelData.teams === 1 ? root.t("1 team · average {score}", {score: modelData.average}) : root.t("{n} teams · average {score}", {n: modelData.teams, score: modelData.average})) }
+                        }
+                    }
+                }
                 GridView {
                     id: board
-                    anchors.top: boardTitle.bottom; anchors.topMargin: 30; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+                    anchors.top: groupRow.visible ? groupRow.bottom : boardTitle.bottom; anchors.topMargin: 30; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
                     readonly property bool twoColumns: root.teams.length > 10
                     cellWidth: twoColumns ? width / 2 : width; cellHeight: 84
                     flow: GridView.FlowTopToBottom
@@ -581,7 +646,7 @@ Item {
                         Row {
                             spacing: 24
                             Text { text: recapView.r && recapView.q ? root.t("Question {n} of {count}", {n: recapView.r.shown + 1, count: recapView.r.count}) : ""; color: root.pal.muted; font.pixelSize: 30 }
-                            Text { visible: !!recapView.q && recapView.q.evil; text: root.t("😈 Evil Mode: a wrong answer loses the points"); color: root.pal.bad; font.pixelSize: 30; font.weight: Font.Bold }
+                            Text { visible: !!recapView.q && recapView.q.evil; text: root.t("🎲 Risk It: a wrong answer loses the points"); color: root.pal.bad; font.pixelSize: 30; font.weight: Font.Bold }
                         }
                         Text { width: parent.width; text: recapView.q ? recapView.q.text : ""; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight
                                color: root.pal.text; font.family: Theme.display; font.pixelSize: 60; font.weight: Font.Bold }
@@ -697,11 +762,39 @@ Item {
                     width: 56; height: 50; anchors.horizontalCenter: wheelCanvas.horizontalCenter; anchors.top: wheelCanvas.top; anchors.topMargin: -12
                     onPaint: { const c = getContext("2d"); c.fillStyle = "#fff8ec"; c.beginPath(); c.moveTo(0, 0); c.lineTo(56, 0); c.lineTo(28, 50); c.closePath(); c.fill() }
                 }
+                // The wheel's name (a saved wheel, Fast Track), and once it stops a rollover jackpot's new amount or what a
+                // Fast Track spin won: beside the wheel, clear of the pointer.
+                Column {
+                    anchors.left: parent.left; anchors.top: parent.top; anchors.topMargin: 40; width: wheelCanvas.x - 40; spacing: 16
+                    Text { width: parent.width; wrapMode: Text.WordWrap; text: wheelView.wheel && wheelView.wheel.title ? wheelView.wheel.title : ""
+                           color: root.pal.text; font.family: Theme.display; font.pixelSize: 56; font.weight: Font.Bold }
+                    Text { width: parent.width; wrapMode: Text.WordWrap; text: wheelView.done && wheelView.wheel && wheelView.wheel.note ? wheelView.wheel.note : ""
+                           color: root.pal.goldHi; font.pixelSize: 44; font.weight: Font.DemiBold }
+                }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom
                     text: wheelView.done && wheelView.wheel ? `🎉 ${wheelView.wheel.items[wheelView.wheel.result]}` : ""
                     color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 72; font.weight: Font.Bold
                 }
+            }
+
+            // Slides between rounds: each picture for its own time, round and round.
+            Item {
+                id: slidesView
+                anchors.fill: parent
+                opacity: root.view === "slides" ? 1 : 0; visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 300 } }
+                readonly property var slides: root.tv.slides || []
+                readonly property string media: {
+                    if (!slides.length) return ""
+                    const total = slides.reduce((n, x) => n + x.seconds, 0) * 1000
+                    let at = ((root.serverNow % total) + total) % total
+                    for (const x of slides) { at -= x.seconds * 1000; if (at < 0) return x.media }
+                    return slides[0].media
+                }
+                Rectangle { anchors.fill: parent; color: "black"; visible: slidesView.media !== "" }
+                Image { anchors.fill: parent; fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true
+                        source: slidesView.media ? root.serverUrl + slidesView.media : "" }
             }
         }
 
@@ -715,6 +808,7 @@ Item {
             property var armedFor: null
             property var shownFor: null
             property string boardDone: ""
+            property int fastTrackSeen: -1
             opacity: shown ? 1 : 0; visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: 350 } }
             Timer { id: spotlightTimer; onTriggered: spotlight.shown = null }
@@ -746,6 +840,16 @@ Item {
                                                         detail: top[0].score === null ? "" : root.t("{n} points", {n: top[0].score})}, 5000 + (top.length - 1) * 2500)
                     }
                     spotlight.boardDone = done || (spotlight.boardDone === "" ? "-" : spotlight.boardDone)
+                    // Fast Track: a team jumping into first place, seen happening.
+                    const f = root.tv.fastTrack
+                    if (f && f.id !== spotlight.fastTrackSeen) {
+                        const fresh = spotlight.fastTrackSeen !== -1 || root.serverNow - f.at < 3000
+                        spotlight.fastTrackSeen = f.id
+                        if (fresh) {
+                            spotlight.shownFor = null
+                            spotlight.show({kind: root.t("🚀 FAST TRACK"), names: f.name, photos: f.photo ? [f.photo] : [], initials: [f.name.charAt(0).toUpperCase()], detail: root.t("Straight to first place!")}, 6000)
+                        }
+                    }
                 }
             }
             Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, 0.72) }

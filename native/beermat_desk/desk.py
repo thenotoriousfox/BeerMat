@@ -31,7 +31,7 @@ MEDIA_TYPES = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp',
                'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/wave': '.wav'}
 DATA_URL = re.compile(r'^data:([^;,]+);base64,(.*)$', re.S)
 TYPE_NAMES = {'text': 'Typed answer', 'choice': 'Multiple choice', 'multi': 'Tick all that apply', 'letter': 'Letter keypad',
-              'number': 'Number', 'nearest': 'Nearest wins', 'sequence': 'Put in order', 'pinpoint': 'Pinpoint', 'wordsnake': 'Word snake',
+              'number': 'Number', 'nearest': 'Nearest wins', 'sequence': 'Put in order', 'pinpoint': 'Pinpoint', 'wordsnake': 'Word trail',
               'tiles': 'Letter tiles', 'vote': 'Vote', 'buzzer': 'Buzzer', 'bingo': 'Bingo', 'musicbingo': 'Music bingo', 'clips': 'Sound clips',
               'picture': 'Picture', 'audio': 'Audio', 'sheet': 'Answer sheet'}
 
@@ -365,7 +365,7 @@ class Desk(QObject):
             item['first'] = i == 0 or upcoming[i - 1]['round'] != item['round']
         # The deadline in this computer's time, so the countdown runs smoothly between updates.
         skew = s['_receivedAt'] - s.get('serverTime', s['_receivedAt'])
-        phase = ('Finished' if settings.get('ended') else 'Preparing' if not q else 'Paused' if q.get('paused')
+        phase = ('Finished' if settings.get('ended') else 'Preparing' if not q else 'Ready to send' if q.get('held') else 'Paused' if q.get('paused')
                  else 'Live' if q.get('open') else 'Revealed' if q.get('revealed') else 'Revealing' if q.get('revealing') else 'Answers closed')
         self._view = {
             'title': library.get('title') or 'No quiz loaded', 'event': settings.get('title', 'BeerMat'), 'phase': phase,
@@ -377,15 +377,20 @@ class Desk(QObject):
                 'options': q.get('options') or [], 'answer': q.get('answer') if q.get('answer') not in (None, '') else '', 'note': q.get('answerNote') or '',
                 'points': q.get('points', 0), 'seconds': q.get('seconds', 0), 'open': bool(q.get('open')), 'paused': bool(q.get('paused')),
                 'revealed': bool(q.get('revealed')), 'deadline': (q['deadline'] + skew) if q.get('deadline') and q.get('open') and not q.get('paused') else 0,
-                'remaining': q.get('remaining') or 0, 'tally': q.get('tally') or {}, 'correct': q.get('correctCount', 0)},
-            'answers': len(answered), 'teams': [{'name': t['name'], 'score': t.get('score', 0), 'rank': t.get('rank', 0), 'connected': bool(t.get('connected')),
-                                                  'answered': t['id'] in answered} for t in sorted(teams, key=lambda t: (t.get('rank') or 999, t['name'].lower()))],
+                'remaining': q.get('remaining') or 0, 'tally': q.get('tally') or {}, 'correct': q.get('correctCount', 0),
+                'held': bool(q.get('held')), 'onTheFly': bool(q.get('onTheFly')), 'reactionTable': q.get('reactionTable') or None},
+            'answers': len(answered), 'teams': [{'id': t['id'], 'name': t['name'], 'score': t.get('score', 0), 'rank': t.get('rank', 0), 'connected': bool(t.get('connected')),
+                                                  'answered': t['id'] in answered, 'group': t.get('grp') or '', 'table': t.get('table_no') or 0, 'rtt': t.get('rtt')}
+                                                 for t in sorted(teams, key=lambda t: (t.get('rank') or 999, t['name'].lower()))],
+            # Send Question: the open question waits for the quizmaster before phones see it and its clock starts.
+            'canSend': bool(q and q.get('held') and q.get('live')),
+            'wheels': s.get('wheels') or [], 'slides': s.get('slides') or [], 'lastWheel': s.get('wheel') or {},
             'next': {'step': step or '', 'label': STEP_LABELS.get(step, 'Quiz finished'), 'enabled': bool(step) and not (q and q.get('live'))},
             # Back undoes the last step Next took; the server says which (backStep in server.js).
             'back': s.get('back') or None,
             'canClose': bool(q and (q.get('open') or q.get('live')) and not q.get('revealed')),
             'canReveal': bool(q and not q.get('open') and not q.get('live') and not q.get('revealed') and not q.get('revealing')),
-            'canPause': bool(q and q.get('open') and not q.get('paused')), 'canResume': bool(q and q.get('paused')),
+            'canPause': bool(q and q.get('open') and not q.get('paused')), 'canResume': bool(q and q.get('paused') and not q.get('held')),
             # Live or rehearsal is the server's decision (plan and session mode); the desk only shows it. Real phones that
             # joined a rehearsal are test devices, listed apart from the simulated teams that play it.
             'mode': rehearsal.get('mode', 'live'), 'canGoLive': bool(rehearsal.get('canGoLive')), 'rehearsing': bool(rehearsal.get('options')),
@@ -397,7 +402,8 @@ class Desk(QObject):
             # Teams & marking: every team (disabled and waiting ones too), and the answers to the current question.
             'allTeams': [{'id': t['id'], 'name': t['name'], 'score': t.get('score', 0), 'rank': t.get('rank', 0), 'enabled': bool(t.get('enabled')),
                           'waiting': bool(t.get('waiting')), 'connected': bool(t.get('connected')), 'note': t.get('note') or '',
-                          'answered': (t.get('stats') or {}).get('answered', 0), 'photo': t.get('photo') or '', 'photoStatus': t.get('photo_status') or ''} for t in sorted(s.get('teams', []), key=lambda t: t['name'].lower())],
+                          'answered': (t.get('stats') or {}).get('answered', 0), 'photo': t.get('photo') or '', 'photoStatus': t.get('photo_status') or '',
+                          'group': t.get('grp') or '', 'table': t.get('table_no') or 0, 'rtt': t.get('rtt')} for t in sorted(s.get('teams', []), key=lambda t: t['name'].lower())],
             'waitingCount': sum(1 for t in s.get('teams', []) if t.get('waiting') and t.get('enabled')),
             'answerRows': self._answer_rows({**s, 'answers': self._review['answers']} if self._review else s, marking),
             'canMark': bool(marking and not marking.get('open') and not marking.get('live')),
@@ -559,6 +565,12 @@ class Desk(QObject):
                       f'Drum roll… the answer appears in {-(-delay // 1000)}s' if delay else 'Answer revealed on the TV')
 
     @Slot()
+    def send(self):
+        """Send Question: phones get the question and its clock starts."""
+        if self._view.get('canSend'):
+            self._act('send', {}, 'Question sent to the phones')
+
+    @Slot()
     def pause(self):
         if self._view.get('canPause'):
             self._act('pause', {'expectedQuestion': self._expected()}, 'Timer paused')
@@ -689,6 +701,25 @@ class Desk(QObject):
                 self.toast.emit({'rename': 'Team renamed', 'disable': 'Team disabled', 'restore': 'Team restored', 'admit': 'Team let in'}.get(action, 'Done'), False)
             self.refresh()
         self.api.host('team', {'id': team, 'action': action, **({'name': name} if action == 'rename' else {})}, done, lambda e: self.toast.emit(e, True))
+
+    @Slot(str, str)
+    def teamGroup(self, team, group):
+        self._act('team', {'id': team, 'action': 'group', 'group': group}, 'Group saved' if group.strip() else 'Group removed')
+
+    @Slot(str, int)
+    def teamTable(self, team, table):
+        self._act('team', {'id': team, 'action': 'table', 'table': table or None}, 'Table saved')
+
+    # ---- how each question went (/api/host/report): this quiz, or a finished one ----
+    reportReady = Signal('QVariantMap')
+
+    @Slot(str)
+    def loadReport(self, event):
+        def got(reply):
+            questions = reply.get('questions') or []
+            self.reportReady.emit({'event': event, 'questions': [{**q, 'share': (q['scored'] / q['answered']) if q.get('answered') else 0,
+                                                                  'seconds': round(q['averageMs'] / 1000, 1) if q.get('averageMs') is not None else None} for q in questions]})
+        self.api.host('report', {'event': event} if event else {}, got, lambda e: self.toast.emit(e, True))
 
     @Slot()
     def admitAll(self):

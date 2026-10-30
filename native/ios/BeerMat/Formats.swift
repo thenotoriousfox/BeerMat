@@ -38,7 +38,7 @@ struct PinpointView: View {
     }
 }
 
-/// Word snake: trace the answer, each letter touching the last (diagonals too); a letter that doesn't touch starts again.
+/// Word trail: trace the answer, each letter touching the last (diagonals too); a letter that doesn't touch starts again.
 struct WordSnakeView: View {
     @EnvironmentObject var model: PlayerModel
     let q: Question
@@ -95,7 +95,11 @@ struct BingoView: View {
                     ForEach(card[r].indices, id: \.self) { c in
                         let cell = card[r][c]
                         let label = cell is NSNull ? "" : "\(cell)"
-                        Button { model.dab(q.id, label) } label: {
+                        Button {
+                            // The reaction table: dabbing a song sends it (one go per song; the server times it against the song playing).
+                            if music && !dabs.contains(label) && q.reactionSong != nil { model.react(label) }
+                            model.dab(q.id, label)
+                        } label: {
                             Text(label).font(.system(size: music ? 11 : 18, weight: .bold)).lineLimit(2).minimumScaleFactor(0.6)
                                 .frame(maxWidth: .infinity, minHeight: 44).foregroundStyle(Brand.text)
                                 .background(label.isEmpty ? Brand.bg2 : dabs.contains(label) ? Brand.pink : Brand.raised, in: RoundedRectangle(cornerRadius: 8))
@@ -104,6 +108,19 @@ struct BingoView: View {
                 }
             }
         }.padding(.vertical, 8)
+        if let table = q.raw["reactionTable"] as? [String: Any] {
+            let song = (table["song"] as? NSNumber)?.intValue ?? 0
+            let now = table["now"] as? [[String: Any]] ?? []
+            Text(t("Dab the song as soon as you know it: the quickest team on each song is on the TV.")).font(.footnote).foregroundStyle(Brand.muted)
+            Button(t("Not on my ticket")) { model.react(nil) }.buttonStyle(.bordered).frame(maxWidth: .infinity)
+                .disabled(!(model.connected && q.live && !q.paused && song > 0 && !model.reacted.contains("\(q.id):\(song)")))
+            if !now.isEmpty {
+                Text(t("Reactions · song {n}", ["n": song])).bold().foregroundStyle(Brand.teal)
+                ForEach(Array(now.prefix(5).enumerated()), id: \.offset) { i, r in
+                    Text("\(i + 1). \(r["name"] as? String ?? "")  \(String(format: "%.1f", ((r["ms"] as? NSNumber)?.doubleValue ?? 0) / 1000))s").foregroundStyle(i == 0 ? Brand.goldHi : Brand.text)
+                }
+            }
+        }
         BigButton(title: t("BINGO!"), colour: Brand.pink, enabled: model.connected && q.live && !q.paused && !claimed && (b["over"] as? Bool) != true && !checking && !turnedDown && !model.busy) { model.claimBingo() }
         Text(claimed ? t("✓ Bingo! The quizmaster says yes.") : checking ? t("Your BINGO call is being checked…") : turnedDown ? t("Not a bingo this time — keep playing") : "")
             .foregroundStyle(Brand.goldHi)

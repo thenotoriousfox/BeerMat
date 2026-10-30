@@ -17,3 +17,16 @@ jobs:
       - run: bash -n scripts/setup.sh scripts/start.sh scripts/connectivity.sh
       # Starting a hotspot needs NetworkManager and Wi-Fi, which runners lack; check the script loads.
       - run: python3 scripts/hotspot.py --help
+  # The iPhone app (native/ios), on GitHub's Apple hardware, the one place it can be compiled: BeerMatKit's tests
+  # (protocol, networking, the dictionary; the server tests against the real quiz server need only Node), then the
+  # whole app built for the simulator, unsigned.
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: swift test
+        working-directory: native/ios/BeerMatKit
+      - run: xcodebuild -project native/ios/BeerMat.xcodeproj -target BeerMat -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build

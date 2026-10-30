@@ -370,3 +370,14 @@ test('admin console: only admins; overview, venues with operators and laptops, a
   assert.match(await page.text(), /Admin console/);
   for (const bad of ['/admin/../service.js', '/admin/%2e%2e/service.js', '/admin/%2e%2e%2f%2e%2e%2fpackage.json', '/admin/nope.js']) assert.equal((await fetch(base + bad)).status, 404, bad);
 }));
+
+test('the website counter: anonymous quiz runs, counted once each, and venues using BeerMat', () => fixture(async ({call, addVenue}) => {
+  assert.deepEqual((await call('GET', '/v1/stats')).venues, 0);
+  await addVenue({name: 'The Lion', town: 'Leeds'});
+  assert.equal((await call('POST', '/v1/quiz-runs', {run: '0123456789abcdef'})).status, 201);
+  assert.equal((await call('POST', '/v1/quiz-runs', {run: '0123456789abcdef'})).status, 201, 'a retry is fine');
+  assert.equal((await call('POST', '/v1/quiz-runs', {run: 'x', venue: 'The Lion'})).status, 400, 'nothing but a random id');
+  await call('POST', '/v1/quiz-runs', {run: 'fedcba9876543210'});
+  const stats = await call('GET', '/v1/stats');
+  assert.equal(stats.quizzes, 2); assert.equal(stats.venues, 1, 'an approved Pro venue');
+}));

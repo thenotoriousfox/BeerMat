@@ -23,7 +23,7 @@ from PySide6.QtGui import QFontDatabase, QGuiApplication           # noqa: E402
 from PySide6.QtQml import QQmlApplicationEngine                    # noqa: E402
 from PySide6.QtQuickControls2 import QQuickStyle                   # noqa: E402
 
-from beermat_desk import gradients                                 # noqa: E402
+from beermat_desk import gradients, svgmotion                               # noqa: E402
 from beermat_desk.desk import Desk                                 # noqa: E402
 from beermat_desk.screens import Screens                           # noqa: E402
 from beermat_desk.server import ROOT                               # noqa: E402
@@ -68,6 +68,7 @@ class DeskCase(unittest.TestCase):
         self.desk = Desk(Path(self.dir.name) / 'data', 'native-test-key-0123456789', port=0, laptop=False)
         self.engine = QQmlApplicationEngine()
         gradients.install(self.engine)
+        svgmotion.install(self.engine)
         self.screens = Screens()
         self.engine.rootContext().setContextProperty('desk', self.desk)
         self.engine.rootContext().setContextProperty('screens', self.screens)
@@ -133,6 +134,56 @@ class BackTest(DeskCase):
         wait(lambda: (desk.view.get('back') or {}).get('kind') == 'close', what='answers closed', log=self.toasts)
         desk.back()
         wait(lambda: desk.view.get('canClose') and (desk.view.get('back') or {}).get('kind') == 'start', what='answers reopened', log=self.toasts)
+
+
+class NewToolsTest(DeskCase):
+    def test_send_question_on_the_fly_and_the_new_popups(self):
+        """Send Question through the desk: the question waits, S sends it. A question on the fly, its answer set after
+        it closes. The Tools popup and the question report open without a QML warning."""
+        from PySide6.QtCore import qInstallMessageHandler, QtMsgType
+        warnings = []
+        previous = qInstallMessageHandler(lambda kind, _c, message: warnings.append(message) if kind in (QtMsgType.QtWarningMsg, QtMsgType.QtCriticalMsg) and 'qml' in message.lower() else None)
+        try:
+            desk = self.desk
+            desk.start()
+            wait(lambda: desk.connected and desk.view.get('phase'), what='the server')
+            desk.loadQuizConfirmed(str(self.quiz_file))
+            wait(lambda: desk.view.get('title') == 'Test quiz', timeout=30, what='the quiz', log=self.toasts)
+            desk.live.setSwitch('sendQuestion', True)
+            wait(lambda: desk.view['settings'].get('sendQuestion'), what='Send Question on')
+            desk.next()
+            wait(lambda: desk.view.get('canSend'), what='a question waiting to be sent', log=self.toasts)
+            self.assertEqual(desk.view['phase'], 'Ready to send')
+            self.assertFalse(desk.view['canResume'], 'Send, not Resume')
+            self.shot('send-question')
+            desk.send()
+            wait(lambda: not desk.view.get('canSend') and desk.view['question']['open'], what='the question sent', log=self.toasts)
+            desk.closeAnswers()
+            wait(lambda: desk.view.get('canReveal'), what='answers closed', log=self.toasts)
+            desk.live.setSwitch('sendQuestion', False)
+            desk.live.askOnTheFly('letter', 4, 20, 2, '')
+            wait(lambda: desk.view['question'] and desk.view['question']['onTheFly'] and desk.view['question']['open'], what='the question on the fly', log=self.toasts)
+            desk.closeAnswers()
+            wait(lambda: not desk.view['question']['open'], what='closed')
+            desk.live.flyAnswer('q')
+            wait(lambda: desk.view['question']['answer'] == 'Q', what='its answer', log=self.toasts)
+
+            tools = self.window.findChild(QObject, 'toolsPopup')
+            tools.open()
+            wait(lambda: tools.property('opened'), what='the Tools popup')
+            self.shot('tools')
+            tools.close()
+            reports = []
+            desk.reportReady.connect(reports.append)
+            desk.loadReport('')
+            wait(lambda: reports, what='the report')
+            self.assertEqual([q['text'] for q in reports[0]['questions']][-1], 'Question on the fly')
+            popup = self.window.findChild(QObject, 'reportPopup')
+            wait(lambda: popup.property('opened'), what='the report popup')
+            self.shot('report')
+            self.assertEqual(warnings, [])
+        finally:
+            qInstallMessageHandler(previous)
 
 
 class QuizzesPageTest(DeskCase):

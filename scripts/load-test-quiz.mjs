@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Loads a rehearsal quiz into a running BeerMat server: six rounds that between them use every question format
-// and the main options (Evil Mode, fastest fingers first, go wide, buzzers, bingo, clips, music bingo, a sheet).
+// and the main options (Risk It, fastest fingers first, go wide, buzzers, bingo, clips, music bingo, a sheet).
 // Every picture and sound is generated here, so nothing needs downloading.
 //
 //   HOST_KEY=… node scripts/load-test-quiz.mjs [http://localhost:3000]   load into a running server
@@ -106,7 +106,7 @@ const rounds = [
     q('wordsnake', 'Trace the capital of England', {seconds: 45, points: 2, answer: 'LONDON', goWide: true, goWidePoints: 1}),
     q('tiles', 'Rebuild the answer: a famous London clock', {seconds: 45, points: 2, answer: 'Big Ben'}),
     q('choice', 'FASTEST FINGERS: Which is the largest ocean?', {seconds: 20, options: ['Atlantic', 'Indian', 'Pacific', 'Arctic'], answer: 'Pacific', fastestFingers: true, speedBonus: 3}),
-    q('text', 'EVIL MODE: What is the chemical symbol for gold? (A wrong answer loses 2 points, and only the single fastest right answer gets the 2-point bonus)', {points: 2, answer: 'Au', evil: true, fastestFingers: true, speedBonus: 2, bonusMode: 'fixed', bonusPlaces: 1}),
+    q('text', 'RISK IT: What is the chemical symbol for gold? (A wrong answer loses 2 points, and only the single fastest right answer gets the 2-point bonus)', {points: 2, answer: 'Au', evil: true, fastestFingers: true, speedBonus: 2, bonusMode: 'fixed', bonusPlaces: 1}),
   ]},
   {title: 'Round 4 · On the buzzer', questions: [
     q('buzzer', 'Classic buzzer: which band sang “Wonderwall”?', {seconds: 20, points: 2, answer: 'Oasis', variation: 'classic', penalty: 1}),

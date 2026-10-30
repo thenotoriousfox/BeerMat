@@ -74,7 +74,7 @@ prototype's pace: the first ~1,000 lines, debugged and tested end to end, took a
 |---|---|---|
 | Tonight: everything else live | buzzer game (correct/wrong/pass/agree), bingo calls and verdicts, sound clips game (plays audio), wheel, TV countdown, leaderboard steps, tie-breaker, waiting room admit, team photo approval, away warnings, TV mode and look | 4–5 |
 | Answers & marking | question history, per-team marking cards, sheets and multi-item marks, paper answers | 2 |
-| Quizzes (the editor) | all 18 formats and their options (options, ordering, sheets, pinpoint target, word snake, clips and songs, bingo, buzzer variants, Evil Mode, speed bonus, go wide, secret rounds, tie-breaker), media upload and preview, import/export/Google Drive, unsaved-change guard | 6–8 |
+| Quizzes (the editor) | all 18 formats and their options (options, ordering, sheets, pinpoint target, word trail, clips and songs, bingo, buzzer variants, Risk It, speed bonus, go wide, secret rounds, tie-breaker), media upload and preview, import/export/Google Drive, unsaved-change guard | 6–8 |
 | Teams | recovery codes, rename, move phone, disable, notes, returning teams and PINs, blocked words, adjustments, results download | 2 |
 | Venue | BeerMat Online sign-in, venue details, quiz nights, events, laptop registration, subscription | 2 |
 | Settings | plan, quiz room, joining (hotspot, LAN, online tunnel), screens, sounds and buzzers (incl. the shared library), bingo calls, results sharing, about/credits | 4 |

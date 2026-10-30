@@ -15,7 +15,7 @@ everything, so the app never decides a score, a deadline or who may play.
   tick-all, letter keypad, put-in-order, letter tiles, answer sheets, and the buzzer (buzz, queue, agree). Scrambled
   keypads and tiles use the browser's exact shuffle (`seededOrder`), so a team sees the same layout in either.
   Drafts save to the server as in the browser; one final answer; points shown once marking is final.
-* **Every format is native**, also pinpoint (tap the picture, a second tap when going wide), word snake (trace the
+* **Every format is native**, also pinpoint (tap the picture, a second tap when going wide), word trail (trace the
   path; go wide), bingo and music bingo (the team's ticket, dabbed on the phone, and the BINGO shout) and sound clips
   (tap during the clip). If a future server adds a format this app doesn't know, the round opens in the phone's
   browser as the same team (`/#team=<code>`).

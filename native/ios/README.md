@@ -2,15 +2,16 @@
 
 The player app in Swift and SwiftUI, replacing the Capacitor app in `mobile/` once it is verified. It does what the
 native Android app does (`native/android/README.md`): connect by QR code, address or recent quiz; join or recover a
-team; **all 18 formats natively** (pinpoint, word snake, bingo, music bingo and clips too); the team's buzzer sound
+team; **all 18 formats natively** (pinpoint, word trail, bingo, music bingo and clips too); the team's buzzer sound
 and photo (system photo picker, no library permission); the rehearsal "You're connected" screen; live updates with
 reconnection; away reporting; haptics; and the **BeerMat Online** side as tabs: Profile (statistics, badges,
 privacy, data download and deletion), Keep this result, Find a quiz (by town, or near you with permission asked on
 tap), reminders (a notification two hours before, or a calendar file to share), saved venues, venue pages and an
 Apple Maps map with day filters. The quiz server decides everything (`docs/CLIENT-PROTOCOL.md`).
 
-> **Status: not compiled.** This was written on Linux without Xcode. Nothing here has been built, run on a simulator
-> or a device, or signed. Expect compile fixes on the first Xcode build. `BeerMatKit`'s tests are the quickest check.
+> **Status: compiled only in CI.** This was written on Linux without Xcode. The `ios` job in
+> `.github/workflows/test.yml` runs `BeerMatKit`'s tests and builds the app for the simulator on a macOS runner; nothing
+> has been run on a simulator or a device, or signed. `BeerMatKit`'s tests also run on Linux (`swift test`).
 
 ## Layout
 

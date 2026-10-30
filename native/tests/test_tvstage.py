@@ -15,7 +15,7 @@ from PySide6.QtGui import QGuiApplication                                       
 from PySide6.QtQml import QQmlApplicationEngine                                       # noqa: E402
 from PySide6.QtQuick import QQuickWindow                                              # noqa: E402,F401  (window type)
 
-from beermat_desk import gradients, looks                                              # noqa: E402
+from beermat_desk import gradients, looks, svgmotion                                            # noqa: E402
 from beermat_desk.server import ROOT                                                   # noqa: E402
 
 app = QGuiApplication.instance() or QGuiApplication(sys.argv)
@@ -46,6 +46,8 @@ TEAMS = [{'name': 'Bears', 'rank': 1, 'score': 12, 'photo': None}, {'name': 'Owl
 
 
 _ids = iter(range(1, 1000))
+# A real picture: the test TV has no quiz server, so a path on this computer stands in for /media/….
+PICTURE = str(ROOT / 'brand' / 'logo-email.png')
 
 
 def question(**over):
@@ -85,7 +87,7 @@ CASES = {
     # Five teams tied for first, with long names, and a crowd behind them: it all stays on the screen.
     'winner-tie': state('winner', teams=[{'name': n, 'rank': 1, 'score': 21} for n in ['Quiz Team Aguilera', 'Les Quizerables', 'The Pun Intended', 'Universally Challenged', 'Agatha Quiztie']]
                         + [{'name': n, 'rank': 6 if i else 2, 'score': 18} for i, n in enumerate(['Tequila Mockingbird', 'The Quizzly Bears', 'Owls'])]),
-    # After a secret round: an Evil Mode question with how each team did, then the round's results.
+    # After a secret round: an Risk It question with how each team did, then the round's results.
     'recap-question': state('recap', recap={'round': 'The Final', 'count': 3, 'shown': 1, 'done': False, 'question': {
         'id': 9, 'type': 'text', 'text': 'Capital of Ireland?', 'answer': 'Dublin', 'answerNote': 'Baile Átha Cliath', 'itemAnswers': [], 'options': [], 'points': 2, 'evil': True,
         'teams': [{'name': 'Bears', 'points': 2, 'outcome': 'right'}, {'name': 'Owls', 'points': -2, 'outcome': 'lost'}, {'name': 'Foxes', 'points': 0, 'outcome': 'wrong'}]}}),
@@ -96,6 +98,15 @@ CASES = {
     'halloween': state(q=question(), look='halloween'),
     'rehearsal': state('join', rehearsal=True),
     'blank': state('blank'),
+    # Send Question: on the TV for reading out, its clock not started.
+    'held': state(q=question(held=True, open=False, paused=True, remaining=30000)),
+    'picture-tiles': state(q=question(type='picture', options=[], media=PICTURE, reveal='tiles')),
+    'picture-blur': state(q=question(type='picture', options=[], media=PICTURE, reveal='blur')),
+    'reactions': state(q=question(type='musicbingo', options=[], bingo={'played': 3, 'titles': [], 'winners': [], 'board': False, 'music': True},
+                                  reactionTable={'song': 3, 'now': [{'name': 'Owls', 'ms': 1800}, {'name': 'Bears', 'ms': 2600}], 'leaders': [{'name': 'Owls', 'songs': 2}]})),
+    'groups': state('leaderboard', groups=[{'name': 'Sales', 'teams': 2, 'average': 10.5, 'rank': 1}, {'name': 'Tech', 'teams': 1, 'average': 7, 'rank': 2}]),
+    'slides': state('slides', slides=[{'media': PICTURE, 'seconds': 5}, {'media': PICTURE, 'seconds': 5}]),
+    'wheel-rollover': state('wheel', wheel={'id': 'w2', 'items': ['🏆 £30', 'Roll over', 'Roll over'], 'result': 2, 'spun': 0, 'title': 'Jackpot', 'note': 'The jackpot rolls over to £40'}),
     'french': state('join', settings={**SETTINGS, 'language': 'fr'}),
     'spanish-question': state(q=question(), settings={**SETTINGS, 'language': 'es'}),
 }
@@ -106,6 +117,7 @@ class TvStageTest(unittest.TestCase):
     def setUpClass(cls):
         cls.engine = QQmlApplicationEngine()
         gradients.install(cls.engine)
+        svgmotion.install(cls.engine)
         cls.desk = FakeDesk()
         cls.engine.rootContext().setContextProperty('desk', cls.desk)
         cls.engine.rootContext().setContextProperty('brand', QUrl.fromLocalFile(str(ROOT / 'brand') + '/'))
@@ -150,6 +162,17 @@ class TvStageTest(unittest.TestCase):
         self.show(CASES['choice-revealed'], 'spotlight')
         self.assertEqual(shown().property('kind').toString(), 'FASTEST FINGERS')
 
+    def test_send_question_and_fast_track(self):
+        texts = lambda: [o.property('text') for o in self.stage.findChildren(QObject) if isinstance(o.property('text'), str) and o.property('visible')]
+        self.show(CASES['held'])
+        self.assertIn('Get ready: the question is on its way', texts())
+        spotlight = self.stage.findChild(QObject, 'spotlight')
+        self.show(state(q=question()))
+        spotlight.setProperty('shown', None)
+        self.show(state(q=question(), fastTrack={'id': 7, 'name': 'Foxes', 'photo': None, 'points': 6, 'at': time.time() * 1000}))
+        self.assertEqual(spotlight.property('shown').property('kind').toString(), '🚀 FAST TRACK')
+        self.assertEqual(spotlight.property('shown').property('names').toString(), 'Foxes')
+
     def test_a_looks_tv_json_styles_the_tv(self):
         def items(item):
             yield item
@@ -164,6 +187,9 @@ class TvStageTest(unittest.TestCase):
         scene = [o for o in items(self.stage) if o.metaObject().className().startswith('ThemeScene')]
         self.assertEqual(len(scene), 1)
         self.assertEqual(len(scene[0].property('layers')), 14, 'moon, hill, four bats, two fogs, web, spider, four embers')
+        bats = [o for o in items(self.stage) if o.metaObject().className().startswith('QQuickAnimatedSprite') and o.property('running')]
+        self.assertEqual(len(bats), 4, 'the four bats flap')
+        self.assertTrue(all(o.property('visible') and o.property('frameCount') == 13 for o in bats))
 
     def test_updates_in_the_same_look_leave_its_scenery_alone(self):
         from shiboken6 import getCppPointer
@@ -203,7 +229,7 @@ class TvStageTest(unittest.TestCase):
         texts = [o.property('text') for o in items(self.stage.findChild(QObject, 'recapView')) if isinstance(o.property('text'), str) and o.property('visible')]
         self.assertIn('Answer: Dublin', texts)
         self.assertIn('✓ Bears  +2', texts)
-        self.assertIn('✗ Owls  −2', texts, 'Evil Mode shows the points lost')
+        self.assertIn('✗ Owls  −2', texts, 'Risk It shows the points lost')
         self.assertIn('✗ Foxes', texts)
         self.assertIn('Question 2 of 3', texts)
         self.show(CASES['recap-results'], 'recap-results')

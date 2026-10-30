@@ -110,8 +110,10 @@ RowLayout {
                     Label { text: "Format"; color: Theme.muted }
                     ComboBox {
                         Layout.preferredWidth: 240
-                        textRole: "text"; valueRole: "value"; model: lib.types
-                        currentIndex: Math.max(0, lib.types.findIndex(t => t.value === q.type))
+                        // Simple mode (Settings) keeps to the everyday formats; a question already in another keeps its own.
+                        readonly property var shown: (desk.view.settings || {}).simpleMode ? lib.types.filter(t => ["text", "choice", "letter", "number", "nearest", "picture", "audio", "buzzer", "bingo", "sheet"].includes(t.value) || t.value === q.type) : lib.types
+                        textRole: "text"; valueRole: "value"; model: shown
+                        currentIndex: Math.max(0, shown.findIndex(t => t.value === q.type))
                         onActivated: lib.setType(currentValue)
                     }
                     Label { text: "Points"; color: Theme.muted }
@@ -255,7 +257,8 @@ RowLayout {
                 GridLayout {
                     Layout.fillWidth: true; columns: 2; columnSpacing: 16; rowSpacing: 4
                     Repeater {
-                        model: q.options_ || []
+                        // Simple mode shows only the options most quizzes use.
+                        model: (desk.view.settings || {}).simpleMode ? (q.options_ || []).filter(o => ["fastestFingers", "speedBonus", "mode", "variation", "places", "tieBreaker", "partScoring"].includes(o.key)) : (q.options_ || [])
                         delegate: RowLayout {
                             required property var modelData
                             Layout.fillWidth: true; spacing: 8

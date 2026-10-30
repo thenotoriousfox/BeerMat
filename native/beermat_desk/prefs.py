@@ -13,7 +13,7 @@ SLOTS = [('startRound', 'Start of a round'), ('questionStart', 'Question starts'
          ('countdown', 'Final countdown (10 s)'), ('timeUp', "Time's up"), ('reveal', 'Drum roll before the answer'),
          ('correct', 'Right'), ('wrong', 'Wrong'), ('endRound', 'End of a round'), ('bingoCall', 'Bingo number called'),
          ('bingo', 'Someone shouts bingo'), ('applause', 'Applause for the winner')]
-VALUES = {'title', 'maxTeams', 'language', 'deskOnline', 'shareResults'}
+VALUES = {'title', 'maxTeams', 'language', 'deskOnline', 'shareResults', 'countQuizzes', 'simpleMode'}
 AUDIO = {'.mp3', '.ogg', '.wav'}
 
 

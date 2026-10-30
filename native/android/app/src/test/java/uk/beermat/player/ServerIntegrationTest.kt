@@ -84,6 +84,37 @@ class ServerIntegrationTest {
         assertTrue(server.state(app.secret).answer != null)
     }
 
+    /** Send Question, six fixed buttons, the table number at join and music bingo's reaction table, as this app sends them. */
+    @Test fun sendQuestionFixedSixTablesAndReactions() = runBlocking {
+        val (server, host) = start("pro")
+        call(server, "/api/host/settings", JSONObject().put("askTable", true).put("sendQuestion", true).put("fixedSix", true), host)
+        assertTrue(server.hello().askTable)
+        val app = server.join("Android Aces", 7)
+        val teams = call(server, "/api/host/state", JSONObject(), host).getJSONArray("teams")
+        assertEquals(7, (0 until teams.length()).map { teams.getJSONObject(it) }.first { it.getString("name") == "Android Aces" }.getInt("table_no"))
+
+        val open = JSONObject().put("text", "Red planet?").put("type", "choice").put("options", org.json.JSONArray(listOf("Venus", "Mars"))).put("answer", "Mars").put("seconds", 30).put("points", 1)
+        call(server, "/api/host/open", open, host)
+        val held = server.state(app.secret).question!!
+        assertTrue(held.held); assertEquals("", held.text); assertTrue(held.options.isEmpty())
+        call(server, "/api/host/send", JSONObject(), host)
+        val sent = server.state(app.secret).question!!
+        assertFalse(sent.held); assertTrue(sent.open); assertTrue(sent.fixedSix)
+        server.answer(app.secret, sent.id, "#E")
+        call(server, "/api/host/close", JSONObject(), host)
+        assertEquals(0.0, server.state(app.secret).teams.first { it.name == "Android Aces" }.score!!, 0.0)
+
+        call(server, "/api/host/settings", JSONObject().put("sendQuestion", false), host)
+        val songs = org.json.JSONArray((1..15).map { JSONObject().put("title", "Song $it") })
+        call(server, "/api/host/open", JSONObject().put("text", "Music bingo").put("type", "musicbingo").put("mode", "line").put("songs", songs).put("reactions", true).put("seconds", 600).put("points", 3), host)
+        val q = server.state(app.secret).question!!
+        val number = call(server, "/api/host/bingo", JSONObject().put("question", q.id), host).getInt("number")
+        server.react(app.secret, q.id, "Song $number")
+        val table = server.state(app.secret).question!!.raw.getJSONObject("reactionTable")
+        assertEquals("Android Aces", table.getJSONArray("now").getJSONObject(0).getString("name"))
+        try { server.react(app.secret, q.id, null); fail("one go per song") } catch (e: QuizError) { assertEquals(409, e.status) }
+    }
+
     @Test fun rehearsalKeepsTheAppOutOfTheGame() = runBlocking {
         val (server, host) = start("free")
         assertTrue(server.hello().rehearsal)

@@ -153,6 +153,47 @@ ColumnLayout {
                     }
                 }
 
+                // Send Question: the question is on the TV for reading out; phones get it, and its clock starts, on Send.
+                Rectangle {
+                    visible: !!q && q.held
+                    Layout.fillWidth: true; implicitHeight: 52; radius: 12
+                    color: Qt.rgba(Theme.gold.r, Theme.gold.g, Theme.gold.b, 0.14); border.color: Theme.gold
+                    RowLayout {
+                        anchors.fill: parent; anchors.margins: 10
+                        Text { text: "Read it out, then send it: phones see it and the clock starts."; color: Theme.text; font.pixelSize: 15; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                        DeskButton { text: "Send question"; shortcutHint: "S"; kind: "primary"; implicitHeight: 34; enabled: !!view.canSend && !desk.busy; onClicked: desk.send() }
+                    }
+                }
+                // On the fly: the answer is set once answers close, and everyone is marked against it.
+                RowLayout {
+                    visible: !!q && q.onTheFly && !q.open && !q.held && q.answer === ""
+                    Layout.fillWidth: true; spacing: 8
+                    Text { text: "The answer was"; color: Theme.text; font.pixelSize: 15 }
+                    Field { id: flyAnswer; Layout.preferredWidth: 220; placeholderText: "e.g. B, 42 or Paris"; maximumLength: 300; onAccepted: if (text.trim()) desk.live.flyAnswer(text) }
+                    DeskButton { text: "Mark everyone"; kind: "primary"; implicitHeight: 34; enabled: flyAnswer.text.trim() !== "" && !desk.busy; onClicked: desk.live.flyAnswer(flyAnswer.text) }
+                }
+                // Music bingo's reaction table: the song playing, quickest dabs first.
+                Rectangle {
+                    readonly property var table: q ? q.reactionTable : null
+                    visible: !!table
+                    Layout.fillWidth: true; implicitHeight: reactionColumn.implicitHeight + 20; radius: 12
+                    color: Theme.panelRaised; border.color: Theme.line
+                    ColumnLayout {
+                        id: reactionColumn
+                        anchors.fill: parent; anchors.margins: 10; spacing: 4
+                        Text { text: parent.parent.table ? `REACTIONS · SONG ${parent.parent.table.song}` : ""; color: Theme.teal; font.pixelSize: 12; font.weight: Font.Bold; font.letterSpacing: 2 }
+                        Text {
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.text; font.pixelSize: 15
+                            text: { const t = parent.parent.table; if (!t) return ""; return t.now.length ? t.now.map((r, i) => `${i + 1}. ${r.name} ${(r.ms / 1000).toFixed(1)}s`).join("   ") : "Nobody has dabbed this song yet" }
+                        }
+                        Text {
+                            visible: !!parent.parent.table && parent.parent.table.leaders.length > 0
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 13
+                            text: parent.parent.table ? "Quickest on most songs: " + parent.parent.table.leaders.map(l => `${l.name} (${l.songs})`).join(", ") : ""
+                        }
+                    }
+                }
+
                 RoundControls { view: live.view; Layout.fillWidth: true }
 
                 // The answers as they come in: each team's answer, and its points once marked.
@@ -216,7 +257,7 @@ ColumnLayout {
                         RowLayout {
                             Layout.fillWidth: true
                             Text {
-                                text: !q ? "" : q.paused ? `Paused · ${Math.ceil(remainingMs / 1000)}s left` : q.open ? `${Math.ceil(remainingMs / 1000)}s remaining` : q.revealed ? "Answer revealed" : "Answers closed"
+                                text: !q ? "" : q.held ? `Ready to send · ${Math.ceil(remainingMs / 1000)}s once sent` : q.paused ? `Paused · ${Math.ceil(remainingMs / 1000)}s left` : q.open ? `${Math.ceil(remainingMs / 1000)}s remaining` : q.revealed ? "Answer revealed" : "Answers closed"
                                 color: q && q.open ? Theme.goldHi : Theme.muted; font.family: Theme.display; font.pixelSize: 22; font.weight: Font.DemiBold; Layout.fillWidth: true
                             }
                             Text { text: `${view.answers || 0} of ${(view.teams || []).length} answered`; color: Theme.text; font.pixelSize: 16; font.weight: Font.DemiBold }
@@ -289,6 +330,15 @@ ColumnLayout {
                             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
                             Rectangle { width: 8; height: 8; radius: 4; color: modelData.connected ? Theme.good : Theme.bad }
                             Text { text: modelData.name; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
+                            Text { visible: modelData.table > 0; text: `T${modelData.table}`; color: Theme.muted; font.pixelSize: 11; font.weight: Font.Bold }
+                            // The signal monitor: the phone's last round trip (green under ½ s, amber under 2 s, red beyond).
+                            Text {
+                                visible: modelData.rtt !== null && modelData.rtt !== undefined
+                                text: "▂▄▆".slice(0, modelData.rtt < 500 ? 3 : modelData.rtt < 2000 ? 2 : 1)
+                                color: modelData.rtt < 500 ? Theme.good : modelData.rtt < 2000 ? Theme.gold : Theme.bad; font.pixelSize: 12
+                                ToolTip.visible: signalArea.containsMouse; ToolTip.text: `Phone round trip ${modelData.rtt} ms`
+                                MouseArea { id: signalArea; anchors.fill: parent; hoverEnabled: true }
+                            }
                             Text { text: modelData.answered ? "answered" : ""; color: Theme.good; font.pixelSize: 11; font.weight: Font.Bold }
                             Text { text: modelData.score; color: Theme.goldHi; font.family: Theme.display; font.pixelSize: 16; font.weight: Font.Bold }
                         }
@@ -357,6 +407,7 @@ ColumnLayout {
                 onClicked: desk.next()
                 Layout.preferredWidth: 340
             }
+            DeskButton { visible: !!view.canSend; text: "Send question"; kind: "primary"; shortcutHint: "S"; enabled: !desk.busy; onClicked: desk.send() }
             DeskButton { text: "Close answers"; kind: "danger"; shortcutHint: "C"; enabled: !!view.canClose && !desk.busy; onClicked: desk.closeAnswers() }
             DeskButton { text: view.canResume ? "Resume timer" : "Pause timer"; shortcutHint: "P"; enabled: (!!view.canPause || !!view.canResume) && !desk.busy
                          onClicked: view.canResume ? desk.resume() : desk.pause() }
@@ -368,6 +419,6 @@ ColumnLayout {
         }
     }
 
-    ToolsPopup { id: toolsPopup; view: live.view; parent: Overlay.overlay }
+    ToolsPopup { id: toolsPopup; objectName: "toolsPopup"; view: live.view; parent: Overlay.overlay }
     Shortcut { sequence: "T"; enabled: live.visible; onActivated: desk.live.toggleTimer() }
 }
