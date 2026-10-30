@@ -38,7 +38,7 @@ const deskSecurity = {...security, 'Content-Security-Policy': security['Content-
 const DELIVERY_GRACE_MS = 2000;
 const SESSION_MS = 12 * 60 * 60 * 1000;
 // Read-only routes never notify clients of a change.
-const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token', '/api/host/drive', '/api/host/spotify/preview', '/api/host/spotify/pause', '/api/host/online/account', '/api/host/online/signin', '/api/host/online/signup', '/api/host/online/signout', '/api/host/online/call', '/api/host/online/locate', '/api/host/plan', '/api/host/buzzer-library', '/api/host/buzzer-library/play', '/api/host/buzzer-library/share', '/api/host/buzzer-library/remove', '/api/host/buzzer-library/report', '/api/host/preflight']);
+const readOnly = new Set(['/api/host/results', '/api/team/result', '/api/host/laptop', '/api/host/network', '/api/host/network/check', '/api/state', '/api/draft', '/api/login', '/api/host/state', '/api/host/library', '/api/host/review', '/api/host/export', '/api/host/logout', '/api/device', '/api/host/spotify/status', '/api/host/spotify/import', '/api/host/spotify/token', '/api/host/drive', '/api/host/spotify/preview', '/api/host/spotify/pause', '/api/host/online/account', '/api/host/online/signin', '/api/host/online/signup', '/api/host/online/signout', '/api/host/online/call', '/api/host/online/locate', '/api/host/plan', '/api/host/buzzer-library', '/api/host/buzzer-library/play', '/api/host/buzzer-library/share', '/api/host/buzzer-library/remove', '/api/host/buzzer-library/report', '/api/host/preflight', '/api/host/example-quiz']);
 
 // A sound pack is a folder: general/<name>.mp3 for each moment (soundnames.js), buzzers/<pack>/*.mp3, Themes/<name>/,
 // and optionally bingo-calls.json at the top. `prefix` is the URL they are served under.
@@ -270,14 +270,17 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // The quizzes in a folder, newest first: what the desk's Quizzes page lists.
   function quizzesIn(dir) {
     if (!existsSync(dir)) return [];
-    return readdirSync(dir).filter(f => f.endsWith('.json')).flatMap(f => {
-      const file = path.join(dir, f);
-      try {
-        const quiz = JSON.parse(readFileSync(file, 'utf8')), rounds = Array.isArray(quiz.rounds) ? quiz.rounds : [];
-        return [{file: f, path: file, title: String(quiz.title || f), rounds: rounds.length, questions: rounds.reduce((n, r) => n + (r.questions?.length || 0), 0), saved: statSync(file).mtimeMs}];
-      } catch {return [];}
-    }).sort((a, b) => b.saved - a.saved);
+    return readdirSync(dir).filter(f => f.endsWith('.json')).flatMap(f => quizInfo(path.join(dir, f)) ?? []).sort((a, b) => b.saved - a.saved);
   }
+  function quizInfo(file) {
+    try {
+      const quiz = JSON.parse(readFileSync(file, 'utf8')), rounds = Array.isArray(quiz.rounds) ? quiz.rounds : [];
+      return {file: path.basename(file), path: file, title: String(quiz.title || path.basename(file)), rounds: rounds.length, questions: rounds.reduce((n, r) => n + (r.questions?.length || 0), 0), saved: statSync(file).mtimeMs};
+    } catch {return null;}
+  }
+  // The example quiz BeerMat comes with: a question in every format, its pictures and sounds inside
+  // (scripts/make-example-quiz.py).
+  const exampleQuizFile = path.join(root, 'examples', 'example-quiz.json');
   const spotify = createSpotify({getMeta, setMeta, now, accountsUrl: spotifyAccountsUrl, apiUrl: spotifyApiUrl});
   // Spotify only accepts loopback redirect addresses written as an IP, so sign-in returns to 127.0.0.1 on this port.
   const spotifyRedirect = () => `http://127.0.0.1:${server.address().port}/spotify/callback`;
@@ -1693,7 +1696,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           setMeta('library', next); keepQuiz(next); return send(200, next);
         }
         // The Quizzes page: my quizzes and the ones downloaded from the quiz library; delete one.
-        if (p === '/api/host/my-quizzes') return send(200, {mine: quizzesIn(myQuizzesDir), downloaded: quizzesIn(quizLibraryDir), folder: myQuizzesDir});
+        if (p === '/api/host/my-quizzes') return send(200, {mine: quizzesIn(myQuizzesDir), downloaded: quizzesIn(quizLibraryDir), folder: myQuizzesDir, example: quizInfo(exampleQuizFile)});
+        if (p === '/api/host/example-quiz') {requireValue(existsSync(exampleQuizFile), 'The example quiz isn\'t on this laptop', 404); return send(200, {quiz: JSON.parse(readFileSync(exampleQuizFile, 'utf8'))});}
         if (p === '/api/host/my-quizzes/delete') {
           const dir = body.kind === 'downloaded' ? quizLibraryDir : myQuizzesDir;
           requireValue(typeof body.file === 'string' && /^[a-z0-9-]{1,60}\.json$/.test(body.file) && existsSync(path.join(dir, body.file)), 'No such quiz');

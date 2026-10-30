@@ -37,3 +37,14 @@ Kenney's packs each state “License: (Creative Commons Zero, CC0)” in their `
 “CC0 (public domain): Free and royalty-free”; the OpenGameArt page lists CC0. All were checked on 2026-10-20. The Famous Moments are cut from the Wikimedia Commons
 files linked above, each marked public domain as a work of the US government (NASA, or the President in office); checked
 on 2026-10-28.
+
+## The example quiz
+
+`examples/example-quiz.json` carries its pictures and sounds inside it; `scripts/make-example-quiz.py` makes them.
+
+| In the quiz | Source | Licence |
+|---|---|---|
+| Jamaica's flag (picture question) | Drawn by BeerMat's script | BeerMat's own |
+| World map (pinpoint question) | Drawn by BeerMat's script from Natural Earth's 1:50m land outlines (https://www.naturalearthdata.com/about/terms-of-use/) | Public domain |
+| Music bingo tunes | Fifteen traditional and classical melodies (all public domain as compositions), played by BeerMat's script's synthesiser | BeerMat's own recordings |
+| Speeches (audio and sound-clips questions) | The Famous Moments buzzers above | Public domain (US government work) |

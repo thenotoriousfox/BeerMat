@@ -51,7 +51,7 @@ ColumnLayout {
                    elide: Text.ElideRight; Layout.fillWidth: true }
             Text { color: Theme.muted; font.pixelSize: 13
                    text: shelf.hasQuiz ? `${shelf.view.rounds} round${shelf.view.rounds === 1 ? "" : "s"} · ${shelf.view.questions} questions` + (desk.quizzes.dirty ? " · unsaved changes" : "")
-                                       : "Create a new quiz, load one below, or download one from the quiz library." }
+                                       : "Create a new quiz, try the example quiz (a question in every format), load one below, or download one from the quiz library." }
             Item { Layout.fillHeight: true }
             Flow {
                 Layout.fillWidth: true; spacing: 6
@@ -66,6 +66,9 @@ ColumnLayout {
     Flow {
         Layout.fillWidth: true; spacing: 6
         DeskButton { objectName: "newQuiz"; text: "＋ Create a new quiz"; kind: "primary"; implicitHeight: 40; onClicked: shelf.newQuiz() }
+        DeskButton { objectName: "exampleQuiz"; visible: !!shelf.mine.example; text: "Try the example quiz"; implicitHeight: 40
+                     ToolTip.visible: hovered; ToolTip.text: "A short quiz with a question in every format, to rehearse or copy from"
+                     onClicked: desk.prefs.loadQuizFile(shelf.mine.example.path) }
         DeskButton { text: "Load quiz file…"; implicitHeight: 40; onClicked: shelf.openQuiz() }
         DeskButton { text: "Browse the quiz library"; implicitHeight: 40; onClicked: shelf.browseLibrary() }
         DeskButton { text: "Open My quizzes folder"; implicitHeight: 40; onClicked: desk.prefs.openMyQuizzes() }

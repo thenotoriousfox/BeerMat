@@ -381,6 +381,8 @@ async function loadQuiz(read) {
   return `New quiz loaded: ${library.title}${played && result.saved ? ` — last quiz's results saved in ${result.saved}` : ''}`;
 }
 $('importQuiz').onchange = () => {const file = $('importQuiz').files[0]; $('importQuiz').value = ''; if (file) action(() => loadQuiz(() => readQuizFile(file)));};
+// The example quiz BeerMat comes with, from the quiz server.
+$('loadExample').onclick = () => action(() => loadQuiz(async () => unpackMedia((await request('example-quiz')).quiz)));
 // A share link from Google Drive: the laptop downloads the file (it must be shared as "Anyone with the link").
 $('loadDrive').onclick = () => action(async () => {
   const url = $('driveLink').value.trim(); if (!url) throw Error('Paste the quiz file’s Google Drive link first');
