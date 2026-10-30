@@ -5,7 +5,9 @@ name: Release
 # https://github.com/DTJW92/BeerMat/releases/latest. (The Electron desk and the Capacitor app are no longer released;
 # releases up to 0.5.5 have them.)
 # They're also copied to https://downloads.beermatquiz.co.uk/<version>/ (Cloudflare R2), where the website's download
-# page links, and the website is redeployed to show the new version. Run it by hand to build without publishing.
+# page links, and the website is redeployed to show the new version. Run it by hand on a branch to build without
+# publishing (a test build: its files are deleted when it ends). The New release workflow bumps the version, tags it
+# and runs this on the tag.
 on:
   push:
     tags: ['v*']
@@ -59,7 +61,7 @@ jobs:
             dist/native/*.zip
             dist/native/*.exe
           if-no-files-found: error
-          retention-days: 1
+          retention-days: ${{ startsWith(github.ref, 'refs/tags/v') && 7 || 1 }}
 
   # The native Android app (Kotlin, native/android): the same app id and signing key as the Capacitor app, with a
   # higher version code, so it installs over it.
@@ -93,7 +95,7 @@ jobs:
           name: Android-native
           path: dist/*.apk
           if-no-files-found: error
-          retention-days: 1
+          retention-days: ${{ startsWith(github.ref, 'refs/tags/v') && 7 || 1 }}
 
   # The iPhone app (native/ios), unsigned: there's no Apple Developer account behind it, so it can't go to TestFlight or
   # the App Store. The .ipa installs on an iPhone once someone signs it with their own Apple ID (AltStore, Sideloadly).
@@ -121,7 +123,7 @@ jobs:
           name: iOS
           path: dist/*.ipa
           if-no-files-found: error
-          retention-days: 1
+          retention-days: ${{ startsWith(github.ref, 'refs/tags/v') && 7 || 1 }}
 
   release:
     needs: [desk, android-native, ios]
@@ -202,17 +204,18 @@ jobs:
             echo "Removing $key"; site/node_modules/.bin/wrangler r2 object delete "beermat-downloads/$key" --remote
           done
 
-  # Temporary Actions artifacts are only a hand-off between build and publishing jobs.
-  # Keep published binaries in GitHub Releases; remove Actions copies even after failed runs.
+  # The build files are only handed between these jobs; they count against the account's Actions storage. A test build's
+  # (run by hand on a branch) go as soon as it ends, pass or fail. A release's go once it's published (the GitHub release and
+  # downloads.beermatquiz.co.uk keep them); if a release fails they stay a week, so its failed jobs can be re-run.
   cleanup-artifacts:
-    if: ${{ always() }}
+    if: always() && (!startsWith(github.ref, 'refs/tags/v') || needs.downloads.result == 'success')
     needs: [desk, android-native, ios, release, downloads]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       actions: write
     steps:
-      - name: Delete this run's temporary build artifacts
+      - name: Delete this run's build files
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -224,5 +227,5 @@ jobs:
             while IFS= read -r artifact_id; do
               [ -n "$artifact_id" ] || continue
               gh api -X DELETE "repos/$repo/actions/artifacts/$artifact_id"
-              echo "Deleted temporary artifact $artifact_id"
+              echo "Deleted artifact $artifact_id"
             done
