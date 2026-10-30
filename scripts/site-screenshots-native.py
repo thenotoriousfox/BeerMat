@@ -177,6 +177,38 @@ try:
     post('host/settings', {'displayMode': 'leaderboard'}, host)
     pump(2.5)
     shot(tv, 'tv-leaderboard')
+    # Ways to play: a picture under tiles part-way through, music bingo's reaction table, and Fast Track.
+    post('host/settings', {'displayMode': 'auto'}, host)
+    saved = [q for r in post('host/library', {}, host)['rounds'] for q in r['questions']]
+    picture = next(q for q in saved if q['type'] == 'picture')
+    post('host/open', {'text': 'What shape is under the tiles?', 'type': 'picture', 'media': picture['media'], 'answer': picture['answer'], 'round': 'Pictures', 'seconds': 30, 'points': 1, 'reveal': 'tiles'}, host)
+    pump(13)     # over a third of the time gone: some tiles off, most still on
+    shot(tv, 'tv-reveal-tiles')
+    post('host/close', {}, host)
+    songs = next(q for q in saved if q['type'] == 'musicbingo')['songs']
+    post('host/open', {'text': 'Music bingo: dab each song as soon as you know it', 'type': 'musicbingo', 'mode': 'line', 'songs': songs, 'round': 'Music bingo',
+                       'seconds': 1800, 'points': 3, 'reactions': True, 'reactionPoints': 1}, host)
+    music = post('host/state', {}, host)['question']
+    cards = {}
+    # Songs until one is on most teams' tickets, so the table has a few teams on it.
+    for _ in range(20):
+        post('host/bingo', {'question': music['id']}, host)
+        title = post('host/state', {}, host)['question']['bingo']['current']['title']
+        cards = {team['secret']: [t for row in post('state', {}, team['secret'])['question']['bingo']['card'] for t in row] for team in teams}
+        if sum(title in card for card in cards.values()) >= 4:
+            break
+    for team in teams:
+        pump(0.7)    # teams know it at different speeds
+        if title in cards[team['secret']]:
+            post('react', {'question': music['id'], 'title': title}, team['secret'])
+    pump(2)
+    shot(tv, 'tv-reactions')
+    post('host/close', {}, host)
+    post('host/settings', {'displayMode': 'leaderboard'}, host)
+    pump(2.5)
+    post('host/fasttrack', {'team': teams[3]['id'], 'action': 'first'}, host)
+    pump(1.5)
+    shot(tv, 'tv-fasttrack')
     # Library → Quizzes, with example quizzes as the library shows them (the shot doesn't depend on what's in the real
     # library today).
     desk.prefs.searchQuizzes = desk.prefs.searchLibrary = desk.prefs.searchThemes = lambda q: None
