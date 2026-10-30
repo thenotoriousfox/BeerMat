@@ -12,10 +12,11 @@ const val PROTOCOL = 1
 /** The eight synthesised buzzer sounds every quiz has (web/app.js `sounds`), before any the quizmaster adds. */
 val BUILT_IN_BUZZERS = listOf("Classic buzz", "Doorbell", "Siren", "Beep beep", "Low horn", "Chime", "Laser", "Boing")
 
-data class Hello(val protocol: Int, val title: String, val rehearsal: Boolean, val registrationOpen: Boolean) {
+/** [askTable]: the quizmaster wants each team's table number when it joins (the room map). */
+data class Hello(val protocol: Int, val title: String, val rehearsal: Boolean, val registrationOpen: Boolean, val askTable: Boolean = false) {
     companion object {
         fun parse(o: JSONObject): Hello? = if (o.optString("app") != "BeerMat") null
-            else Hello(o.optInt("protocol", 0), o.optString("title", "BeerMat"), o.optBoolean("rehearsal"), o.optBoolean("registrationOpen", true))
+            else Hello(o.optInt("protocol", 0), o.optString("title", "BeerMat"), o.optBoolean("rehearsal"), o.optBoolean("registrationOpen", true), o.optBoolean("askTable"))
     }
 }
 
@@ -39,7 +40,14 @@ data class Question(
     val deadline: Long, val remaining: Long, val open: Boolean, val live: Boolean, val paused: Boolean, val revealed: Boolean,
     val answer: String?, val answerNote: String, val buzz: Buzz?,
     val wordLengths: List<Int> = emptyList(),
-    /** The whole question as the server sent it, for the formats with more to draw (bingo, word snake, clips…). */
+    /** Waiting for the quizmaster's Send: nothing to read or answer yet (the clock hasn't started). */
+    val held: Boolean = false,
+    /** Multiple choice as letters only: six fixed A–F buttons (fixedSix), or a question asked on the fly. */
+    val fixedSix: Boolean = false,
+    val onTheFly: Boolean = false,
+    /** The picture shows itself over the question's time: "blur", "tiles" or "". */
+    val reveal: String = "",
+    /** The whole question as the server sent it, for the formats with more to draw (bingo, word trail, clips…). */
     val raw: JSONObject = JSONObject(),
 ) {
     val isTimed get() = type != "bingo" && type != "musicbingo"
@@ -115,6 +123,7 @@ object Parse {
             Buzz(b.strOrNull("buzzed"), b.optJSONObject("active")?.str("name"), queue, b.optBoolean("lockedOut"), b.optBoolean("agreeOpen"), b.optBoolean("agreed"), b.str("announced"))
         },
         wordLengths = q.optJSONArray("wordLengths").ints(),
+        held = q.optBoolean("held"), fixedSix = q.optBoolean("fixedSix"), onTheFly = q.optBoolean("onTheFly"), reveal = q.str("reveal"),
         raw = q,
     )
 }

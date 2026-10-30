@@ -29,8 +29,8 @@ class QuizServer(base: String) {
         Hello.parse(o) ?: throw QuizError(t("That address isn’t a BeerMat quiz."), 0)
     }
 
-    suspend fun join(name: String): Joined = withContext(Dispatchers.IO) {
-        val o = request("POST", "/api/join", JSONObject().put("name", name), "")
+    suspend fun join(name: String, table: Int? = null): Joined = withContext(Dispatchers.IO) {
+        val o = request("POST", "/api/join", JSONObject().put("name", name).apply { if (table != null) put("table", table) }, "")
         Joined(o.getString("secret"), o.optBoolean("waiting"), o.optBoolean("rehearsal"))
     }
 
@@ -43,7 +43,17 @@ class QuizServer(base: String) {
     suspend fun look(id: String): uk.beermat.player.ui.PhoneLook = withContext(Dispatchers.IO) {
         Parse.look(request("GET", "/api/looks/" + java.net.URLEncoder.encode(id, "UTF-8"), null, ""), base)
     }
-    suspend fun state(secret: String): PlayerState = withContext(Dispatchers.IO) { Parse.state(request("POST", "/api/state", JSONObject(), secret)) }
+    /** The team's state. Each call says how long the one before took ([rtt]), for the desk's signal monitor. */
+    suspend fun state(secret: String): PlayerState = withContext(Dispatchers.IO) {
+        val started = System.nanoTime()
+        Parse.state(request("POST", "/api/state", JSONObject(), secret, rtt = lastRtt)).also { lastRtt = ((System.nanoTime() - started) / 1_000_000).toInt() }
+    }
+    @Volatile private var lastRtt: Int? = null
+
+    /** Music bingo's reaction table: the team dabbed [title] on its ticket (or passes on this song): one go per song. */
+    suspend fun react(secret: String, question: Long, title: String?) = withContext(Dispatchers.IO) {
+        request("POST", "/api/react", JSONObject().put("question", question).apply { if (title == null) put("pass", true) else put("title", title) }, secret)
+    }
 
     suspend fun answer(secret: String, question: Long, value: Any) = withContext(Dispatchers.IO) {
         request("POST", "/api/answer", JSONObject().put("question", question).put("value", value), secret)
@@ -69,7 +79,7 @@ class QuizServer(base: String) {
     /** Sound clips: a tap during the clip the team thinks is the one. */
     suspend fun tap(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/tap", JSONObject().put("question", question), secret) }
 
-    /** Word snake (and pinpoint) help: the decoys go, for fewer points. */
+    /** Word trail (and pinpoint) help: the decoys go, for fewer points. */
     suspend fun goWide(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/gowide", JSONObject().put("question", question), secret) }
 
     suspend fun agree(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/agree", JSONObject().put("question", question), secret) }
@@ -109,13 +119,14 @@ class QuizServer(base: String) {
         awaitClose { }
     }.flowOn(Dispatchers.IO)
 
-    private fun request(method: String, route: String, body: JSONObject?, secret: String, raw: ByteArray? = null): JSONObject {
+    private fun request(method: String, route: String, body: JSONObject?, secret: String, raw: ByteArray? = null, rtt: Int? = null): JSONObject {
         val connection = URL(base + route).openConnection() as HttpURLConnection
         try {
             connection.requestMethod = method
             connection.connectTimeout = 6000
             connection.readTimeout = 10000
             if (secret.isNotEmpty()) connection.setRequestProperty("Authorization", "Bearer $secret")
+            if (rtt != null) connection.setRequestProperty("X-Beermat-Rtt", rtt.toString())
             if (body != null) {
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/json")

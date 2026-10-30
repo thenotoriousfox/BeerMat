@@ -35,6 +35,70 @@
   "Recherche de votre position…",
   "Buscando dónde estás…"
  ],
+ "Listen: the question comes to your phone when it’s been read out": [
+  "Écoutez : la question arrive sur votre téléphone une fois lue",
+  "Escuchad: la pregunta llega al móvil cuando se haya leído"
+ ],
+ "Listen to the quizmaster…": [
+  "Écoutez le maître du quiz…",
+  "Escuchad al presentador…"
+ ],
+ "Listen to the quizmaster": [
+  "Écoutez le maître du quiz",
+  "Escuchad al presentador"
+ ],
+ "Get ready: the question is on its way": [
+  "Préparez-vous : la question arrive",
+  "Preparaos: la pregunta está en camino"
+ ],
+ "Passed on this song": [
+  "Vous passez cette chanson",
+  "Pasáis esta canción"
+ ],
+ "Dabbed: if it’s the song playing, your time is on the TV": [
+  "Coché : si c’est la chanson en cours, votre temps est à la télé",
+  "Marcada: si es la canción que suena, vuestro tiempo sale en la tele"
+ ],
+ "Not on my ticket": [
+  "Pas sur mon ticket",
+  "No está en mi cartón"
+ ],
+ "Dab the song as soon as you know it: the quickest team on each song is on the TV.": [
+  "Cochez la chanson dès que vous la reconnaissez : l’équipe la plus rapide sur chaque chanson est à la télé.",
+  "Marcad la canción en cuanto la reconozcáis: el equipo más rápido en cada canción sale en la tele."
+ ],
+ "Table number": [
+  "Numéro de table",
+  "Número de mesa"
+ ],
+ "🚀 FAST TRACK": [
+  "🚀 VOIE RAPIDE",
+  "🚀 VÍA RÁPIDA"
+ ],
+ "Straight to first place!": [
+  "Directement à la première place !",
+  "¡Directo al primer puesto!"
+ ],
+ "Reactions · song {n}": [
+  "Réactions · chanson {n}",
+  "Reacciones · canción {n}"
+ ],
+ "Quickest on most songs": [
+  "Les plus rapides sur le plus de chansons",
+  "Los más rápidos en más canciones"
+ ],
+ "Groups": [
+  "Groupes",
+  "Grupos"
+ ],
+ "{n} teams · average {score}": [
+  "{n} équipes · moyenne {score}",
+  "{n} equipos · media {score}"
+ ],
+ "1 team · average {score}": [
+  "1 équipe · moyenne {score}",
+  "1 equipo · media {score}"
+ ],
  "SECRET ROUND": [
   "MANCHE SECRÈTE",
   "RONDA SECRETA"
@@ -43,9 +107,9 @@
   "Question {n} sur {count}",
   "Pregunta {n} de {count}"
  ],
- "😈 Evil Mode: a wrong answer loses the points": [
-  "😈 Mode diabolique : une mauvaise réponse fait perdre les points",
-  "😈 Modo malvado: una respuesta incorrecta resta los puntos"
+ "🎲 Risk It: a wrong answer loses the points": [
+  "🎲 Quitte ou double : une mauvaise réponse fait perdre les points",
+  "🎲 A todo o nada: una respuesta incorrecta resta los puntos"
  ],
  "No team answered this one.": [
   "Aucune équipe n’a répondu à celle-ci.",

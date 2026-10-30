@@ -12,7 +12,7 @@ export const QUIZ_LIMITS = {bytes: 25 * 1024 * 1024, media: 8 * 1024 * 1024, des
 const TYPES = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg', 'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/wave': '.wav'};
 const DATA_URL = /^data:([a-z/-]+);base64,([A-Za-z0-9+/]*={0,2})$/;
 const FORMAT_NAMES = {text: 'Typed answer', choice: 'Multiple choice', multi: 'Tick all that apply', letter: 'Letter keypad', number: 'Number',
-  nearest: 'Nearest wins', sequence: 'Put in order', pinpoint: 'Pinpoint', wordsnake: 'Word snake', tiles: 'Letter tiles', vote: 'Vote',
+  nearest: 'Nearest wins', sequence: 'Put in order', pinpoint: 'Pinpoint', wordsnake: 'Word trail', tiles: 'Letter tiles', vote: 'Vote',
   buzzer: 'Buzzer', bingo: 'Bingo', musicbingo: 'Music bingo', clips: 'Sound clips', picture: 'Picture', audio: 'Audio', sheet: 'Answer sheet'};
 
 // The bytes are the kind of file the data: URL says.

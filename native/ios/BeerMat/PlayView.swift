@@ -120,9 +120,11 @@ private struct BrowserRound: View {
 private struct QuestionHead: View {
     @EnvironmentObject var model: PlayerModel
     let q: Question
+    private var heading: String { q.held ? t("Listen to the quizmaster…") : q.text.isEmpty ? t("Listen to the quizmaster") : q.text }
     var body: some View {
         Text(q.round.uppercased()).font(.footnote.bold()).tracking(2).foregroundStyle(Brand.gold)
-        Text(q.text).font(Brand.display(26, .title2)).padding(.bottom, 6)
+        // Waiting for the quizmaster's Send, or wording kept off phones: the team listens.
+        Text(heading).font(Brand.display(26, .title2)).padding(.bottom, 6)
         if q.isTimed { Countdown(q: q, offset: model.offset) }
     }
 }
@@ -130,13 +132,19 @@ private struct QuestionHead: View {
 /// Time left, from the server's deadline; only a display, as the server decides lateness.
 private struct Countdown: View {
     let q: Question, offset: Double
+    private func status(left: Double) -> String {
+        if q.held { return t("Listen: the question comes to your phone when it’s been read out") }
+        if q.paused { return t("Paused · {n}s remaining", ["n": Int(ceil(q.remaining / 1000))]) }
+        if !q.open || left <= 0 { return q.revealed ? t("Answer revealed") : t("Answers closed") }
+        return t("{n}s remaining", ["n": Int(ceil(left / 1000))])
+    }
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.2)) { context in
             let now = context.date.timeIntervalSince1970 * 1000
             let left = q.paused ? q.remaining : max(0, q.deadline - now - offset)
             let low = q.open && !q.paused && left > 0 && left <= 10000
             VStack(alignment: .leading) {
-                Text(q.paused ? t("Paused · {n}s remaining", ["n": Int(ceil(q.remaining / 1000))]) : !q.open || left <= 0 ? (q.revealed ? t("Answer revealed") : t("Answers closed")) : t("{n}s remaining", ["n": Int(ceil(left / 1000))]))
+                Text(status(left: left))
                     .font(Brand.display(22, .headline)).foregroundStyle(q.open ? (low ? Brand.bad : Brand.goldHi) : Brand.muted)
                     .animation(.easeInOut, value: low)
                 if q.open && q.seconds > 0 {
@@ -165,13 +173,20 @@ private struct QuestionView: View {
         let shuffle: (Int) -> [Int] = { n in game.settings.scrambleKeypads ? seededOrder(n, "\(teamId):\(q.id)") : Array(0..<n) }
 
         QuestionHead(q: q)
-        if q.type != "pinpoint" { MediaView(server: model.serverBase, media: q.media) }
-        if q.type == "buzzer" { BuzzerView(q: q) }
+        if q.held { EmptyView() }
+        else if q.type != "pinpoint" { MediaView(server: model.serverBase, q: q, offset: model.offset) }
+        if q.held { EmptyView() }
+        else if q.type == "buzzer" { BuzzerView(q: q) }
         else if q.type == "bingo" || q.type == "musicbingo" { BingoView(q: q) }
         else if q.type == "clips" { ClipsView(q: q) }
         else {
             Group {
                 switch q.type {
+                // Letters only: six fixed A–F buttons (a letter past the last option is a wrong answer, sent as "#E"),
+                // or the options of a question asked on the fly.
+                case "choice" where q.fixedSix || q.onTheFly:
+                    let valueOf = { (i: Int) in i < q.options.count ? q.options[i] : "#" + letters[i] }
+                    Keys(keys: (0..<(q.fixedSix ? 6 : q.options.count)).map { ($0, letters[$0]) }, colours: true, picked: { valueOf($0) == text }, enabled: !locked) { text = valueOf($0) }
                 case "choice", "vote":
                     Keys(keys: shuffle(q.options.count).map { ($0, "\(letters[$0]). \(q.options[$0])") }, colours: true, picked: { q.options[$0] == text }, enabled: !locked) { text = q.options[$0] }
                 case "letter":
@@ -345,9 +360,11 @@ private struct BuzzerView: View {
     }
 }
 
-/// A picture from the quiz laptop, or a sound to play on the phone.
+/// A picture from the quiz laptop, or a sound to play on the phone. A picture with a reveal shows itself over the
+/// question's time: blurred then sharp, or under twelve tiles going in the web pages' order.
 private struct MediaView: View {
-    let server: String, media: String
+    let server: String, q: Question, offset: Double
+    var media: String { q.media }
     @State private var player: AVPlayer?
     @State private var playing = false
     var body: some View {
@@ -360,8 +377,42 @@ private struct MediaView: View {
                 }.buttonStyle(.bordered).frame(maxWidth: .infinity)
                 .onDisappear { player?.pause() }
             } else {
-                AsyncImage(url: url) { image in image.resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 14)) } placeholder: { ProgressView() }
+                TimelineView(.periodic(from: .now, by: 0.2)) { context in
+                    let shown = revealShare(q, now: context.date.timeIntervalSince1970 * 1000, offset: offset)
+                    AsyncImage(url: url) { image in
+                        image.resizable().scaledToFit()
+                            .blur(radius: q.reveal == "blur" ? (1 - shown) * 28 : 0, opaque: true)
+                            .overlay { if q.reveal == "tiles" { RevealTiles(question: q.id, gone: Int(shown * 12)) } }
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    } placeholder: { ProgressView() }
                     .accessibilityLabel(t("Quiz picture"))
+                }
+            }
+        }
+    }
+}
+
+/// How much of a revealing picture shows (0–1): all of it once answers close or without a reveal.
+private func revealShare(_ q: Question, now: Double, offset: Double) -> Double {
+    if q.reveal.isEmpty || !q.live || q.revealed { return 1 }
+    if q.held { return 0 }
+    let left = q.paused ? q.remaining : max(0, q.deadline - now - offset)
+    return min(1, max(0, 1 - left / (Double(q.seconds) * 1000)))
+}
+
+/// Twelve tiles over a picture, going one by one in the order every screen uses (seededOrder(12, "tiles:<id>")).
+private struct RevealTiles: View {
+    let question: Int, gone: Int
+    var body: some View {
+        let order = seededOrder(12, "tiles:\(question)")
+        VStack(spacing: 3) {
+            ForEach(0..<3, id: \.self) { r in
+                HStack(spacing: 3) {
+                    ForEach(0..<4, id: \.self) { c in
+                        RoundedRectangle(cornerRadius: 6).fill(Brand.violet).opacity(order[r * 4 + c] < gone ? 0 : 1)
+                            .animation(.easeOut(duration: 0.5), value: gone)
+                    }
+                }
             }
         }
     }

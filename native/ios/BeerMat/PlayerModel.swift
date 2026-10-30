@@ -66,9 +66,9 @@ final class PlayerModel: ObservableObject {
         } catch { return false }
     }
 
-    func join(_ name: String) {
+    func join(_ name: String, table: Int? = nil) {
         work {
-            let joined = try await self.server!.join(name.trimmingCharacters(in: .whitespaces))
+            let joined = try await self.server!.join(name.trimmingCharacters(in: .whitespaces), table: table)
             self.play(joined.secret, try await self.server!.state(joined.secret))
         }
     }
@@ -148,6 +148,16 @@ final class PlayerModel: ObservableObject {
     func dab(_ question: Int, _ cell: String) { var now = dabs[question] ?? []; if now.contains(cell) { now.remove(cell) } else { now.insert(cell) }; dabs[question] = now }
 
     func claimBingo() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.bingo(self.secret, question: q.id); self.say(t("BINGO called — the quizmaster is checking")); await self.refresh() } }
+    /// Music bingo's reaction table: one go per song, so the songs tried are remembered.
+    @Published var reacted: Set<String> = []
+    func react(_ title: String?) {
+        guard let q = game?.question, let song = q.reactionSong, song > 0, !reacted.contains("\(q.id):\(song)") else { return }
+        reacted.insert("\(q.id):\(song)")
+        Task {
+            do { try await server?.react(secret, question: q.id, title: title); say(title == nil ? t("Passed on this song") : t("Dabbed: if it’s the song playing, your time is on the TV")) }
+            catch { say(error.localizedDescription, error: true) }
+        }
+    }
     func tap() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.tap(self.secret, question: q.id); self.say(t("Tap recorded")); await self.refresh() } }
     func goWide() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.goWide(self.secret, question: q.id); await self.refresh() } }
     func setSound(_ index: Int) { work(quiet: true) { try await self.server!.sound(self.secret, index: index); self.say(t("Buzzer sound saved")); await self.refresh() } }

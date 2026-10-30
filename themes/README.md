@@ -53,7 +53,8 @@ Colours are `#rgb`, `#rrggbb` or `rgba(r, g, b, a)`; every key is optional. `lib
 
 A layer is a picture of the theme's (`image`), a glowing dot, or fog (`blobs`: soft ellipses, `[x, y, width,
 height, opacity]` as shares of the layer). `motion` moves it along its keys and loops (`alternate` goes there and
-back); `offset` starts it part-way, so copies of a layer don't move together.
+back); `offset` starts it part-way, so copies of a layer don't move together. An SVG picture's own `<animate>` of a
+path's `d` (the bat's wingbeat) plays on the TV too; other SVG animation doesn't, so the picture must draw without it.
 
 ## Sharing a theme (the theme library)
 

@@ -131,6 +131,10 @@ RowLayout {
                         Pill { visible: modelData.waiting; text: "WAITING"; tone: Theme.gold }
                         Pill { visible: modelData.photoStatus === "pending"; text: "PHOTO"; tone: Theme.gold }
                         Pill { visible: !modelData.enabled; text: "DISABLED"; tone: Theme.bad }
+                        Pill { visible: modelData.group !== ""; text: modelData.group.toUpperCase(); tone: Theme.violet }
+                        Text { visible: modelData.table > 0; text: `Table ${modelData.table}`; color: Theme.muted; font.pixelSize: 12 }
+                        Text { visible: modelData.rtt !== null && modelData.rtt !== undefined; text: `${modelData.rtt} ms`; font.pixelSize: 12
+                               color: modelData.rtt < 500 ? Theme.good : modelData.rtt < 2000 ? Theme.gold : Theme.bad }
                         Text { text: modelData.score; color: Theme.goldHi; font.family: Theme.display; font.pixelSize: 16; font.weight: Font.Bold }
                     }
                     MouseArea { width: parent.width; height: 44; onClicked: teamList.chosen = teamRow.open ? "" : teamRow.modelData.id }
@@ -148,6 +152,13 @@ RowLayout {
                             Field { id: reason; placeholderText: "Reason (shown in the results)"; Layout.fillWidth: true; maximumLength: 200 }
                             DeskButton { text: "Correct score"; implicitHeight: 32; enabled: correction.value !== 0 && reason.text.trim() !== ""
                                          onClicked: { desk.adjust(teamRow.modelData.id, correction.value, reason.text); correction.value = 0; reason.text = "" } }
+                        }
+                        // Team groups (department against department) and the room map (which table a team sits at).
+                        RowLayout {
+                            Field { id: group; placeholderText: "Group (e.g. Sales)"; text: teamRow.modelData.group; Layout.fillWidth: true; maximumLength: 30 }
+                            DeskButton { text: "Save group"; implicitHeight: 32; onClicked: desk.teamGroup(teamRow.modelData.id, group.text) }
+                            SpinBox { id: table; from: 0; to: 500; value: teamRow.modelData.table; editable: true; ToolTip.visible: hovered; ToolTip.text: "Table number (0: none)" }
+                            DeskButton { text: "Save table"; implicitHeight: 32; onClicked: desk.teamTable(teamRow.modelData.id, table.value) }
                         }
                         RowLayout {
                             Field { id: note; placeholderText: "Private note (only on the desk)"; text: teamRow.modelData.note; Layout.fillWidth: true; maximumLength: 500 }
@@ -201,6 +212,7 @@ RowLayout {
                             width: ListView.view.width
                             Text { text: `${new Date(modelData.finished).toLocaleDateString()} · ${modelData.title} · ${modelData.teams} teams · 🏆 ${modelData.winner}`
                                    color: Theme.text; font.pixelSize: 13; elide: Text.ElideRight; Layout.fillWidth: true }
+                            Tool { text: "📊"; onClicked: desk.loadReport(modelData.event); ToolTip.visible: hovered; ToolTip.text: "How each question went" }
                             Tool { text: "✕"; onClicked: desk.deleteResult(modelData.event) }
                         }
                         Text { visible: parent.count === 0; width: parent.width; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 13
@@ -209,6 +221,7 @@ RowLayout {
                     RowLayout {
                         spacing: 6
                         DeskButton { text: "Save this quiz's results…"; implicitHeight: 32; onClicked: resultsFile.open() }
+                        DeskButton { text: "📊 This quiz so far"; implicitHeight: 32; onClicked: desk.loadReport("") }
                         DeskButton { visible: (desk.results.pending || 0) > 0; text: `Send ${desk.results.pending} to BeerMat Online`; implicitHeight: 32; onClicked: desk.syncResults() }
                     }
                 }
@@ -233,6 +246,44 @@ RowLayout {
                     DeskButton { text: "Save blocked names"; implicitHeight: 32; onClicked: desk.setBlockedWords(blocked.text) }
                 }
             }
+        }
+    }
+
+    // How each question went: the share of teams that scored, as a bar, and the average answer time.
+    Popup {
+        id: report
+        objectName: "reportPopup"
+        property var questions: []
+        parent: Overlay.overlay
+        modal: true; focus: true; padding: 20
+        width: Math.min(parent.width - 80, 900); height: Math.min(parent.height - 80, 640)
+        x: (parent.width - width) / 2; y: (parent.height - height) / 2
+        background: Rectangle { radius: Theme.radius; color: Theme.panel; border.color: Theme.lineStrong }
+        Connections { target: desk; function onReportReady(r) { report.questions = r.questions; report.open() } }
+        ColumnLayout {
+            anchors.fill: parent; spacing: 10
+            Text { text: "How each question went"; color: Theme.text; font.family: Theme.display; font.pixelSize: 20; font.weight: Font.Bold }
+            Text { text: report.questions.length ? "The bar is the share of answering teams that scored; the time is how long they took on average." : "No questions finished yet."
+                   color: Theme.muted; font.pixelSize: 13; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+            ListView {
+                Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 6
+                ScrollBar.vertical: ScrollBar {}
+                model: report.questions
+                delegate: RowLayout {
+                    required property var modelData
+                    required property int index
+                    width: ListView.view.width; spacing: 10
+                    Text { text: `${index + 1}. ${modelData.text}`; color: Theme.text; font.pixelSize: 13; elide: Text.ElideRight; Layout.preferredWidth: parent.width * 0.42 }
+                    Rectangle {
+                        Layout.fillWidth: true; implicitHeight: 18; radius: 9; color: Qt.rgba(1, 1, 1, 0.06)
+                        Rectangle { width: parent.width * modelData.share; height: parent.height; radius: 9
+                                    color: modelData.share >= 0.66 ? Theme.good : modelData.share >= 0.33 ? Theme.gold : Theme.bad }
+                    }
+                    Text { text: modelData.answered ? `${Math.round(modelData.share * 100)}% of ${modelData.answered}` : "no answers"; color: Theme.text; font.pixelSize: 13; Layout.preferredWidth: 90 }
+                    Text { text: modelData.seconds == null ? "" : `${modelData.seconds}s`; color: Theme.muted; font.pixelSize: 13; Layout.preferredWidth: 50 }
+                }
+            }
+            DeskButton { text: "Close"; Layout.alignment: Qt.AlignRight; onClicked: report.close() }
         }
     }
 }

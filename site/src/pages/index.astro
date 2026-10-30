@@ -1,7 +1,7 @@
 ---
 import Page from '../layouts/Page.astro';
 import Shot from '../components/Shot.astro';
-import {PRICE} from '../consts';
+import {ONLINE, PRICE} from '../consts';
 
 // Screenshots are of the real app running a demo quiz (scripts/site-screenshots.mjs makes them again).
 const TV = {width: 1600, height: 900}, DESK = {width: 1600, height: 1000}, PHONE = {width: 780, height: 1688};
@@ -14,7 +14,7 @@ const screens = [
 		shot: {src: '/shots/desk.webp', alt: 'The quizmaster’s desk: the live question, which teams have answered, and what’s up next', ...DESK, retina: true, sizes: '(min-width: 1024px) 420px, 100vw'}},
 ];
 const formatShots = [
-	['phone-wordsnake', 'Word snake', 'Trace the answer through a grid of letters'],
+	['phone-wordsnake', 'Word trail', 'Trace the answer through a grid of letters'],
 	['phone-pinpoint', 'Pinpoint', 'Tap the spot on the picture'],
 	['phone-tiles', 'Letter tiles', 'Rebuild the answer from the tiles'],
 	['phone-sequence', 'Sequence', 'Put them in the right order'],
@@ -22,7 +22,7 @@ const formatShots = [
 	['phone-bingo', 'Bingo', 'A ticket on every phone; shout BINGO!'],
 ];
 const formats = ['Multiple choice', 'Tick all that apply', 'Letter keypad', 'Numbers', 'Nearest wins', 'Typed answers', 'Picture rounds', 'Audio rounds',
-	'Votes', 'Sequence', 'Pinpoint', 'Word snake', 'Letter tiles', 'Buzz-in', 'Number bingo', 'Music bingo', 'Sound clips', 'Answer sheets'];
+	'Votes', 'Sequence', 'Pinpoint', 'Word trail', 'Letter tiles', 'Buzz-in', 'Number bingo', 'Music bingo', 'Sound clips', 'Answer sheets'];
 // Small line icons for the reasons list.
 const icons = {
 	offline: 'M3 8.5a13 13 0 0 1 18 0M6.5 12a8 8 0 0 1 11 0M10 15.5a3 3 0 0 1 4 0M12 19h.01',
@@ -62,6 +62,15 @@ const reasons = [
 			</div>
 		</div>
 	</section>
+
+	<!-- How much BeerMat is used, from BeerMat Online (/v1/stats); left out when it can't be reached. -->
+	<section id="counter" class="wrap pb-14" hidden>
+		<dl class="flex flex-wrap justify-center gap-x-16 gap-y-6 text-center">
+			<div><dt class="eyebrow">Quizzes run</dt><dd id="quizCount" class="text-4xl font-semibold text-amber sm:text-5xl"></dd></div>
+			<div><dt class="eyebrow">Venues</dt><dd id="venueCount" class="text-4xl font-semibold text-amber sm:text-5xl"></dd></div>
+		</dl>
+	</section>
+	<script is:inline type="application/json" id="online" set:html={JSON.stringify(ONLINE)}></script>
 
 	<!-- The night itself: what the room sees, what teams do, what you do. -->
 	<section id="how" class="scroll-mt-6 border-y border-white/10 bg-white/[.025] py-20">
@@ -124,7 +133,7 @@ const reasons = [
 			<ul class="mt-3 flex flex-wrap gap-2">
 				{formats.map(f => <li class="chip list-none">{f}</li>)}
 			</ul>
-			<p class="mt-4 text-sm text-muted">Plus Evil Mode, fastest-finger bonuses, secret rounds and tie-breakers.</p>
+			<p class="mt-4 text-sm text-muted">Plus Risk It, fastest-finger bonuses, secret rounds and tie-breakers.</p>
 		</div>
 	</section>
 
@@ -228,3 +237,16 @@ const reasons = [
 		</div>
 	</section>
 </Page>
+
+<script>
+	// The counter: live quizzes finished on BeerMat laptops (each counted anonymously, unless the venue switched it off)
+	// and venues using BeerMat.
+	const online = JSON.parse(document.getElementById('online')!.textContent!) as string;
+	fetch(online + '/v1/stats', {signal: AbortSignal.timeout(8000)}).then(r => r.ok ? r.json() : Promise.reject())
+		.then(({quizzes, venues}: {quizzes: number; venues: number}) => {
+			if (!quizzes && !venues) return;
+			document.getElementById('quizCount')!.textContent = quizzes.toLocaleString('en-GB');
+			document.getElementById('venueCount')!.textContent = venues.toLocaleString('en-GB');
+			document.getElementById('counter')!.hidden = false;
+		}).catch(() => {});
+</script>

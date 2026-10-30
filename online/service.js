@@ -87,6 +87,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     CREATE TABLE IF NOT EXISTS favourites(account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, venue TEXT NOT NULL REFERENCES venues(id) ON DELETE CASCADE, PRIMARY KEY(account, venue));
     CREATE TABLE IF NOT EXISTS results(account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, event TEXT NOT NULL, team TEXT NOT NULL, venue_key TEXT NOT NULL,
       claim TEXT NOT NULL, date INTEGER NOT NULL, added INTEGER NOT NULL, PRIMARY KEY(account, event, team));
+    CREATE TABLE IF NOT EXISTS quiz_runs(run TEXT PRIMARY KEY, received INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS venue_results(venue_key TEXT NOT NULL, event TEXT NOT NULL, summary TEXT NOT NULL, received INTEGER NOT NULL, PRIMARY KEY(venue_key, event));
     CREATE INDEX IF NOT EXISTS events_starts ON events(starts);
     CREATE TABLE IF NOT EXISTS email_tokens(hash TEXT PRIMARY KEY, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, purpose TEXT NOT NULL, expires INTEGER NOT NULL);
@@ -1099,6 +1100,19 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         const before = one('SELECT summary FROM venue_results WHERE venue_key=? AND event=?', input.venueKey, input.event);
         run('INSERT INTO venue_results VALUES(?,?,?,?) ON CONFLICT(venue_key,event) DO UPDATE SET summary=excluded.summary,received=excluded.received', input.venueKey, input.event, JSON.stringify(input), now());
         return send(before ? 200 : 201, {saved: true});
+      }
+      // The website's counter. A quiz laptop sends one random id when a live quiz finishes (nothing else: no venue, team
+      // or score), unless its venue switched counting off; the same id twice counts once.
+      if (method === 'POST' && p === '/v1/quiz-runs') {
+        limit('run:' + ip);
+        check(typeof input.run === 'string' && /^[0-9a-f]{16}$/.test(input.run), 'Not a quiz run');
+        run('INSERT OR IGNORE INTO quiz_runs VALUES(?,?)', input.run, now());
+        return send(201, {counted: true});
+      }
+      // Venues using BeerMat (a registered quiz laptop, or Pro) and quizzes run, for the website.
+      if (method === 'GET' && p === '/v1/stats') {
+        return send(200, {venues: one(`SELECT COUNT(*) n FROM venues WHERE id IN (SELECT venue FROM venue_keys) OR (${PRO_SQL})`, now()).n,
+          quizzes: one('SELECT COUNT(*) n FROM quiz_runs').n});
       }
       // Players who chose to appear: wins and points from verified venues (one venue, or all of them).
       if (method === 'GET' && p === '/v1/leaderboards') {

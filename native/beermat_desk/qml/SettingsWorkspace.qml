@@ -115,6 +115,11 @@ ScrollView {
             }
             CheckBox { text: "Desk reachable on the online link"; checked: !!settings.room.deskOnline; palette.windowText: Theme.text; onToggled: desk.prefs.set("deskOnline", checked) }
             CheckBox { text: "Share results with BeerMat Online"; checked: !!settings.room.shareResults; palette.windowText: Theme.text; onToggled: desk.prefs.set("shareResults", checked) }
+            // The website's quizzes-run counter: one anonymous "a quiz finished" when a live quiz ends (privacy policy).
+            CheckBox { text: "Count this venue's quizzes"; checked: settings.room.countQuizzes !== false; palette.windowText: Theme.text; onToggled: desk.prefs.set("countQuizzes", checked)
+                       ToolTip.visible: hovered; ToolTip.text: "When a live quiz finishes, BeerMat Online is told “one quiz finished” (nothing else) for the counter on the website." }
+            CheckBox { text: "Simple mode: fewer formats and options"; checked: !!settings.room.simpleMode; palette.windowText: Theme.text; onToggled: desk.prefs.set("simpleMode", checked)
+                       ToolTip.visible: hovered; ToolTip.text: "Hides the advanced formats and per-question options in Quizzes, for new hosts." }
         }
     }
 

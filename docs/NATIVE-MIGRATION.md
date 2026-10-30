@@ -17,7 +17,7 @@ by hand or partly tested), **todo**, **n/a**.
 |---|---|---|---|
 | Quiz engine, SQLite, live updates, networking, plans, rehearsals | `server/` | server.js 144 KB, model.js 28 KB, rehearsal.js 11 KB | 90 routes; SSE + WebSocket nudges; `node:sqlite` with migrations on start |
 | Desk page | `web/host.html` + `host.js` | 43 KB + 126 KB | 5 tabs: Tonight, Quizzes, Teams, Venue, Settings |
-| TV page | `web/display.html` + `client.js` | shares `client.js` (57 KB) with the player | views: question, join, leaderboard + stepped reveal, winner, wheel, blank, countdown; 18 formats incl. bingo, word snake, clips, buzzer |
+| TV page | `web/display.html` + `client.js` | shares `client.js` (57 KB) with the player | views: question, join, leaderboard + stepped reveal, winner, wheel, blank, countdown; 18 formats incl. bingo, word trail, clips, buzzer |
 | Player page | `web/player.html` + `client.js`, `app.js`, `i18n.js` | | every format, buzzers, bingo, photos, sounds, recovery, transfer, away, rehearsal screen, languages |
 | Electron shell | `desktop/` | main.js 23 KB + 8 small modules | server in a utility process, restart on crash, screens and TV window, TV sound output, backup/restore, key in safeStorage, menus, first-run, X11 relaunch on Wayland |
 | Capacitor app | `mobile/` | www/main.js 24 KB | wraps the **same player page** loaded from the laptop; adds QR scan (ML Kit), Wi-Fi QR handling, recent quizzes, haptics, Profile/results (Online), Find a quiz + map + reminders (Online) |
@@ -38,7 +38,7 @@ branch is fully merged. The migration builds on this; it adds no licensing logic
   actions: right, wrong, duplicate, invalid, stale, buzz, agree, disconnect, reconnect; test phones; event log; go
   live); Up next; On the TV (view, look); tools: wheel, TV countdown; buzzer game controls; bingo calls/verdicts;
   sound clips; tie-breaker.
-* **Quizzes**: load/download/print, Google Drive, the editor for all 18 formats and options (Evil Mode, speed bonus,
+* **Quizzes**: load/download/print, Google Drive, the editor for all 18 formats and options (Risk It, speed bonus,
   go wide, secret rounds, tie-breaker, media upload), unsaved-change guard, library save.
 * **Teams**: recovery codes, rename, move phone (transfer), disable, notes, returning teams/PINs, blocked names,
   paper round / score corrections, results download.
@@ -72,7 +72,7 @@ Rows are features; columns are the existing client and its native replacement.
 | Answers & marking: current question, points or sheet items, score corrections | yes | **done** (hand mark + correction tested) | question history and paper answers: todo |
 | Buzzer, bingo, clips, wheel, countdown, tie-breaker controls | yes | todo | |
 | Waiting room, photos, away warnings | yes | todo | |
-| Quiz library and editor: rounds and questions (add, duplicate, reorder, delete), format, wording, answer, aliases, choices, right choices, items, sheet answers, media path, points, time, note; save with server validation; save as file | yes | **built** (edit, save, server refusal tested) | per-format options (Evil Mode, speed bonus, go wide, buzzer/bingo, clips and songs, pinpoint target, word snake grid), media upload, Google Drive, print: todo, kept untouched meanwhile |
+| Quiz library and editor: rounds and questions (add, duplicate, reorder, delete), format, wording, answer, aliases, choices, right choices, items, sheet answers, media path, points, time, note; save with server validation; save as file | yes | **built** (edit, save, server refusal tested) | per-format options (Risk It, speed bonus, go wide, buzzer/bingo, clips and songs, pinpoint target, word trail grid), media upload, Google Drive, print: todo, kept untouched meanwhile |
 | Teams: let in (one or all), rename, move to another phone, disable/restore | yes | **built** | notes, returning teams/PINs, blocked names, photos, results download: todo |
 | Venue / Online | yes | todo | |
 | Venue & network: quiz Wi-Fi start/stop (card, name, password), venue LAN address, online link, connection check, joining QR | yes | **built** (LAN join mode tested; Wi-Fi and tunnel need the real laptop) | |
@@ -91,7 +91,7 @@ Rows are features; columns are the existing client and its native replacement.
 | Join screen with QR | yes | **done** | QR from the same `web/qr.js` (made engine-neutral) |
 | Leaderboard with stepped reveal, winner | yes | **built** | first-place spotlight, confetti, row slide: todo |
 | Wheel, countdown, buzzer leader/queue/agree, bingo ball + board, clips | yes | **built** | untested against those formats yet |
-| Word snake grid, tiles, team photos | yes | todo | |
+| Word trail grid, tiles, team photos | yes | todo | |
 | Sounds (timer music, countdown, reveal, buzzers), audio questions | yes | todo | `QtMultimedia`; output device via `QMediaDevices` |
 | Looks/themes (per-question colours) | yes | todo | |
 | Blank, rehearsal badge | yes | **done** | |
@@ -109,7 +109,7 @@ the system browser on the TV screen.
 | Join, recovery code kept (Keystore-encrypted), transfer code, reconnect | yes (player page) | **done** against the real server (join, state, stream); Keystore needs a device | written, **not compiled** |
 | Text, number, nearest, choice, vote, multi, letter, sequence, tiles, sheet | yes (player page) | **built**; choice and sequence answered against the real server | written, **not compiled** |
 | Buzzer: buzz, queue position, agree | yes | **built** (buzz refused for test devices: tested) | written, **not compiled** |
-| Pinpoint, word snake, bingo, music bingo, clips | yes | hand over to the browser player as the same team (**done**, browser side tested) | written, **not compiled** |
+| Pinpoint, word trail, bingo, music bingo, clips | yes | hand over to the browser player as the same team (**done**, browser side tested) | written, **not compiled** |
 | Scrambled keypads/tiles identical to the browser | yes | **done** (`seededOrder` checked against the JS output) | written, **not compiled** |
 | Rehearsal connection screen; server refuses play | yes (player page) | **done** (server refusals tested from the app's client) | written, **not compiled** |
 | Drafts, one final answer, points after marking | yes | **built** (second answer refused: tested) | written, **not compiled** |
@@ -182,6 +182,11 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
   releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
   `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
+* **Release 0.6.0**: Send Question, picture reveals (blur or tiles), multiple choice with six fixed buttons, Fast
+  Track, more wheels (weighted, random number, saved, rollover jackpots), music bingo's reaction table, slides between
+  rounds, a question report, questions on the fly, simple mode, team groups and table numbers, a signal monitor, bingo
+  extras, a quizzes-run counter on the website, Letter tiles / Word trail / Risk It as names, the Qt desk choosing GLX
+  when EGL draws nothing, and the iPhone app built in CI.
 * **Release 0.5.9**: the Quizzes page (the quizzes on this laptop, My quizzes, Clear quiz, sharing), a TV without a
   cable (`/tv` in a TV's browser, on the venue network too; BeerMat TV on Android TV, Google TV and Fire TV), an admin
   downloading from the libraries without a venue, library buzzers added once, Settings at any window size, themes

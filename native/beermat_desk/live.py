@@ -4,13 +4,15 @@ tie-breaker, and the room's switches (registration, scores, scrambled keypads, w
 
 The quiz server decides everything; this sends the quizmaster's choices and plays the desk's own audio (clips, songs,
 audio questions) through the TV's sound (tvsound.py), telling the server when each clip starts and ends."""
+from pathlib import Path
+
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from PySide6.QtMultimedia import QMediaPlayer
 
 # Settings the desk may switch (each a boolean on the server's settings).
 SWITCHES = {'registrationOpen', 'leaderboardVisible', 'showScores', 'scrambleKeypads', 'waitingRoom', 'bingoPhrases', 'bingoVoice',
-            'bingoBoard', 'teamPhotos', 'onlineAfterJoin'}
-DISPLAY_MODES = ['auto', 'join', 'question', 'leaderboard', 'wheel', 'winner', 'blank']
+            'bingoBoard', 'teamPhotos', 'onlineAfterJoin', 'sendQuestion', 'fixedSix', 'groupBoard', 'askTable', 'simpleMode', 'slidesAuto', 'countQuizzes'}
+DISPLAY_MODES = ['auto', 'join', 'question', 'leaderboard', 'wheel', 'winner', 'slides', 'blank']
 
 
 class LiveTools(QObject):
@@ -195,11 +197,19 @@ class LiveTools(QObject):
     @Slot(str)
     def spinWheel(self, items_text):
         items = [line.strip() for line in items_text.split('\n') if line.strip()]
+        self.spin({'items': items} if items else {})
+
+    @Slot('QVariantMap')
+    def spin(self, body):
+        """Any wheel: {} the teams, {kind: weighted}, {kind: number, min, max}, {saved: id}, {items: [...]}. The result
+        (and a rollover jackpot or Fast Track prize) comes back as the toast."""
         mode = ((self.desk._state or {}).get('settings') or {}).get('displayMode')
+        def said(reply):
+            result = (reply.get('items') or [''])[reply.get('result', 0)]
+            return f'Spinning: {result}' + (f' · {reply["note"]}' if reply.get('note') else '')
 
         def spin(_=None):
-            self._call('wheel', {'items': items} if items else {},
-                       'Wheel spinning on the TV' + (' — Auto carries on once the result has shown' if mode == 'auto' else ' — set the TV back to Auto when you are done'))
+            self._call('wheel', dict(body), said)
         if mode not in ('auto', 'wheel'):
             self.api.host('settings', {'displayMode': 'wheel'}, spin, lambda e: self.desk.toast.emit(e, True))
         else:
@@ -229,6 +239,70 @@ class LiveTools(QObject):
     def setSwitch(self, name, on):
         if name in SWITCHES:
             self._call('settings', {name: on})
+
+    @Slot('QVariantMap')
+    def saveWheel(self, wheel):
+        self._call('wheels', {'action': 'save', 'wheel': dict(wheel)}, f'Wheel saved: {wheel.get("name", "")}')
+
+    @Slot(str)
+    def deleteWheel(self, wheel_id):
+        self._call('wheels', {'action': 'delete', 'id': wheel_id}, 'Wheel deleted')
+
+    # ---- Fast Track and questions on the fly ----
+    @Slot(str, str)
+    def fastTrack(self, team, action):
+        """first: the team jumps one point clear into first place; wheel: it spins the Fast Track wheel."""
+        if action == 'first':
+            self._call('fasttrack', {'team': team, 'action': 'first'}, lambda r: f'Fast Track: +{r.get("points", 0)} points, into first place')
+        else:
+            mode = ((self.desk._state or {}).get('settings') or {}).get('displayMode')
+            go = lambda _=None: self._call('fasttrack', {'team': team, 'action': 'wheel'}, lambda r: f'Fast Track wheel: {r["items"][r["result"]]}' + (f' · {r["note"]}' if r.get('note') else ''))
+            if mode not in ('auto', 'wheel'):
+                self.api.host('settings', {'displayMode': 'wheel'}, go, lambda e: self.desk.toast.emit(e, True))
+            else:
+                go()
+
+    @Slot(str, int, int, int, str)
+    def askOnTheFly(self, kind, options, seconds, points, text):
+        q = self._q()
+        if q and q.get('live'):
+            self.desk.toast.emit('Close the question that is open first', True)
+            return
+        self._call('fly', {'type': kind, 'options': options, 'seconds': seconds, 'points': points, 'text': text}, 'On the fly: read it out now')
+
+    @Slot(str)
+    def flyAnswer(self, answer):
+        q = self._q()
+        if q and q.get('onTheFly'):
+            self._call('fly/answer', {'question': q['id'], 'answer': answer}, 'Answer set: teams marked')
+
+    # ---- slides between rounds ----
+    @Slot('QVariantList')
+    def setSlides(self, slides):
+        self._call('slides', {'slides': [dict(x) for x in slides]}, 'Slides saved')
+
+    @Slot('QVariantList')
+    def addSlides(self, urls):
+        """Pictures chosen on this laptop: uploaded to the quiz's media, then added to the slides."""
+        slides = list(((self.desk._state or {}).get('slides') or []))
+        paths = [u.toLocalFile() if hasattr(u, 'toLocalFile') else str(u) for u in urls]
+
+        def next_one(_=None):
+            if not paths:
+                self.setSlides(slides)
+                return
+            path = Path(paths.pop(0))
+            if path.suffix.lower() not in ('.png', '.jpg', '.jpeg', '.webp'):
+                self.desk.toast.emit(f'{path.name}: slides are PNG, JPEG or WebP pictures', True)
+                return next_one()
+            try:
+                data = path.read_bytes()
+            except OSError as e:
+                self.desk.toast.emit(f'Could not read {path.name}: {e}', True)
+                return next_one()
+            self.api.upload(data, f'slide{path.suffix.lower()}', lambda media: (slides.append({'media': media, 'seconds': 8}), next_one()),
+                            lambda e: self.desk.toast.emit(e, True))
+        next_one()
 
     @Slot()
     def playTieBreaker(self):

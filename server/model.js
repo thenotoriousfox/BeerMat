@@ -29,7 +29,7 @@ const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = 
 export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet'];
 export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
 // Buzzer questions stay open until the quizmaster rules on them; the timer only limits buzzing.
-// Formats the server marks right or wrong by itself: these can use Evil Mode and a fixed speed bonus.
+// Formats the server marks right or wrong by itself: these can use Risk It and a fixed speed bonus.
 export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio'].includes(q.type) && !!q.answer);
 export const speedBonusOf = q => q.fastestFingers ? q.speedBonus || 0 : 0;
 export const hostDriven = type => ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(type);
@@ -57,8 +57,12 @@ export function validateQuestion(q, mediaDir) {
   result.bonusMode = q.bonusMode ?? 'sliding'; result.bonusPlaces = q.bonusPlaces ?? 1;
   requireValue(['sliding', 'fixed'].includes(result.bonusMode), 'Speed bonus must be sliding or fixed');
   requireValue(integer(result.bonusPlaces, 1, 50), 'Fastest answers given the fixed bonus must be 1–50');
-  // Evil Mode: a wrong answer loses the question's points.
+  // Risk It: a wrong answer loses the question's points.
   result.evil = q.evil === true;
+  // Phones never show the question's text (the quizmaster reads it out): for wording that would give the answer away.
+  result.hideText = q.hideText === true;
+  // Asked on the fly: the quizmaster reads out a question that isn't saved and sets its answer after answers close.
+  if (q.onTheFly === true) result.onTheFly = true;
   if (['text', 'picture', 'audio'].includes(q.type)) result.aliases = aliases;
   if (q.type === 'choice' || q.type === 'vote' || q.type === 'multi') {
     requireValue(Array.isArray(q.options) && q.options.length >= 2 && q.options.length <= 8 && q.options.every(o => text(o, 200)) && new Set(q.options).size === q.options.length, 'Supply 2–8 distinct choices');
@@ -67,6 +71,8 @@ export function validateQuestion(q, mediaDir) {
     else if (q.type === 'multi') {
       requireValue(Array.isArray(q.correct) && q.correct.length >= 1 && q.correct.every(c => result.options.includes(c)) && new Set(q.correct).size === q.correct.length, 'Tick at least one correct choice');
       result.correct = result.options.filter(o => q.correct.includes(o)); result.answer = result.correct.join(', ');
+      // Wipeout: a single wrong tick scores nothing at all.
+      result.wipeout = q.wipeout === true;
     }
     else requireValue(!result.answer || result.options.includes(result.answer), 'Correct answer must match a choice');
   }
@@ -97,7 +103,7 @@ export function validateQuestion(q, mediaDir) {
   }
   if (q.type === 'wordsnake') {
     result.answer = result.answer.toUpperCase().replace(/[^A-Z]/g, '');
-    requireValue(result.answer.length >= 3 && result.answer.length <= 20, 'Word snake answers need 3–20 letters (A–Z)');
+    requireValue(result.answer.length >= 3 && result.answer.length <= 20, 'Word trail answers need 3–20 letters (A–Z)');
   }
   if (q.type === 'wordsnake' || q.type === 'pinpoint') {
     result.goWide = q.goWide === true; result.goWidePoints = q.goWidePoints ?? 0;
@@ -147,6 +153,10 @@ export function validateQuestion(q, mediaDir) {
     requireValue(!result.autoNext || result.songSeconds > 0 || result.songs.every(s => s.seconds), 'Set how long each song plays to move on automatically');
     requireValue(new Set(result.songs.map(s => s.title.toLowerCase())).size === result.songs.length, 'Song titles must all be different');
     result.revealNow = q.revealNow === true;
+    // The reaction table: a team dabbing the song now playing on its ticket logs how quickly it knew it; the quickest
+    // team on each song scores reactionPoints.
+    result.reactions = q.reactions === true; result.reactionPoints = q.reactionPoints ?? 0;
+    requireValue(integer(result.reactionPoints, 0, 10), 'Reaction points must be 0–10');
   }
   if (isBingo(q.type)) {
     result.mode = q.mode ?? 'line';
@@ -157,6 +167,11 @@ export function validateQuestion(q, mediaDir) {
       requireValue(Array.isArray(result.stagePoints) && result.stagePoints.length === 3 && result.stagePoints.every(p => integer(p, 0, 100)), 'Set points for the line, two lines and full house (0–100 each)');
       result.points = result.stagePoints[2];
     }
+    // Numbers (or songs) called each time the quizmaster calls: more than one makes a shorter game.
+    result.perCall = q.perCall ?? 1;
+    requireValue(integer(result.perCall, 1, 3) && (q.type === 'bingo' || result.perCall === 1), 'Call 1–3 numbers at a time (music bingo plays one song at a time)');
+    // Speed bingo: only numbers on a team's ticket are called, so lines come sooner.
+    result.speed = q.type === 'bingo' && q.speed === true;
   }
   if (q.type === 'buzzer') {
     result.variation = q.variation ?? 'classic';
@@ -181,6 +196,12 @@ export function validateQuestion(q, mediaDir) {
     result.clip = {spotify, start: c.start ?? 0, seconds: c.seconds ?? 30};
   }
   requireValue(!['picture', 'audio', 'pinpoint'].includes(q.type) || result.media || result.clip, 'Upload or select an existing media file');
+  // A picture can start hidden and show itself over the question's time: blurred, or under twelve tiles.
+  if (q.reveal !== undefined && q.reveal !== null && q.reveal !== '') {
+    requireValue(['blur', 'tiles'].includes(q.reveal), 'A picture reveal is blur or tiles');
+    requireValue(result.media && pictureExtensions.includes(path.extname(result.media).toLowerCase()) && q.type !== 'pinpoint', 'Only a picture can be revealed bit by bit');
+    result.reveal = q.reveal;
+  }
   requireValue(q.type !== 'pinpoint' || pictureExtensions.includes(path.extname(result.media).toLowerCase()), 'Pinpoint needs a picture');
   if (q.type === 'sheet') {
     requireValue(Array.isArray(q.items) && q.items.length >= 1 && q.items.length <= 50 && q.items.every(i => text(i, 500)), 'Supply 1–50 sheet questions');
@@ -199,7 +220,7 @@ export function validateQuestion(q, mediaDir) {
     // Missing keys are left for the host to mark.
     if (result.partScoring === 'each') result.points = q.items.length;
   }
-  requireValue(!result.evil || autoMarked(result), 'Evil Mode needs a format with a correct answer set, so wrong answers can be spotted');
+  requireValue(!result.evil || autoMarked(result), 'Risk It needs a format with a correct answer set, so wrong answers can be spotted');
   requireValue(result.bonusMode === 'sliding' || autoMarked(result), 'A fixed speed bonus needs a format with a correct answer set');
   return result;
 }
@@ -241,6 +262,8 @@ export function answerValue(value, q, final = true) {
   requireValue(!['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q.type), 'Use the buttons for this question');
   requireValue(typeof value === 'string' && value.length <= 300 && (!final || value.trim()), 'Answer must contain 1–300 characters');
   if (!final && value === '') return '';
+  // Six fixed buttons (fixedSix): a letter past the last option is a wrong answer, stored as #E, #F.
+  if (q.type === 'choice' && q.fixedSix && /^#[A-F]$/.test(value) && 'ABCDEF'.indexOf(value[1]) >= q.options.length) return value;
   if (q.type === 'choice' || q.type === 'vote') requireValue(q.options.includes(value), 'Select a valid choice');
   if (q.type === 'letter') requireValue(/^[a-z]$/i.test(value.trim()), 'Choose a single letter');
   if (q.type === 'number' || q.type === 'nearest') requireValue(numberPattern.test(value.trim()), 'Enter a number');
@@ -269,6 +292,7 @@ export const hits = (point, target) => !!point && Math.hypot(point[0] - target.x
 export function basePoints(value, q) {
   if (q.type === 'multi') {
     const picks = JSON.parse(value), right = picks.filter(p => q.correct.includes(p)).length;
+    if (q.wipeout && right < picks.length) return 0;
     return Math.max(0, Math.round(q.points * (right - (picks.length - right)) / q.correct.length));
   }
   if (q.type === 'wordsnake') return isCorrect(value, q) ? JSON.parse(value).wide ? q.goWidePoints : q.points : 0;
@@ -279,7 +303,7 @@ export function basePoints(value, q) {
   return isCorrect(value, q) ? q.points : 0;
 }
 
-// Seven Squares-style tiles: the answer's letters cut into at most seven pieces, longest first.
+// Letter tiles: the answer's letters cut into at most seven pieces, longest first.
 export function splitTiles(letters) {
   const count = Math.min(7, letters.length), base = Math.floor(letters.length / count), extra = letters.length % count, tiles = [];
   for (let i = 0, at = 0; i < count; i++) {const size = base + (i < extra ? 1 : 0); tiles.push(letters.slice(at, at + size)); at += size;}
@@ -291,7 +315,7 @@ export function shuffleTiles(tiles, random = Math.random) {
   for (let i = pieces.length - 1; i > 0; i--) {const j = Math.floor(random() * (i + 1)); [pieces[i], pieces[j]] = [pieces[j], pieces[i]];}
   return pieces.join('') === tiles.join('') ? [...pieces.slice(1), pieces[0]] : pieces;
 }
-// Word snake: the answer runs through the grid one neighbouring square at a time (diagonals allowed);
+// Word trail: the answer runs through the grid one neighbouring square at a time (diagonals allowed);
 // every other square holds a decoy letter.
 const neighbours = (i, size) => {
   const r = Math.floor(i / size), c = i % size, out = [];

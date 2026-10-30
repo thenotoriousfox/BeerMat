@@ -19,7 +19,7 @@ from PySide6.QtGui import QFontDatabase, QGuiApplication                        
 from PySide6.QtQml import QQmlApplicationEngine                                           # noqa: E402
 from PySide6.QtQuick import QQuickWindow                                                  # noqa: E402,F401  (grabWindow)
 
-from beermat_desk import gradients, looks                                                 # noqa: E402
+from beermat_desk import gradients, looks, svgmotion                                               # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 QML = Path(__file__).resolve().parent / 'qml'
@@ -55,6 +55,7 @@ def draw(folder, theme, title):
         QFontDatabase.addApplicationFont(str(ROOT / 'brand' / font))
     engine = QQmlApplicationEngine()
     gradients.install(engine)
+    svgmotion.install(engine)
     desk = Looks(folder)
     engine.rootContext().setContextProperty('desk', desk)
     engine.rootContext().setContextProperty('brand', QUrl.fromLocalFile(str(ROOT / 'brand') + '/'))

@@ -9,9 +9,13 @@ public let builtInBuzzers = ["Classic buzz", "Doorbell", "Siren", "Beep beep", "
 
 public struct Hello: Equatable {
     public let proto: Int, title: String, rehearsal: Bool, registrationOpen: Bool
+    /// The quizmaster wants each team's table number when it joins (the room map).
+    public var askTable = false
     public static func parse(_ o: [String: Any]) -> Hello? {
         guard o["app"] as? String == "BeerMat" else { return nil }
-        return Hello(proto: o.int("protocol"), title: o.str("title", "BeerMat"), rehearsal: o.bool("rehearsal"), registrationOpen: o.bool("registrationOpen", true))
+        var hello = Hello(proto: o.int("protocol"), title: o.str("title", "BeerMat"), rehearsal: o.bool("rehearsal"), registrationOpen: o.bool("registrationOpen", true))
+        hello.askTable = o.bool("askTable")
+        return hello
     }
 }
 
@@ -30,10 +34,18 @@ public struct Question: Equatable {
     public let deadline: Double, remaining: Double, open: Bool, live: Bool, paused: Bool, revealed: Bool
     public let answer: String?, answerNote: String, buzz: Buzz?
     public var wordLengths: [Int] = []
-    /// The whole question as the server sent it, for the formats with more to draw (bingo, word snake, clips…).
+    /// Waiting for the quizmaster's Send: nothing to read or answer yet (the clock hasn't started).
+    public var held = false
+    /// Multiple choice as letters only: six fixed A–F buttons (fixedSix), or a question asked on the fly.
+    public var fixedSix = false, onTheFly = false
+    /// The picture shows itself over the question's time: "blur", "tiles" or "".
+    public var reveal = ""
+    /// Music bingo's reaction table: the song playing (its number), quickest dabs first.
+    public var reactionSong: Int? { (raw["reactionTable"] as? [String: Any]).map { $0.int("song") } }
+    /// The whole question as the server sent it, for the formats with more to draw (bingo, word trail, clips…).
     public var raw: [String: Any] = [:]
     public var isTimed: Bool { type != "bingo" && type != "musicbingo" }
-    public static func == (a: Question, b: Question) -> Bool { a.id == b.id && a.open == b.open && a.revealed == b.revealed && a.paused == b.paused }
+    public static func == (a: Question, b: Question) -> Bool { a.id == b.id && a.open == b.open && a.revealed == b.revealed && a.paused == b.paused && a.held == b.held }
 }
 
 public struct Answer { public let value: Any?, points: Double? }
@@ -89,6 +101,7 @@ extension Question {
                         deadline: q.num("deadline") ?? 0, remaining: q.num("remaining") ?? 0, open: q.bool("open"), live: q.bool("live"),
                         paused: q.bool("paused"), revealed: q.bool("revealed"), answer: answer, answerNote: q.str("answerNote"), buzz: buzz)
         question.wordLengths = (q["wordLengths"] as? [Any] ?? []).compactMap { number($0).map { Int($0) } }
+        question.held = q.bool("held"); question.fixedSix = q.bool("fixedSix"); question.onTheFly = q.bool("onTheFly"); question.reveal = q.str("reveal")
         question.raw = q
         return question
     }

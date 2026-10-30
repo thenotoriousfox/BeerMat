@@ -333,7 +333,7 @@ test('music bingo: song-title tickets, hidden current song, verified claims', ()
   assert.deepEqual((await call('state', {}, a.secret)).question.bingo.titles, played, 'all titles shown once the game ends');
 }));
 
-test('word snake: adjacent traces only, go wide scores less; tiles assemble the answer', () => fixture(async ({call, teams, score}) => {
+test('word trail: adjacent traces only, go wide scores less; tiles assemble the answer', () => fixture(async ({call, teams, score}) => {
   const [a, b, c] = await teams('Alpha', 'Bravo', 'Charlie');
   await call('host/open', {...base, text: 'Tallest animal', type: 'wordsnake', answer: 'gir affe', points: 6, goWide: true, goWidePoints: 2});
   let s = await call('state', {}, a.secret); const id = s.question.id;

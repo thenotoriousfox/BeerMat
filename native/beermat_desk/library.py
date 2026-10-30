@@ -1,7 +1,7 @@
 """The quiz library, edited on the desk: a working copy of the server's library (rounds and questions) that the
 Quizzes workspace changes field by field and saves with /api/host/library/save. The server validates every question
 (server/model.js validateQuestion) and answers with a sentence when something's missing, so the rules for each format
-live there, not here. Fields the native editor doesn't show (Evil Mode, speed bonus, buzzer and bingo options, …) are
+live there, not here. Fields the native editor doesn't show (Risk It, speed bonus, buzzer and bingo options, …) are
 kept exactly as they are."""
 import base64
 import copy
@@ -13,7 +13,7 @@ from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
 
 # Formats a question can be, as the web desk names them.
 TYPES = [('text', 'Typed answer'), ('choice', 'Multiple choice'), ('multi', 'Tick all that apply'), ('letter', 'Letter keypad'),
-         ('number', 'Number'), ('nearest', 'Nearest wins'), ('sequence', 'Put in order'), ('pinpoint', 'Pinpoint'), ('wordsnake', 'Word snake'),
+         ('number', 'Number'), ('nearest', 'Nearest wins'), ('sequence', 'Put in order'), ('pinpoint', 'Pinpoint'), ('wordsnake', 'Word trail'),
          ('tiles', 'Letter tiles'), ('vote', 'Vote'), ('buzzer', 'Buzzer'), ('bingo', 'Bingo'), ('musicbingo', 'Music bingo'), ('clips', 'Sound clips'),
          ('picture', 'Picture'), ('audio', 'Audio'), ('sheet', 'Answer sheet')]
 # The fields the native editor shows; which ones apply depends on the format.
@@ -30,7 +30,7 @@ BINGO = {'bingo', 'musicbingo'}
 # Each format's options (server/model.js validateQuestion): key, label, kind, and for numbers their range, for choices
 # their values. The server checks them again when the quiz is saved.
 OPTIONS = [
-    ('evil', 'Evil Mode: a wrong answer loses the points', 'bool', None, lambda t: t not in ('vote', 'bingo', 'musicbingo', 'clips', 'buzzer')),
+    ('evil', 'Risk It: a wrong answer loses the points', 'bool', None, lambda t: t not in ('vote', 'bingo', 'musicbingo', 'clips', 'buzzer')),
     ('fastestFingers', 'Fastest fingers first (speed bonus)', 'bool', None, lambda t: t in SPEED),
     ('speedBonus', 'Speed bonus points', 'int', (0, 100), lambda t: t in SPEED),
     ('bonusMode', 'Speed bonus', 'choice', [('sliding', 'Fades over the time allowed'), ('fixed', 'Only the fastest answers')], lambda t: t in SPEED),
@@ -51,9 +51,17 @@ OPTIONS = [
     ('autoNext', 'Play the next song by itself', 'bool', None, lambda t: t == 'musicbingo'),
     ('revealNow', 'Show each song title as it plays', 'bool', None, lambda t: t == 'musicbingo'),
     ('clipSeconds', 'Spotify clips play for (seconds)', 'int', (3, 60), lambda t: t == 'clips'),
+    ('hideText', "Phones don't show the wording (you read it out): for wording that gives the answer away", 'bool', None, lambda t: t not in BINGO | {'clips'}),
+    ('reveal', 'Picture reveal (needs a picture)', 'choice', [('', 'Shown straight away'), ('blur', 'Starts blurred, sharpens over the time'), ('tiles', 'Under twelve tiles that go one by one')],
+     lambda t: t not in BINGO | {'clips', 'pinpoint', 'audio'}),
+    ('wipeout', 'Wipeout: any wrong tick scores nothing', 'bool', None, lambda t: t == 'multi'),
+    ('perCall', 'Numbers called each time (1–3)', 'int', (1, 3), lambda t: t == 'bingo'),
+    ('speed', 'Speed bingo: only numbers on a team’s ticket are called', 'bool', None, lambda t: t == 'bingo'),
+    ('reactions', 'Reaction table: teams dab the song as soon as they know it', 'bool', None, lambda t: t == 'musicbingo'),
+    ('reactionPoints', 'Points for the quickest team on each song', 'int', (0, 10), lambda t: t == 'musicbingo'),
     ('partScoring', 'Sheet scoring', 'choice', [('each', 'A point for each part'), ('split', "The question's points shared"), ('all', 'Points only when every part is right')], lambda t: t == 'sheet'),
 ]
-DEFAULTS = {'bonusMode': 'sliding', 'bonusPlaces': 1, 'places': 1, 'variation': 'classic', 'agreeSeconds': 10, 'mode': 'line', 'clipSeconds': 15, 'partScoring': 'each'}
+DEFAULTS = {'reveal': '', 'perCall': 1, 'bonusMode': 'sliding', 'bonusPlaces': 1, 'places': 1, 'variation': 'classic', 'agreeSeconds': 10, 'mode': 'line', 'clipSeconds': 15, 'partScoring': 'each'}
 PICTURE, SOUND = ('.png', '.jpg', '.jpeg', '.webp'), ('.mp3', '.ogg', '.wav')
 
 

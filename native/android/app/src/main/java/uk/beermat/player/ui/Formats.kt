@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -90,7 +91,7 @@ fun Pinpoint(server: String, q: Question, taps: List<List<Double>>, enabled: Boo
     if (enabled && taps.isNotEmpty()) TextButton({ onTaps(taps.dropLast(1)) }) { Text(t("Undo tap")) }
 }
 
-/** Word snake: trace the answer, each letter touching the last (diagonals too); a letter that doesn't touch starts again. */
+/** Word trail: trace the answer, each letter touching the last (diagonals too); a letter that doesn't touch starts again. */
 @Composable
 fun WordSnake(vm: PlayerViewModel, q: Question, path: List<Int>, enabled: Boolean, onPath: (List<Int>) -> Unit) {
     val grid = q.raw.optJSONObject("grid") ?: return
@@ -151,10 +152,24 @@ fun Bingo(vm: PlayerViewModel, ui: UiState, q: Question) {
                 val on = label.isNotEmpty() && label in dabbed
                 Box(Modifier.weight(1f).aspectRatio(if (music) 1.6f else 1f).clip(RoundedCornerShape(8.dp))
                     .background(if (label.isEmpty()) Brand.bg2 else if (on) Brand.pink else Brand.raised)
-                    .clickable(enabled = label.isNotEmpty()) { vm.dab(q.id, label) }, contentAlignment = Alignment.Center) {
+                    .clickable(enabled = label.isNotEmpty()) {
+                        // The reaction table: dabbing a song sends it (one go per song; the server times it against the song playing).
+                        if (music && label !in dabbed && q.raw.has("reactionTable")) vm.react(label)
+                        vm.dab(q.id, label)
+                    }, contentAlignment = Alignment.Center) {
                     Text(label, fontSize = if (music) 11.sp else 18.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2, color = Brand.text)
                 }
             }
+        }
+    }
+    q.raw.optJSONObject("reactionTable")?.let { r ->
+        Text(t("Dab the song as soon as you know it: the quickest team on each song is on the TV."), color = Brand.muted, fontSize = 13.sp)
+        OutlinedButton({ vm.react(null) }, enabled = ui.connected && q.live && !q.paused && r.optInt("song") > 0 && "${q.id}:${r.optInt("song")}" !in vm.reacted,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) { Text(t("Not on my ticket")) }
+        val now = r.optJSONArray("now")
+        if (now != null && now.length() > 0) {
+            Text(t("Reactions · song {n}", "n" to r.optInt("song")), color = Brand.teal, fontWeight = FontWeight.Bold)
+            for (i in 0 until minOf(5, now.length())) now.optJSONObject(i)?.let { Text("${i + 1}. ${it.optString("name")}  ${"%.1f".format(it.optLong("ms") / 1000.0)}s", color = if (i == 0) Brand.goldHi else Brand.text) }
         }
     }
     BigButton(t("BINGO!"), enabled = ui.connected && q.live && !q.paused && !claimed && !b.optBoolean("over") && !checking && !turnedDown && !ui.busy, colour = Brand.pink) { vm.claimBingo() }

@@ -99,8 +99,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         false
     }
 
-    fun join(name: String) = work {
-        val joined = server!!.join(name.trim())
+    fun join(name: String, table: Int? = null) = work {
+        val joined = server!!.join(name.trim(), table)
         identity.saveTeam(Identity.Saved(server!!.base, joined.secret, name.trim(), ""))
         play(joined.secret, server!!.state(joined.secret))
     }
@@ -220,6 +220,20 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     /** Bingo dabs stay on the phone, as on paper (the server checks the ticket against the calls). */
     val dabs = androidx.compose.runtime.mutableStateMapOf<Long, Set<String>>()
     fun dab(question: Long, cell: String) { val now = dabs[question] ?: emptySet(); dabs[question] = if (cell in now) now - cell else now + cell }
+
+    /** Music bingo's reaction table: one go per song, so the songs tried are remembered. */
+    val reacted = androidx.compose.runtime.mutableStateListOf<String>()
+    fun react(title: String?) {
+        val q = _ui.value.game?.question ?: return
+        val song = q.raw.optJSONObject("reactionTable")?.optInt("song") ?: return
+        val key = "${q.id}:$song"
+        if (song == 0 || key in reacted) return
+        reacted += key
+        viewModelScope.launch {
+            try { server?.react(_ui.value.secret, q.id, title); say(if (title == null) t("Passed on this song") else t("Dabbed: if it’s the song playing, your time is on the TV")) }
+            catch (e: QuizError) { say(e.message ?: "", true) } catch (_: Exception) {}
+        }
+    }
 
     fun agree() { val q = _ui.value.game?.question ?: return; work(quiet = true) { server!!.agree(_ui.value.secret, q.id); refresh() } }
 

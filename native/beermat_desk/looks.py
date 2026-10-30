@@ -5,6 +5,8 @@ import json
 import re
 from pathlib import Path
 
+from .svgmotion import motion_of
+
 # CSS variable -> the TV's palette key (the same names as Theme.qml).
 NAMES = {'--bg': 'bg', '--bg-2': 'bg2', '--text': 'text', '--muted': 'muted', '--gold': 'gold', '--gold-hi': 'goldHi', '--pink': 'pink',
          '--cyan': 'teal', '--violet': 'violet', '--good': 'good', '--bad': 'bad', '--on-accent': 'onAccent', '--line': 'line',
@@ -52,8 +54,21 @@ def scenes(folder):
         except (OSError, ValueError):
             continue
         if isinstance(data, dict):
-            out[path.parent.name] = {**qt_colours(data), 'base': path.parent.resolve().as_uri() + '/'}
+            look = {**qt_colours(data), 'base': path.parent.resolve().as_uri() + '/'}
+            if isinstance(look.get('scene'), list):
+                look['scene'] = [with_shape_motion(layer, path.parent) for layer in look['scene']]
+            out[path.parent.name] = look
     return out
+
+
+def with_shape_motion(layer, folder):
+    """A scene layer, plus 'shapeMotion' ({frames, duration}) when its picture is an SVG whose shape is animated (the
+    bat's wingbeat), which Qt's SVG renderer doesn't run: ThemeScene.qml plays it from svgmotion's frames."""
+    image = layer.get('image') if isinstance(layer, dict) else None
+    if not isinstance(image, str) or not image.endswith('.svg') or '..' in Path(image).parts:
+        return layer
+    motion = motion_of(folder / image)
+    return {**layer, 'shapeMotion': motion} if motion else layer
 
 
 def qt_colours(value):

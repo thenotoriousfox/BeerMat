@@ -35,7 +35,7 @@ Optional on most types:
   - `bonusMode`: `"sliding"` (default; the bonus fades over the time allowed) or `"fixed"` (only the fastest correct answers get it).
   - `bonusPlaces` (1–50, default 1): how many of the fastest correct answers get a fixed bonus.
   - On fastest-fingers questions the TV shows the fastest correct team large at the reveal.
-- `evil: true` (Evil Mode): a wrong answer *loses* the question's points.
+- `evil: true` (Risk It): a wrong answer *loses* the question's points.
 
 `evil` and `"bonusMode": "fixed"` only work on questions BeerMat can mark by itself. Those are:
 - multi, sequence, pinpoint, wordsnake and tiles;
@@ -135,7 +135,7 @@ Spotify links must be real tracks: BeerMat plays whatever track the id points to
       {"id": "r2-q1", "type": "text", "text": "Which band released the album Abbey Road?", "seconds": 30, "points": 1, "answer": "The Beatles", "aliases": ["Beatles"]},
       {"id": "r2-q2", "type": "nearest", "text": "In what year did the Titanic sink?", "seconds": 30, "points": 3, "answer": "1912", "places": 3},
       {"id": "r2-q3", "type": "choice", "text": "FASTEST FINGERS: Which is the largest ocean?", "seconds": 20, "points": 1, "options": ["Atlantic", "Indian", "Pacific", "Arctic"], "answer": "Pacific", "fastestFingers": true, "speedBonus": 3},
-      {"id": "r2-q4", "type": "text", "text": "EVIL MODE: What is the chemical symbol for gold? A wrong answer loses 2 points.", "seconds": 30, "points": 2, "answer": "Au", "evil": true},
+      {"id": "r2-q4", "type": "text", "text": "RISK IT: What is the chemical symbol for gold? A wrong answer loses 2 points.", "seconds": 30, "points": 2, "answer": "Au", "evil": true},
       {"id": "r2-q5", "type": "wordsnake", "text": "Trace the capital of Scotland", "seconds": 45, "points": 2, "answer": "EDINBURGH", "goWide": true, "goWidePoints": 1},
       {"id": "r2-q6", "type": "tiles", "text": "Rebuild the answer: a famous London clock", "seconds": 45, "points": 2, "answer": "Big Ben"}
     ]},

@@ -84,6 +84,9 @@ struct JoinView: View {
     @EnvironmentObject var model: PlayerModel
     @State private var name = ""
     @State private var code = ""
+    @State private var table = ""
+
+    private var tableNumber: Int? { Int(table).flatMap { (1...500).contains($0) ? $0 : nil } }
 
     var body: some View {
         ScrollView {
@@ -92,8 +95,13 @@ struct JoinView: View {
                 if model.hello?.rehearsal == true { Pill(text: t("REHEARSAL"), colour: Brand.teal) }
                 Text(t("Pick a team name")).font(Brand.display(32, .largeTitle))
                 TextField(t("Team name"), text: $name).padding(14).background(Brand.panel, in: RoundedRectangle(cornerRadius: 14))
-                    .onChange(of: name) { name = String($0.prefix(40)) }.submitLabel(.join).onSubmit { if valid { model.join(name) } }
-                BigButton(title: t("Join the quiz"), enabled: valid && !model.busy && model.hello?.registrationOpen != false) { model.join(name) }
+                    .onChange(of: name) { name = String($0.prefix(40)) }.submitLabel(.join).onSubmit { if valid { model.join(name, table: tableNumber) } }
+                // The room map: the quizmaster asks which table each team sits at.
+                if model.hello?.askTable == true {
+                    TextField(t("Table number"), text: $table).keyboardType(.numberPad).padding(14).background(Brand.panel, in: RoundedRectangle(cornerRadius: 14))
+                        .onChange(of: table) { table = String($0.filter(\.isNumber).prefix(3)) }
+                }
+                BigButton(title: t("Join the quiz"), enabled: valid && !model.busy && model.hello?.registrationOpen != false) { model.join(name, table: tableNumber) }
                 if model.hello?.registrationOpen == false { Text(t("Registration is closed. Ask the quizmaster.")).foregroundStyle(Brand.muted) }
                 MessageText()
                 Text(t("Already playing?")).font(Brand.display(20, .headline)).padding(.top, 20)

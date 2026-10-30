@@ -180,7 +180,8 @@ private fun BrowserRound(vm: PlayerViewModel, q: Question) {
 @Composable
 private fun QuestionHead(q: Question, offset: Long) {
     Text(q.round.uppercase(), color = Brand.gold, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, fontSize = 13.sp)
-    Text(q.text, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 6.dp, bottom = 10.dp))
+    // Waiting for the quizmaster's Send, or wording kept off phones: the team listens.
+    Text(if (q.held) t("Listen to the quizmaster…") else q.text.ifEmpty { t("Listen to the quizmaster") }, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 6.dp, bottom = 10.dp))
     if (q.isTimed) Countdown(q, offset)
 }
 
@@ -191,6 +192,7 @@ private fun Countdown(q: Question, offset: Long) {
     LaunchedEffect(q.id, q.open, q.paused) { while (q.open && !q.paused) { now = System.currentTimeMillis(); delay(200) } }
     val left = if (q.paused) q.remaining else maxOf(0L, q.deadline - now - offset)
     val text = when {
+        q.held -> t("Listen: the question comes to your phone when it’s been read out")
         q.paused -> t("Paused · {n}s remaining", "n" to (q.remaining + 999) / 1000)
         !q.open || left <= 0 -> if (q.revealed) t("Answer revealed") else t("Answers closed")
         else -> t("{n}s remaining", "n" to (left + 999) / 1000)
@@ -208,7 +210,8 @@ private fun Countdown(q: Question, offset: Long) {
 private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
     val game = ui.game!!
     QuestionHead(q, ui.offset)
-    if (q.type != "pinpoint") Media(ui.server, q)
+    if (q.held) return
+    if (q.type != "pinpoint") Media(ui.server, q, ui.offset)
     if (q.type == "buzzer") return Buzzer(vm, ui, q)
     if (q.type == "bingo" || q.type == "musicbingo") return Bingo(vm, ui, q)
     if (q.type == "clips") return Clips(vm, ui, q)
@@ -225,7 +228,14 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
     val order: (Int) -> List<Int> = { n -> if (game.settings.scrambleKeypads) seededOrder(n, "$teamId:${q.id}") else List(n) { it } }
 
     when (q.type) {
-        "choice", "vote" -> Keys(order(q.options.size).map { it to "${LETTERS[it]}. ${q.options[it]}" }, colours = true, picked = { q.options[it] == value }, enabled = !locked) { value = q.options[it] }
+        // Letters only: six fixed A–F buttons (a letter past the last option is a wrong answer, sent as "#E"), or the
+        // options of a question asked on the fly.
+        "choice" -> if (q.fixedSix || q.onTheFly) {
+            val count = if (q.fixedSix) 6 else q.options.size
+            val valueOf: (Int) -> String = { i -> q.options.getOrNull(i) ?: "#${LETTERS[i]}" }
+            Keys(List(count) { it to LETTERS[it].toString() }, colours = true, picked = { valueOf(it) == value }, enabled = !locked) { value = valueOf(it) }
+        } else Keys(order(q.options.size).map { it to "${LETTERS[it]}. ${q.options[it]}" }, colours = true, picked = { q.options[it] == value }, enabled = !locked) { value = q.options[it] }
+        "vote" -> Keys(order(q.options.size).map { it to "${LETTERS[it]}. ${q.options[it]}" }, colours = true, picked = { q.options[it] == value }, enabled = !locked) { value = q.options[it] }
         "letter" -> LetterPad(order(26), value as? String ?: "", enabled = !locked) { value = it }
         "multi" -> {
             Text(t("Tick every right answer — wrong ticks cost points"), color = Brand.muted, modifier = Modifier.padding(bottom = 8.dp))
@@ -398,9 +408,10 @@ private fun Buzzer(vm: PlayerViewModel, ui: UiState, q: Question) {
     }
 }
 
-/** A picture from the quiz laptop, or a sound to play on the phone. */
+/** A picture from the quiz laptop, or a sound to play on the phone. A picture with a reveal shows itself over the
+ *  question's time: loaded tiny and stretched (soft) then sharper, or under twelve tiles going in the web pages' order. */
 @Composable
-private fun Media(server: String, q: Question) {
+private fun Media(server: String, q: Question, offset: Long) {
     if (q.media.isEmpty()) return
     val url = if (q.media.startsWith("http")) q.media else server + q.media
     if (Regex("\\.(mp3|ogg|wav)$", RegexOption.IGNORE_CASE).containsMatchIn(q.media)) {
@@ -415,8 +426,34 @@ private fun Media(server: String, q: Question) {
     val bitmap by produceState<android.graphics.Bitmap?>(null, url) {
         value = withContext(Dispatchers.IO) { try { URL(url).openStream().use { BitmapFactory.decodeStream(it) } } catch (_: Exception) { null } }
     }
-    bitmap?.let {
-        Image(it.asImageBitmap(), t("Quiz picture"), contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxWidth().aspectRatio(it.width.toFloat() / it.height).clip(RoundedCornerShape(14.dp)).padding(vertical = 8.dp))
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(q.id, q.open, q.paused, q.reveal) { while (q.reveal.isNotEmpty() && q.open && !q.paused) { now = System.currentTimeMillis(); delay(200) } }
+    val shown = revealShare(q, now, offset)
+    bitmap?.let { full ->
+        val step = if (q.reveal == "blur" && shown < 1f) intArrayOf(6, 8, 12, 16, 24, 32, 48, 72, 112, 176)[(shown * 10).toInt().coerceIn(0, 9)] else 0
+        val picture = remember(full, step) { if (step == 0) full else android.graphics.Bitmap.createScaledBitmap(full, step, maxOf(1, step * full.height / full.width), true) }
+        Box(Modifier.fillMaxWidth().aspectRatio(full.width.toFloat() / full.height).padding(vertical = 8.dp).clip(RoundedCornerShape(14.dp))) {
+            Image(picture.asImageBitmap(), t("Quiz picture"), contentScale = ContentScale.FillBounds, filterQuality = androidx.compose.ui.graphics.FilterQuality.High, modifier = Modifier.fillMaxSize())
+            if (q.reveal == "tiles") {
+                val order = remember(q.id) { seededOrder(12, "tiles:${q.id}") }
+                val gone = (shown * 12).toInt()
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    for (r in 0 until 3) Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        for (c in 0 until 4) {
+                            val fade by animateFloatAsState(if (order[r * 4 + c] < gone) 0f else 1f, label = "tile")
+                            Box(Modifier.weight(1f).fillMaxSize().clip(RoundedCornerShape(6.dp)).background(Brand.violet.copy(alpha = fade)))
+                        }
+                    }
+                }
+            }
+        }
     }
+}
+
+/** How much of a revealing picture shows (0–1): all of it once answers close or without a reveal. */
+private fun revealShare(q: Question, now: Long, offset: Long): Float {
+    if (q.reveal.isEmpty() || !q.live || q.revealed) return 1f
+    if (q.held) return 0f
+    val left = if (q.paused) q.remaining else maxOf(0L, q.deadline - now - offset)
+    return (1f - left.toFloat() / (q.seconds * 1000f)).coerceIn(0f, 1f)
 }

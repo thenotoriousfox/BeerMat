@@ -80,7 +80,18 @@ counts as the team being *connected*.
 
 The **question** (`publicQuestion`) never carries the answer before the reveal:
 `id, type, round, text, options?, items?, order?, grid?, tiles?, media?, points, seconds, deadline, remaining, open,
-live, paused, revealed, revealing, buzz?, bingo?, clipGame?`, and after the reveal the solution fields.
+live, paused, revealed, revealing, buzz?, bingo?, clipGame?`, and after the reveal the solution fields. Newer, optional:
+
+- `held: true`: the quizmaster hasn't sent the question yet (Send Question). A team's copy then has an empty `text`,
+  no `options`, `items`, `media` or grid, and `paused` is true; show "listen to the quizmaster" and build the inputs
+  once a state without `held` arrives (same `id`).
+- `text: ""` with `hideText` set: the wording stays off phones (and the TV) until the reveal.
+- `fixedSix: true` on `choice`: show six buttons A–F, letters only. A letter past the last option is sent as `"#E"` or
+  `"#F"` (a wrong answer); the others send their option as usual.
+- `onTheFly: true` on `choice`: the options are only letters; show letter buttons.
+- `reveal: "blur" | "tiles"`: the picture shows itself over the question's time (blurred, or under twelve tiles that
+  go in the order of the web pages' `seededOrder(12, "tiles:" + id)`); sharp, or uncovered, once answers close.
+- `reactionTable: {song, now: [{name, ms}], leaders: [{name, songs}]}` on music bingo with the reaction table.
 
 **Timing**: `deadline` is server time. A client's countdown is `deadline - serverTime` measured at receipt, then
 run on the local monotonic clock; it is only a display. The server decides lateness.
@@ -105,11 +116,18 @@ run on the local monotonic clock; it is only a display. The server decides laten
 | `bingo`, `musicbingo` | `POST /api/bingo` to claim |
 | `clips` | `POST /api/tap` |
 
-Also: `/api/gowide` (word snake help), `/api/away` `{question, state}` (the player left the app mid-question; the desk
+Also: `/api/react` `{question, title}` or `{question, pass: true}` (music bingo's reaction table: the team dabbed a
+song on its ticket, one go per song played), `/api/gowide` (word trail help), `/api/away` `{question, state}` (the player left the app mid-question; the desk
 sees it), `/api/team/sound`, `/api/team/photo` (JPEG body), `/api/team/result` (signed result after a live quiz),
 `GET /api/leaderboard`.
 
 The server checks every answer against the question and its timing; clients only shape the value.
+
+A client may add `X-Beermat-Rtt: <ms>` to `/api/state`: how long its previous request took. The desk's signal monitor
+shows it. `/api/join` takes an optional `table` (1–500) when `askTable` is on (in `/api/hello` and the state's `settings`).
+
+The Android and iOS apps handle all of these: a held question, letters-only choice, the picture reveal, the reaction
+table, the table number at join and the round-trip header.
 
 ## Looks
 
