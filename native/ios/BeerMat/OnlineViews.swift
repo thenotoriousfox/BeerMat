@@ -129,6 +129,8 @@ private struct Pin: Identifiable { let id: String; let name: String; let coordin
 struct MapTab: View {
     @EnvironmentObject var online: OnlineModel
     @State private var day = ""
+    /// The pin tapped: a small popup with the venue and its next quiz (the map's own venue data, nothing to fetch).
+    @State private var picked: String?
     @State private var region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 54, longitude: -2.5), span: MKCoordinateSpan(latitudeDelta: 10, longitudeDelta: 10))
     private let days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
     var body: some View {
@@ -152,10 +154,50 @@ struct MapTab: View {
             // Apple's map; the player's own location is never shown or sent.
             Map(coordinateRegion: $region, annotationItems: pins) { pin in
                 MapAnnotation(coordinate: pin.coordinate) {
-                    Button { online.open(pin.id) } label: { Image(systemName: "mappin.circle.fill").font(.title).foregroundStyle(Brand.gold) }.accessibilityLabel(pin.name)
+                    Button { picked = pin.id } label: { Image(systemName: "mappin.circle.fill").font(.title).foregroundStyle(Brand.gold) }.accessibilityLabel(pin.name)
+                }
+            }
+            .overlay {
+                if let id = picked, let venue = online.venues.first(where: { $0["id"] as? String == id }) {
+                    MapVenuePopup(v: venue) { picked = nil }
                 }
             }
         }.task { if online.venues.isEmpty { online.loadVenues() } }
+    }
+}
+
+/// A map pin's popup: the venue's details and when its next quiz is (not the venue page's list of quizzes).
+private struct MapVenuePopup: View {
+    @EnvironmentObject var online: OnlineModel
+    let v: [String: Any]
+    let close: () -> Void
+    private var id: String { v["id"] as? String ?? "" }
+    private var address: String { [v["address"], v["town"], v["postcode"]].compactMap { $0 as? String }.filter { !$0.isEmpty }.joined(separator: ", ") }
+    private var nights: String {
+        (v["quizNights"] as? [[String: Any]] ?? []).map { "\(($0["day"] as? String ?? "").capitalized) \($0["time"] as? String ?? "")" }.joined(separator: ", ")
+    }
+    private var next: String {
+        guard let n = v["next"] as? [String: Any] else { return t("No quiz nights published yet.") }
+        return t("Next: {title}, {date}", ["title": n["title"] as? String ?? "", "date": when(n["startsAt"])])
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.6).ignoresSafeArea().onTapGesture(perform: close)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(v["name"] as? String ?? "").font(Brand.display(24))
+                Text(address).foregroundStyle(Brand.muted)
+                if !nights.isEmpty { Text(t("Quiz nights: {nights}", ["nights": nights])).foregroundStyle(Brand.muted) }
+                Text(next).bold().foregroundStyle(Brand.goldHi)
+                HStack {
+                    Button(online.favourites.contains(id) ? t("★ Saved") : t("☆ Save venue")) { online.favourite(id, !online.favourites.contains(id)) }
+                    if let d = (v["directions"] as? String).flatMap(URL.init(string:)) { Link(t("Directions"), destination: d) }
+                    if let w = (v["website"] as? String).flatMap(URL.init(string:)), w.scheme == "https" { Link(t("Website"), destination: w) }
+                }
+                Button(t("Close"), action: close).frame(maxWidth: .infinity)
+            }
+            .padding(20).background(Brand.panel, in: RoundedRectangle(cornerRadius: 20)).foregroundStyle(Brand.text).padding(24)
+        }
     }
 }
 

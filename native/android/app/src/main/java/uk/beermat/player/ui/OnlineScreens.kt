@@ -276,6 +276,8 @@ fun MapScreen(vm: OnlineViewModel, ui: OnlineState) {
         val context = LocalContext.current
         var map by remember { mutableStateOf<MapView?>(null) }
         var me by remember { mutableStateOf<GeoPoint?>(null) }
+        // The pin tapped: a small popup with the venue and its next quiz (the map's own venue data, nothing to fetch).
+        var picked by remember { mutableStateOf<JSONObject?>(null) }
         // My location: asked for only when the player taps it; the position stays on the phone (the map is centred on it).
         // The stored position straight away if there is one, then the fresh one when it comes.
         val locate = { ->
@@ -305,7 +307,7 @@ fun MapScreen(vm: OnlineViewModel, ui: OnlineState) {
                     view.overlays.add(Marker(view).apply {
                         position = GeoPoint(v.optDouble("lat"), v.optDouble("lon")); title = v.optString("name")
                         subDescription = v.optJSONObject("next")?.let { t("Next: {title}, {date}", "title" to it.optString("title"), "date" to date(it.optLong("startsAt"))) } ?: v.optString("town")
-                        setOnMarkerClickListener { _, _ -> vm.openVenue(v.optString("id")); true }
+                        setOnMarkerClickListener { _, _ -> picked = v; true }
                     })
                 }
                 me?.let { here -> view.overlays.add(Marker(view).apply {
@@ -320,8 +322,31 @@ fun MapScreen(vm: OnlineViewModel, ui: OnlineState) {
                     .clickable {
                         if (precise(context)) locate() else permission.launch(LOCATION)
                     }.padding(horizontal = 18.dp, vertical = 12.dp).testTag("my-location"))
+            picked?.let { MapVenuePopup(vm, ui, it) { picked = null } }
         }
         DisposableEffect(Unit) { onDispose { map?.onDetach(); map = null } }
+    }
+}
+
+/** A map pin's popup: the venue's details and when its next quiz is (not the venue page's list of quizzes). */
+@Composable
+private fun MapVenuePopup(vm: OnlineViewModel, ui: OnlineState, v: JSONObject, close: () -> Unit) {
+    val context = LocalContext.current
+    val id = v.optString("id")
+    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0x99000000)).clickable(onClick = close), contentAlignment = Alignment.Center) {
+        Column(Modifier.padding(24.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Brand.panel).clickable(enabled = false) {}.padding(20.dp).testTag("venue-popup")) {
+            Text(v.optString("name"), style = MaterialTheme.typography.headlineSmall)
+            Text(listOf(v.optString("address"), v.optString("town"), v.optString("postcode")).filter { it.isNotEmpty() }.joinToString(", "), color = Brand.muted)
+            v.optJSONArray("quizNights")?.let { n -> if (n.length() > 0) Text(t("Quiz nights: {nights}", "nights" to (0 until n.length()).joinToString(", ") { i -> n.getJSONObject(i).let { "${it.optString("day").replaceFirstChar(Char::uppercase)} ${it.optString("time")}" } }), color = Brand.muted, modifier = Modifier.padding(top = 6.dp)) }
+            Text(v.optJSONObject("next")?.let { t("Next: {title}, {date}", "title" to it.optString("title"), "date" to date(it.optLong("startsAt"))) } ?: t("No quiz nights published yet."),
+                color = Brand.goldHi, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
+            Row(Modifier.padding(top = 8.dp)) {
+                TextButton({ vm.favourite(id, id !in ui.favourites) }) { Text(if (id in ui.favourites) t("★ Saved") else t("☆ Save venue")) }
+                TextButton({ openInBrowser(context, v.optString("directions")) }) { Text(t("Directions")) }
+                if (v.optString("website").startsWith("https://")) TextButton({ openInBrowser(context, v.optString("website")) }) { Text(t("Website")) }
+            }
+            TextButton(close, modifier = Modifier.fillMaxWidth()) { Text(t("Close")) }
+        }
     }
 }
 
