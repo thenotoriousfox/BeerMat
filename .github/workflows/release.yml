@@ -59,6 +59,7 @@ jobs:
             dist/native/*.zip
             dist/native/*.exe
           if-no-files-found: error
+          retention-days: 1
 
   # The native Android app (Kotlin, native/android): the same app id and signing key as the Capacitor app, with a
   # higher version code, so it installs over it.
@@ -92,6 +93,7 @@ jobs:
           name: Android-native
           path: dist/*.apk
           if-no-files-found: error
+          retention-days: 1
 
   # The iPhone app (native/ios), unsigned: there's no Apple Developer account behind it, so it can't go to TestFlight or
   # the App Store. The .ipa installs on an iPhone once someone signs it with their own Apple ID (AltStore, Sideloadly).
@@ -119,6 +121,7 @@ jobs:
           name: iOS
           path: dist/*.ipa
           if-no-files-found: error
+          retention-days: 1
 
   release:
     needs: [desk, android-native, ios]
@@ -198,3 +201,28 @@ jobs:
           grep -v -e '^$' -e "^$version/" -e '^latest\.json$' <<< "$keys" | while IFS= read -r key; do
             echo "Removing $key"; site/node_modules/.bin/wrangler r2 object delete "beermat-downloads/$key" --remote
           done
+
+  # Temporary Actions artifacts are only a hand-off between build and publishing jobs.
+  # Keep published binaries in GitHub Releases; remove Actions copies even after failed runs.
+  cleanup-artifacts:
+    if: ${{ always() }}
+    needs: [desk, android-native, ios, release, downloads]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+    steps:
+      - name: Delete this run's temporary build artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          run_id="$GITHUB_RUN_ID"
+          gh api --paginate "repos/$repo/actions/runs/$run_id/artifacts?per_page=100" --jq '.artifacts[].id' |
+            while IFS= read -r artifact_id; do
+              [ -n "$artifact_id" ] || continue
+              gh api -X DELETE "repos/$repo/actions/artifacts/$artifact_id"
+              echo "Deleted temporary artifact $artifact_id"
+            done
