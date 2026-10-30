@@ -56,6 +56,23 @@ class OnlineUiTest {
 
     private fun waitText(text: String, timeout: Long = 15000) = rule.waitUntilAtLeastOneExists(hasText(text, substring = true), timeout)
 
+    /** Taps the map where a place is (just above it, where a pin's icon sits): the map is an Android view, not Compose. */
+    private fun tapMapAt(lat: Double, lon: Double) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        var x = 0f; var y = 0f
+        instrumentation.runOnMainSync {
+            fun find(v: android.view.View): org.osmdroid.views.MapView? = v as? org.osmdroid.views.MapView
+                ?: (v as? android.view.ViewGroup)?.let { g -> (0 until g.childCount).firstNotNullOfOrNull { find(g.getChildAt(it)) } }
+            val map = find(rule.activity.window.decorView)!!
+            val point = map.projection.toPixels(org.osmdroid.util.GeoPoint(lat, lon), null)
+            val at = IntArray(2).also { map.getLocationOnScreen(it) }
+            x = (at[0] + point.x).toFloat(); y = (at[1] + point.y - 12 * map.resources.displayMetrics.density)
+        }
+        val down = android.os.SystemClock.uptimeMillis()
+        instrumentation.sendPointerSync(android.view.MotionEvent.obtain(down, down, android.view.MotionEvent.ACTION_DOWN, x, y, 0))
+        instrumentation.sendPointerSync(android.view.MotionEvent.obtain(down, down + 50, android.view.MotionEvent.ACTION_UP, x, y, 0))
+    }
+
     @Test fun profileFindMapAndKeepAResult() {
         assumeTrue("needs the ui-test.sh servers", online.isNotEmpty() && server.isNotEmpty())
         // Profile: point the app at the test service, create an account.
@@ -89,6 +106,14 @@ class OnlineUiTest {
         rule.waitUntilAtLeastOneExists(hasTestTag("map"), 10000)
         Thread.sleep(2000)
         shot("32-map")
+        // Its pin opens a popup with the venue and its next quiz, not the venue page's list.
+        tapMapAt(51.4545, -2.5879)
+        rule.waitUntilAtLeastOneExists(hasTestTag("venue-popup"), 5000)
+        waitText("Next: Halloween special")
+        waitText("1 King St")
+        shot("33-map-pin")
+        rule.onNodeWithText("Close").performClick()
+        rule.waitUntilDoesNotExist(hasTestTag("venue-popup"), 5000)
 
         // Play a live quiz to the end, then keep the team's result.
         rule.onNodeWithTag("tab-Play").performClick()
