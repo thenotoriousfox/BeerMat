@@ -99,8 +99,12 @@ changing it, run `node scripts/export-i18n.mjs`: the Android and iOS apps' tests
   `execFileSync` a script that calls a server running in the same process (it deadlocks); a `pkill -f` pattern can
   match your own shell.
 - A new check should fail on the old code: run it against `main`'s copy of the file before calling a fix done.
-- iOS: `cd native/ios/BeerMatKit && swift test` (macOS or Linux). The SwiftUI app compiles only on macOS: the `ios` CI
-  job. Keep SwiftUI view bodies in small typed parts, or Xcode gives up type-checking them.
+- iOS: `cd native/ios/BeerMatKit && swift test` (macOS or Linux). The SwiftUI app compiles only on macOS: the `app`
+  job of the iPhone app workflow. Keep SwiftUI view bodies in small typed parts, or Xcode gives up type-checking them.
+- CI minutes come from a monthly allowance shared by the user's repos (Linux ×1, Windows ×2, macOS ×10; build-file
+  storage too). Checks run once per change (pull requests, and main after a merge) and only where they can find
+  something: Offline quiz tests on code paths, BeerMatKit on Linux when it, the server or shared rules change, the Mac
+  only when the app changes. Keep it that way, and don't start test builds of Release without a reason.
 
 ## Releasing
 
