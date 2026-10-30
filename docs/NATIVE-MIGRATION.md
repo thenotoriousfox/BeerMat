@@ -182,6 +182,11 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
   releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
   `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
+* **Release 0.6.0**: Send Question, picture reveals (blur or tiles), multiple choice with six fixed buttons, Fast
+  Track, more wheels (weighted, random number, saved, rollover jackpots), music bingo's reaction table, slides between
+  rounds, a question report, questions on the fly, simple mode, team groups and table numbers, a signal monitor, bingo
+  extras, a quizzes-run counter on the website, Letter tiles / Word trail / Risk It as names, the Qt desk choosing GLX
+  when EGL draws nothing, and the iPhone app built in CI.
 * **Release 0.5.9**: the Quizzes page (the quizzes on this laptop, My quizzes, Clear quiz, sharing), a TV without a
   cable (`/tv` in a TV's browser, on the venue network too; BeerMat TV on Android TV, Google TV and Fire TV), an admin
   downloading from the libraries without a venue, library buzzers added once, Settings at any window size, themes
