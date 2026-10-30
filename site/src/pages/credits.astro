@@ -1,7 +1,6 @@
 ---
 import Page from '../layouts/Page.astro';
-// The sounds, music and font that ship with BeerMat. The full source of every file is in sounds/CREDITS.md.
-const music = ['Monkeys Spinning Monkeys', 'Spazzmatica Polka'];
+// The sounds and font that ship with BeerMat. The full source of every file is in sounds/CREDITS.md.
 const moments = [
 	['I did not have sexual relations with that woman', 'Bill Clinton, 1998'],
 	['Well, I’m not a crook', 'Richard Nixon, 1973'],
@@ -15,14 +14,9 @@ const moments = [
 	['I was strolling on the moon one day', 'NASA, Apollo 17, 1972'],
 ];
 ---
-<Page title="Credits · BeerMat" description="The music, sounds and font that come with BeerMat, and where they’re from.">
+<Page title="Credits · BeerMat" description="The sounds and font that come with BeerMat, and where they’re from.">
 	<article class="wrap prose max-w-3xl py-10">
 		<h1 class="text-4xl">Credits</h1>
-
-		<h2>Music</h2>
-		<ul>
-			{music.map(title => <li>“{title}” Kevin MacLeod (<a href="https://incompetech.com">incompetech.com</a>), licensed under Creative Commons: By Attribution 4.0 (<a href="https://creativecommons.org/licenses/by/4.0/">creativecommons.org/licenses/by/4.0</a>)</li>)}
-		</ul>
 
 		<h2>Famous Moments</h2>
 		<p>Recordings made by the US government (NASA and the President in office), which are in the public domain, from Wikimedia Commons.</p>

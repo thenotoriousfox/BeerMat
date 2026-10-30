@@ -1,4 +1,6 @@
 import java.util.Properties
+import java.util.zip.ZipFile
+import javax.xml.parsers.DocumentBuilderFactory
 
 plugins {
     id("com.android.application")
@@ -90,3 +92,65 @@ dependencies {
     // org.json is part of Android; unit tests on the JVM need a real copy.
     testImplementation("org.json:json:20260522")
 }
+
+// licences.txt in the app's assets: every library in the release build with the licence its own POM names (and the
+// notices Play services libraries carry inside), then the Apache 2.0 text most of them use. Worked out at build time,
+// so it follows the dependencies above.
+val licencesDir = layout.buildDirectory.dir("generated/licences")
+val writeLicences by tasks.registering {
+    val apache = rootProject.file("../packaging/licences/apache-2.0.txt")
+    inputs.file(apache)
+    inputs.property("version", android.defaultConfig.versionName ?: "")
+    outputs.dir(licencesDir)
+    doLast {
+        val modules = configurations.getByName("releaseRuntimeClasspath").incoming.resolutionResult.allComponents
+            .mapNotNull { it.id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier }
+            .sortedBy { "${it.group}:${it.module}" }
+        fun resolve(notation: String) = configurations.detachedConfiguration(dependencies.create(notation)).apply { isTransitive = false }
+            .resolvedConfiguration.lenientConfiguration.artifacts.firstOrNull()?.file
+        val xml = DocumentBuilderFactory.newInstance()
+        // A POM without licences takes them from its parent's.
+        fun licencesOf(pom: File?): List<String> {
+            pom ?: return emptyList()
+            val doc = xml.newDocumentBuilder().parse(pom)
+            fun tag(e: org.w3c.dom.Element, name: String) = e.getElementsByTagName(name).item(0)?.textContent?.trim().orEmpty()
+            val nodes = doc.getElementsByTagName("license")
+            val named = (0 until nodes.length).map { i ->
+                val e = nodes.item(i) as org.w3c.dom.Element
+                listOf(tag(e, "name"), tag(e, "url")).filter { it.isNotEmpty() }.joinToString(", ")
+            }
+            val parent = doc.getElementsByTagName("parent").item(0) as? org.w3c.dom.Element
+            return named.ifEmpty { parent?.let { licencesOf(resolve("${tag(it, "groupId")}:${tag(it, "artifactId")}:${tag(it, "version")}@pom")) }.orEmpty() }
+        }
+        val lines = mutableListOf<String>()
+        val notices = linkedMapOf<String, MutableList<String>>()   // each notice once, with the libraries that carry it
+        for (m in modules) {
+            val pom = resolve("${m.group}:${m.module}:${m.version}@pom")
+            val named = licencesOf(pom)
+            lines += "${m.group}:${m.module} ${m.version}: ${named.joinToString("; ").ifEmpty { "see https://mvnrepository.com/artifact/${m.group}/${m.module}" }}"
+            // Play services and ML Kit put their own third-party notices inside the library.
+            if (m.group.startsWith("com.google.android.gms") || m.group.startsWith("com.google.mlkit")) {
+                val aar = resolve("${m.group}:${m.module}:${m.version}@aar") ?: continue
+                ZipFile(aar).use { zip ->
+                    zip.getEntry("third_party_licenses.txt")?.let { entry ->
+                        val text = zip.getInputStream(entry).bufferedReader().readText().trim()
+                        if (text.isNotEmpty()) notices.getOrPut(text) { mutableListOf() } += "${m.group}:${m.module}"
+                    }
+                }
+            }
+        }
+        val rule = "=".repeat(100)
+        val out = licencesDir.get().file("licences.txt").asFile
+        out.parentFile.mkdirs()
+        out.writeText(buildString {
+            append("BeerMat ${android.defaultConfig.versionName}\n\nBeerMat is BeerMat's own software: https://beermatquiz.co.uk/terms. ")
+            append("It is built with the libraries below, each under the licence named. Its font is Fredoka (SIL Open Font License, ")
+            append("Fredoka-OFL.txt).\n\n$rule\nLibraries\n$rule\n\n")
+            lines.forEach { append(it).append('\n') }
+            notices.forEach { (text, libraries) -> append("\n$rule\nNotices in ${libraries.joinToString(", ")}\n$rule\n\n$text\n") }
+            append("\n$rule\nApache License 2.0\n$rule\n\n").append(apache.readText())
+        })
+    }
+}
+android.sourceSets["main"].assets.srcDir(licencesDir)
+tasks.named("preBuild") { dependsOn(writeLicences) }

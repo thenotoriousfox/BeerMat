@@ -176,8 +176,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (shipped) reloadPack();
   }
   reloadThemes();
+  // Buzzers from these folders a desk saved that aren't there any more (BeerMat stopped shipping them, or the laptop's
+  // pack lost them) drop out of its choice rather than play nothing.
+  let packBuzzers;
   const reloadPack = () => {
     shipped = loadPack(soundsDir, '/sounds/'); local = loadPack(packDir, '/pack/');
+    packBuzzers = new Set([...shipped.buzzers, ...local.buzzers].map(b => b.media));
     themes = {...shipped.themes, ...Object.fromEntries(folders.themes.filter(t => Object.keys(t.sounds).length).map(t => [t.name, t.sounds])), ...local.themes};
   };
   reloadPack();
@@ -220,7 +224,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const soundPack = (q = latest()) => {
     const saved = getMeta('soundPack', {}), base = defaults(themeFor(q));
     const slots = Object.fromEntries(Object.entries({...base.slots, ...saved.slots}).filter(([slot, media]) => media && soundSlots.includes(slot)));
-    return {slots, buzzers: saved.buzzers ?? base.buzzers};
+    return {slots, buzzers: saved.buzzers?.filter(b => !/^\/(sounds|pack)\/buzzers\//.test(b.media) || packBuzzers.has(b.media)) ?? base.buzzers};
   };
   const bingoCalls = () => getMeta('bingoCalls', local.calls ?? shipped.calls);
   // The spoken caller has to say the calls on screen: the pack's recordings go with the pack's calls file, the shipped
