@@ -43,6 +43,11 @@ cd native/ios/BeerMatKit && swift test        # protocol and shared rules; the s
 open native/ios/BeerMat.xcodeproj             # choose your team under Signing, then Run
 ```
 
+Each release (`.github/workflows/release.yml`) attaches an **unsigned** `BeerMat-<version>-ios-unsigned.ipa` to the
+GitHub release: with no Apple Developer account behind the app yet, it installs only once someone signs it with their
+own Apple ID (AltStore or Sideloadly; a free Apple ID's signature lasts 7 days). TestFlight and the App Store need that
+account, a signing certificate and a provisioning profile.
+
 Debug builds use the bundle id `uk.beermat.app.next` (side by side with the Capacitor app); Release uses
 `uk.beermat.app`, the Capacitor app's id, so it can replace it as an update. Set `DEVELOPMENT_TEAM` (Signing &
 Capabilities) to the team that publishes the current app. Don't submit to the App Store before the native app is

@@ -1,6 +1,7 @@
 name: Release
 # Push a tag like v0.4.0 (matching package.json's version) to build BeerMat Desk (Qt, native/beermat_desk) for
-# Windows and Linux and the native Android app (native/android, an APK), and publish them as a GitHub release:
+# Windows and Linux, the native Android app (native/android, an APK) and the iPhone app (native/ios, an unsigned .ipa
+# for sideloading), and publish them as a GitHub release:
 # https://github.com/DTJW92/BeerMat/releases/latest. (The Electron desk and the Capacitor app are no longer released;
 # releases up to 0.5.5 have them.)
 # They're also copied to https://downloads.beermatquiz.co.uk/<version>/ (Cloudflare R2), where the website's download
@@ -87,8 +88,34 @@ jobs:
           path: dist/*.apk
           if-no-files-found: error
 
+  # The iPhone app (native/ios), unsigned: there's no Apple Developer account behind it, so it can't go to TestFlight or
+  # the App Store. The .ipa installs on an iPhone once someone signs it with their own Apple ID (AltStore, Sideloadly).
+  # Its version is package.json's and its build number the Android app's versionCode.
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          build=$(sed -nE 's/.*versionCode = ([0-9]+).*/\1/p' native/android/app/build.gradle.kts)
+          xcodebuild -project native/ios/BeerMat.xcodeproj -target BeerMat -sdk iphoneos -configuration Release \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$build" SYMROOT="$RUNNER_TEMP/build" build
+          mkdir -p "$RUNNER_TEMP/ipa/Payload" dist
+          cp -R "$RUNNER_TEMP/build/Release-iphoneos/BeerMat.app" "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/dist/BeerMat-$version-ios-unsigned.ipa" Payload)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iOS
+          path: dist/*.ipa
+          if-no-files-found: error
+
   release:
-    needs: [desk, android-native]
+    needs: [desk, android-native, ios]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
