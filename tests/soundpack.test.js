@@ -67,6 +67,32 @@ test('a laptop’s own sound pack becomes the default; desk choices override it'
   } finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
 });
 
+test('a saved buzzer BeerMat no longer ships drops out of the desk\'s choice', async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-gone-')), shipped = path.join(dir, 'shipped'), mp3 = Buffer.from([0xff, 0xfb, 0x90, 0x00, 1]);
+  for (const f of ['buzzers/Famous/Moon.mp3', 'buzzers/Music/Polka.mp3']) {mkdirSync(path.dirname(path.join(shipped, f)), {recursive: true}); writeFileSync(path.join(shipped, f), mp3);}
+  writeFileSync(path.join(dir, 'own.mp3'), mp3);
+  const open = async () => {
+    const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'none'), soundsDir: shipped, themesDir: path.join(dir, 'none')});
+    await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
+    const base = `http://127.0.0.1:${quiz.server.address().port}`;
+    const call = async (route, body = {}, key = '') => {const r = await fetch(`${base}/api/${route}`, {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: JSON.stringify(body)}); return {status: r.status, ...await r.json()};};
+    const key = (await call('login', {key: hostKey})).key;
+    return {quiz, host: (route, body) => call('host/' + route, body, key)};
+  };
+  let quiz, host;
+  try {
+    ({quiz, host} = await open());
+    const {buzzers} = (await host('state')).sounds;
+    assert.deepEqual(buzzers.map(b => b.name), ['Moon', 'Polka']);
+    assert.equal((await host('sounds', {buzzers: [...buzzers, {name: 'Own', media: '/media/own.mp3'}]})).buzzers.length, 3);
+    await quiz.close(); quiz = null;
+    // The next version of BeerMat doesn't ship Polka.
+    rmSync(path.join(shipped, 'buzzers', 'Music'), {recursive: true});
+    ({quiz, host} = await open());
+    assert.deepEqual((await host('state')).sounds.buzzers.map(b => b.name), ['Moon', 'Own']);
+  } finally {await quiz?.close(); rmSync(dir, {recursive: true, force: true});}
+});
+
 test('sound themes from the pack replace the moments they have; picking one resets desk choices but keeps buzzers', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-theme-')), pack = path.join(dir, 'pack'), mp3 = Buffer.from([0xff, 0xfb, 0x90, 0x00, 1]);
   for (const f of ['general/correct.mp3', 'general/drum_roll.mp3', 'Themes/Arcade Theme/correct.mp3', 'Themes/Arcade Theme/stopwatch_timer_end.mp3', 'buzzers/Pack/Honk.mp3']) {

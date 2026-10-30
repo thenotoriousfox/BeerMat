@@ -20,6 +20,8 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+import licences
+
 NODE_VERSION = 'v24.22.0'   # an LTS with node:sqlite (the server needs 22.13+)
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -113,4 +115,5 @@ def windows(app):
 
 if __name__ == '__main__':
     app = pyinstaller(node_runtime())
+    licences.write(app, VERSION)   # LICENCES.txt: the other software in the bundle, each with its licence
     windows(app) if WINDOWS else linux(app)

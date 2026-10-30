@@ -33,9 +33,12 @@ year: never change them, or Stripe, without the user saying so.
 
 ## What BeerMat may ship
 
-- Only sounds, music and pictures that are CC0, public domain or BeerMat's own. Every shipped file has its source in
-  `sounds/CREDITS.md`; anything needing attribution (the two Kevin MacLeod tracks in `sounds/buzzers/Music`, CC BY
-  4.0) must also be credited on the website (`site/src/pages/credits.astro`) and in the desk.
+- Only sounds, music and pictures that are CC0, public domain or BeerMat's own, and nothing that needs attribution
+  (the Qt desk has no credits screen; the two Kevin MacLeod CC BY tracks were taken out for that). Every shipped file
+  has its source in `sounds/CREDITS.md` and is listed on the website (`site/src/pages/credits.astro`).
+- Other people's software is listed with its licence in one generated file per app: the desk's `LICENCES.txt`
+  (`native/packaging/licences.py`, from what's in the bundle) and the Android app's `assets/licences.txt` (the
+  `writeLicences` task, from each library's POM). A new dependency needs nothing extra unless its licence asks for more.
 - Nothing from SpeedQuizzing in the repo or a build: no code, sounds or media. Its clips live only in a laptop's
   gitignored `soundpack/`. Never use or print the SSH private key bundled with it.
 - No AI copies of real people's voices, and no famous film, TV or music clips: quizmasters add their own, at their own
