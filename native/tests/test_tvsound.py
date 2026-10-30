@@ -3,6 +3,7 @@ first load. Driven with crafted public states; files are generated WAVs, so noth
 import os
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -62,6 +63,31 @@ class TvSoundTest(unittest.TestCase):
         self.assertEqual(self.step(self.state(None, view='leaderboard')), ['endRound'])
         self.assertEqual(self.step(self.state(None, view='winner', teams=[{'name': 'Bears', 'rank': 1}])), ['applause'])
         self.assertEqual(self.step(self.state(None, view='winner', teams=[{'name': 'Bears', 'rank': 1}])), [], 'once only')
+
+    def test_an_audio_question_plays_itself_after_its_jingle(self):
+        """Opened (or sent, after Send Question), the question's sound plays once its jingle ends; not on first load."""
+        clip = Path(self.dir.name) / 'clip.wav'
+        synth(clip, [(330, 0)], 'sine')
+        media = QUrl.fromLocalFile(str(clip)).toString()
+        files = []
+        play_file = self.sound.play_file
+        self.sound.play_file = lambda src, *a, **k: files.append(src) if src == media else play_file(src, *a, **k)
+        wait = lambda: [app.processEvents() or time.sleep(0.02) for _ in range(250) if not files]
+        self.sound.follow(self.state(question(id=1, type='audio', media=media)))
+        wait()
+        self.assertEqual(files, [], 'first load: nothing')
+        self.sound.follow(self.state(question(id=2, round='Round 1', type='audio', media=media)))
+        wait()
+        self.assertEqual(files, [media])
+        # Held for reading out, then sent.
+        files.clear()
+        self.sound.follow(self.state(question(id=3, type='audio', media=media, open=False, held=True)))
+        for _ in range(50):
+            app.processEvents(); time.sleep(0.02)
+        self.assertEqual(files, [], 'held: waits')
+        self.sound.follow(self.state(question(id=3, type='audio', media=media)))
+        wait()
+        self.assertEqual(files, [media])
 
     def test_buzzers_and_bingo(self):
         buzz = lambda active, status: question(type='buzzer', buzz={'active': {'name': active} if active else None, 'queue': [{'team': 't', 'status': status}]})

@@ -1,6 +1,6 @@
 import {qrMatrix} from './qr.js';
 import {t, setLanguage, language, languages, translatePage} from './i18n.js';
-import {$, element, api, message, readStorage, writeStorage, renderMedia, revealPicture, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, renderMedia, revealPicture, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, soundLength, isAudio, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('beermat-team'), current = null, renderedQuestion = 'unset', offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
 // The native apps hand their team to this page, for a round format they don't draw themselves, as #team=<code>: the
@@ -357,19 +357,23 @@ function displayState(s) {
   $('boardSection').hidden = s.view !== 'leaderboard'; $('projectQuestion').hidden = s.view !== 'question';
   const q = s.question; $('question').textContent = q?.text || t('Waiting for the quizmaster'); $('round').textContent = q?.round || ''; $('status').textContent = timeText(q, offset);
   if (q?.type === 'pinpoint') renderPinpoint($('media'), q); else {renderMedia($('media'), q); revealPicture($('media'), q, offset);}
-  renderSolution($('solution'), q); $('projectQuestion').classList.toggle('revealed', !!q?.revealed);
+  renderSolution($('solution'), q, {onScreen: true}); $('projectQuestion').classList.toggle('revealed', !!q?.revealed);
   renderFirst(q);
   if (q?.id !== renderedQuestion) {
     renderedQuestion = q?.id;
     const items = q?.type === 'choice' || q?.type === 'vote' || q?.type === 'multi' ? q.options.map((o, i) => `${letters[i]}. ${o}`) : q?.type === 'sequence' ? q.order.map(i => q.items[i]) : q?.type === 'sheet' ? q.items : q?.type === 'tiles' ? [tileWord('', q.wordLengths), q.pieces.join('  ·  ')] : [];
-    $('projectItems').replaceChildren(...items.map(text => element('li', text)));
+    $('projectItems').replaceChildren(...items.map((text, i) => {const li = element('li', text); if (q.type === 'sequence') li.dataset.item = q.order[i]; return li;}));
+    delete $('projectItems').dataset.sorted;
     // Answer options show as coloured tiles matching the phone keypad.
     $('projectItems').classList.toggle('options', ['choice', 'vote', 'multi'].includes(q?.type));
   }
+  if (q?.type === 'sequence') sortSequence($('projectItems'), q);
   $('projectSnake').hidden = q?.type !== 'wordsnake';
   if (q?.type === 'wordsnake') renderSnake($('projectSnake'), q.grid, q.revealed ? q.snakePath : []);
   const c = q?.clipGame; $('projectClips').hidden = !c;
-  if (c) {$('clipNow').textContent = c.playing ? t('🎵 Clip {n} of {count}', {n: c.playing, count: c.count}) : q.live ? t('Listen carefully…') : t('Clips finished'); $('clipTaps').textContent = t('{n} teams have tapped', {n: c.taps});}
+  if (c) {$('clipNow').textContent = c.playing ? t('🎵 Clip {n} of {count}', {n: c.playing, count: c.count}) : q.live ? t('Listen carefully…') : t('Clips finished'); $('clipTaps').textContent = t('{n} teams have tapped', {n: c.taps});
+    // Every clip as a numbered disc: the one playing lit, those already heard dimmed.
+    $('clipDiscs').replaceChildren(...Array.from({length: c.count}, (_, i) => element('span', String(i + 1), c.playing === i + 1 ? 'playing' : c.played?.includes(i + 1) ? 'played' : '')));}
   const g = q?.bingo; $('projectBingo').hidden = !g;
   if (g) {
     $('bingoBoard').classList.toggle('music', !!g.music); $('bingoBoard').hidden = !g.board;
@@ -421,6 +425,26 @@ function displayState(s) {
 }
 // Fastest fingers and closest wins: at the reveal, the team that came first fills the TV for a few seconds with its
 // photo, name and buzzer sound. Only a reveal seen happening does this, not one already shown when the page loads.
+// Put in order, once revealed: the items slide into the right order, numbered (each moves from where it was:
+// measured before and after, then animated back from the difference). Back in the shown order if the reveal is undone.
+function sortSequence(list, q) {
+  const sorted = q.revealed ? 'yes' : '';
+  if ((list.dataset.sorted || '') === sorted) return;
+  list.dataset.sorted = sorted;
+  const rows = [...list.children], before = new Map(rows.map(li => [li, li.getBoundingClientRect().top]));
+  const position = li => sorted ? Number(li.dataset.item) : q.order.indexOf(Number(li.dataset.item));
+  list.append(...rows.sort((a, b) => position(a) - position(b)));
+  for (const li of rows) {
+    const item = Number(li.dataset.item);
+    li.textContent = sorted ? `${item + 1}. ${q.items[item]}` : q.items[item];
+    li.classList.toggle('right', !!sorted);
+    const moved = before.get(li) - li.getBoundingClientRect().top;
+    if (!sorted || !moved) continue;
+    li.style.transition = 'none'; li.style.transform = `translateY(${moved}px)`;
+    void li.offsetWidth;
+    li.style.transition = `transform .8s cubic-bezier(.2, .8, .2, 1) ${item * 0.08}s`; li.style.transform = '';
+  }
+}
 function renderFirst(q) {
   if (q && !q.revealed) firstArmed = q.id;
   if (String(q?.id) !== $('firstPlace').dataset.question && $('firstPlace').dataset.question !== 'fasttrack') {clearTimeout(firstTimer); $('firstPlace').hidden = true;}
@@ -531,7 +555,10 @@ function soundCues(s) {
   if (!before) return;
   if (s.view === 'leaderboard' && before.view === 'question' && s.settings.displayMode === 'auto') playSound('endRound');
   if (s.reveal?.leader && before.boardLeader !== s.reveal.question) showLeader(s);
-  if (q && q.id !== before.id && q.live) {if (!(q.round && q.round !== before.round && playSound('startRound'))) playSound('questionStart');}
+  let jingle = '';
+  if (q && q.id !== before.id && q.live) {if (q.round && q.round !== before.round && playSound('startRound')) jingle = 'startRound'; else if (playSound('questionStart')) jingle = 'questionStart';}
+  // An audio question's sound plays as the question opens (or is sent), once its jingle has finished.
+  if (q && isAudio(q.media) && heard.open && (q.id !== before.id || !before.open)) {const media = q.media; setTimeout(() => playClip(media), Math.min(4000, jingle ? soundLength(jingle) : 0));}
   if (q?.id !== before.id) return;
   // A countdown that ran to the end has its own ring-out, so time's up only sounds without one.
   if (before.open && !heard.open && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q.type) && countdownFor !== q.id) playSound('timeUp');
@@ -554,15 +581,16 @@ function fitTitle() {
   h1.style.fontSize = '';
   for (let size = parseFloat(getComputedStyle(h1).fontSize); h1.scrollWidth > h1.clientWidth && size > 14; size -= 1) h1.style.fontSize = size - 1 + 'px';
 }
-// The TV never scrolls: the visible view is scaled down until it fits the space under the header.
-// A narrower scale makes the view wider, so text reflows shorter; a few rounds settle it.
+// The TV never scrolls, nor leaves half the screen empty: the visible view is scaled to fill the space under the
+// header (down to fit, or up to 1.5 times). A narrower scale makes the view wider, so text reflows shorter; a few
+// rounds settle it.
 function fitStage() {
   const stage = $('stage'), section = stage && [...stage.children].find(s => !s.hidden);
   if (!section) return;
   let fit = 1;
   for (let i = 0; i < 4; i++) {
     section.style.setProperty('--fit', fit);
-    const next = Math.min(1, Math.floor(stage.clientHeight / section.offsetHeight * 1000) / 1000);
+    const next = Math.min(1.5, Math.floor(stage.clientHeight / section.offsetHeight * 1000) / 1000);
     if (Math.abs(next - fit) < 0.005) break;
     fit = next;
   }

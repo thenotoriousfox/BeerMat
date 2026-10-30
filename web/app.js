@@ -78,7 +78,8 @@ export function timeText(question, offset = 0) {
   return t('{n}s remaining', {n: Math.max(0, Math.ceil((question.deadline - Date.now() - offset) / 1000))});
 }
 export const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-export function renderSolution(container, question) {
+// onScreen: the TV, where a put-in-order list moves into the right order itself, so the box only says who got it right.
+export function renderSolution(container, question, {onScreen = false} = {}) {
   // Only rebuild when the reveal changes, so its entrance animation plays once.
   const key = question?.revealed ? JSON.stringify([question.id, question.answer, question.tally, question.scorers, question.answerNote]) : '';
   if (container.dataset.reveal === key) return;
@@ -87,6 +88,7 @@ export function renderSolution(container, question) {
   container.classList.remove('reveal'); void container.offsetWidth; container.classList.add('reveal');
   container.append(element('h3', t(question.type === 'vote' ? 'Votes' : 'Answer reveal')));
   if (question.type === 'sheet') container.append(...question.items.map((item, i) => element('p', `${i + 1}. ${item} — ${question.itemAnswers?.[i] || t('Marked by quizmaster')}`, 'solution')));
+  else if (question.type === 'sequence' && onScreen) {}
   else if (question.type === 'sequence') {const list = element('ol', undefined, 'solution'); list.append(...question.items.map(item => element('li', item))); container.append(list);}
   else if (question.type === 'choice') {const i = question.options.indexOf(question.answer); container.append(element('p', i < 0 ? t('Marked by quizmaster') : `${letters[i]}. ${question.answer}`, 'solution'));}
   else if (question.type !== 'vote') container.append(element('p', question.answer || t('Marked by quizmaster'), 'solution'));
@@ -182,6 +184,8 @@ export function playSound(slot, loop = false) {
 let clip = null;
 export function playClip(src) {if (src && audio?.state === 'running') {if (clip && clip.src !== new URL(src, location.href).href) clip.pause(); clip = playFile(src);}}
 export function stopSound(slot) {players.get(pack.slots?.[slot])?.pause();}
+// How long a moment's sound is, in ms (0 until it has loaded).
+export function soundLength(slot) {const d = players.get(pack.slots?.[slot])?.duration; return Number.isFinite(d) ? d * 1000 : 0;}
 // The wheel's pegs: a short wooden knock at each of `times` (ms from now), scheduled on the audio clock so they keep
 // pace with the spin. A new spin, or stopWheelTicks, cancels any still to come.
 let tick = null, ticks = [];

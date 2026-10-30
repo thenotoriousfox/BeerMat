@@ -62,6 +62,12 @@ class LiveControlsTest(DeskCase):
         self.shot('live-clips')
         desk.live.stopClips()
         wait(lambda: not (desk.view['raw'].get('clipGame') or {}).get('playing'), what='the clips to stop')
+        # Or just one, played again: the TV shows it playing, and which have played.
+        desk.live.playClip(2)
+        wait(lambda: (desk.view['raw'].get('clipGame') or {}).get('playing') == 3, timeout=20, what='clip 3 alone', log=self.toasts)
+        self.assertEqual(desk.view['raw']['clipGame']['played'], [1, 3])
+        wait(lambda: not (desk.view['raw'].get('clipGame') or {}).get('playing'), timeout=20, what='clip 3 to finish, and nothing after it')
+        self.assertEqual(desk.view['clipsRunning'], -1)
 
         # The wheel, on the TV.
         desk.live.spinWheel('Red\nBlue\nGreen')

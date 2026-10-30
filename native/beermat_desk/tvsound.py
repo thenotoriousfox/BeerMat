@@ -332,9 +332,16 @@ class TvSound(QObject):
             self.play('endRound')
         if heard['winner'] and heard['winner'] != before['winner']:
             self.fanfare()
+        jingle = ''
         if q and q.get('id') != before['id'] and q.get('live'):
-            if not (q.get('round') and q['round'] != before['round'] and self.play('startRound')):
-                self.play('questionStart')
+            if q.get('round') and q['round'] != before['round'] and self.play('startRound'):
+                jingle = 'startRound'
+            elif self.play('questionStart'):
+                jingle = 'questionStart'
+        # An audio question's sound plays as the question opens (or is sent), once its jingle has finished.
+        media = str((q or {}).get('media') or '')
+        if q and media.lower().endswith(AUDIO_FILE) and heard['open'] and (q.get('id') != before['id'] or not before['open']):
+            QTimer.singleShot(min(4000, self.duration_ms(jingle) if jingle else 0), lambda: self.play_file(media))
         if not q or q.get('id') != before['id']:
             return
         if heard['leader'] and heard['leader'] != before['leader']:
