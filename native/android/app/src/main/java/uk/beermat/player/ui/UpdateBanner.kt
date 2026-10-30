@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,19 +20,29 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.os.SystemClock
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import kotlinx.coroutines.launch
 import uk.beermat.player.BuildConfig
 import uk.beermat.player.update.AppUpdater
 import uk.beermat.player.update.Offer
 import java.io.File
 
-/** Checked once each time the app starts, quietly (no internet at the venue is normal). */
-private object UpdateCheck { var done = false; var offer: Offer? = null }
+/** The last check: when, whether it failed, and what it found. Quiet either way (no internet at the venue is normal). */
+private object UpdateCheck { var at = 0L; var failed = false; var offer: Offer? = null }
 
-/** A newer app, if BeerMat's website has one (asked once per start; null without the internet or in a store build). */
+/** A newer app, if BeerMat's website has one; null in a store build. Asked again when the app comes back to the screen,
+ *  at most every half hour, or after two minutes when the last try failed (on the quiz Wi-Fi, without the internet):
+ *  Android keeps an app alive in the background for days, so once per start missed new versions. */
 suspend fun updateOffer(apps: AppUpdater): Offer? {
     if (!BuildConfig.SELF_UPDATE) return null
-    if (!UpdateCheck.done) { UpdateCheck.offer = runCatching { apps.check() }.getOrNull(); UpdateCheck.done = true }
+    val now = SystemClock.elapsedRealtime()
+    if (UpdateCheck.at == 0L || now - UpdateCheck.at > if (UpdateCheck.failed) 2 * 60_000L else 30 * 60_000L) {
+        val result = runCatching { apps.check() }
+        // A failed try keeps what was found before; a successful one replaces it (null: nothing newer).
+        if (result.isSuccess) UpdateCheck.offer = result.getOrNull()
+        UpdateCheck.failed = result.isFailure; UpdateCheck.at = now
+    }
     return UpdateCheck.offer
 }
 
@@ -49,7 +58,10 @@ fun UpdateBanner(updater: AppUpdater? = null, tv: Boolean = false, buttonFocus: 
     var file by remember { mutableStateOf<File?>(null) }
     var message by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { offer = updateOffer(apps) }
+    LifecycleResumeEffect(Unit) {
+        val check = scope.launch { offer = updateOffer(apps) }
+        onPauseOrDispose { check.cancel() }
+    }
     val o = offer ?: return
     Column(Modifier.fillMaxWidth().padding(bottom = 16.dp).clip(RoundedCornerShape(14.dp)).background(Brand.panel).padding(16.dp).testTag("update")) {
         Text(t("BeerMat {version} is out", "version" to o.version), fontWeight = FontWeight.Bold)

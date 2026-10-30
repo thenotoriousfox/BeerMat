@@ -121,7 +121,6 @@ fun ProfileScreen(vm: OnlineViewModel, ui: OnlineState) {
             else Row { Text(t("Delete everything, for good?"), color = Brand.bad, modifier = Modifier.weight(1f)); TextButton({ confirmDelete = false; vm.deleteAccount() }) { Text(t("Delete"), color = Brand.bad) } }
         }
         OnlineMessage(ui)
-        Advanced(vm, ui)
     }
 }
 
@@ -142,18 +141,6 @@ private fun Stats(vm: OnlineViewModel, ui: OnlineState) {
     Text(t("Badges"), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
     for (b in vm.badges) Text("${if (b.id in earned) "🏅" else "🔒"} ${b.name} — ${b.description}", color = if (b.id in earned) Brand.text else Brand.faint, modifier = Modifier.padding(vertical = 2.dp))
     if (s.optInt("waiting") > 0) Text(t("{n} result(s) are from a venue that hasn’t registered its quiz laptop yet, so they don’t count yet.", "n" to s.optInt("waiting")), color = Brand.faint, fontSize = 12.sp)
-}
-
-@Composable
-private fun Advanced(vm: OnlineViewModel, ui: OnlineState) {
-    var open by rememberSaveable { mutableStateOf(false) }
-    var address by rememberSaveable { mutableStateOf(ui.service) }
-    TextButton({ open = !open }, modifier = Modifier.padding(top = 16.dp)) { Text(if (open) t("Hide advanced") else t("Advanced")) }
-    if (open) {
-        OutlinedTextField(address, { address = it }, label = { Text(t("BeerMat Online address")) }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("service"))
-        OutlinedButton({ vm.setService(address); vm.say(t("Saved")) }, modifier = Modifier.fillMaxWidth()) { Text(t("Use this address")) }
-        Text(t("Default: {url}", "url" to BuildConfig.ONLINE_SERVICE), color = Brand.faint, fontSize = 12.sp)
-    }
 }
 
 // ---- Find a quiz ----

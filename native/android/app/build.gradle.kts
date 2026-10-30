@@ -25,7 +25,7 @@ android {
         versionCode = 611
         versionName = "0.6.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // BeerMat Online and the venue list, as mobile/www/config.js (a player can change the service under Profile).
+        // BeerMat Online and the venue list, as mobile/www/config.js.
         buildConfigField("String", "ONLINE_SERVICE", "\"${project.findProperty("onlineService") ?: "https://online.beermatquiz.co.uk"}\"")
         buildConfigField("String", "VENUE_LIST", "\"https://raw.githubusercontent.com/DTJW92/BeerMat/main/venues.json\"")
         // Updates from BeerMat's website (update/Updates.kt). A store build (-PstoreBuild) leaves them to the store.

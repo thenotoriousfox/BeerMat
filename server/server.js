@@ -137,12 +137,17 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   column('teams', 'rtt_at', 'INTEGER');
   const rows = (sql, ...params) => db.prepare(sql).all(...params);
   const one = (sql, ...params) => db.prepare(sql).get(...params);
-  const run = (sql, ...params) => db.prepare(sql).run(...params);
+  // Every write moves dataVersion on, so the scores worked out from the database are worked out again (scores()).
+  // Writes about a team's phone (when it was last seen, its address, its round trip) change nothing on the board and
+  // happen on every refresh, so they use touch and leave it.
+  let dataVersion = 0;
+  const run = (sql, ...params) => {dataVersion++; return db.prepare(sql).run(...params);};
+  const touch = (sql, ...params) => db.prepare(sql).run(...params);
   let depth = 0;
   function transaction(fn) {
     if (depth) return fn();
     db.exec('BEGIN IMMEDIATE'); depth++;
-    try {const result = fn(); db.exec('COMMIT'); return result;} catch (e) {db.exec('ROLLBACK'); throw e;} finally {depth--;}
+    try {const result = fn(); db.exec('COMMIT'); return result;} catch (e) {db.exec('ROLLBACK'); throw e;} finally {depth--; dataVersion++;}
   }
   const getMeta = (key, fallback) => {
     const value = one('SELECT value FROM metadata WHERE key=?', key);
@@ -456,7 +461,18 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (order.every((v, i) => v === i)) order.reverse();
     return order;
   }
+  // Every phone's refresh needs the board, and with a full room there are hundreds of refreshes per change: the scores
+  // are worked out once per change (dataVersion) and reused for up to a second (connected and the round trip go by the
+  // clock). Callers don't change the rows they get.
+  let scoresCache = null;
   function scores(includeDisabled = false) {
+    const key = `${dataVersion}:${includeDisabled}`;
+    if (scoresCache?.key === key && now() - scoresCache.at < 1000 && now() >= scoresCache.at) return scoresCache.teams;
+    const teams = workOutScores(includeDisabled);
+    scoresCache = {key, at: now(), teams};
+    return teams;
+  }
+  function workOutScores(includeDisabled) {
     const live = liveTeams();
     const teams = rows(`SELECT id,name,seen,enabled,waiting,sound,photo,photo_status,note,grp,table_no,rtt,rtt_at,
       COALESCE((SELECT SUM(a.points) FROM answers a JOIN questions q ON a.question=q.id WHERE a.team=teams.id AND (q.closed=1 OR q.settled=1)),0)
@@ -496,17 +512,18 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     run('UPDATE teams SET photo=NULL,photo_status=NULL WHERE id=?', team.id);
   }
   function publicScores() {
-    // With scores switched off, the board shows positions only.
-    const shown = settings().showScores;
+    // With scores switched off, the board shows positions only. Settings are read once here, not once per team: every
+    // phone's refresh builds this board, so with a full room that was 250 database reads a refresh.
+    const s = settings(), shown = s.showScores, photos = s.teamPhotos;
     // After a closest-wins answer is revealed, the board shows what each team put until the next question.
     const q = latest(), put = q && revealedNow(q) && dataOf(q).type === 'nearest' ? new Map(rows('SELECT team,value FROM answers WHERE question=? AND submitted IS NOT NULL', q.id).map(a => [a.team, a.value])) : null;
-    return settings().leaderboardVisible && !secretRound() ? scores().map(({seen, connected, enabled, waiting, photo, photo_status, note, grp, table_no, rtt, rtt_at, ...t}) => ({...t, score: shown ? t.score : null, photo: publicPhoto({photo, photo_status}), ...grp && {group: grp}, ...put && {answer: put.get(t.id) ?? null}})) : [];
+    return s.leaderboardVisible && !secretRound() ? scores().map(({seen, connected, enabled, waiting, photo, photo_status, note, grp, table_no, rtt, rtt_at, ...t}) => ({...t, score: shown ? t.score : null, photo: photos && photo_status === 'approved' ? photo : null, ...grp && {group: grp}, ...put && {answer: put.get(t.id) ?? null}})) : [];
   }
   // Team groups on the TV (groupBoard): each group's average score, so groups of different sizes compare fairly.
-  function groupScores() {
+  function groupScores(board = publicScores()) {
     if (!settings().groupBoard) return null;
     const groups = new Map();
-    for (const t of publicScores()) if (t.group) groups.set(t.group, [...groups.get(t.group) || [], t]);
+    for (const t of board) if (t.group) groups.set(t.group, [...groups.get(t.group) || [], t]);
     if (!groups.size) return null;
     const shown = settings().showScores;
     return [...groups].map(([name, teams]) => ({name, teams: teams.length, average: Math.round(10 * teams.reduce((n, t) => n + (t.score ?? 0), 0) / teams.length) / 10}))
@@ -936,8 +953,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const url = onlineUrl(), secret = secretRound(), s = {...settings(), ...secret && {leaderboardVisible: false, secretRound: true}};
     return url ? {...s, joinUrl: url, joinPassword: '', online: true} : s;
   };
-  function publicState() { return {protocol: PROTOCOL, serverTime: now(), build, rehearsal: !liveNow(), settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: publicScores(), reveal: publicScores().length ? boardReveal() : null, recap: recapState(), wheel: getMeta('wheel', null), timer: getMeta('timer', null),
-    groups: groupScores(), slides: slides(), fastTrack: fastTrackShown()}; }
+  function publicState() {
+    // The board once per state (every phone asks for one on each change): its rows, whether to reveal it, team groups.
+    const board = publicScores();
+    return {protocol: PROTOCOL, serverTime: now(), build, rehearsal: !liveNow(), settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: board, reveal: board.length ? boardReveal() : null, recap: recapState(), wheel: getMeta('wheel', null), timer: getMeta('timer', null),
+      groups: groupScores(board), slides: slides(), fastTrack: fastTrackShown()};
+  }
   // The Fast Track moment on the TV: a team jumping to first place fills the screen for a few seconds.
   const fastTrackShown = () => {const f = getMeta('fastTrack', null); return f && now() - f.at < 8000 ? f : null;};
 
@@ -1202,7 +1223,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const DEVICE_MS = 12 * 60 * 60 * 1000;
   function rememberDevice(req, teamId) {
     const ip = clientIp(req); if (!ip || loopback(ip)) return;
-    run('INSERT INTO device_ips VALUES(?,?,?) ON CONFLICT(ip) DO UPDATE SET team=excluded.team,seen=excluded.seen', ip, teamId, now());
+    touch('INSERT INTO device_ips VALUES(?,?,?) ON CONFLICT(ip) DO UPDATE SET team=excluded.team,seen=excluded.seen', ip, teamId, now());
   }
   const deviceTeam = req => {
     const ip = clientIp(req);
@@ -2096,10 +2117,10 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       }
       const team = one('SELECT * FROM teams WHERE secret=?', auth || ''); requireValue(team, 'Team recovery code required', 401);
       requireValue(team.enabled, 'This team is disabled. Ask the quizmaster.', 403);
-      run('UPDATE teams SET seen=? WHERE id=?', now(), team.id); if (team.kind !== 'sim') rememberDevice(req, team.id);
+      touch('UPDATE teams SET seen=? WHERE id=?', now(), team.id); if (team.kind !== 'sim') rememberDevice(req, team.id);
       // The signal monitor: phones say how long their last request took (milliseconds).
       const rtt = Number(req.headers['x-beermat-rtt']);
-      if (Number.isInteger(rtt) && rtt >= 0 && rtt <= 60000) run('UPDATE teams SET rtt=?,rtt_at=? WHERE id=?', rtt, now(), team.id);
+      if (Number.isInteger(rtt) && rtt >= 0 && rtt <= 60000) touch('UPDATE teams SET rtt=?,rtt_at=? WHERE id=?', rtt, now(), team.id);
       // A phone on the Windows quiz Wi-Fi says whether it could reach the internet (see isolationView).
       if (p === '/api/team/isolation') {
         requireValue(wantsIsolationCheck(req), 'Not needed', 409);
