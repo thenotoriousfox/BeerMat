@@ -99,12 +99,14 @@ changing it, run `node scripts/export-i18n.mjs`: the Android and iOS apps' tests
   `execFileSync` a script that calls a server running in the same process (it deadlocks); a `pkill -f` pattern can
   match your own shell.
 - A new check should fail on the old code: run it against `main`'s copy of the file before calling a fix done.
-- iOS: `cd native/ios/BeerMatKit && swift test` (macOS or Linux). The SwiftUI app compiles only on macOS: the `app`
-  job of the iPhone app workflow. Keep SwiftUI view bodies in small typed parts, or Xcode gives up type-checking them.
-- CI minutes come from a monthly allowance shared by the user's repos (Linux ×1, Windows ×2, macOS ×10; build-file
-  storage too). Checks run once per change (pull requests, and main after a merge) and only where they can find
-  something: Offline quiz tests on code paths, BeerMatKit on Linux when it, the server or shared rules change, the Mac
-  only when the app changes. Keep it that way, and don't start test builds of Release without a reason.
+- iOS: `cd native/ios/BeerMatKit && swift test` (macOS or Linux). The SwiftUI app compiles only on macOS: in the
+  Release workflow, or by hand with Actions → iPhone app. Keep SwiftUI view bodies in small typed parts, or Xcode gives
+  up type-checking them.
+- GitHub Actions minutes come from the Free plan's monthly allowance (2,000; Linux ×1, Windows ×2, macOS ×10; 0.5 GB
+  of build files), shared by the user's repos. Nothing runs on pushes or pull requests: run every suite here before a
+  merge (pull requests have no checks to wait for). The Release workflow runs the tests once (Node, Python, Qt,
+  BeerMatKit, Android) before it builds; Offline quiz tests and iPhone app run only by hand. Don't start test builds
+  of Release without a reason; check usage with `gh api users/DTJW92/settings/billing/usage`.
 
 ## Releasing
 

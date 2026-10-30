@@ -1,43 +1,7 @@
 name: Offline quiz tests
-# Once per change: on a pull request, and on main after a merge (not again for the branch's own push). Only when
-# something these tests cover changed; docs and the website alone don't run them. Minutes count against the account's
-# monthly allowance (Linux ×1, Windows ×2, macOS ×10), so each check runs only where it can find something.
-on:
-  pull_request:
-    paths:
-      - 'server/**'
-      - 'web/**'
-      - 'shared/**'
-      - 'tests/**'
-      - 'scripts/**'
-      - 'examples/**'
-      - 'themes/**'
-      - 'library/**'
-      - 'sounds/**'
-      - 'online/**'
-      - 'desktop/**'
-      - 'mobile/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/test.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'server/**'
-      - 'web/**'
-      - 'shared/**'
-      - 'tests/**'
-      - 'scripts/**'
-      - 'examples/**'
-      - 'themes/**'
-      - 'library/**'
-      - 'sounds/**'
-      - 'online/**'
-      - 'desktop/**'
-      - 'mobile/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/test.yml'
+# By hand only (Actions → Run workflow): Actions minutes come from a small monthly allowance, every suite runs on the
+# laptop before a merge, and the Release workflow runs these same tests before it builds.
+on: workflow_dispatch
 permissions:
   contents: read
 jobs:

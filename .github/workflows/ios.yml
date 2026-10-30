@@ -1,56 +1,25 @@
 name: iPhone app
-# The iPhone app (native/ios). BeerMatKit (protocol, networking, the dictionary; its server tests run against the real
-# quiz server, which needs only Node) is tested on Linux, when it, the server or the shared rules change. The whole
-# app compiles only on GitHub's Apple hardware, whose minutes count ten times: that runs only when the app changes.
-on:
-  pull_request:
-    paths:
-      - 'native/ios/**'
-      - 'server/**'
-      - 'shared/**'
-      - 'web/i18n.js'
-      - 'tests/fixtures/**'
-      - '.github/workflows/ios.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'native/ios/**'
-      - 'server/**'
-      - 'shared/**'
-      - 'web/i18n.js'
-      - 'tests/fixtures/**'
-      - '.github/workflows/ios.yml'
+# By hand only (Actions → Run workflow): BeerMatKit's tests on Linux, then the app built on GitHub's Apple hardware
+# (whose minutes count ten times). The Release workflow builds the app anyway, and runs the kit's tests on Linux.
+on: workflow_dispatch
 permissions:
   contents: read
 jobs:
   kit:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    outputs:
-      app: ${{ steps.changed.outputs.app }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      # Decided here, on Linux, so the Mac only starts when the app itself changed.
-      - name: Did the app change?
-        id: changed
-        env:
-          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          if git diff --quiet "$BASE" HEAD -- native/ios/BeerMat native/ios/BeerMat.xcodeproj native/ios/make-project.py .github/workflows/ios.yml 2>/dev/null; then app=false; else app=true; fi
-          echo "app=$app" >> "$GITHUB_OUTPUT"; echo "The app changed: $app"
       # A test waiting forever fails here with its log (each test's start and end), not after GitHub's six hours.
       - run: swift --version && swift test
         working-directory: native/ios/BeerMatKit
         timeout-minutes: 15
-  # Only when the app changed: built for the simulator, unsigned (BeerMatKit's files are compiled into it too).
+  # The app built for the simulator, unsigned (BeerMatKit's files are compiled into it too).
   app:
     needs: kit
-    if: needs.kit.outputs.app == 'true'
     runs-on: macos-15
     timeout-minutes: 30
     steps:
