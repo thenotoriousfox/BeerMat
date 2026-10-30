@@ -23,6 +23,14 @@
   "Autorisez BeerMat à installer des applis, puis touchez de nouveau Mettre à jour.",
   "Permite que BeerMat instale apps y vuelve a tocar Actualizar."
  ],
+ "Allow BeerMat to install apps (Settings → Apps, or My Fire TV → Developer options), then press Update again.": [
+  "Autorisez BeerMat à installer des applications (Paramètres → Applications, ou Ma Fire TV → Options pour les développeurs), puis appuyez de nouveau sur Mettre à jour.",
+  "Permite que BeerMat instale aplicaciones (Ajustes → Aplicaciones, o Mi Fire TV → Opciones para desarrolladores) y vuelve a pulsar Actualizar."
+ ],
+ "Found “{title}”. Update BeerMat first, or show the quiz.": [
+  "« {title} » trouvé. Mettez d’abord BeerMat à jour, ou affichez le quiz.",
+  "«{title}» encontrado. Actualiza BeerMat primero o muestra el quiz."
+ ],
  "The update didn’t download": [
   "La mise à jour n’a pas été téléchargée",
   "La actualización no se ha descargado"

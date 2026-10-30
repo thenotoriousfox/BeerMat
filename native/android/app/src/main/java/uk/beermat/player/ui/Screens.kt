@@ -162,13 +162,14 @@ fun Message(ui: UiState) {
 }
 
 @Composable
-fun BigButton(text: String, enabled: Boolean = true, colour: Color = Brand.gold, onClick: () -> Unit) {
-    // Acting on what was typed puts the keyboard away.
+fun BigButton(text: String, enabled: Boolean = true, colour: Color = Brand.gold, modifier: Modifier = Modifier, keepFocus: Boolean = false, onClick: () -> Unit) {
+    // Acting on what was typed puts the keyboard away. On a TV (keepFocus) the remote's selection stays on the button:
+    // clearing it would move it to the first text box and open the keyboard.
     val focus = androidx.compose.ui.platform.LocalFocusManager.current
     Button(
-        { focus.clearFocus(); onClick() }, enabled = enabled, shape = RoundedCornerShape(18.dp),
+        { if (!keepFocus) focus.clearFocus(); onClick() }, enabled = enabled, shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(containerColor = colour, contentColor = Brand.onAccent, disabledContainerColor = Brand.raised),
-        modifier = Modifier.fillMaxWidth().height(60.dp),
+        modifier = modifier.fillMaxWidth().height(60.dp),
     ) { Text(text, style = MaterialTheme.typography.titleLarge) }
 }
 

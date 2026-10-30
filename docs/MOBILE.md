@@ -38,6 +38,14 @@ needs no touchscreen, camera or location. It shows the quiz on a TV with no cabl
   before it loads (a WebView measured at nothing gives the page a 0 `100vh`). Sound plays without a press of OK,
   the screen stays on, and the page itself reconnects; if the laptop can't be reached at all, it tries every few
   seconds. Back returns to the address. Debug builds let `chrome://inspect` inspect the page and log its console.
+* **Updates**: BeerMat TV checks BeerMat's `latest.json` too (as the phone app's start screen does, `ui/UpdateBanner.kt`).
+  With a newer version it stays on its address screen instead of opening the quiz by itself, and offers **Update**
+  (selected first) above **Show the quiz**: one press of OK downloads it, checks it and hands it to Android's
+  installer. A TV that hasn't allowed BeerMat to install apps opens that page, or its Settings where there is none
+  (Fire TV: My Fire TV → Developer options). Store builds (`-PstoreBuild`) leave updates to the store.
+* The remote: the screen starts on a button (Update, or Look again), never the address box, whose up and down keys
+  move on rather than staying in it; buttons keep the selection when pressed. A TV's keyboard opens only when the
+  quizmaster chooses the box.
 * It draws the same TV as the browser page, so looks and scenery come with it; it isn't a second native TV.
 
 ## How it is built

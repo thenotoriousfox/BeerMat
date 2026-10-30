@@ -96,10 +96,12 @@ class AppUpdater(private val context: Context) {
         return theirs?.packageName == context.packageName && signers(theirs).any { it in mine }
     }
 
-    /** Android may first need the player to let BeerMat install apps (once): that page opens instead, and false. */
+    /** Android may first need the player to let BeerMat install apps (once): that page opens instead, and false. Some
+     *  TVs (Fire TV) have no such page for one app: their Settings open instead. */
     fun install(apk: File): Boolean {
         if (Build.VERSION.SDK_INT >= 26 && !context.packageManager.canRequestPackageInstalls()) {
-            context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            val page = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            runCatching { context.startActivity(page) }.recoverCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             return false
         }
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.updates", apk)
