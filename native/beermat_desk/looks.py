@@ -33,14 +33,21 @@ def load(folder):
     looks = {}
     for css in sorted(Path(folder).glob('*/look.css')):
         look = css.parent.name
-        text = re.sub(r'/\*.*?\*/', '', css.read_text(encoding='utf-8'), flags=re.S)
-        palette = {}
-        for block in re.findall(r':root\[data-look=' + re.escape(look) + r'\]\s*\{([^}]*)\}', text):
-            for name, value in re.findall(r'(--[\w-]+)\s*:\s*([^;]+);', block):
-                colour = qt_colour(value)
-                if name in NAMES and colour:
-                    palette[NAMES[name]] = colour
-        looks[look] = palette
+        looks[look] = palettes_from_css(css.read_text(encoding='utf-8')).get(look, {})
+    return looks
+
+
+def palettes_from_css(text):
+    """{look id: {palette key: colour}} for every :root[data-look=<id>] block in some CSS (one theme's look.css, or the
+    quiz server's /themes.css with all of them, for a TV screen)."""
+    text = re.sub(r'/\*.*?\*/', '', text, flags=re.S)
+    looks = {}
+    for look, block in re.findall(r':root\[data-look=([\w-]+)\]\s*\{([^}]*)\}', text):
+        palette = looks.setdefault(look, {})
+        for name, value in re.findall(r'(--[\w-]+)\s*:\s*([^;]+);', block):
+            colour = qt_colour(value)
+            if name in NAMES and colour:
+                palette[NAMES[name]] = colour
     return looks
 
 

@@ -12,7 +12,7 @@ A feature isn't done until every surface that shows it has it:
 |---|---|
 | Quiz server (rules, scoring, state) | `server/server.js`, `server/model.js` |
 | Phone page (browsers) | `web/player.html`, `web/client.js`, `web/app.js` |
-| Qt desk and Qt TV | `native/beermat_desk/` (`desk.py`, `live.py`, `library.py` editor options, `qml/`) |
+| Qt desk and Qt TV | `native/beermat_desk/` (`desk.py`, `live.py`, `library.py` editor options, `qml/`; `tvscreen.py`: BeerMat as the TV screen on another computer) |
 | Electron desk and browser TV (`/tv`) | `web/host.html`, `web/host.js`, `web/display.html`, `web/client.js` |
 | Android app | `native/android/` (Kotlin, Compose) |
 | BeerMat TV (Android TV, Google TV, Fire TV) | `native/android/.../tv/` (shows `/tv?app=1` in a WebView; finds the laptop itself) |

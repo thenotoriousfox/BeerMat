@@ -27,7 +27,7 @@ const token = () => randomBytes(24).toString('hex');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const equal = (a, b) => typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 const brandFiles = new Set(['mark.svg', 'logo.svg', 'logo-stacked.svg', 'wordmark.svg', 'mark-print.svg', 'logo-print.svg', 'fredoka.woff2']);
-const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.svg': 'image/svg+xml', '.woff2': 'font/woff2'};
+const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.json': 'application/json; charset=utf-8'};
 const security = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; media-src 'self'; img-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"};
 // Only the quiz desk may load Spotify's Web Playback SDK (its script, its hidden player frame and the audio it streams).
 // Phones and the TV keep the strict, local-only policy.
@@ -1207,15 +1207,22 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return team;
   };
   function addStream(stream, closed) {
-    streams.add(stream); if (stream.team) notify();
-    closed(() => {if (streams.delete(stream) && stream.team) notify();});
+    streams.add(stream); if (stream.team || stream.screen) notify();
+    closed(() => {if (streams.delete(stream) && (stream.team || stream.screen)) notify();});
   }
+  // A TV screen (BeerMat on the computer wired to the TVs, or a TV page) names itself on its stream (?screen=…): the
+  // desk then sends its own playback (sound clips, songs, an audio question played again) there, so the sound comes out
+  // where the TV is.
+  const screenName = url => String(url.searchParams.get('screen') || '').replace(/[^\p{L}\p{N} ._'-]/gu, '').trim().slice(0, 60);
+  const tvScreens = () => [...streams].filter(s => s.screen).map(s => s.screen);
   function openStream(req, res, url) {
-    const team = streamTeam(url);
+    const team = streamTeam(url), screen = !team && screenName(url);
     res.writeHead(200, {...security, 'Content-Type': 'text/event-stream', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no'});
     res.write(`retry: 1000\ndata: ${version}\n\n`);
-    addStream({team: team?.id || null, send: v => res.write(`data: ${v}\n\n`), ping: () => res.write(': keep-alive\n\n'), end: () => res.end()}, done => req.on('close', done));
+    addStream({team: team?.id || null, screen: screen || null, send: v => res.write(`data: ${v}\n\n`), ping: () => res.write(': keep-alive\n\n'), end: () => res.end()}, done => req.on('close', done));
   }
+  // The desk's playback for TV screens to play: what (a file of this quiz), from where, and when it was asked for.
+  let playback = null;
   // The same nudges over a WebSocket, for online play: Cloudflare's quick tunnels hold server-sent events back.
   // Only the server talks; from the browser it needs nothing but close and pong frames.
   function openSocket(req, socket) {
@@ -1352,7 +1359,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         // OS HTTP probes and arbitrary HTTP landing URLs get registration.
         return sendFile(req, res, path.join(web, routes[p] || 'player.html'), p === '/host' ? deskSecurity : security);
       }
-      if (req.method === 'GET' && p === '/api/leaderboard') return send(200, publicState());
+      if (req.method === 'GET' && p === '/api/leaderboard') return send(200, {...publicState(), playback});
       // A look for the native apps: its colours and what phones draw (docs/CLIENT-PROTOCOL.md).
       if (req.method === 'GET' && p.startsWith('/api/looks/')) {
         const look = folders.themes.find(t => t.id === p.slice('/api/looks/'.length));
@@ -1408,9 +1415,16 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/plan/refresh') return send(200, await refreshLicence());
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats();
-          return send(200, {protocol: PROTOCOL, serverTime: now(), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board: boardStep(), recap: {...recapState(), active: !!recapState(), available: !recapState() && !!recapOffer()}, back: backStep(), timer: getMeta('timer', null), wheels: getMeta('wheels', []), slides: slides(), wheel: getMeta('wheel', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {protocol: PROTOCOL, serverTime: now(), tvScreens: tvScreens(), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board: boardStep(), recap: {...recapState(), active: !!recapState(), available: !recapState() && !!recapOffer()}, back: backStep(), timer: getMeta('timer', null), wheels: getMeta('wheels', []), slides: slides(), wheel: getMeta('wheel', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
+        }
+        if (p === '/api/host/playback') {
+          requireValue(['play', 'pause', 'resume', 'stop'].includes(body.action), 'Unknown playback action');
+          requireValue(typeof body.media === 'string' && mediaPattern.test(body.media), 'Only the quiz’s own pictures and sounds play on a TV screen');
+          requireValue(body.position === undefined || (Number.isFinite(body.position) && body.position >= 0), 'Invalid position');
+          playback = {seq: (playback?.seq || 0) + 1, action: body.action, media: body.media, position: Math.round(body.position || 0), at: now()};
+          return send(200, {ok: true, screens: tvScreens().length});
         }
         if (p === '/api/host/library') return send(200, library());
         if (p.startsWith('/api/host/laptop')) {

@@ -47,6 +47,7 @@ class Desk(QObject):
     quitRequested = Signal()        # Close BeerMat, pressed on a desk (also in a browser)
     transferCode = Signal(str)      # a team's 4-digit code to move to another phone
     networkChanged = Signal()
+    roleRequested = Signal(str)     # 'tv': this computer becomes a TV screen for another laptop (__main__.py)
 
     def __init__(self, data_dir, host_key, port=3000, laptop=True, parent=None):
         super().__init__(parent)
@@ -55,6 +56,9 @@ class Desk(QObject):
         self.library = Library(self.api, Path(data_dir) / 'media', self)
         self.library.toast.connect(self.toast)
         self.tvSound = TvSound(self)
+        # With a TV screen connected (another computer showing the TV, tvscreen.py), the desk's own playback goes there.
+        self.tvSound.relay = lambda action, src, position: self.api.host('playback', {'action': action, 'media': src, 'position': position}, None,
+                                                                         lambda e: self.toast.emit(f'The TV screen didn’t get that: {e}', True))
         self.liveTools = LiveTools(self)
         self.liveTools.clipsChanged.connect(self._rebuild)
         self.onlineVenue = OnlineVenue(self)
@@ -313,6 +317,7 @@ class Desk(QObject):
         def got(state):
             self._state = state
             self._state['_receivedAt'] = time.time() * 1000
+            self.tvSound.screens = len(state.get('tvScreens') or [])
             if state.get('libraryRevision') != (self._library or {}).get('revision'):
                 self.load_library()
             self._rebuild()
@@ -418,7 +423,7 @@ class Desk(QObject):
             'formats': [{'value': k, 'text': v} for k, v in TYPE_NAMES.items()],
             # The live controls read the server's own question (host view), settings, tie and countdown as they are.
             'raw': q or {}, 'settings': settings, 'tie': s.get('tie') or {}, 'timer': s.get('timer') or {},
-            'typeCode': (q or {}).get('type', ''), 'clipsRunning': (self.liveTools.clipsRunning() or {}).get('index', -1),
+            'typeCode': (q or {}).get('type', ''), 'tvScreens': s.get('tvScreens') or [], 'clipsRunning': (self.liveTools.clipsRunning() or {}).get('index', -1),
             'progress': f'{len(played & {item.get("id") for _, item in questions})} of {len(questions)} questions played' if questions else '',
             'upcoming': upcoming,
         }
@@ -791,6 +796,11 @@ class Desk(QObject):
             path.write_text(json.dumps(quiz), encoding='utf-8')
             self.loadQuiz(QUrl.fromLocalFile(str(path)))
         self.api.host('drive', {'url': link}, got, lambda e: self.toast.emit(e, True), timeout_ms=60000)
+
+    @Slot()
+    def becomeTvScreen(self):
+        """This computer shows the TV of the quizmaster's laptop instead (tvscreen.py); its own quiz stays as it is."""
+        self.roleRequested.emit('tv')
 
     # ---- first run ----
     @Property(bool, constant=True)

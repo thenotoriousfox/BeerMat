@@ -55,6 +55,18 @@ On an **Android TV, Google TV or Fire TV** (most TV sticks), install the BeerMat
 website; on a Fire TV, sideload it) and open **BeerMat TV** from the TV's apps: on the quiz Wi-Fi it finds the quiz by
 itself (on the venue's Wi-Fi or the quiz Wi-Fi), with no address to type, and starts full screen with sound.
 
+## The TV on another computer
+
+When the TVs are wired to a different computer from the quizmaster's laptop (a PC behind the bar, say), open BeerMat on
+that computer and make it the **TV screen**: the first-run welcome's *This computer is the TV screen*, or Settings →
+Screens → *Use this computer as a TV screen*. It looks for the quiz on its networks (the quiz Wi-Fi or the venue's
+Wi-Fi), connecting by itself to the laptop it used last; otherwise choose the quiz, or type the laptop's address. It
+shows the TV full screen and plays all the sound there: the TV's own sounds, and the desk's sound clips, music bingo
+songs and audio questions, which while a TV screen is connected play on it instead of the laptop (Settings → Screens
+says which TV screen is connected). Spotify plays wherever Settings → Spotify sends it: open Spotify on the TV screen,
+signed in to the same account, and choose it there. Move the mouse (or press Escape) on the TV screen for its bar:
+change quiz, window or full screen, back to the quizmaster desk, or close. The laptop's own quiz is untouched.
+
 ## Before the room fills
 
 1. **Desktop app** (Windows or Linux, [DESKTOP.md](DESKTOP.md)): open **BeerMat**; the desk opens unlocked and the TV display goes full screen on a second screen by itself. Choose how players join under **How players join** (venue Wi-Fi, below) or start the quiz Wi-Fi in **Quiz night**. From source on Linux, `./scripts/setup.sh --app` puts the desktop app in the app menu. **Browser launcher** (`./scripts/setup.sh --browser-app`): click **BeerMat** in the app menu and type the host key: the desk opens unlocked in the browser. In **Quiz night** at the top, press **Start quiz Wi-Fi** and enter your laptop password. (From a terminal: `./scripts/quiz-night.sh` does the same, Ctrl+C ends it; or `./scripts/start.sh` for BeerMat alone, then open `http://localhost:3000/host`.) After the quiz, **Close BeerMat** takes the Wi-Fi down and stops the server.

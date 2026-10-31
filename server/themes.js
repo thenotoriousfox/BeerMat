@@ -48,7 +48,8 @@ export function loadThemes(dir, prefix = '/themes/') {
     themes,
     // Every theme's look in one stylesheet (/themes.css), loaded after style.css.
     css: themes.filter(t => t.css).map(t => `/* ---- themes/${t.id}/look.css ---- */\n${t.css}`).join('\n'),
-    file(id, file) {return themeId.test(id) && themeFile.test(file) && themes.some(t => t.id === id) ? path.join(dir, id, file) : null;},
+    // A theme's pictures, sounds and CSS, and its tv.json (what a TV screen on another computer draws: tvscreen.py).
+    file(id, file) {return themeId.test(id) && (themeFile.test(file) || file === 'tv.json') && themes.some(t => t.id === id) ? path.join(dir, id, file) : null;},
   };
 }
 

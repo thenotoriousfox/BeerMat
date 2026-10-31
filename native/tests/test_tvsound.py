@@ -89,6 +89,33 @@ class TvSoundTest(unittest.TestCase):
         wait()
         self.assertEqual(files, [media])
 
+    def test_the_desks_playback_goes_to_a_tv_screen(self):
+        """With a TV screen connected, the desk's own playback is relayed there (and plays silently here, for its
+        timing); a TV screen plays only what's relayed after it connected."""
+        clip = Path(self.dir.name) / 'clip.wav'
+        synth(clip, [(330, 0)], 'sine')
+        media = QUrl.fromLocalFile(str(clip)).toString()
+        relayed = []
+        self.sound.relay = lambda *call: relayed.append(call)
+        self.sound.desk_play(media, 500)
+        self.assertEqual(relayed, [], 'no TV screen: plays here as before')
+        self.sound.screens = 1
+        self.assertIsNotNone(self.sound.desk_play(media, 500))
+        self.assertTrue(self.sound._players[media][1].isMuted(), 'silent here')
+        self.sound.desk_pause(media); self.sound.desk_resume(media); self.sound.desk_stop(media)
+        self.assertEqual([c[0] for c in relayed], ['play', 'pause', 'resume', 'stop'])
+        self.assertEqual(relayed[0][1:], (media, 500))
+        # The TV screen's side.
+        screen = TvSound()
+        screen.on = True
+        played = []
+        screen.play_file = lambda src, *a, **k: played.append((src, k.get('position_ms')))
+        screen.follow_playback({'seq': 4, 'action': 'play', 'media': media, 'position': 0, 'at': 0}, 10_000)
+        self.assertEqual(played, [], 'what was relayed before it connected has been and gone')
+        screen.follow_playback({'seq': 5, 'action': 'play', 'media': media, 'position': 1000, 'at': 9_000}, 10_000)
+        screen.follow_playback({'seq': 5, 'action': 'play', 'media': media, 'position': 1000, 'at': 9_000}, 10_500)
+        self.assertEqual(played, [(media, 2000)], 'once, from where it would be by now')
+
     def test_buzzers_and_bingo(self):
         buzz = lambda active, status: question(type='buzzer', buzz={'active': {'name': active} if active else None, 'queue': [{'team': 't', 'status': status}]})
         self.step(self.state(buzz(None, 'queued')))

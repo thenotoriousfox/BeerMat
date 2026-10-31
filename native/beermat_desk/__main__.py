@@ -4,6 +4,8 @@
                     app's, so pointing it at that folder (~/.config/BeerMat, %APPDATA%\\BeerMat) opens the same quiz.
   --port <n>        the quiz server's preferred port (default 3000)
   --no-laptop       leave the laptop's Wi-Fi alone (tests, or another machine runs the quiz Wi-Fi)
+  --tv / --desk     this time, open as a TV screen (the computer wired to the TVs shows the TV of the quizmaster's
+                    laptop: tvscreen.py) or as the quizmaster desk. Otherwise it opens as it was last chosen to.
 """
 import argparse
 import hashlib
@@ -16,7 +18,7 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QStandardPaths, Qt, QTimer, QUrl
+from PySide6.QtCore import QProcess, QSettings, QStandardPaths, Qt, QTimer, QUrl
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtGui import QColor, QFontDatabase, QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
@@ -28,6 +30,7 @@ from . import gradients, svgmotion
 from .keystore import load_key
 from .screens import Screens
 from .server import ROOT
+from .tvscreen import TvScreen
 
 # The QML sits at native/beermat_desk/qml in the repository and in packaged builds (qr.mjs reaches ../../../web).
 HERE = ROOT / 'native' / 'beermat_desk'
@@ -101,11 +104,39 @@ def egl_draws():
     return probe.returncode != EGL_BLACK
 
 
+def tv_screen(app, data_dir, log, windows, switch):
+    """BeerMat as a TV screen: no quiz server here, only the TV of the quizmaster's laptop, full screen, with its sound."""
+    screen = TvScreen(data_dir / 'cache')
+    engine = QQmlApplicationEngine()
+    gradients.install(engine)
+    svgmotion.install(engine)
+    for name, value in (('desk', screen), ('tvScreen', screen), ('brand', QUrl.fromLocalFile(str(ROOT / 'brand') + '/'))):
+        engine.rootContext().setContextProperty(name, value)
+    engine.addImportPath(str(HERE / 'qml'))
+    engine.load(QUrl.fromLocalFile(str(HERE / 'qml' / 'TvScreen.qml')))
+    if not engine.rootObjects():
+        log.error('The TV screen failed to load')
+        return 1
+    windows.extend(engine.rootObjects())
+    screen.roleRequested.connect(switch)
+    screen.quitRequested.connect(app.quit)
+    log.info('BeerMat started as a TV screen')
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, lambda *_: app.exit(0))
+    wake = QTimer(app, interval=300)
+    wake.timeout.connect(lambda: None)
+    wake.start()
+    screen.search()
+    return app.exec()
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='beermat_desk', description='BeerMat Desk')
     parser.add_argument('--data')
     parser.add_argument('--port', type=int, default=3000)
     parser.add_argument('--no-laptop', action='store_true')
+    parser.add_argument('--tv', action='store_true', help='open as a TV screen this time')
+    parser.add_argument('--desk', action='store_true', help='open as the quizmaster desk this time')
     parser.add_argument('--gl-probe', action='store_true', help=argparse.SUPPRESS)
     args, qt_args = parser.parse_known_args(argv)
     if args.gl_probe:
@@ -139,6 +170,18 @@ def main(argv=None):
     if instance is None:
         log.info('BeerMat Desk is already running for %s; brought it to the front', data_dir)
         return 0
+    role = 'tv' if args.tv else 'desk' if args.desk else QSettings().value('role', 'desk', str)
+
+    def switch(to):
+        """This computer becomes the TV screen, or the quizmaster desk: remembered, and BeerMat opens again as it."""
+        QSettings().setValue('role', to)
+        instance.close()
+        command = [sys.executable] if getattr(sys, 'frozen', False) else [sys.executable, '-m', 'beermat_desk']
+        QProcess.startDetached(command[0], [*command[1:], *(['--data', args.data] if args.data else []), f'--{to}'], str(ROOT / 'native'))
+        app.quit()
+
+    if role == 'tv':
+        return tv_screen(app, data_dir, log, windows, switch)
     key, kept = load_key(data_dir)
     log.info('Quizmaster key kept in the %s', 'system keychain' if kept == 'keychain' else 'data folder (no keychain available)')
     desk = Desk(data_dir, key, port=args.port, laptop=not args.no_laptop)
@@ -163,6 +206,7 @@ def main(argv=None):
     desk.toast.connect(lambda message, error: log.warning(message) if error else None)
     log.info('BeerMat Desk started; data in %s', data_dir)
     app.aboutToQuit.connect(desk.stop)
+    desk.roleRequested.connect(switch)
     # Ctrl+C in a terminal, or being asked to stop (a logout, kill), closes it properly, server and all. Python only
     # runs signal handlers between its own lines, and Qt's event loop isn't one: a timer lets it look in now and then.
     for sig in (signal.SIGINT, signal.SIGTERM):

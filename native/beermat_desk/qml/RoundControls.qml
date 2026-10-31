@@ -105,7 +105,9 @@ ColumnLayout {
                 DeskButton { text: controls.view.clipsRunning >= 0 ? "Stop clips" : "Play all clips"; kind: controls.view.clipsRunning >= 0 ? "danger" : "primary"; enabled: !!controls.q.live
                              onClicked: controls.view.clipsRunning >= 0 ? desk.live.stopClips() : desk.live.playClips() }
                 Text {
-                    text: controls.view.clipsRunning >= 0 ? `🎵 Clip ${controls.view.clipsRunning + 1} of ${(controls.q.clips || []).length} playing on the TV` : `${(controls.q.clips || []).length} clips, played in order through the TV's sound`
+                    // With a TV screen connected (another computer showing the TV), the clips play there.
+                    readonly property string where: (controls.view.tvScreens || []).length ? `on ${controls.view.tvScreens[0]}` : "through the TV's sound"
+                    text: controls.view.clipsRunning >= 0 ? `🎵 Clip ${controls.view.clipsRunning + 1} of ${(controls.q.clips || []).length} playing ${where}` : `${(controls.q.clips || []).length} clips, played in order ${where}`
                     color: Theme.text; font.pixelSize: 15; Layout.fillWidth: true
                 }
                 Text { text: controls.q.clipGame ? `${controls.q.clipGame.taps || 0} taps` : ""; color: Theme.muted; font.pixelSize: 13 }
@@ -135,7 +137,8 @@ ColumnLayout {
         spacing: 10
         DeskButton { objectName: "playAudio"; text: "▶  Play again from the start"; onClicked: desk.live.playAudio() }
         DeskButton { objectName: "pauseAudio"; text: "❚❚  Pause / carry on"; onClicked: desk.live.pauseAudio() }
-        Text { text: "It plays by itself on the TV as the question opens (Settings → Screens chooses the TV's sound)."; color: Theme.faint; font.pixelSize: 12
+        Text { text: (controls.view.tvScreens || []).length ? `It plays by itself on ${controls.view.tvScreens[0]} as the question opens; these play it there.`
+                                                            : "It plays by itself on the TV as the question opens (Settings → Screens chooses the TV's sound)."; color: Theme.faint; font.pixelSize: 12
                Layout.fillWidth: true; wrapMode: Text.WordWrap }
     }
 }
