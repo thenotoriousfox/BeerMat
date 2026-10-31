@@ -105,6 +105,12 @@ class TvSound(QObject):
         self._wheel_id, self._wheel_turn, self._wheel_timers = None, 0.0, []
         self._pegs, self._peg = [], 0
         self._tv_on_screen = False
+        # TV screens (BeerMat on the computer wired to the TVs, tvscreen.py): the desk's own playback is sent there
+        # (relay(action, src, position_ms), through the quiz server) and plays here silently, so the desk still knows
+        # when a clip or song ends. screens: how many are connected.
+        self.screens = 0
+        self.relay = None
+        self._followed = None     # the last relayed playback this TV screen acted on
 
     onChanged = Signal()
 
@@ -200,6 +206,70 @@ class TvSound(QObject):
         player.setPosition(position_ms)
         player.play()
         return player
+
+    # ---- the desk's own playback: sound clips, music bingo songs, an audio question played again ----
+    def _relaying(self):
+        return bool(self.screens and self.relay)
+
+    def desk_play(self, src, position_ms=0):
+        """Plays one of the quiz's files for the desk: on the TV screens when there are any (silently here, to keep
+        time), otherwise here, as any other sound."""
+        if not src:
+            return None
+        if not self._relaying():
+            if src in self._players:
+                self._players[src][1].setMuted(MUTED)
+            return self.play_file(src, position_ms=position_ms)
+        player = self._player(src)
+        self._players[src][1].setMuted(True)
+        player.setLoops(1)
+        player.setPosition(position_ms)
+        player.play()
+        self.relay('play', src, position_ms)
+        return player
+
+    def desk_pause(self, src):
+        player = self._players.get(src, (None,))[0]
+        if player:
+            player.pause()
+            if self._relaying():
+                self.relay('pause', src, player.position())
+
+    def desk_resume(self, src):
+        player = self._players.get(src, (None,))[0]
+        if player:
+            player.play()
+            if self._relaying():
+                self.relay('resume', src, player.position())
+
+    def desk_stop(self, src):
+        player = self._players.get(src, (None,))[0]
+        if player:
+            player.stop()
+            if self._relaying():
+                self.relay('stop', src, 0)
+
+    def follow_playback(self, playback, now_ms):
+        """A TV screen: plays what the desk relayed (once each), from where it would be by now."""
+        if not playback:
+            # Nothing relayed yet: whatever comes next is new.
+            if self._followed is None:
+                self._followed = 0
+            return
+        if playback.get('seq') == self._followed:
+            return
+        # What was relayed before this screen connected has been and gone: only new playback plays.
+        first = self._followed is None
+        self._followed = playback.get('seq')
+        src, action = playback.get('media') or '', playback.get('action')
+        if action == 'play' and not first:
+            self.play_file(src, position_ms=int(playback.get('position', 0) + max(0, now_ms - playback.get('at', now_ms))))
+        elif action == 'resume' and not first and src in self._players:
+            player = self._players[src][0]
+            player.setPosition(int(playback.get('position', 0)))
+            player.play()
+        elif action in ('pause', 'stop') and src in self._players:
+            self._players[src][0].pause() if action == 'pause' else self._players[src][0].stop()
 
     def play(self, slot, loop=False):
         src = self._pack.get('slots', {}).get(slot)

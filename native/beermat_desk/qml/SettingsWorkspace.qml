@@ -17,6 +17,13 @@ ScrollView {
     signal swapScreens()
     signal openLibrary(int tab)        // Library: 0 quizzes, 1 buzzers, 2 themes
     contentWidth: availableWidth
+    MessageDialog {
+        id: tvScreenConfirm
+        title: "Use this computer as a TV screen?"
+        text: "BeerMat closes the quizmaster desk here and opens as a TV screen: it finds the quiz on the quizmaster's laptop and shows its TV full screen, with all the sound. This computer's own quiz is kept, for when it's the desk again (the TV screen's bar, or Escape, has “Quizmaster desk”)."
+        buttons: MessageDialog.Yes | MessageDialog.Cancel
+        onButtonClicked: (button) => { if (button === MessageDialog.Yes) desk.becomeTvScreen() }
+    }
     onVisibleChanged: if (visible) desk.prefs.loadSpotify()
     // Back from the browser (Spotify's sign-in) or the Spotify app: check again, as the web desk does on focus.
     Connections { target: Qt.application; function onStateChanged() { if (settings.visible && Qt.application.state === Qt.ApplicationActive) desk.prefs.loadSpotify() } }
@@ -272,6 +279,9 @@ ScrollView {
                         onActivated: desk.prefs.chooseSpotifyDevice(currentValue)
                     }
                     DeskButton { text: "Refresh players"; implicitHeight: 34; onClicked: desk.prefs.loadSpotify() }
+                    // A TV screen's own Spotify app can play the music there, beside the TV.
+                    Text { visible: (settings.view.tvScreens || []).length > 0; color: Theme.faint; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap
+                           text: "To play Spotify on the TV screen, open Spotify there (the same account), then Refresh players and choose it." }
                 }
             }
             RowLayout {
@@ -321,7 +331,16 @@ ScrollView {
                 DeskButton { text: "Test sound"; implicitHeight: 34; onClicked: desk.sound.test() }
             }
             Text { text: `Playing on: ${desk.sound.activeOutput}. Sound effects, music, clips and songs play here while the TV is open.`; color: Theme.faint; font.pixelSize: 12
-                   Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                   Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: !(settings.view.tvScreens || []).length }
+            // Another computer showing this quiz's TV (BeerMat as a TV screen): the sound plays there.
+            Text { objectName: "tvScreensConnected"; visible: (settings.view.tvScreens || []).length > 0; Layout.fillWidth: true; wrapMode: Text.WordWrap
+                   text: `TV screen connected: ${(settings.view.tvScreens || []).join(", ")}. Sound clips, music bingo songs and audio questions play there, as do its own TV sounds.`
+                   color: Theme.good; font.pixelSize: 13 }
+            Flow {
+                Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 10
+                DeskButton { objectName: "becomeTvScreen"; text: "Use this computer as a TV screen…"; implicitHeight: 34; onClicked: tvScreenConfirm.open() }
+                Text { text: "For the computer wired to the TVs, while the quiz runs on another laptop."; color: Theme.faint; font.pixelSize: 12; height: 34; verticalAlignment: Text.AlignVCenter }
+            }
             Text {
                 Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 12
                 text: (screens.displays.length > 1 ? `${screens.displays.length} screens connected. ` : "One screen: the TV opens in a window you can drag to a projector. ")

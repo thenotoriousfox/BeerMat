@@ -76,6 +76,10 @@ ApplicationWindow {
                 DeskButton { text: "BeerMat Wi-Fi from this laptop"; onClicked: { desk.welcomed("hotspot"); welcome.close() } }
                 DeskButton { text: "Decide later"; onClicked: { desk.welcomed(""); welcome.close() } }
             }
+            // The computer wired to the TVs, while the quiz runs on the quizmaster's laptop (tvscreen.py).
+            Text { Layout.fillWidth: true; Layout.topMargin: 6; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 13
+                   text: "Is this the computer wired to the TVs, with the quiz run from another laptop? Make it the TV screen: it finds that laptop's quiz, shows the TV full screen and plays all the sound." }
+            DeskButton { objectName: "welcomeTvScreen"; text: "This computer is the TV screen"; onClicked: { desk.welcomed(""); welcome.close(); desk.becomeTvScreen() } }
         }
     }
     // The TV's sounds play while the TV is showing, as Electron's TV window does.

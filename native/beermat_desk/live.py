@@ -23,6 +23,7 @@ class LiveTools(QObject):
         self.desk, self.api, self.sound = desk, desk.api, desk.tvSound
         self._clips = None          # {'question', 'index', 'spotify'} while the clips game plays
         self._clip_player = None
+        self._clip_media = None
         self._song_timer = QTimer(self, singleShot=True)
         self._song_run = 0
 
@@ -70,7 +71,7 @@ class LiveTools(QObject):
                 return
             if song.get('media'):
                 start = song.get('start', q.get('startAt')) or 0
-                self.sound.play_file(song['media'], position_ms=int(start * 1000))
+                self.sound.desk_play(song['media'], position_ms=int(start * 1000))
                 self._time_song(q, song)
             self.desk.toast.emit(f'Song {played}: {song.get("title")}' + ('' if song.get('media') else ' — play it from your own music player'), False)
         self.api.host('bingo', {'question': q['id']}, lambda r: (called(r), self.desk.refresh()), lambda e: self.desk.toast.emit(e, True))
@@ -105,7 +106,7 @@ class LiveTools(QObject):
         q = self._q() or {}
         for song in q.get('songs') or []:
             if song.get('media') in self.sound._players:
-                self.sound._players[song['media']][0].stop()
+                self.sound.desk_stop(song['media'])
             if song.get('spotify'):
                 self.api.host('spotify/pause', {})
                 break
@@ -133,7 +134,7 @@ class LiveTools(QObject):
     def stopClips(self):
         run, self._clips = self._clips, None
         if self._clip_player:
-            self._clip_player.stop()
+            self.sound.desk_stop(self._clip_media)
         if run:
             if run.get('spotify'):
                 self.api.host('spotify/pause', {})
@@ -166,14 +167,15 @@ class LiveTools(QObject):
                                   lambda: self._clips is run and self.api.host('spotify/pause', {}, lambda _: finished(), lambda _: finished()))
             self.api.host('spotify/play', {'question': q['id'], 'clip': i}, started, lambda e: (self.desk.toast.emit(e, True), self.stopClips()))
             return
-        player = self.sound.play_file(clip.get('media'))
+        self._clip_media = clip.get('media')
+        player = self.sound.desk_play(clip.get('media'))
         if player is None:
             self.desk.toast.emit('Open the TV to play the clips through its sound', True)
             return self.stopClips()
         self._clip_player = player
         announced = {'done': False}
         # An uploaded clip plays for the question's clip length too (or to its end, if that's sooner).
-        QTimer.singleShot(int((q.get('clipSeconds') or 15) * 1000), lambda: self._clips is run and not ended['done'] and (player.stop(), finished()))
+        QTimer.singleShot(int((q.get('clipSeconds') or 15) * 1000), lambda: self._clips is run and not ended['done'] and (self.sound.desk_stop(clip.get('media')), finished()))
 
         def status(state):
             if self._clips is not run:
@@ -201,7 +203,7 @@ class LiveTools(QObject):
     def playAudio(self):
         """From the start."""
         media = self._audio()
-        if media and not self.sound.play_file(media):
+        if media and not self.sound.desk_play(media):
             self.desk.toast.emit('Open the TV to play the sound through it', True)
 
     @Slot()
@@ -210,9 +212,9 @@ class LiveTools(QObject):
         media = self._audio()
         player = self.sound._players.get(media, (None,))[0] if media else None
         if player and player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
-            player.pause()
+            self.sound.desk_pause(media)
         elif player and player.playbackState() == QMediaPlayer.PlaybackState.PausedState:
-            player.play()
+            self.sound.desk_resume(media)
 
     def _audio(self):
         media = (self._q() or {}).get('media') or ''
