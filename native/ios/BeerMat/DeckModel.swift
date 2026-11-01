@@ -101,7 +101,12 @@ final class DeckModel: ObservableObject {
 
     private func refresh() async {
         guard let s = server, let k = key else { return }
-        do { deck = DeckState.parse(try await s.host(k, "state")) }
+        do {
+            let d = DeckState.parse(try await s.host(k, "state"))
+            deck = d
+            // The answer appears when the TV's drum roll ends, which nothing announces: look again until it has.
+            if d.question?.revealing == true { Task { try? await Task.sleep(nanoseconds: 1_000_000_000); await self.refresh() } }
+        }
         catch let e as QuizError where e.status == 401 || e.status == 403 { signedOut(t("The desk has taken this phone off. Sign in again to host."), error: true) }
         catch {}
     }
