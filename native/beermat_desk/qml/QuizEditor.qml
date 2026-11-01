@@ -206,7 +206,7 @@ RowLayout {
                     Field { id: clipSeconds; text: quizzes.spotifyClip.seconds !== undefined ? String(quizzes.spotifyClip.seconds) : ""; placeholderText: "Plays (s)"; implicitWidth: 90 }
                     DeskButton { text: "Set"; implicitHeight: 34; onClicked: lib.setSpotifyClip(clipTrack.text, clipStart.text, clipSeconds.text) }
                 }
-                Label { visible: q.type === "sheet"; text: "Also accept, for each part (one line per part, answers separated by |)"; color: Theme.muted }
+                Label { visible: q.type === "sheet"; text: "Also accept, for each part (one line per part, answers separated by |)"; color: Theme.muted; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                 Area { visible: q.type === "sheet"; Layout.fillWidth: true; text: q.itemAliases || ""; onEditingFinished: lib.setItemAliases(text) }
 
                 // ---- sound clips ----

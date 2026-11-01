@@ -73,7 +73,8 @@ ColumnLayout {
                           : `${controls.bingo.count || 0} called${controls.bingo.last ? " · last " + controls.bingo.last : ""}`
                     color: Theme.text; font.pixelSize: 15; font.weight: Font.DemiBold
                 }
-                Text { visible: !!controls.bingo && !!controls.bingo.playingFor; text: controls.bingo ? `Playing for ${controls.bingo.playingFor}` : ""; color: Theme.muted; font.pixelSize: 13 }
+                Text { visible: !!controls.bingo && !!controls.bingo.playingFor; text: controls.bingo ? `Playing for ${controls.bingo.playingFor}` : ""; color: Theme.muted; font.pixelSize: 13
+                       Layout.fillWidth: true; wrapMode: Text.WordWrap }
             }
             Repeater {
                 model: controls.pendingShouts
@@ -101,14 +102,14 @@ ColumnLayout {
             id: clipsColumn
             anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 12; spacing: 8
             RowLayout {
-                spacing: 10
+                Layout.fillWidth: true; spacing: 10
                 DeskButton { text: controls.view.clipsRunning >= 0 ? "Stop clips" : "Play all clips"; kind: controls.view.clipsRunning >= 0 ? "danger" : "primary"; enabled: !!controls.q.live
                              onClicked: controls.view.clipsRunning >= 0 ? desk.live.stopClips() : desk.live.playClips() }
                 Text {
                     // With a TV screen connected (another computer showing the TV), the clips play there.
                     readonly property string where: (controls.view.tvScreens || []).length ? `on ${controls.view.tvScreens[0]}` : "through the TV's sound"
                     text: controls.view.clipsRunning >= 0 ? `🎵 Clip ${controls.view.clipsRunning + 1} of ${(controls.q.clips || []).length} playing ${where}` : `${(controls.q.clips || []).length} clips, played in order ${where}`
-                    color: Theme.text; font.pixelSize: 15; Layout.fillWidth: true
+                    color: Theme.text; font.pixelSize: 15; Layout.fillWidth: true; wrapMode: Text.WordWrap
                 }
                 Text { text: controls.q.clipGame ? `${controls.q.clipGame.taps || 0} taps` : ""; color: Theme.muted; font.pixelSize: 13 }
             }
@@ -132,13 +133,17 @@ ColumnLayout {
     }
 
     // ---- an audio question ----
-    RowLayout {
+    // The buttons wrap in a narrow window, with what they do below them.
+    Flow {
         visible: controls.isAudio && controls.type !== "clips"
-        spacing: 10
+        Layout.fillWidth: true; spacing: 10
         DeskButton { objectName: "playAudio"; text: "▶  Play again from the start"; onClicked: desk.live.playAudio() }
         DeskButton { objectName: "pauseAudio"; text: "❚❚  Pause / carry on"; onClicked: desk.live.pauseAudio() }
-        Text { text: (controls.view.tvScreens || []).length ? `It plays by itself on ${controls.view.tvScreens[0]} as the question opens; these play it there.`
-                                                            : "It plays by itself on the TV as the question opens (Settings → Screens chooses the TV's sound)."; color: Theme.faint; font.pixelSize: 12
-               Layout.fillWidth: true; wrapMode: Text.WordWrap }
+    }
+    Text {
+        visible: controls.isAudio && controls.type !== "clips"
+        text: (controls.view.tvScreens || []).length ? `It plays by itself on ${controls.view.tvScreens[0]} as the question opens; these play it there.`
+                                                     : "It plays by itself on the TV as the question opens (Settings → Screens chooses the TV's sound)."
+        color: Theme.faint; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap
     }
 }
