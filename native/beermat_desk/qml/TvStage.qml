@@ -461,7 +461,7 @@ Item {
                                 Image { visible: !!(parent.b && parent.b.active && parent.b.active.photo); source: visible ? root.serverUrl + parent.b.active.photo : ""; sourceSize.height: 160; height: 160; fillMode: Image.PreserveAspectFit }
                                 Text { text: parent.b && parent.b.active ? `🔔 ${parent.b.active.name}` : questionView.q && questionView.q.open ? root.t("Buzzers open") : ""
                                        color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 150; font.weight: Font.Bold }
-                                Text { text: !parent.b ? "" : parent.b.agreeOpen ? root.t("“{answer}” — agree now! {n} agreed", {answer: parent.b.announced, n: parent.b.agreeCount}) : (parent.b.queue || []).filter(x => x.status === "queued").map(x => x.name).join(" · ")
+                                Text { text: !parent.b ? "" : parent.b.agreeOpen ? root.t("“{answer}” — agree now! {n} agreed", {answer: parent.b.announced, n: parent.b.agreeCount}) : questionView.q && questionView.q.open ? (parent.b.queue || []).filter(x => x.status === "queued").map(x => x.name).join(" · ") : ""
                                        color: root.pal.text; font.pixelSize: 56 }
                             }
                             // Word trail: the grid; once revealed, the answer's path lights up in order.

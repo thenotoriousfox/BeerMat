@@ -490,6 +490,26 @@ class TvStageTest(unittest.TestCase):
         # Measured on the stage, where what's inside is scaled to fit: a row is at least as tall as a name in who scored.
         self.assertGreaterEqual(min(b - a for a, b in rows), 25, 'every item is big enough to read')
 
+    def test_the_buzzer_queue_goes_once_answers_close(self):
+        """Teams still queued to buzz are shown while the question is open, not once it has closed."""
+        def texts():
+            out = []
+            def walk(item):
+                for c in item.childItems():
+                    t = c.property('text')
+                    if isinstance(t, str) and c.property('visible'):
+                        out.append(t)
+                    walk(c)
+            walk(self.stage)
+            return out
+        buzz = {'variation': 'classic', 'queue': [{'team': 'a', 'name': 'Owls', 'status': 'active'}, {'team': 'b', 'name': 'Bears', 'status': 'queued'}],
+                'active': {'team': 'a', 'name': 'Owls'}, 'announced': '', 'agreeOpen': False, 'agreeCount': 0}
+        q = question(type='buzzer', options=[], buzz=buzz)
+        self.show(state(q=q))
+        self.assertIn('Bears', texts())
+        self.show(state(q={**q, 'open': False, 'live': False, 'buzz': {**buzz, 'active': None}}))
+        self.assertNotIn('Bears', texts())
+
     def test_wheel_spins_once_for_a_spin_seen_happening(self):
         spin = self.stage.findChild(QObject, 'wheelSpin')
         self.show(state('join'))

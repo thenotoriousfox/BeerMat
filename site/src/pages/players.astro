@@ -1,6 +1,6 @@
 ---
 import Page from '../layouts/Page.astro';
-import Shot from '../components/Shot.astro';
+import Clip from '../components/Clip.astro';
 
 ---
 <Page title="BeerMat for players" description="Find a pub quiz near you, play on your phone, and keep your results if you want to.">
@@ -15,7 +15,7 @@ import Shot from '../components/Shot.astro';
 				<a href="/download#app" class="btn btn-ghost">Get the app</a>
 			</div>
 		</div>
-		<div class="mx-auto w-56 sm:w-64"><Shot src="/shots/phone-choice.webp" alt="A question on a team’s phone, with four answers to tap" width={780} height={1688} loading="eager" class="!rounded-3xl border-white/20" /></div>
+		<div class="mx-auto w-56 sm:w-64"><Clip name="phone-play" alt="The BeerMat app on a team’s phone: the question arrives, they pick Mars and lock it in, then the answer and their point" width={720} height={1558} eager class="!rounded-3xl border-white/20" /></div>
 	</section>
 	<section class="wrap grid gap-5 py-10 md:grid-cols-3">
 		<div class="card"><h2 class="text-xl">Find a quiz</h2><p class="mb-0 text-muted">The map shows pubs running BeerMat quizzes and their next quiz night. Filter by day, then get directions.</p></div>

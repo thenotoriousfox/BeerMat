@@ -10,7 +10,7 @@ const screens = [
 	{n: '1', where: 'On the telly', title: 'The quiz on the big screen', text: 'The question, the clock and a QR code to join, big enough for the back of the room. A second screen, a projector, the pub’s TV, or another computer wired to the TVs.',
 		shot: {src: '/shots/tv-question.webp', alt: 'The TV during a question: four coloured answers and the time left', ...TV, retina: true, sizes: '(min-width: 1024px) 420px, 100vw'}},
 	{n: '2', where: 'On every table', title: 'Teams play on a phone', text: 'Heads together round one phone, then a tap to answer. They play in the browser: no app, no account, no sign-up.',
-		clip: {name: 'phone-play', alt: 'A team’s phone: the question arrives, they pick Mars and lock it in, then the answer and their point', width: 720, height: 1558}, tall: true},
+		clip: {name: 'phone-join', alt: 'A team joining in the phone’s browser, no app: a team name, Join, then the question, Mars sent, and the point', width: 720, height: 1558}, tall: true},
 	{n: '3', where: 'Behind the bar', title: 'You run it from the desk', text: 'The next question is one big button. Answers are marked as they arrive, and you see which teams are in. Walking the room? Run the night from the BeerMat app on your phone.',
 		clip: {name: 'desk-question', alt: 'The quizmaster’s desk: Start next question, answers counting in team by team, Close answers, then the reveal', width: 1440, height: 900}},
 ];
@@ -28,8 +28,13 @@ const formats = ['Multiple choice', 'Tick all that apply', 'Letter keypad', 'Num
 const extras = ['Picture reveals', 'Send Question', 'Six fixed buttons', 'Questions on the fly', 'Reaction table', 'Fast Track', 'Rollover jackpots',
 	'Team groups', 'Slides between rounds', 'Speed bingo', 'Wipeout', 'Risk It', 'Secret rounds', 'Tie-breakers'];
 // Some of them on the TV and on a phone.
+// Some of them on the TV and on a phone; a clip where it moves (scripts/site-videos-native.py).
+const VIDEO = {width: 1280, height: 720};
+const extraClips = [
+	['tv-reveal-tiles', 'A picture under twelve tiles, going one by one as the clock runs down'],
+	['tv-buzzer', 'Buzzers: the first team in takes the TV, a wrong answer passes it to the next, then the answer and who scored'],
+] as const;
 const extraShots = [
-	['tv-reveal-tiles', 'A picture under twelve tiles, going one by one as the clock runs down', TV, true],
 	['tv-reactions', 'Music bingo’s reaction table: the quickest teams to dab the song', TV, true],
 	['tv-fasttrack', 'Fast Track: a team straight into first place', TV, true],
 	['phone-reveal', 'The same picture reveal on a team’s phone', PHONE, false],
@@ -163,8 +168,14 @@ const reasons = [
 				{extras.map(f => <li class="chip list-none">{f}</li>)}
 			</ul>
 			<div class="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-6">
+				{extraClips.map(([name, alt]) => (
+					<figure class="m-0 col-span-2 sm:col-span-3">
+						<Clip name={name} alt={alt} {...VIDEO} />
+						<figcaption class="mt-2 text-sm text-muted">{alt}</figcaption>
+					</figure>
+				))}
 				{extraShots.map(([file, alt, size, retina], i) => (
-					<figure class:list={['m-0', i < 3 ? 'col-span-2' : 'col-span-1 sm:col-span-3 sm:mx-auto sm:max-w-[13rem]']}>
+					<figure class:list={['m-0', i < 2 ? 'col-span-2 sm:col-span-3' : 'col-span-1 sm:col-span-3 sm:mx-auto sm:max-w-[13rem]']}>
 						<Shot src={`/shots/${file}.webp`} alt={alt} {...size} retina={retina} sizes="(min-width: 640px) 33vw, 100vw" />
 						<figcaption class="mt-2 text-sm text-muted">{alt}</figcaption>
 					</figure>
