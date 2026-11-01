@@ -53,6 +53,26 @@ try {
   assert.equal((await host('state')).teams.find(t => t.name === 'Owls').score, 0, 'E is past the last option: wrong');
   log('a question waits for Send; then six A–F buttons, a phantom letter marked wrong');
 
+  // The leaderboard reveal: the phone shows a place only once the TV has, its own included.
+  await host('settings', {sendQuestion: false, fixedSix: false});
+  const others = [];
+  for (const name of ['Bears', 'Cats']) others.push((await (await fetch(base + '/api/join', {method: 'POST', body: JSON.stringify({name})})).json()).secret);
+  await host('open', {text: 'Say yes', type: 'text', answer: 'yes', seconds: 30, points: 2});
+  const sayYes = (await host('state')).question.id;
+  for (const secret of others) await fetch(base + '/api/answer', {method: 'POST', headers: {Authorization: 'Bearer ' + secret}, body: JSON.stringify({question: sayYes, value: 'yes'})});
+  await host('close'); await host('board', {action: 'show'});
+  const placesShown = () => phone.evaluate(() => [...document.querySelectorAll('#leaderboard li.shown')].map(li => li.textContent.includes('Owls') ? 'Owls' : 'other'));
+  await phone.waitForFunction(() => document.querySelector('#leaderboard').classList.contains('revealing'));
+  assert.deepEqual(await placesShown(), [], 'nothing before the TV shows it');
+  assert.equal(await phone.locator('#myScore').textContent(), '', 'not even the team’s own place');
+  await host('board', {action: 'next'});
+  await phone.waitForFunction(() => document.querySelector('#myScore').textContent.startsWith('#3'));
+  assert.deepEqual(await placesShown(), ['Owls'], 'last place, as on the TV');
+  await host('board', {action: 'next'});     // Bears and Cats tie for first: the board is complete
+  await phone.waitForFunction(() => !document.querySelector('#leaderboard').classList.contains('revealing'));
+  assert.equal((await placesShown()).length, 3);
+  log('the phone follows the TV’s leaderboard reveal, its own place included');
+
   await host('settings', {sendQuestion: false});
   await host('open', {text: 'Whose flag?', type: 'picture', media: '/media/red.png', answer: 'Mars', reveal: 'tiles', seconds: 60, points: 1});
   await phone.locator('#media .reveal-tiles').waitFor();

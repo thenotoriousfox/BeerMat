@@ -26,6 +26,12 @@ data class Team(val id: String, val name: String, val waiting: Boolean, val soun
 
 data class Standing(val name: String, val score: Double?, val rank: Int)
 
+/** The leaderboard being revealed on the TV, a place at a time (server.js boardReveal): who isn't up yet, whether the
+ *  leader's moment has come, and whether it's all shown. */
+data class BoardReveal(val hidden: Set<String>, val leader: Boolean, val done: Boolean) {
+    val active get() = !done
+}
+
 data class BuzzEntry(val team: String, val name: String, val status: String)
 
 data class Buzz(
@@ -67,7 +73,15 @@ data class PlayerState(
     val testDevice: Boolean,
     /** The question's look (its theme's id), for the app's colours and scenery (GET /api/looks/<id>). */
     val look: String = "stage",
-)
+    /** The leaderboard reveal on the TV, while there is one. */
+    val reveal: BoardReveal? = null,
+) {
+    /** The leaderboard as a team's phone shows it: during a reveal, only the places already on the TV. */
+    val board: List<Standing> get() = reveal?.takeIf { it.active }?.let { r -> teams.filter { it.name !in r.hidden } } ?: teams
+    /** Still to come on the TV, so not on the phone yet either. */
+    val boardHidden: Int get() = teams.size - board.size
+    fun shown(name: String?) = board.any { it.name == name }
+}
 
 private fun JSONArray?.strings(): List<String> = if (this == null) emptyList() else List(length()) { optString(it) }
 private fun JSONArray?.ints(): List<Int> = if (this == null) emptyList() else List(length()) { optInt(it) }
@@ -107,6 +121,7 @@ object Parse {
             teams = o.optJSONArray("teams")?.let { a -> List(a.length()) { a.getJSONObject(it) }.map { Standing(it.str("name"), it.numOrNull("score"), it.optInt("rank")) } } ?: emptyList(),
             testDevice = rehearsal?.optBoolean("device") == true,
             look = o.optString("look", "stage").ifBlank { "stage" },
+            reveal = o.optJSONObject("reveal")?.let { r -> BoardReveal(r.optJSONArray("hidden").strings().toSet(), r.optBoolean("leader"), r.optBoolean("done")) },
         )
     }
 

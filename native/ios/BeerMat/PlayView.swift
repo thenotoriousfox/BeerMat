@@ -16,7 +16,7 @@ struct PlayView: View {
                     .accessibilityLabel(model.connected ? t("Connected") : t("Reconnecting"))
                 Text(model.game?.team?.name ?? "").fontWeight(.bold).lineLimit(1)
                 Spacer()
-                if let game = model.game, game.settings.leaderboardVisible, let mine = game.teams.first(where: { $0.name == game.team?.name }), let score = mine.score {
+                if let game = model.game, game.settings.leaderboardVisible, let mine = game.board.first(where: { $0.name == game.team?.name }), let score = mine.score {
                     Text(t("#{rank} · {score} pts", ["rank": mine.rank, "score": format(score)])).fontWeight(.bold).foregroundStyle(Brand.goldHi)
                 }
                 Button(menu ? t("Close") : t("Team")) { menu.toggle() }.foregroundStyle(Brand.muted)
@@ -32,6 +32,8 @@ struct PlayView: View {
                         else if let q = game.question {
                             if nativeTypes.contains(q.type) { QuestionView(q: q).id(q.id) } else { BrowserRound(q: q) }
                         } else { Lobby(title: t("You’re in!"), text: t("Waiting for the quiz to start. Keep this app open.")); TeamSetup() }
+                        // Between questions the leaderboard, as on the browser player and the TV.
+                        if let q = game.question, !q.live, !game.settings.ended, game.team?.waiting != true { Leaderboard(game: game) }
                     }
                     MessageText()
                 }.padding(20)
@@ -41,6 +43,30 @@ struct PlayView: View {
 }
 
 private func format(_ n: Double) -> String { n == n.rounded() ? String(Int(n)) : String(format: "%.1f", n) }
+
+/// The leaderboard between questions; during the TV's reveal, only the places it has shown.
+private struct Leaderboard: View {
+    let game: PlayerState
+    var body: some View {
+        Text(t("Leaderboard")).font(Brand.display(20, .headline)).padding(.top, 20)
+        if !game.settings.leaderboardVisible { Text(t("The quizmaster has hidden scores for now.")).foregroundStyle(Brand.muted) }
+        else if game.teams.isEmpty { Text(t("Waiting for teams")).foregroundStyle(Brand.muted) }
+        else {
+            if game.boardHidden > 0 { Text(t("Revealing the leaderboard on the TV…")).foregroundStyle(Brand.goldHi) }
+            ForEach(Array(game.board.enumerated()), id: \.offset) { _, team in row(team) }
+        }
+    }
+
+    private func row(_ team: Standing) -> some View {
+        let mine = team.name == game.team?.name
+        return HStack {
+            Text("\(team.rank)").fontWeight(.bold).foregroundStyle(team.rank == 1 ? Brand.gold : Brand.faint).frame(width: 32, alignment: .leading)
+            Text(team.name).fontWeight(mine ? .bold : .regular)
+            Spacer()
+            Text(team.score.map(format) ?? "").fontWeight(.bold).foregroundStyle(Brand.goldHi)
+        }.padding(.horizontal, 14).padding(.vertical, 10).background(mine ? Brand.raised : Brand.panel, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
 
 private struct Lobby: View {
     let title: String, text: String
@@ -78,7 +104,7 @@ private struct TeamSetup: View {
         if let game = model.game, let team = game.team {
             let names = builtInBuzzers + game.buzzerNames
             Text(t("Your buzzer sound")).font(Brand.display(20, .headline)).padding(.top, 8)
-            Menu(team.sound.flatMap { names.indices.contains($0) ? names[$0] : nil } ?? t("Picked from your team name")) {
+            Menu(team.sound.flatMap { names.indices.contains($0) ? names[$0] : nil } ?? t("Chosen for you: tap to pick one")) {
                 ForEach(names.indices, id: \.self) { i in Button(names[i]) { model.setSound(i) } }
             }.buttonStyle(.bordered)
             if game.settings.teamPhotos {

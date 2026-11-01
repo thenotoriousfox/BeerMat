@@ -1311,9 +1311,13 @@
   "Changer d’équipe",
   "Cambiar de equipo"
  ],
- "Picked from your team name": [
-  "Choisi d’après votre nom d’équipe",
-  "Elegido según el nombre del equipo"
+ "Chosen for you: tap to pick one": [
+  "Choisi pour vous : touchez pour en choisir un",
+  "Elegido para ti: toca para elegir uno"
+ ],
+ "Revealing the leaderboard on the TV…": [
+  "Le classement se dévoile à l’écran…",
+  "La clasificación se está revelando en la tele…"
  ],
  "✓ Approved — showing on the TV": [
   "✓ Validée — affichée à la télé",

@@ -312,12 +312,15 @@ function playerState(s) {
   $('photoDetails').hidden = !s.settings.teamPhotos; $('myPhoto').hidden = !s.team.photo;
   if (s.team.photo && $('myPhoto').getAttribute('src') !== s.team.photo) $('myPhoto').src = s.team.photo;
   $('photoStatus').textContent = !s.team.photo ? t('Add a team photo to appear on the big screen. The quizmaster approves it first.') : s.team.photoStatus === 'approved' ? t('✓ Approved — showing on the big screen') : t('Waiting for the quizmaster to approve it');
-  selectOptions($('sound'), buzzerNames().map((label, i) => [String(i), label]), document.activeElement === $('sound') ? undefined : String(s.team.sound ?? ''));
+  // Until the team picks one, the TV chooses a buzzer from the team's name.
+  $('sound').dataset.team = s.team.name;
+  selectOptions($('sound'), [...(s.team.sound === null || s.team.sound === undefined ? [['', t('Chosen for you: tap to pick one')]] : []), ...buzzerNames().map((label, i) => [String(i), label])], document.activeElement === $('sound') ? undefined : String(s.team.sound ?? ''));
   if (s.answer && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q?.type)) {writeInputs(parseSaved(s.answer.value)); $('draftStatus').textContent = s.answer.points === undefined ? (q.secret && !q.live ? t('Secret round: you find out how you did when the quiz ends.') : t('Your final answer is safely stored on the quiz laptop.')) : ''; localDraft = null; writeStorage(draftKey(q.id), '');}
   renderResult(s);
   // Between questions the phone shows the leaderboard; during one, only the question.
   $('boardSection').hidden = !!q?.live;
-  const me = s.teams.find(team => team.id === s.team.id);
+  // The team's own place stays hidden until the TV's leaderboard reveal reaches it.
+  const me = s.teams.find(team => team.id === s.team.id && !(s.reveal && !s.reveal.done && (s.reveal.hidden || []).includes(team.name)));
   $('myScore').textContent = !me ? '' : me.score === null ? t('#{rank}', {rank: me.rank}) : t('#{rank} · {score} pts', {rank: me.rank, score: me.score});
   $('menuButton').hidden = false;
   if (q && (listValue(q.type) || q.fiftyFifty)) syncPicks();
@@ -341,7 +344,8 @@ function sharedState(s) {
   // The quizmaster's look for this question (colours only; see style.css).
   document.documentElement.dataset.look = s.look || 'stage'; themeStyles(s.look || 'stage');
   $('title').textContent = s.settings.title; document.title = s.settings.title + ' — ' + (role === 'player' ? 'Team' : 'Projector');
-  renderBoard($('leaderboard'), s.teams); if (role === 'display') applyReveal(s);
+  // Phones follow the TV's leaderboard reveal: a place shows when the TV shows it.
+  renderBoard($('leaderboard'), s.teams); applyReveal(s);
   $('boardStatus').textContent = s.settings.secretRound ? t('Secret round: the scores stay hidden until the end of the quiz.') : !s.settings.leaderboardVisible ? t('The quizmaster has hidden scores for now.') : s.settings.ended ? t('Final standings') : s.teams.length ? t('Ties share the same rank.') : t('Waiting for teams');
 }
 function renderQr(container, text) {
@@ -868,9 +872,9 @@ if (role === 'player') {
     } catch (e) {message(e.message || t('That photo could not be used'), true);}
   };
   // Each buzzer sound plays on the phone as it is picked, once the phone's sound is running.
-  const hear = async () => {await enableSound(); buzzSound('', Number($('sound').value));};
+  const hear = async () => {await enableSound(); const v = $('sound').value; buzzSound($('sound').dataset.team || '', v === '' ? null : Number(v));};
   $('hearSound').onclick = hear;
-  $('sound').onchange = async () => {hear(); const sound = Number($('sound').value); try {await api('team/sound', {sound}, secret); message('Buzzer sound saved');} catch (e) {message(e.message, true);}};
+  $('sound').onchange = async () => {hear(); if ($('sound').value === '') return; const sound = Number($('sound').value); try {await api('team/sound', {sound}, secret); message('Buzzer sound saved');} catch (e) {message(e.message, true);}};
 }
 if (role === 'display') {
   $('enableSound').onclick = () => {enableSound(); $('enableSound').hidden = true;};
