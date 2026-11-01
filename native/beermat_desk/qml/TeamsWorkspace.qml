@@ -25,13 +25,15 @@ RowLayout {
             spacing: 8
             Text {
                 id: markingState
+                // Left out when the question picker would otherwise run out of room.
+                visible: answersPanel.width - 32 - 80 - 16 - 120 >= implicitWidth + 8
                 text: !(view.marking && view.marking.id) ? "" : view.canMark ? "Closed: mark below" : "Close answers to mark them"
                 color: view.canMark ? Theme.good : Theme.muted; font.pixelSize: 12; font.weight: Font.Bold
             }
             // Any question played so far can be marked again (paper answers, a disputed mark).
             ComboBox {
                 // Narrower in a narrow window, leaving the title room.
-                Layout.preferredWidth: Math.max(120, Math.min(320, answersPanel.width - 32 - 80 - markingState.implicitWidth - 16))
+                Layout.preferredWidth: Math.max(120, Math.min(320, answersPanel.width - 32 - 80 - 16 - (markingState.visible ? markingState.implicitWidth + 8 : 0)))
                 textRole: "text"; valueRole: "value"
                 model: [{value: 0, text: "The current question"}].concat((view.history || []).map(h => ({value: h.id, text: `${h.round ? h.round + " · " : ""}${h.text}`})))
                 currentIndex: view.marking && view.marking.past ? Math.max(0, indexOfValue(view.marking.id)) : 0
@@ -196,8 +198,9 @@ RowLayout {
             Component.onCompleted: desk.loadResults()
             ColumnLayout {
                 anchors.fill: parent; spacing: 8
-                RowLayout {
-                    spacing: 4
+                // The tabs wrap onto two lines in a narrow column.
+                Flow {
+                    Layout.fillWidth: true; spacing: 4
                     Repeater {
                         model: ["Past quizzes", "Returning teams", "Blocked names"]
                         delegate: DeskButton { required property int index; required property string modelData
@@ -208,6 +211,7 @@ RowLayout {
                 ColumnLayout {
                     visible: more.tab === 0; Layout.fillWidth: true; Layout.fillHeight: true
                     ListView {
+                        id: pastQuizzes
                         Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 4
                         model: desk.results.events || []
                         delegate: RowLayout {
@@ -218,7 +222,7 @@ RowLayout {
                             Tool { text: "📊"; onClicked: desk.loadReport(modelData.event); ToolTip.visible: hovered; ToolTip.text: "How each question went" }
                             Tool { text: "✕"; onClicked: desk.deleteResult(modelData.event) }
                         }
-                        Text { visible: parent.count === 0; width: parent.width; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 13
+                        Text { visible: pastQuizzes.count === 0; width: pastQuizzes.width; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 13
                                text: "Results of live quizzes are kept here when each one ends (rehearsals aren't)." }
                     }
                     RowLayout {
