@@ -116,6 +116,9 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   // the map yet (venues added any other way are approved).
   if (!db.prepare('PRAGMA table_info(venues)').all().some(c => c.name === 'approved')) db.exec("ALTER TABLE venues ADD COLUMN approved INTEGER NOT NULL DEFAULT 1; ALTER TABLE venues ADD COLUMN stripe_customer TEXT; ALTER TABLE venues ADD COLUMN stripe_subscription TEXT");
   // A venue an admin has stopped from sharing buzzers (it shared clips it had no right to).
+  // Offers: a venue that bought at the founding price (founding_offer), and holds one of the founding places once it
+  // has paid (founding); the end of a free trial (trial_until), for the desk.
+  if (!db.prepare('PRAGMA table_info(venues)').all().some(c => c.name === 'founding')) db.exec('ALTER TABLE venues ADD COLUMN founding_offer INTEGER NOT NULL DEFAULT 0; ALTER TABLE venues ADD COLUMN founding INTEGER NOT NULL DEFAULT 0; ALTER TABLE venues ADD COLUMN trial_until INTEGER');
   if (!db.prepare('PRAGMA table_info(venues)').all().some(c => c.name === 'library_banned')) db.exec('ALTER TABLE venues ADD COLUMN library_banned INTEGER NOT NULL DEFAULT 0');
   const one = (sql, ...a) => db.prepare(sql).get(...a), rows = (sql, ...a) => db.prepare(sql).all(...a), run = (sql, ...a) => db.prepare(sql).run(...a);
   const transaction = fn => {db.exec('BEGIN'); try {const result = fn(); db.exec('COMMIT'); return result;} catch (e) {db.exec('ROLLBACK'); throw e;}};
@@ -221,7 +224,9 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   function applySubscription(sub) {
     const v = one('SELECT * FROM venues WHERE stripe_subscription=?', sub.id);
     if (!v) return;
-    if (['active', 'trialing', 'past_due'].includes(sub.status)) run("UPDATE venues SET plan='pro',plan_until=? WHERE id=?", paidUntil(sub), v.id);
+    if (['active', 'trialing', 'past_due'].includes(sub.status)) run("UPDATE venues SET plan='pro',plan_until=?,trial_until=? WHERE id=?", paidUntil(sub), sub.status === 'trialing' && sub.trial_end ? sub.trial_end * 1000 : null, v.id);
+    // A founding place is taken once the venue has paid (not while it's trying Pro).
+    if (sub.status === 'active' && v.founding_offer && !v.founding) run('UPDATE venues SET founding=1 WHERE id=?', v.id);
     else if (['canceled', 'unpaid', 'incomplete_expired'].includes(sub.status)) run('UPDATE venues SET plan_until=? WHERE id=?', Math.min(v.plan_until ?? now(), now()), v.id);
   }
   async function checkoutCompleted(session) {
@@ -236,8 +241,9 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       account = one('SELECT * FROM accounts WHERE id=?', accountId);
     }
     const venueId = newVenueId(m.venue, m.town);
-    run(`INSERT INTO venues(id,owner,name,town,postcode,address,lat,lon,created,plan,plan_until,approved,stripe_customer,stripe_subscription) VALUES(?,?,?,?,?,?,?,?,?,'pro',?,0,?,?)`,
-      venueId, account.id, m.venue, m.town, m.postcode || '', m.address || '', m.lat ? Number(m.lat) : null, m.lon ? Number(m.lon) : null, now(), paidUntil(sub), session.customer, session.subscription);
+    run(`INSERT INTO venues(id,owner,name,town,postcode,address,lat,lon,created,plan,plan_until,approved,stripe_customer,stripe_subscription,founding_offer,founding,trial_until) VALUES(?,?,?,?,?,?,?,?,?,'pro',?,0,?,?,?,?,?)`,
+      venueId, account.id, m.venue, m.town, m.postcode || '', m.address || '', m.lat ? Number(m.lat) : null, m.lon ? Number(m.lon) : null, now(), paidUntil(sub), session.customer, session.subscription,
+      m.founding === '1' ? 1 : 0, m.founding === '1' && sub.status === 'active' ? 1 : 0, sub.status === 'trialing' && sub.trial_end ? sub.trial_end * 1000 : null);
     if (mail && publicUrl) {
       const site = stripe.siteUrl || 'https://beermatquiz.co.uk';
       await email({to: address, subject: `Welcome to BeerMat Pro, ${m.venue}`, name: account.display_name,
@@ -249,6 +255,9 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         text: `${m.venue}, ${[m.address, m.town, m.postcode].filter(Boolean).join(', ')}\nOperator: ${account.display_name} <${address}>\n\nApprove it for the map: ${publicUrl.replace(/\/$/, '')}/admin/#venues\n`}).catch(e => console.error('Email not sent:', e.message));
     }
   }
+  // The offers on the website and at checkout: a free trial of Pro, and the founding price for the first venues to pay.
+  const foundingLeft = () => stripe?.founding?.monthly && stripe?.founding?.yearly ? Math.max(0, (stripe.foundingPlaces ?? 20) - one('SELECT COUNT(*) n FROM venues WHERE founding=1').n) : 0;
+  const trialDays = () => stripe?.trialDays ?? 14;
   const planOf = v => v.plan === 'pro' && (v.plan_until === null || v.plan_until > now()) ? 'pro' : 'free';
   // Only BeerMat Pro venues are on the map, in quiz listings and on public venue pages: they're the pubs running
   // BeerMat quizzes. A venue's operator and admins still see it, to get it ready before it goes Pro.
@@ -585,6 +594,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       }
 
       // ---- Buying BeerMat Pro on the website: a Stripe Checkout page for the venue's subscription ----
+      if (method === 'GET' && p === '/v1/offers') return send(200, {trialDays: stripe ? trialDays() : 0, founding: {places: stripe?.foundingPlaces ?? 20, left: foundingLeft()}});
       if (method === 'POST' && p === '/v1/checkout') {
         limit('checkout:' + ip);
         check(stripe?.secretKey && stripe.prices, 'Payments aren’t set up yet. Email us instead.', 503);
@@ -599,11 +609,16 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         check(place, 'That postcode wasn’t found. Check it and try again.');
         const town = (text(input.town, 80, {name: 'Town'}) || place.admin_district || place.parish || 'Unknown').slice(0, 80);
         const site = stripe.siteUrl || 'https://beermatquiz.co.uk';
-        const session = await stripeApi('POST', 'checkout/sessions', {mode: 'subscription', line_items: [{price: stripe.prices[input.interval], quantity: 1}],
+        // The founding price while places are left; a free trial (no card asked) unless this email has had a venue before.
+        const founding = foundingLeft() > 0, trial = trialDays() > 0 && !one('SELECT 1 FROM accounts a JOIN venues v ON v.owner=a.id WHERE a.email=?', buyer);
+        const session = await stripeApi('POST', 'checkout/sessions', {mode: 'subscription', line_items: [{price: (founding ? stripe.founding : stripe.prices)[input.interval], quantity: 1}],
           // Never Stripe's Managed Payments (merchant of record, 3.5% more), even if the account turns it on by default.
           managed_payments: {enabled: false},
           customer_email: buyer, allow_promotion_codes: true, success_url: `${site}/pro/thanks`, cancel_url: `${site}/pro`,
-          metadata: {venue, contact, address: street, postcode: place.postcode, town, lat: String(place.latitude), lon: String(place.longitude)}, subscription_data: {metadata: {venue}}});
+          ...(trial && {payment_method_collection: 'if_required'}),
+          metadata: {venue, contact, address: street, postcode: place.postcode, town, lat: String(place.latitude), lon: String(place.longitude), founding: founding ? '1' : '0'},
+          // A trial ends by itself if no card was added by then: the venue goes back to Free, nothing is charged.
+          subscription_data: {metadata: {venue}, ...(trial && {trial_period_days: trialDays(), trial_settings: {end_behavior: {missing_payment_method: 'cancel'}}})}});
         return send(200, {url: session.url});
       }
 
@@ -991,8 +1006,10 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         check(v, 'Register this laptop with your venue first (desk: Venue)', 403);
         if (account?.admin && planOf(v) !== 'pro') return send(200, {licence: signLicence({plan: 'pro', venue: v.id, venueName: v.name, venueKey: input.venueKey, issued: now(), expires: now() + month0 + grace0, paidUntil: null}, licenceKey)});
         const plan = planOf(v), month = 31 * 86400000, grace = 14 * 86400000;
-        const expires = (plan === 'pro' ? Math.min(v.plan_until ?? Infinity, now() + month) : now() + month) + grace;
-        return send(200, {licence: signLicence({plan, venue: v.id, venueName: v.name, venueKey: input.venueKey, issued: now(), expires, paidUntil: plan === 'pro' ? v.plan_until : null}, licenceKey)});
+        // A free trial ends when it ends: no grace period after it (that's for paid venues off the internet).
+        const trial = plan === 'pro' && v.trial_until && v.trial_until > now();
+        const expires = (plan === 'pro' ? Math.min(v.plan_until ?? Infinity, now() + month) : now() + month) + (trial ? 0 : grace);
+        return send(200, {licence: signLicence({plan, venue: v.id, venueName: v.name, venueKey: input.venueKey, issued: now(), expires, paidUntil: plan === 'pro' ? v.plan_until : null, ...(trial && {trialUntil: v.trial_until})}, licenceKey)});
       }
 
       // ---- Venues and events (venue operators) ----
@@ -1055,7 +1072,9 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         // The venue's operator manages its subscription (card, monthly or yearly, cancelling) on Stripe's own page.
         if (method === 'POST' && parts[2] === 'billing' && parts.length === 3) {
           const v = myVenue(parts[1]); check(v.stripe_customer, 'This venue’s plan isn’t paid by card. Email us to change it.', 404);
-          return send(200, {url: (await stripeApi('POST', 'billing_portal/sessions', {customer: v.stripe_customer, return_url: stripe.siteUrl || 'https://beermatquiz.co.uk'})).url});
+          // A founding venue's portal offers only the founding prices (and an ordinary venue's only the ordinary ones).
+          return send(200, {url: (await stripeApi('POST', 'billing_portal/sessions', {customer: v.stripe_customer, return_url: stripe.siteUrl || 'https://beermatquiz.co.uk',
+            ...(v.founding_offer && stripe.portalFounding && {configuration: stripe.portalFounding})})).url});
         }
         // Venues bought on the website wait for an admin before they're on the map.
         if (method === 'POST' && parts[2] === 'approve' && parts.length === 3) {
@@ -1175,7 +1194,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     backupDir: process.env.BACKUP_DIR || '', trustProxy: process.env.TRUST_PROXY === '1', licenceKey: process.env.LICENCE_KEY_FILE && existsSync(process.env.LICENCE_KEY_FILE) ? readFileSync(process.env.LICENCE_KEY_FILE, 'utf8').trim() : '',
     publicUrl: process.env.PUBLIC_URL || '', adminEmail: process.env.ADMIN_EMAIL || '',
     stripe: process.env.STRIPE_SECRET_KEY ? {secretKey: process.env.STRIPE_SECRET_KEY, webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '', siteUrl: process.env.SITE_URL || '',
-      prices: {monthly: process.env.STRIPE_PRICE_MONTHLY, yearly: process.env.STRIPE_PRICE_YEARLY}} : null, mail: process.env.RESEND_API_KEY ? resendMail(process.env.RESEND_API_KEY, process.env.MAIL_FROM || 'BeerMat <noreply@example.com>') : null,
+      prices: {monthly: process.env.STRIPE_PRICE_MONTHLY, yearly: process.env.STRIPE_PRICE_YEARLY},
+      // The founding price for the first venues to pay (none: no founding offer), its own customer portal, and the trial.
+      founding: process.env.STRIPE_PRICE_FOUNDING_MONTHLY ? {monthly: process.env.STRIPE_PRICE_FOUNDING_MONTHLY, yearly: process.env.STRIPE_PRICE_FOUNDING_YEARLY} : null,
+      portalFounding: process.env.STRIPE_PORTAL_FOUNDING || '', foundingPlaces: Number(process.env.STRIPE_FOUNDING_PLACES || 20), trialDays: Number(process.env.STRIPE_TRIAL_DAYS ?? 14)} : null, mail: process.env.RESEND_API_KEY ? resendMail(process.env.RESEND_API_KEY, process.env.MAIL_FROM || 'BeerMat <noreply@example.com>') : null,
     // Shared themes' browser previews, when this server has Playwright's Chromium (online/preview.js); none otherwise.
     renderPreview: await import('./preview.js').then(m => m.browserPreview()).catch(e => {console.log('Theme browser previews off:', e.message); return null;}),
     drawPreviews: await import('./qt-preview.js').then(m => m.qtPreviews()).catch(e => {console.log('Theme TV and app pictures off:', e.message); return null;})});

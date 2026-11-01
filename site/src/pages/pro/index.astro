@@ -1,14 +1,20 @@
 ---
 import Page from '../../layouts/Page.astro';
-import {ONLINE, PRICE} from '../../consts';
-// Buying BeerMat Pro: the pub's details here, then Stripe's own payment page (BeerMat Online starts the checkout and
-// sets the venue up when Stripe says it's paid).
+import {ONLINE, PRICE, TRIAL_DAYS, FOUNDING, SETUP_PRICE, CONTACT} from '../../consts';
+// Buying BeerMat Pro: the pub's details here, then Stripe's own page (BeerMat Online starts the checkout and sets the
+// venue up). A new venue tries Pro free first, with no card; the first venues to pay keep the founding price, which
+// /v1/offers counts down (the founding prices show until it says the places have gone).
 ---
-<Page title="Get BeerMat Pro" description="BeerMat Pro for your pub: unlimited questions and teams, and your quiz nights on the BeerMat map.">
+<Page title="Try BeerMat Pro free" description={`Try BeerMat Pro free for ${TRIAL_DAYS} days, no card needed: host live pub quizzes with real teams on their phones. The first ${FOUNDING.places} venues keep ${FOUNDING.monthly} a month for life.`}>
 	<section class="wrap grid gap-10 py-10 lg:grid-cols-[1fr_1.1fr]">
 		<div>
 			<p class="eyebrow">BeerMat Pro</p>
-			<h1 class="text-4xl sm:text-5xl">Get BeerMat Pro for your pub</h1>
+			<h1 class="text-4xl sm:text-5xl">Try BeerMat Pro free for {TRIAL_DAYS} days</h1>
+			<p class="mt-4 text-lg">No card needed to start. Run real quiz nights with real teams; add a card before the trial ends to keep Pro, or it goes back to Free and you pay nothing.</p>
+			<div id="founding" class="card mt-6 border-amber/60 !p-5">
+				<p class="mb-1 font-bold text-amber">Founding venues: {FOUNDING.monthly} a month for life</p>
+				<p class="mb-0 text-muted">The first {FOUNDING.places} venues to pay keep {FOUNDING.monthly} a month ({FOUNDING.yearly} a year) for as long as they stay with us, instead of {PRICE.monthly} ({PRICE.yearly}). <span id="foundingLeft"></span></p>
+			</div>
 			<ul class="mt-6 space-y-3 text-lg text-muted">
 				<li>✓ Host live quizzes: real teams playing on their phones, with real answers, buzzers, scoring and leaderboards</li>
 				<li>✓ As many teams as the room holds (Free rehearses with simulated teams, and real phones only test the connection)</li>
@@ -19,13 +25,17 @@ import {ONLINE, PRICE} from '../../consts';
 				<li>✓ Works offline on quiz night once it’s set up</li>
 				<li>✓ Cancel any time from your quiz desk</li>
 			</ul>
-			<p class="mt-6 text-muted">Payment is by card through Stripe. You’ll get an email to set up your account, then download BeerMat for the quiz laptop.</p>
+			<h2 class="mt-8 text-2xl">The first-month guarantee</h2>
+			<p class="text-muted">If BeerMat Pro isn’t right for your pub, email us within 30 days of your first payment and we’ll refund it in full. No forms.</p>
+			<h2 class="mt-6 text-2xl">Rather we set it up?</h2>
+			<p class="text-muted">For {SETUP_PRICE} we’ll get BeerMat going with you: the quiz laptop, the Wi-Fi, the TV and your first quiz, by video call or in person where we can reach you. <a href={`mailto:${CONTACT}?subject=BeerMat%20set-up`}>Email us to book it</a>.</p>
+			<p class="mt-6 text-muted">Payments are by card through Stripe. You’ll get an email to set up your account, then download BeerMat for the quiz laptop. <a href="/compare">How BeerMat compares</a>.</p>
 		</div>
 		<form id="buy" class="card space-y-4">
 			<fieldset class="grid gap-3 sm:grid-cols-2">
 				<legend class="mb-2 font-bold text-white">Choose how to pay</legend>
-				<label class="card !p-4 flex cursor-pointer gap-3 has-[:checked]:border-amber"><input type="radio" name="interval" value="monthly" checked class="mt-1 accent-amber" /><span><strong class="text-white">{PRICE.monthly} a month</strong><br /><span class="text-sm text-muted">Cancel any time</span></span></label>
-				<label class="card !p-4 flex cursor-pointer gap-3 has-[:checked]:border-amber"><input type="radio" name="interval" value="yearly" class="mt-1 accent-amber" /><span><strong class="text-white">{PRICE.yearly} a year</strong><br /><span class="text-sm text-muted">Two months free</span></span></label>
+				<label class="card !p-4 flex cursor-pointer gap-3 has-[:checked]:border-amber"><input type="radio" name="interval" value="monthly" checked class="mt-1 accent-amber" /><span><strong class="text-white" data-founding={FOUNDING.monthly} data-usual={PRICE.monthly}>{FOUNDING.monthly} a month</strong><br /><span class="text-sm text-muted">Cancel any time</span></span></label>
+				<label class="card !p-4 flex cursor-pointer gap-3 has-[:checked]:border-amber"><input type="radio" name="interval" value="yearly" class="mt-1 accent-amber" /><span><strong class="text-white" data-founding={FOUNDING.yearly} data-usual={PRICE.yearly}>{FOUNDING.yearly} a year</strong><br /><span class="text-sm text-muted">Two months free</span></span></label>
 			</fieldset>
 			<label class="block font-semibold">Pub name<input name="venue" required maxlength="120" autocomplete="organization" class="field" /></label>
 			<label class="block font-semibold">Street address <span class="font-normal text-muted">(optional)</span><input name="address" maxlength="200" autocomplete="address-line1" class="field" /></label>
@@ -33,7 +43,8 @@ import {ONLINE, PRICE} from '../../consts';
 			<label class="block font-semibold">Your name<input name="name" required maxlength="40" autocomplete="name" class="field" /></label>
 			<label class="block font-semibold">Your email<input name="email" type="email" required maxlength="200" autocomplete="email" class="field" /></label>
 			<label class="flex gap-3 text-sm text-muted"><input type="checkbox" required class="mt-1 accent-amber" /><span>I agree to the <a href="/terms" target="_blank">terms</a> and <a href="/privacy" target="_blank">privacy policy</a>.</span></label>
-			<button class="btn btn-primary w-full">Continue to payment</button>
+			<button class="btn btn-primary w-full">Start my free trial</button>
+			<p class="text-sm text-muted">Free for {TRIAL_DAYS} days, then the price above, unless you’ve tried Pro before. Stripe asks for a card only if there’s no trial to take.</p>
 			<p id="buyStatus" class="min-h-6 text-sm text-muted" role="status"></p>
 		</form>
 	</section>
@@ -43,9 +54,16 @@ import {ONLINE, PRICE} from '../../consts';
 <script>
 	const form = document.getElementById('buy') as HTMLFormElement, status = document.getElementById('buyStatus')!;
 	const online = JSON.parse(document.getElementById('online')!.textContent!) as string;
+	// How many founding places are left; once they've gone, the usual prices.
+	fetch(online + '/v1/offers').then(r => r.json()).then((offers: {founding: {places: number, left: number}}) => {
+		const left = offers.founding?.left ?? 0;
+		if (left > 0) {document.getElementById('foundingLeft')!.textContent = `${left} of ${offers.founding.places} founding places left.`; return;}
+		document.getElementById('founding')!.hidden = true;
+		document.querySelectorAll<HTMLElement>('[data-usual]').forEach(price => {price.textContent = price.textContent!.replace(price.dataset.founding!, price.dataset.usual!);});
+	}).catch(() => {});
 	form.addEventListener('submit', async e => {
 		e.preventDefault();
-		const button = form.querySelector('button')!; button.disabled = true; status.textContent = 'Taking you to the payment page…';
+		const button = form.querySelector('button')!; button.disabled = true; status.textContent = 'Taking you to Stripe…';
 		const data = Object.fromEntries(new FormData(form));
 		try {
 			const response = await fetch(online + '/v1/checkout', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});

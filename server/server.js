@@ -786,7 +786,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const plan = () => {
     if (fixedPlan) return {...edition(fixedPlan), venue: '', expires: null, paidUntil: null};
     const l = licence();
-    return {...edition(l?.plan), venue: l?.venueName || '', expires: l?.expires || null, paidUntil: l?.paidUntil || null};
+    return {...edition(l?.plan), venue: l?.venueName || '', expires: l?.expires || null, paidUntil: l?.paidUntil || null, trialUntil: l?.trialUntil || null};
   };
   const planOut = () => {const {has, ...out} = plan(); return out;};
   // ---- Live or rehearsal ----

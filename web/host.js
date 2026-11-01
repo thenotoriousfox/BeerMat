@@ -1339,7 +1339,7 @@ function renderPlan(plan) {
   $('planNote').hidden = !free;
   if (free) $('planNote').firstChild.textContent = 'BeerMat Free: make and rehearse quizzes as much as you like. Hosting a live quiz with real teams is BeerMat Pro.';
   $('planBadge').textContent = plan.name; $('planBadge').classList.toggle('pro', !free);
-  $('planInfo').textContent = !free ? `${plan.venue ? plan.venue + ' has BeerMat Pro' : 'BeerMat Pro'}${plan.paidUntil ? `, paid until ${longDate(plan.paidUntil)}` : ''}.${plan.expires ? ` This laptop holds it offline until ${longDate(plan.expires)}.` : ''}`
+  $('planInfo').textContent = !free ? `${plan.venue ? plan.venue + ' has BeerMat Pro' : 'BeerMat Pro'}${plan.trialUntil ? `, on a free trial until ${longDate(plan.trialUntil)} (add a card in billing to keep it)` : plan.paidUntil ? `, paid until ${longDate(plan.paidUntil)}` : ''}.${plan.expires ? ` This laptop holds it offline until ${longDate(plan.expires)}.` : ''}`
     : `${plan.venue ? plan.venue + ' is' : 'This laptop is'} on BeerMat Free: every format, rehearsals with simulated teams, and real phones joining to test the connection. Hosting live needs Pro.`;
 }
 $('planSee').onclick = () => chooseTab('settings:general');
