@@ -403,6 +403,65 @@ class TvStageTest(unittest.TestCase):
         self.assertTrue(red.red() > 200 and red.green() < 140 and red.blue() < 140, f'A is solid red: {red.name()}')
         self.assertTrue(blue.blue() > 200 and blue.red() < 120, f'B is solid blue: {blue.name()}')
 
+    def test_music_bingo_with_a_long_question_doesnt_overlap(self):
+        """A two-line question over music bingo's song, its last title and the reaction table: each line below the
+        other, none drawn over another, all on the screen (as on the website's screenshot)."""
+        names = ['Agatha Quiztie', 'Quiz Team Aguilera', 'Tequila Mockingbird', 'The Quizzly Bears', 'Universally Challenged']
+        self.show(state(q=question(type='musicbingo', options=[], text='Music bingo: dab each song as soon as you know it', round='Music bingo',
+                                   bingo={'played': 7, 'titles': ['Darts Final'], 'winners': [], 'board': False, 'music': True},
+                                   reactionTable={'song': 7, 'now': [{'name': n, 'ms': 700 * (i + 1)} for i, n in enumerate(names)],
+                                                  'leaders': [{'name': 'Agatha Quiztie', 'songs': 1}]})), 'reactions-long')
+        for _ in range(30):
+            app.processEvents(); time.sleep(0.02)
+        def items(item):
+            yield item
+            for child in item.childItems():
+                yield from items(child)
+        wanted = ['Song 7', 'Last revealed: Darts Final', 'Reactions · song 7', 'Universally Challenged']
+        boxes = {}
+        for item in items(self.stage):
+            text = item.property('text')
+            if isinstance(text, str) and item.property('visible') and item.property('opacity') and any(w in text for w in wanted):
+                # Both corners on the stage (what's inside is scaled to fit the screen).
+                p, q = item.mapToItem(self.stage, 0, 0), item.mapToItem(self.stage, item.property('contentWidth'), item.property('height'))
+                boxes[next(w for w in wanted if w in text)] = (p.x(), p.y(), q.x(), q.y())
+        self.assertEqual(sorted(boxes), sorted(wanted))
+        def apart(a, b):
+            return a[2] <= b[0] + 1 or b[2] <= a[0] + 1 or a[3] <= b[1] + 1 or b[3] <= a[1] + 1
+        for i, a in enumerate(wanted):
+            for b in wanted[i + 1:]:
+                self.assertTrue(apart(boxes[a], boxes[b]), f'{a} {boxes[a]} drawn over {b} {boxes[b]}')
+        self.assertLessEqual(max(b[3] for b in boxes.values()), 1080, 'all of it on the screen')
+
+    def test_a_long_question_leaves_every_round_on_the_screen(self):
+        """Every round format with a question long enough to take two or three lines: nothing that shows runs off the
+        bottom of the TV."""
+        long = 'In which year did the first team to win the competition three times in a row finally lift the trophy at home?'
+        def items(item):
+            yield item
+            for child in item.childItems():
+                yield from items(child)
+        for name, s in CASES.items():
+            q = s.get('question')
+            if not q or s.get('view') not in (None, 'question'):
+                continue
+            self.show({**s, 'question': {**q, 'text': long}})
+            for _ in range(20):
+                app.processEvents(); time.sleep(0.02)
+            view = next(i for i in items(self.stage) if i.objectName() == 'questionView')
+            over = []
+            for item in items(view):
+                text = item.property('text')
+                try:
+                    shows = item.property('visible') and item.property('opacity') and item.property('height') > 0
+                except TypeError:
+                    continue
+                if shows and isinstance(text, str) and text.strip():
+                    bottom = item.mapToItem(self.stage, 0, item.property('height')).y()
+                    if bottom > 1080 + 1:
+                        over.append((text[:30], round(bottom)))
+            self.assertEqual(over, [], f'{name}: past the bottom of the TV')
+
     def test_wheel_spins_once_for_a_spin_seen_happening(self):
         spin = self.stage.findChild(QObject, 'wheelSpin')
         self.show(state('join'))

@@ -224,6 +224,7 @@ Item {
             // Question
             Item {
                 id: questionView
+                objectName: "questionView"
                 anchors.fill: parent
                 // The look's panel behind the question (tv.json's panel), as the web TV's card.
                 Rectangle {
@@ -263,8 +264,10 @@ Item {
                         Layout.fillWidth: true
                         text: questionView.q ? questionView.q.text : root.t("Waiting for the quizmaster")
                         color: root.pal.text; font.family: Theme.display; font.weight: Font.Bold; wrapMode: Text.WordWrap
-                        // As big as the web TV's: the room reads the question from the back.
-                        font.pixelSize: text.length > 140 ? 66 : text.length > 80 ? 84 : 104
+                        // As big as the web TV's when answers or a short line follow; a round with a lot under the question
+                        // (a board, a picture, a list, a grid) keeps it smaller so all of it fits.
+                        readonly property bool roomy: !questionView.q || ["choice", "vote", "multi", "text", "letter", "number", "nearest", "buzzer"].includes(questionView.q.type) && !questionView.isImage
+                        font.pixelSize: roomy ? (text.length > 140 ? 66 : text.length > 80 ? 84 : 104) : (text.length > 140 ? 54 : text.length > 80 ? 66 : 78)
                     }
                     // Time left, from the server's deadline.
                     RowLayout {
@@ -484,50 +487,59 @@ Item {
                                 }
                             }
                             }
-                            // Bingo: the last ball and the board.
-                            Column {
-                                id: bingoBox
-                                readonly property var g: questionView.q ? questionView.q.bingo : null
-                                visible: !!g
-                                spacing: 16
+                            // The ball (or song) and, for music bingo, the reaction table beside it rather than under it.
+                            RowLayout {
+                                visible: !!questionView.q && !!questionView.q.bingo
                                 Layout.fillWidth: true; Layout.fillHeight: visible; Layout.preferredHeight: 300; Layout.verticalStretchFactor: 1000
-                                // The board across the width, its numbers as tall as the space under the ball allows.
-                                readonly property real cellWidth: Math.max(54, Math.min(140, (width - 14 * 6) / 15))
-                                readonly property real cellHeight: Math.max(42, Math.min(cellWidth * 0.75, (height - ball.height - phrase.height - called.height - 4 * spacing - 5 * 6) / 6))
-                                Text { id: ball; text: !parent.g ? "" : parent.g.music ? (parent.g.played ? "🎵 " + root.t("Song {n}", {n: parent.g.played}) : "🎵") : (parent.g.last !== null && parent.g.last !== undefined ? parent.g.last : "–")
-                                       color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 160; font.weight: Font.Bold }
-                                Text { id: phrase; text: !parent.g ? "" : parent.g.music ? (parent.g.titles && parent.g.titles.length ? root.t("Last revealed: {title}", {title: parent.g.titles[parent.g.titles.length - 1]}) : "") : (root.settings.bingoPhrases && parent.g.phrase ? parent.g.phrase : "")
-                                       color: root.pal.text; font.pixelSize: 40 }
-                                Text { id: called; text: parent.g && parent.g.winners && parent.g.winners.length ? root.t("Winner: {names}", {names: parent.g.winners.map(w => w.name || w).join(", ")}) : parent.g && !parent.g.music ? root.t("{n} called", {n: parent.g.count || 0}) : ""
-                                       color: root.pal.muted; font.pixelSize: 34 }
-                                Grid {
-                                    visible: !!parent.g && !parent.g.music && !!parent.g.board
-                                    columns: 15; spacing: 6
-                                    Repeater {
-                                        model: 90
-                                        delegate: Rectangle {
-                                            required property int index
-                                            readonly property bool called: !!questionView.q && !!questionView.q.bingo && (questionView.q.bingo.called || []).includes(index + 1)
-                                            width: bingoBox.cellWidth; height: bingoBox.cellHeight; radius: 8
-                                            color: called ? root.pal.gold : Qt.rgba(1, 1, 1, 0.06)
-                                            Text { anchors.centerIn: parent; text: index + 1; color: parent.called ? root.pal.onAccent : root.pal.faint; font.pixelSize: Math.max(20, bingoBox.cellHeight * 0.48); font.weight: Font.Bold }
+                                spacing: 60
+                                // Bingo: the last ball and the board.
+                                Column {
+                                    id: bingoBox
+                                    readonly property var g: questionView.q ? questionView.q.bingo : null
+                                    visible: !!g
+                                    spacing: 16
+                                    Layout.fillWidth: true; Layout.fillHeight: visible; Layout.alignment: Qt.AlignTop
+                                    // Never squeezed below the ball and its lines.
+                                    Layout.minimumHeight: visible ? ball.height + phrase.height + called.height + 2 * spacing : 0
+                                    // The board across the width, its numbers as tall as the space under the ball allows.
+                                    readonly property real cellWidth: Math.max(54, Math.min(140, (width - 14 * 6) / 15))
+                                    readonly property real cellHeight: Math.max(42, Math.min(cellWidth * 0.75, (height - ball.height - phrase.height - called.height - 4 * spacing - 5 * 6) / 6))
+                                    Text { id: ball; text: !parent.g ? "" : parent.g.music ? (parent.g.played ? "🎵 " + root.t("Song {n}", {n: parent.g.played}) : "🎵") : (parent.g.last !== null && parent.g.last !== undefined ? parent.g.last : "–")
+                                           color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 160; font.weight: Font.Bold }
+                                    Text { id: phrase; text: !parent.g ? "" : parent.g.music ? (parent.g.titles && parent.g.titles.length ? root.t("Last revealed: {title}", {title: parent.g.titles[parent.g.titles.length - 1]}) : "") : (root.settings.bingoPhrases && parent.g.phrase ? parent.g.phrase : "")
+                                           color: root.pal.text; font.pixelSize: 40 }
+                                    Text { id: called; text: parent.g && parent.g.winners && parent.g.winners.length ? root.t("Winner: {names}", {names: parent.g.winners.map(w => w.name || w).join(", ")}) : parent.g && !parent.g.music ? root.t("{n} called", {n: parent.g.count || 0}) : ""
+                                           color: root.pal.muted; font.pixelSize: 34 }
+                                    Grid {
+                                        visible: !!parent.g && !parent.g.music && !!parent.g.board
+                                        columns: 15; spacing: 6
+                                        Repeater {
+                                            model: 90
+                                            delegate: Rectangle {
+                                                required property int index
+                                                readonly property bool called: !!questionView.q && !!questionView.q.bingo && (questionView.q.bingo.called || []).includes(index + 1)
+                                                width: bingoBox.cellWidth; height: bingoBox.cellHeight; radius: 8
+                                                color: called ? root.pal.gold : Qt.rgba(1, 1, 1, 0.06)
+                                                Text { anchors.centerIn: parent; text: index + 1; color: parent.called ? root.pal.onAccent : root.pal.faint; font.pixelSize: Math.max(20, bingoBox.cellHeight * 0.48); font.weight: Font.Bold }
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            // Music bingo's reaction table: who dabbed the song playing, quickest first.
-                            Column {
-                                readonly property var r: questionView.q ? questionView.q.reactionTable : null
-                                visible: !!r
-                                spacing: 8
-                                Text { text: parent.r ? root.t("Reactions · song {n}", {n: parent.r.song}) : ""; color: root.pal.teal; font.pixelSize: 34; font.weight: Font.Bold }
-                                Repeater {
-                                    model: parent.r ? parent.r.now.slice(0, 5) : []
-                                    delegate: Text { required property var modelData; required property int index
-                                                     text: `${index + 1}. ${modelData.name}  ${(modelData.ms / 1000).toFixed(1)}s`; color: index === 0 ? root.pal.goldHi : root.pal.text; font.pixelSize: 36; font.weight: Font.DemiBold }
+                                // Music bingo's reaction table: who dabbed the song playing, quickest first.
+                                Column {
+                                    readonly property var r: questionView.q ? questionView.q.reactionTable : null
+                                    visible: !!r
+                                    Layout.alignment: Qt.AlignTop; Layout.preferredWidth: 760
+                                    spacing: 8
+                                    Text { text: parent.r ? root.t("Reactions · song {n}", {n: parent.r.song}) : ""; color: root.pal.teal; font.pixelSize: 34; font.weight: Font.Bold }
+                                    Repeater {
+                                        model: parent.r ? parent.r.now.slice(0, 5) : []
+                                        delegate: Text { required property var modelData; required property int index
+                                                         text: `${index + 1}. ${modelData.name}  ${(modelData.ms / 1000).toFixed(1)}s`; color: index === 0 ? root.pal.goldHi : root.pal.text; font.pixelSize: 36; font.weight: Font.DemiBold }
+                                    }
+                                    Text { visible: !!parent.r && parent.r.leaders.length > 0; color: root.pal.muted; font.pixelSize: 28
+                                           text: parent.r ? root.t("Quickest on most songs") + ": " + parent.r.leaders.map(l => `${l.name} (${l.songs})`).join(" · ") : "" }
                                 }
-                                Text { visible: !!parent.r && parent.r.leaders.length > 0; color: root.pal.muted; font.pixelSize: 28
-                                       text: parent.r ? root.t("Quickest on most songs") + ": " + parent.r.leaders.map(l => `${l.name} (${l.songs})`).join(" · ") : "" }
                             }
                             // Sound clips game
                             Column {
