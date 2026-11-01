@@ -968,7 +968,14 @@ Item {
                         }
                     }
                 }
-                Text { anchors.horizontalCenter: parent.horizontalCenter; text: spotlight.shown ? spotlight.shown.names : ""; color: root.pal.text; font.family: Theme.display; font.pixelSize: 110; font.weight: Font.Bold }
+                // Joint leaders' names wrap within the screen, smaller the more there are.
+                Text {
+                    objectName: "spotlightNames"
+                    anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(implicitWidth, spotlight.width - 160)
+                    text: spotlight.shown ? spotlight.shown.names : ""; color: root.pal.text; font.family: Theme.display; font.weight: Font.Bold
+                    font.pixelSize: text.length <= 24 ? 110 : text.length <= 48 ? 84 : 64
+                    wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter; maximumLineCount: 3; elide: Text.ElideRight
+                }
                 Text { anchors.horizontalCenter: parent.horizontalCenter; text: spotlight.shown ? spotlight.shown.detail : ""; color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 56; font.weight: Font.Bold }
             }
         }

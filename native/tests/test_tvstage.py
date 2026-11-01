@@ -367,6 +367,21 @@ class TvStageTest(unittest.TestCase):
         self.show(state('leaderboard', teams=teams, reveal={'question': 1, 'shown': 4, 'rest': 2, 'leader': True, 'done': True, 'hidden': []}))
         self.assertEqual(shown(), ['Bears', 'Owls', 'Foxes', 'Cats'], 'then the full board')
 
+    def test_joint_leaders_names_stay_on_the_screen(self):
+        teams = [{'name': n, 'rank': 1, 'score': 6} for n in ['Agatha Quiztie', 'Les Quizerables', 'Tequila Mockingbird']] + [{'name': 'Owls', 'rank': 4, 'score': 2}]
+        self.show(state('leaderboard', teams=teams, reveal={'question': 99, 'shown': 1, 'rest': 0, 'leader': False, 'done': False, 'hidden': [t['name'] for t in teams[:3]]}))
+        self.show(state('leaderboard', teams=teams, reveal={'question': 99, 'shown': 4, 'rest': 0, 'leader': True, 'done': True, 'hidden': []}), 'spotlight-tie')
+        for _ in range(40):
+            app.processEvents(); time.sleep(0.02)
+        names = self.stage.findChild(QObject, 'spotlightNames')
+        self.assertIn('Tequila Mockingbird', names.property('text'))
+        left = names.mapToItem(self.stage, 0, 0).x()
+        self.assertGreaterEqual(left, 0)
+        self.assertLessEqual(left + names.property('width'), 1920)
+        self.assertLessEqual(names.property('contentWidth'), names.property('width') + 1, 'the names wrap rather than run off the screen')
+        spotlight = self.stage.findChild(QObject, 'spotlight')
+        spotlight.setProperty('shown', None); spotlight.setProperty('armedFor', None)
+
     def test_wheel_spins_once_for_a_spin_seen_happening(self):
         spin = self.stage.findChild(QObject, 'wheelSpin')
         self.show(state('join'))

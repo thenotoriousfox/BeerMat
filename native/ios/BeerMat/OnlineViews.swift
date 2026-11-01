@@ -19,6 +19,9 @@ struct ProfileView: View {
     @State private var name = ""
     @State private var confirmDelete = false
     @State private var export: String?
+    /// The quizmaster's own phone: hosting needs the venue's account, or a code from the desk.
+    var runTheNight: (() -> Void)?
+    init(runTheNight: (() -> Void)? = nil) { self.runTheNight = runTheNight }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
@@ -49,6 +52,7 @@ struct ProfileView: View {
                     if online.outbox > 0 { Text(t("{n} result(s) kept on this phone: sign in to add them.", ["n": online.outbox])).foregroundStyle(Brand.goldHi) }
                 }
                 OnlineMessage()
+                if let runTheNight, !online.hosts { Button(t("Quizmaster? Run the night from this phone"), action: runTheNight).padding(.top, 12) }
             }.padding(24)
         }
     }

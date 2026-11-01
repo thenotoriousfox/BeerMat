@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		FF5E16F046D4BF0E71C5EFEB /* BeerMatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57EAF66B708E34FCF15A44F8 /* BeerMatApp.swift */; };
 		C6193F0B53662AE07838EDB3 /* ConnectViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 983FB6B68D71B84AF357938B /* ConnectViews.swift */; };
+		FB748A10334E8CAC11C8C53A /* DeckModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7455E846F183C4D0AFD6305 /* DeckModel.swift */; };
+		168133215200FAE75EF93E68 /* DeckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1372E409BD15FAAB98B254F4 /* DeckView.swift */; };
 		86CD39DFA85E55D121D00E9A /* Formats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CB69126E2F32F9C8879DA53 /* Formats.swift */; };
 		ACDC76E2E3844154338E47CE /* I18n.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10A0F5012C2FF3DF1617082 /* I18n.swift */; };
 		C97D075D8CAAA1412B8FD8FA /* Identity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 880272B1232EBE55D66D0866 /* Identity.swift */; };
@@ -17,6 +19,7 @@
 		C4E43E716504E214F82F11D3 /* PlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4054DD82EBE1A0B50BE9288 /* PlayView.swift */; };
 		C93F62896D53691F8004AB66 /* PlayerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17CC5B5DE8DAB935D7DE4DA3 /* PlayerModel.swift */; };
 		89CD861F5179090A91C9E590 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 715544AB5BEE1710D2D24CCD /* Theme.swift */; };
+		8F071386B9DB58B88B66DD1E /* Deck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93ADD242CF244AF479E2460E /* Deck.swift */; };
 		175372F8FF19CA46A0629217 /* OnlineClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7EDE1E4265BC7CE267A738 /* OnlineClient.swift */; };
 		824B1EFAECB440714C6D85B0 /* Protocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA82F1400160E8D1E89D553 /* Protocol.swift */; };
 		DCA9A29548AD00DD58319A60 /* QuizServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723B713B67C2EFF1B15DBFF3 /* QuizServer.swift */; };
@@ -33,6 +36,8 @@
 		9C06A4676F6928C0F2B0C4D4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		57EAF66B708E34FCF15A44F8 /* BeerMatApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerMatApp.swift; sourceTree = "<group>"; };
 		983FB6B68D71B84AF357938B /* ConnectViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectViews.swift; sourceTree = "<group>"; };
+		B7455E846F183C4D0AFD6305 /* DeckModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeckModel.swift; sourceTree = "<group>"; };
+		1372E409BD15FAAB98B254F4 /* DeckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeckView.swift; sourceTree = "<group>"; };
 		3CB69126E2F32F9C8879DA53 /* Formats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formats.swift; sourceTree = "<group>"; };
 		D10A0F5012C2FF3DF1617082 /* I18n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = I18n.swift; sourceTree = "<group>"; };
 		880272B1232EBE55D66D0866 /* Identity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Identity.swift; sourceTree = "<group>"; };
@@ -41,6 +46,7 @@
 		E4054DD82EBE1A0B50BE9288 /* PlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayView.swift; sourceTree = "<group>"; };
 		17CC5B5DE8DAB935D7DE4DA3 /* PlayerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerModel.swift; sourceTree = "<group>"; };
 		715544AB5BEE1710D2D24CCD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		93ADD242CF244AF479E2460E /* Deck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Deck.swift; sourceTree = "<group>"; };
 		BD7EDE1E4265BC7CE267A738 /* OnlineClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineClient.swift; sourceTree = "<group>"; };
 		0AA82F1400160E8D1E89D553 /* Protocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Protocol.swift; sourceTree = "<group>"; };
 		723B713B67C2EFF1B15DBFF3 /* QuizServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizServer.swift; sourceTree = "<group>"; };
@@ -78,6 +84,8 @@
 			children = (
 				57EAF66B708E34FCF15A44F8 /* BeerMatApp.swift */,
 				983FB6B68D71B84AF357938B /* ConnectViews.swift */,
+				B7455E846F183C4D0AFD6305 /* DeckModel.swift */,
+				1372E409BD15FAAB98B254F4 /* DeckView.swift */,
 				3CB69126E2F32F9C8879DA53 /* Formats.swift */,
 				D10A0F5012C2FF3DF1617082 /* I18n.swift */,
 				880272B1232EBE55D66D0866 /* Identity.swift */,
@@ -99,6 +107,7 @@
 		2C8482DCC488C2776CB797FA /* BeerMatKit */ = {
 			isa = PBXGroup;
 			children = (
+				93ADD242CF244AF479E2460E /* Deck.swift */,
 				BD7EDE1E4265BC7CE267A738 /* OnlineClient.swift */,
 				0AA82F1400160E8D1E89D553 /* Protocol.swift */,
 				723B713B67C2EFF1B15DBFF3 /* QuizServer.swift */,
@@ -185,6 +194,8 @@
 			files = (
 				FF5E16F046D4BF0E71C5EFEB /* BeerMatApp.swift in Sources */,
 				C6193F0B53662AE07838EDB3 /* ConnectViews.swift in Sources */,
+				FB748A10334E8CAC11C8C53A /* DeckModel.swift in Sources */,
+				168133215200FAE75EF93E68 /* DeckView.swift in Sources */,
 				86CD39DFA85E55D121D00E9A /* Formats.swift in Sources */,
 				ACDC76E2E3844154338E47CE /* I18n.swift in Sources */,
 				C97D075D8CAAA1412B8FD8FA /* Identity.swift in Sources */,
@@ -193,6 +204,7 @@
 				C4E43E716504E214F82F11D3 /* PlayView.swift in Sources */,
 				C93F62896D53691F8004AB66 /* PlayerModel.swift in Sources */,
 				89CD861F5179090A91C9E590 /* Theme.swift in Sources */,
+				8F071386B9DB58B88B66DD1E /* Deck.swift in Sources */,
 				175372F8FF19CA46A0629217 /* OnlineClient.swift in Sources */,
 				824B1EFAECB440714C6D85B0 /* Protocol.swift in Sources */,
 				DCA9A29548AD00DD58319A60 /* QuizServer.swift in Sources */,

@@ -1,0 +1,32 @@
+---
+// A short, silent, looping video of the real app (scripts/site-videos-native.py records them from the Qt TV). It plays
+// only while on screen; with reduced motion it stays on its poster frame, with controls to play it by hand. AV1 first
+// (10-bit, so dark gradients stay smooth), H.264 for browsers without it.
+interface Props {name: string; alt: string; width: number; height: number; class?: string; eager?: boolean;}
+const {name, alt, width, height, class: className = '', eager = false} = Astro.props;
+---
+<figure class:list={['clip', className]}>
+	<video data-clip muted loop playsinline preload={eager ? 'auto' : 'none'} poster={`/clips/${name}.webp`} width={width} height={height} aria-label={alt} class="block h-auto w-full">
+		<source src={`/clips/${name}.webm`} type='video/webm; codecs="av01.0.05M.10"' />
+		<source src={`/clips/${name}.mp4`} type="video/mp4" />
+	</video>
+</figure>
+
+<script>
+	const still = matchMedia('(prefers-reduced-motion: reduce)');
+	const clips = [...document.querySelectorAll<HTMLVideoElement>('video[data-clip]')];
+	const seen = new IntersectionObserver(entries => {
+		for (const {target, isIntersecting} of entries) {
+			const video = target as HTMLVideoElement;
+			if (still.matches) continue;
+			if (isIntersecting) video.play().catch(() => {}); else video.pause();
+		}
+	}, {threshold: 0.35});
+	const apply = () => clips.forEach(video => {
+		video.controls = still.matches;
+		if (still.matches) video.pause();
+	});
+	apply();
+	still.addEventListener('change', apply);
+	clips.forEach(video => seen.observe(video));
+</script>

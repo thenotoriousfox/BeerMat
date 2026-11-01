@@ -138,6 +138,11 @@ class OnlineClient(context: Context, private val identity: Identity = Identity(c
         }
     }
 
+    /** The venues this account runs (a phone signed in with one, or an admin's, can host that venue's quiz). */
+    suspend fun myVenues() = api("GET", "/v1/me/venues").getJSONArray("venues")
+    /** A ticket for this phone to host the quiz on the laptop with [venueKey]: the venue's own account, or an admin. */
+    suspend fun deckTicket(venueKey: String) = api("POST", "/v1/deck-tickets", JSONObject().put("venueKey", venueKey)).getJSONObject("ticket")
+
     suspend fun venue(id: String) = api("GET", "/v1/venues/" + URLEncoder.encode(id, "UTF-8"))
     suspend fun favourites() = api("GET", "/v1/me/favourites")
     suspend fun favourite(id: String, on: Boolean) = api(if (on) "PUT" else "DELETE", "/v1/me/favourites/" + URLEncoder.encode(id, "UTF-8"))

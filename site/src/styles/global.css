@@ -66,6 +66,7 @@
 	details.menu > summary::-webkit-details-marker { display: none; }
 	/* Screenshots: click (or Enter) to enlarge. */
 	.shot { position: relative; display: block; width: 100%; padding: 0; border: 1px solid rgba(255, 243, 214, .15); border-radius: 1rem; overflow: hidden; background: #0d0720; cursor: zoom-in; box-shadow: 0 24px 60px -24px rgba(0, 0, 0, .7); }
+	.clip { margin: 0; border: 1px solid rgba(255, 243, 214, .15); border-radius: 1rem; overflow: hidden; background: #0d0720; box-shadow: 0 24px 60px -24px rgba(0, 0, 0, .7); }
 	.shot img { transition: transform .3s ease; }
 	.shot:hover img { transform: scale(1.015); }
 	.shot-zoom { position: absolute; right: .6rem; bottom: .6rem; display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 999px; background: rgba(20, 11, 46, .85); color: var(--color-cream); border: 1px solid rgba(255, 243, 214, .25); opacity: .85; transition: opacity .2s; }
