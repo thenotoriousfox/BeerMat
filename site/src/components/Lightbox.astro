@@ -12,20 +12,22 @@
 		</button>
 	</div>
 	<div class="lightbox-stage">
-		<button type="button" class="lightbox-btn lightbox-nav" data-step="-1" aria-label="Previous screenshot">
+		<button type="button" class="lightbox-btn lightbox-nav" data-step="-1" aria-label="Previous">
 			<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7" /></svg>
 		</button>
 		<img id="lightbox-image" alt="" />
-		<button type="button" class="lightbox-btn lightbox-nav" data-step="1" aria-label="Next screenshot">
+		<video id="lightbox-video" muted loop playsinline controls hidden></video>
+		<button type="button" class="lightbox-btn lightbox-nav" data-step="1" aria-label="Next">
 			<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7" /></svg>
 		</button>
 	</div>
-	<p class="lightbox-hint">Use ← → to move between screenshots, Esc to close.</p>
+	<p class="lightbox-hint">Use ← → to move between screenshots and clips, Esc to close.</p>
 </dialog>
 
 <script>
 	const dialog = document.getElementById('lightbox') as HTMLDialogElement;
 	const image = document.getElementById('lightbox-image') as HTMLImageElement;
+	const video = document.getElementById('lightbox-video') as HTMLVideoElement;
 	const caption = document.getElementById('lightbox-caption')!;
 	const count = document.getElementById('lightbox-count')!;
 	const shots = [...document.querySelectorAll<HTMLButtonElement>('[data-shot]')];
@@ -33,11 +35,24 @@
 
 	function show(i: number) {
 		index = (i + shots.length) % shots.length;
-		const shot = shots[index].dataset;
-		image.src = shot.shot!; image.alt = shot.caption!;
-		image.width = Number(shot.width); image.height = Number(shot.height);
+		const shot = shots[index].dataset, tall = Number(shot.height) > Number(shot.width);
+		// A clip plays large (still, with its controls, for reduced motion); a screenshot shows as a picture.
+		image.hidden = !!shot.video; video.hidden = !shot.video;
+		video.pause();
+		if (shot.video) {
+			image.removeAttribute('src');
+			video.poster = shot.shot!; video.setAttribute('aria-label', shot.caption!);
+			video.width = Number(shot.width); video.height = Number(shot.height);
+			video.replaceChildren(...[['webm', 'video/webm; codecs="av01.0.05M.10"'], ['mp4', 'video/mp4']].map(([ext, type]) => Object.assign(document.createElement('source'), {src: `${shot.video}.${ext}`, type})));
+			video.load();
+			if (!matchMedia('(prefers-reduced-motion: reduce)').matches) video.play().catch(() => {});
+		} else {
+			video.removeAttribute('poster'); video.replaceChildren(); video.load();
+			image.src = shot.shot!; image.alt = shot.caption!;
+			image.width = Number(shot.width); image.height = Number(shot.height);
+		}
 		// Tall phone screenshots and wide TV ones each fill the screen their own way.
-		image.classList.toggle('is-tall', Number(shot.height) > Number(shot.width));
+		image.classList.toggle('is-tall', tall); video.classList.toggle('is-tall', tall);
 		caption.textContent = shot.caption!;
 		count.textContent = shots.length > 1 ? `${index + 1} of ${shots.length}` : '';
 	}
@@ -61,7 +76,7 @@
 	});
 	// A click on the dark backdrop (not the picture or the buttons) closes it.
 	dialog.addEventListener('click', e => {if (e.target === dialog || (e.target as HTMLElement).classList.contains('lightbox-stage')) dialog.close();});
-	dialog.addEventListener('close', () => {unlock(); opener?.focus({preventScroll: true}); image.removeAttribute('src');});
+	dialog.addEventListener('close', () => {unlock(); opener?.focus({preventScroll: true}); image.removeAttribute('src'); video.pause(); video.replaceChildren(); video.load();});
 	// Swiping left or right on a phone.
 	let startX: number | null = null;
 	dialog.addEventListener('touchstart', e => {startX = e.touches[0].clientX;}, {passive: true});

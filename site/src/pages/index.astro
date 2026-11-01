@@ -10,9 +10,9 @@ const screens = [
 	{n: '1', where: 'On the telly', title: 'The quiz on the big screen', text: 'The question, the clock and a QR code to join, big enough for the back of the room. A second screen, a projector, the pub’s TV, or another computer wired to the TVs.',
 		shot: {src: '/shots/tv-question.webp', alt: 'The TV during a question: four coloured answers and the time left', ...TV, retina: true, sizes: '(min-width: 1024px) 420px, 100vw'}},
 	{n: '2', where: 'On every table', title: 'Teams play on a phone', text: 'Heads together round one phone, then a tap to answer. They play in the browser: no app, no account, no sign-up.',
-		shot: {src: '/shots/phone-choice.webp', alt: 'A team’s phone during a question, with four answers to tap', ...PHONE}, tall: true},
+		clip: {name: 'phone-play', alt: 'A team’s phone: the question arrives, they pick Mars and lock it in, then the answer and their point', width: 720, height: 1558}, tall: true},
 	{n: '3', where: 'Behind the bar', title: 'You run it from the desk', text: 'The next question is one big button. Answers are marked as they arrive, and you see which teams are in. Walking the room? Run the night from the BeerMat app on your phone.',
-		shot: {src: '/shots/desk.webp', alt: 'The quizmaster’s desk: the live question, which teams have answered, and what’s up next', ...DESK, retina: true, sizes: '(min-width: 1024px) 420px, 100vw'}},
+		clip: {name: 'desk-question', alt: 'The quizmaster’s desk: Start next question, answers counting in team by team, Close answers, then the reveal', width: 1440, height: 900}},
 ];
 const formatShots = [
 	['phone-wordsnake', 'Word trail', 'Trace the answer through a grid of letters'],
@@ -94,7 +94,7 @@ const reasons = [
 				{screens.map(s => (
 					<li class="list-none lg:row-span-2 lg:grid lg:grid-rows-subgrid">
 						<div class:list={['lg:self-end', s.tall && 'mx-auto max-w-[13rem] lg:max-w-none']}>
-							<Shot {...s.shot} />
+							{s.clip ? <Clip {...s.clip} /> : <Shot {...s.shot!} />}
 						</div>
 						<div>
 							<p class="eyebrow mt-5 flex items-center gap-2"><span class="grid h-6 w-6 place-items-center rounded-full bg-amber text-xs text-night">{s.n}</span>{s.where}</p>
@@ -121,6 +121,19 @@ const reasons = [
 		<div class="grid grid-cols-6 items-end gap-4">
 			<div class="col-span-6 sm:col-span-4"><Clip name="tv-order" alt="A put-in-order question revealed on the TV: the planets slide into the right order and the teams who got it are named" width={1280} height={720} /></div>
 			<div class="col-span-6 sm:col-span-4 sm:col-start-3 sm:-mt-10"><Clip name="tv-leaderboard" alt="The leaderboard revealed on the TV a place at a time, from the bottom, then the winner in the spotlight" width={1280} height={720} /></div>
+		</div>
+	</section>
+
+	<!-- Run the night: the quizmaster's own phone. -->
+	<section class="py-20">
+		<div class="wrap grid items-center gap-12 lg:grid-cols-[1.1fr_.9fr]">
+			<div>
+				<p class="eyebrow">Run the night</p>
+				<h2 class="text-3xl text-balance sm:text-4xl">Host from your phone, anywhere in the room</h2>
+				<p class="max-w-xl text-muted">The BeerMat app on Android and iPhone runs the quiz on the laptop: start the next question, close answers, reveal with a drum roll, play the clips and keep an eye on the leaderboard. The laptop keeps the TV and the sound; marking and settings stay on its desk.</p>
+				<p class="max-w-xl text-muted">Sign in with your venue’s BeerMat account, or type the code the desk shows. It works on the quiz Wi-Fi or the pub’s own.</p>
+			</div>
+			<div class="mx-auto w-full max-w-[16rem]"><Clip name="phone-deck" alt="Run the night in the BeerMat app: Start next question, answers counting in, Close answers, then Reveal answer and the leaderboard" width={720} height={1558} class="!rounded-3xl border-white/20" /></div>
 		</div>
 	</section>
 

@@ -96,7 +96,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun refresh() {
         val s = server ?: return; val k = key ?: return
-        try { _ui.update { it.copy(deck = DeckState.parse(s.host(k, "state"))) } }
+        try {
+            val d = DeckState.parse(s.host(k, "state"))
+            _ui.update { it.copy(deck = d) }
+            // The answer appears when the TV's drum roll ends, which nothing announces: look again until it has.
+            if (d.question?.revealing == true) viewModelScope.launch { kotlinx.coroutines.delay(1000); refresh() }
+        }
         catch (e: QuizError) { if (e.status == 401 || e.status == 403) signedOut(t("The desk has taken this phone off. Sign in again to host.")) }
         catch (_: Exception) {}
     }

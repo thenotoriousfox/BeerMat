@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""The website's short videos of the TV (site/public/clips), recorded from BeerMat Desk's own TV (the Qt TV) as a quiz
-runs: made-up teams join and answer over the quiz API while the TV is grabbed frame by frame. Run it again whenever
-the TV changes:
+"""The website's short videos of the TV and the desk (site/public/clips), recorded from BeerMat Desk (the Qt desk and
+TV) as a quiz runs: made-up teams join and answer over the quiz API while the windows are grabbed frame by frame. Run it
+again whenever the desk or TV changes:
 
     python3 scripts/site-videos-native.py
 
@@ -22,15 +22,18 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'native'))
 from PySide6.QtCore import QObject, QSettings, QUrl, Signal                       # noqa: E402
 from PySide6.QtGui import QFontDatabase, QGuiApplication               # noqa: E402
+from PySide6.QtQuickControls2 import QQuickStyle                       # noqa: E402
 from PySide6.QtQml import QQmlApplicationEngine                        # noqa: E402
 
 from beermat_desk import desk as desk_module, gradients               # noqa: E402
+from beermat_desk.screens import Screens                               # noqa: E402
 
 OUT, KEY, TICKET = ROOT / 'site' / 'public' / 'clips', 'video-quiz-key-0123456', 'video-desk-ticket-0123456'
 TEAMS = ['Agatha Quiztie', 'Les Quizerables', 'Quiz Team Aguilera', 'Tequila Mockingbird', 'The Quizzly Bears', 'Universally Challenged']
 WIDTH, HEIGHT, FPS = 1280, 720, 30
 app = QGuiApplication(sys.argv)
 app.setOrganizationName('BeerMat-shots')     # its own preferences, not the real desk's
+QQuickStyle.setStyle('Basic')
 for font in ('fredoka.woff2', 'fredoka-regular.ttf', 'fredoka-medium.ttf', 'fredoka-semibold.ttf', 'fredoka-bold.ttf'):
     QFontDatabase.addApplicationFont(str(ROOT / 'brand' / font))
 QSettings().setValue('welcomed', True)
@@ -105,23 +108,43 @@ tv_engine.addImportPath(str(qml))
 tv_engine.loadData(f'import QtQuick\nimport QtQuick.Window\nWindow {{ width: {WIDTH}; height: {HEIGHT}; visible: true; color: "black"\n'
                    '    TvStage { anchors.fill: parent; tv: desk.tv; serverUrl: desk.serverUrl } }'.encode(), QUrl.fromLocalFile(str(qml / 'Clips.qml')))
 tv = tv_engine.rootObjects()[0]
+# The quizmaster's desk, as on the laptop.
+desk_engine = QQmlApplicationEngine()
+gradients.install(desk_engine)
+screens = Screens()
+for name, value in (('desk', desk), ('screens', screens), ('brand', QUrl.fromLocalFile(str(ROOT / 'brand') + '/'))):
+    desk_engine.rootContext().setContextProperty(name, value)
+desk_engine.addImportPath(str(qml))
+desk_engine.load(QUrl.fromLocalFile(str(qml / 'Main.qml')))
+desk_window = desk_engine.rootObjects()[0]
+desk_window.setProperty('width', 1440)
+desk_window.setProperty('height', 900)
 OUT.mkdir(parents=True, exist_ok=True)
 
 
-def record(name, seconds, events=()):
-    """Grabs the TV as fast as it can for `seconds`, running each (time, action) in `events` as its time comes, then
-    writes the clip at a steady FPS (each grab lasts until the next) and its poster (the frame at `poster`)."""
-    frames, todo, start = folder / name, sorted(events, key=lambda e: e[0]), time.monotonic()
-    frames.mkdir()
-    shots = []
+def record(windows, seconds, events=()):
+    """Grabs each window ({clip name: window}) as fast as it can for `seconds`, running each (time, action) in `events`
+    as its time comes, then writes each clip at a steady FPS (each grab lasts until the next). Returns each clip's
+    grabs, for its poster."""
+    todo, start = sorted(events, key=lambda e: e[0]), time.monotonic()
+    shots = {name: [] for name in windows}
+    for name in windows:
+        (folder / name).mkdir()
     while (now := time.monotonic() - start) < seconds:
         while todo and todo[0][0] <= now:
             todo.pop(0)[1]()
         app.processEvents()
-        file = frames / f'{len(shots):05d}.png'
-        tv.grabWindow().save(str(file))
-        shots.append((now, file))
-    listing = frames / 'frames.txt'
+        for name, window in windows.items():
+            file = folder / name / f'{len(shots[name]):05d}.png'
+            window.grabWindow().save(str(file))
+            shots[name].append((time.monotonic() - start, file))
+    for name, grabs in shots.items():
+        encode(name, grabs, seconds)
+    return shots
+
+
+def encode(name, shots, seconds):
+    listing = folder / name / 'frames.txt'
     with listing.open('w') as f:
         for (at, file), (after, _) in zip(shots, shots[1:] + [(seconds, None)]):
             f.write(f"file '{file}'\nduration {after - at:.4f}\n")
@@ -133,7 +156,6 @@ def record(name, seconds, events=()):
                              str(OUT / f'{name}.webm')], check=True)
     subprocess.run(concat + ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '21', '-preset', 'slow', '-tune', 'grain', '-movflags', '+faststart',
                              str(OUT / f'{name}.mp4')], check=True)
-    return shots
 
 
 def poster(shots, at, name):
@@ -158,11 +180,12 @@ try:
 
     # 1. A question on the TV: it opens, the teams answer, it closes, a drum roll, the answer.
     picks = ['Mars', 'Mars', 'Venus', 'Mars', 'Jupiter', 'Mars']
-    shots = record('tv-question', 15, [(0.6, desk.next)]
+    shots = record({'tv-question': tv, 'desk-question': desk_window}, 15, [(0.6, desk.next)]
                    + [(3.5 + i * 0.9, answer(t, v)) for i, (t, v) in enumerate(zip(teams, picks))]
-                   + [(9.2, lambda: post('host/close', {'expectedQuestion': current()['id']}, host)),
+                   + [(9.2, desk.closeAnswers),
                       (10.0, lambda: post('host/reveal', {'question': current()['id'], 'revealed': True, 'delay': 1800}, host))])
-    poster(shots, 7.5, 'tv-question')
+    poster(shots['tv-question'], 7.5, 'tv-question')
+    poster(shots['desk-question'], 8.5, 'desk-question')
 
     # Two more questions, answered off camera, so the scores differ.
     for values in ((['2', '7', '11'], ['2', '7'], ['2', '7', '11'], ['2', '7', '11'], ['4', '9'], ['2', '11']),):
@@ -185,8 +208,8 @@ try:
     pump(1.5)
 
     # 2. Put in order: the reveal puts the items in the right order.
-    shots = record('tv-order', 7, [(0.8, lambda: post('host/reveal', {'question': seq['id'], 'revealed': True, 'delay': 0}, host))])
-    poster(shots, 6.5, 'tv-order')
+    shots = record({'tv-order': tv}, 7, [(0.8, lambda: post('host/reveal', {'question': seq['id'], 'revealed': True, 'delay': 0}, host))])
+    poster(shots['tv-order'], 6.5, 'tv-order')
 
     # 3. The leaderboard, revealed a place at a time.
     post('host/board', {'action': 'show'}, host)
@@ -196,8 +219,8 @@ try:
             post('host/board', {'action': 'next'}, host)
     # Sixth to third a place at a time, then the leader's spotlight, then second place and the full board.
     steps = [(1.0 + i * 1.3, board_next) for i in range(4)] + [(6.6, board_next), (12.5, board_next)]
-    shots = record('tv-leaderboard', 15, steps)
-    poster(shots, 14.5, 'tv-leaderboard')
+    shots = record({'tv-leaderboard': tv}, 15, steps)
+    poster(shots['tv-leaderboard'], 14.5, 'tv-leaderboard')
 finally:
     server.terminate()
 print('Clips saved in', OUT)

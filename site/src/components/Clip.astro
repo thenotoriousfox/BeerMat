@@ -1,16 +1,20 @@
 ---
-// A short, silent, looping video of the real app (scripts/site-videos-native.py records them from the Qt TV). It plays
-// only while on screen; with reduced motion it stays on its poster frame, with controls to play it by hand. AV1 first
-// (10-bit, so dark gradients stay smooth), H.264 for browsers without it.
+// A short, silent, looping video of the real app (scripts/site-videos-native.py and site-videos-android.mjs record
+// them). It plays only while on screen, and opens full size in the page's viewer (Lightbox.astro) as the screenshots
+// do. With reduced motion it stays on its poster frame; the viewer has controls to play it. AV1 first (10-bit, so dark
+// gradients stay smooth), H.264 for browsers without it.
 interface Props {name: string; alt: string; width: number; height: number; class?: string; eager?: boolean;}
 const {name, alt, width, height, class: className = '', eager = false} = Astro.props;
 ---
-<figure class:list={['clip', className]}>
-	<video data-clip muted loop playsinline preload={eager ? 'auto' : 'none'} poster={`/clips/${name}.webp`} width={width} height={height} aria-label={alt} class="block h-auto w-full">
+<button type="button" class:list={['shot group', className]} data-shot={`/clips/${name}.webp`} data-video={`/clips/${name}`} data-caption={alt} data-width={width} data-height={height} aria-label={`Enlarge: ${alt}`}>
+	<video data-clip muted loop playsinline preload={eager ? 'auto' : 'none'} poster={`/clips/${name}.webp`} width={width} height={height} aria-hidden="true" class="block h-auto w-full">
 		<source src={`/clips/${name}.webm`} type='video/webm; codecs="av01.0.05M.10"' />
 		<source src={`/clips/${name}.mp4`} type="video/mp4" />
 	</video>
-</figure>
+	<span class="shot-zoom" aria-hidden="true">
+		<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5 21 21M10.5 7.5v6M7.5 10.5h6" /></svg>
+	</span>
+</button>
 
 <script>
 	const still = matchMedia('(prefers-reduced-motion: reduce)');
@@ -22,11 +26,6 @@ const {name, alt, width, height, class: className = '', eager = false} = Astro.p
 			if (isIntersecting) video.play().catch(() => {}); else video.pause();
 		}
 	}, {threshold: 0.35});
-	const apply = () => clips.forEach(video => {
-		video.controls = still.matches;
-		if (still.matches) video.pause();
-	});
-	apply();
-	still.addEventListener('change', apply);
+	still.addEventListener('change', () => {if (still.matches) clips.forEach(video => video.pause());});
 	clips.forEach(video => seen.observe(video));
 </script>
