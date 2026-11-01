@@ -22,6 +22,12 @@ public struct Hello: Equatable {
 public struct Joined: Equatable { public let secret: String, waiting: Bool, rehearsal: Bool }
 public struct Team: Equatable { public let id: String, name: String, waiting: Bool; public var sound: Int? = nil; public var photo = ""; public var photoStatus = "" }
 public struct Standing: Equatable { public let name: String, score: Double?, rank: Int }
+
+/// The leaderboard being revealed on the TV, a place at a time (server.js boardReveal): who isn't up yet, and whether
+/// it's all shown.
+public struct BoardReveal: Equatable {
+    public let hidden: Set<String>, leader: Bool, done: Bool
+}
 public struct BuzzEntry: Equatable { public let team: String, name: String, status: String }
 public struct Buzz: Equatable {
     public let buzzed: String?, activeName: String?, queue: [BuzzEntry], lockedOut: Bool, agreeOpen: Bool, agreed: Bool, announced: String
@@ -59,6 +65,16 @@ public struct PlayerState {
     public var buzzerNames: [String] = []
     /// A real phone in a rehearsal: connected, never playing.
     public let testDevice: Bool
+    /// The leaderboard reveal on the TV, while there is one.
+    public var reveal: BoardReveal?
+
+    /// The leaderboard as a team's phone shows it: during a reveal, only the places already on the TV.
+    public var board: [Standing] {
+        guard let r = reveal, !r.done else { return teams }
+        return teams.filter { !r.hidden.contains($0.name) }
+    }
+    /// Places still to come on the TV, so not on the phone yet either.
+    public var boardHidden: Int { teams.count - board.count }
 
     public static func parse(_ o: [String: Any]) -> PlayerState {
         let s = o["settings"] as? [String: Any] ?? [:]
@@ -76,6 +92,7 @@ public struct PlayerState {
             teams: (o["teams"] as? [[String: Any]] ?? []).map { Standing(name: $0.str("name"), score: $0.num("score"), rank: $0.int("rank")) },
             testDevice: (o["rehearsal"] as? [String: Any])?.bool("device") == true)
         state.buzzerNames = ((o["sounds"] as? [String: Any])?["buzzers"] as? [[String: Any]] ?? []).map { $0.str("name") }
+        state.reveal = (o["reveal"] as? [String: Any]).map { BoardReveal(hidden: Set($0.strings("hidden")), leader: $0.bool("leader"), done: $0.bool("done")) }
         return state
     }
 }

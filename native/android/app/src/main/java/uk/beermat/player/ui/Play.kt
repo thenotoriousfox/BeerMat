@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -90,7 +91,8 @@ fun PlayScreen(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.onlin
         Row(Modifier.fillMaxWidth().background(Brand.panel).padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(10.dp).clip(CircleShape).background(if (ui.connected) Brand.good else Brand.bad).semantics { contentDescription = if (ui.connected) t("Connected") else t("Reconnecting") })
             Text(game.team?.name ?: "", fontWeight = FontWeight.Bold, fontSize = 17.sp, maxLines = 1, modifier = Modifier.padding(start = 10.dp).weight(1f))
-            val mine = game.teams.firstOrNull { it.name == game.team?.name }
+            // During the leaderboard reveal, the team's place stays hidden until the TV shows it.
+            val mine = game.board.firstOrNull { it.name == game.team?.name }
             if (mine?.score != null && game.settings.leaderboardVisible) Text(t("#{rank} · {score} pts", "rank" to mine.rank, "score" to fmt(mine.score)), color = Brand.goldHi, fontWeight = FontWeight.Bold)
             TextButton({ menu = !menu }) { Text(if (menu) t("Close") else t("Team"), color = Brand.muted) }
         }
@@ -112,7 +114,31 @@ fun PlayScreen(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.onlin
                 q.type !in NATIVE_TYPES -> BrowserRound(vm, q)
                 else -> Question(vm, ui, q)
             }
+            // Between questions the leaderboard, as on the browser player and the TV.
+            if (!menu && q != null && !q.live && !game.settings.ended && game.team?.waiting != true) Leaderboard(game)
             Message(ui)
+        }
+    }
+}
+
+@Composable
+private fun Leaderboard(game: uk.beermat.player.net.PlayerState) {
+    Text(t("Leaderboard"), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp, bottom = 6.dp).testTag("leaderboard"))
+    when {
+        !game.settings.leaderboardVisible -> Text(t("The quizmaster has hidden scores for now."), color = Brand.muted)
+        game.teams.isEmpty() -> Text(t("Waiting for teams"), color = Brand.muted)
+        else -> {
+            if (game.boardHidden > 0) Text(t("Revealing the leaderboard on the TV…"), color = Brand.goldHi, modifier = Modifier.padding(bottom = 6.dp))
+            for (team in game.board) {
+                val mine = team.name == game.team?.name
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (mine) Brand.raised else Brand.panel).padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text("${team.rank}", color = if (team.rank == 1) Brand.gold else Brand.faint, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp))
+                    Text(team.name, fontWeight = if (mine) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
+                    Text(team.score?.let(::fmt) ?: "", color = Brand.goldHi, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(6.dp))
+            }
         }
     }
 }
@@ -152,7 +178,7 @@ private fun TeamSetup(vm: PlayerViewModel, ui: UiState) {
     var open by remember { mutableStateOf(false) }
     Text(t("Your buzzer sound"), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
     Box {
-        OutlinedButton({ open = true }, modifier = Modifier.fillMaxWidth()) { Text(team.sound?.let { names.getOrNull(it) } ?: t("Picked from your team name")) }
+        OutlinedButton({ open = true }, modifier = Modifier.fillMaxWidth()) { Text(team.sound?.let { names.getOrNull(it) } ?: t("Chosen for you: tap to pick one")) }
         androidx.compose.material3.DropdownMenu(open, { open = false }) {
             names.forEachIndexed { i, name -> androidx.compose.material3.DropdownMenuItem({ Text(name) }, { open = false; vm.setSound(i) }) }
         }
