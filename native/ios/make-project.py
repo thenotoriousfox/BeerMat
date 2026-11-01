@@ -119,7 +119,7 @@ for cfg in ['Debug', 'Release']:
 \t\t\tbuildSettings = {{
 \t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 613;
+\t\t\t\tCURRENT_PROJECT_VERSION = 614;
 \t\t\t\tDEVELOPMENT_TEAM = "";
 \t\t\t\tGENERATE_INFOPLIST_FILE = NO;
 \t\t\t\tINFOPLIST_FILE = BeerMat/Info.plist;
@@ -127,7 +127,7 @@ for cfg in ['Debug', 'Release']:
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 0.6.3;
+\t\t\t\tMARKETING_VERSION = 0.7.0;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = {bundle};
 \t\t\t\tPRODUCT_NAME = BeerMat;
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = YES;

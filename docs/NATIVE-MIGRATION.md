@@ -182,6 +182,10 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
   releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
   `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
+* **Release 0.7.0**: Run the night: host the quiz from the BeerMat app on Android or iPhone (venue or admin account, or
+  the desk's code); the Qt desk plays the phone's clips and songs and lists connected phones. Pro offers: a 14-day free
+  trial, founding prices for the first 20 venues, a first-month guarantee and a set-up service. The TV's tied-for-first
+  spotlight wraps long names. The website shows short clips of the TV.
 * **Release 0.6.3**: BeerMat as a TV screen on another computer (it finds the quizmaster's laptop and plays all the
   sound, sound clips and music bingo songs included); GitHub's checks run only for releases. Built and published from
   the release laptop (Actions' allowance was used up for October).
