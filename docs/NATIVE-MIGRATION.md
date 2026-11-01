@@ -182,6 +182,9 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
   releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
   `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
+* **Release 0.7.1**: 0.7.0's build stopped on a layout check; 0.7.1 is the same release (Run the night on Android and
+  iPhone, Pro offers, the TV spotlight fix, website clips) with desk layouts that wrap instead of running past their
+  panels.
 * **Release 0.7.0**: Run the night: host the quiz from the BeerMat app on Android or iPhone (venue or admin account, or
   the desk's code); the Qt desk plays the phone's clips and songs and lists connected phones. Pro offers: a 14-day free
   trial, founding prices for the first 20 venues, a first-month guarantee and a set-up service. The TV's tied-for-first
