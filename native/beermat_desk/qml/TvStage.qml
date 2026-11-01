@@ -24,6 +24,9 @@ Item {
     readonly property var lookTitle: look && look.title && look.title.gradient ? look.title : null
     // A gradient's colour at stop i (repeating the last stop when it has fewer).
     function stop(stops, i) { return stops[Math.min(i, stops.length - 1)] }
+    // Answer A–H's colours, light to dark: the same blocks as the phones' keypads and the web TV (style.css .opt.o0…o7).
+    readonly property var optionFills: [["#ff6b5f", "#d6293d"], ["#4f9dff", "#2459d8"], ["#3be08c", "#129a55"], ["#ffd34d", "#e09a12"],
+                                        ["#b17bff", "#7a3fe0"], ["#3fe0e0", "#138f9c"], ["#ff9f43", "#e0621f"], ["#ff6fb0", "#d0306f"]]
     readonly property var settings: tv.settings || {}
     // The quiz's language (the quizmaster chooses it); English if it's one the dictionary doesn't have.
     readonly property int langIndex: ({fr: 0, es: 1})[settings.language] ?? -1
@@ -226,12 +229,12 @@ Item {
                 Rectangle {
                     id: lookPanel
                     readonly property var style: root.look && root.look.panel ? root.look.panel : null
-                    visible: !!style
-                    x: -36; y: -28; width: parent.width + 72; height: Math.min(parent.height + 28, questionColumn.implicitHeight + 64)
-                    radius: 28; border.width: 2; border.color: style && style.border ? style.border : "transparent"
+                    // Without one of the look's own, BeerMat's: a faint glass card, as the web TV's (style.css #stage > section).
+                    x: -36; y: -28; width: parent.width + 72; height: parent.height + 28
+                    radius: 28; border.width: 2; border.color: style && style.border ? style.border : Qt.rgba(1, 1, 1, 0.16)
                     gradient: Gradient {
-                        GradientStop { position: 0; color: lookPanel.style ? root.stop(lookPanel.style.gradient, 0)[1] : "transparent" }
-                        GradientStop { position: 1; color: lookPanel.style ? root.stop(lookPanel.style.gradient, 9)[1] : "transparent" }
+                        GradientStop { position: 0; color: lookPanel.style ? root.stop(lookPanel.style.gradient, 0)[1] : Qt.rgba(1, 1, 1, 0.07) }
+                        GradientStop { position: 1; color: lookPanel.style ? root.stop(lookPanel.style.gradient, 9)[1] : Qt.rgba(1, 1, 1, 0.03) }
                     }
                 }
                 opacity: root.view === "question" ? 1 : 0; visible: opacity > 0
@@ -260,7 +263,8 @@ Item {
                         Layout.fillWidth: true
                         text: questionView.q ? questionView.q.text : root.t("Waiting for the quizmaster")
                         color: root.pal.text; font.family: Theme.display; font.weight: Font.Bold; wrapMode: Text.WordWrap
-                        font.pixelSize: text.length > 140 ? 54 : text.length > 80 ? 66 : 78
+                        // As big as the web TV's: the room reads the question from the back.
+                        font.pixelSize: text.length > 140 ? 66 : text.length > 80 ? 84 : 104
                     }
                     // Time left, from the server's deadline.
                     RowLayout {
@@ -271,7 +275,7 @@ Item {
                                 : questionView.q.held ? root.t("Get ready: the question is on its way")
                                 : questionView.q.paused ? root.t("Paused · {n}s remaining", {n: Math.ceil(questionView.q.remaining / 1000)})
                                 : !questionView.q.open || questionView.msLeft <= 0 ? root.t("Answers closed") : root.t("{n}s remaining", {n: Math.ceil(questionView.msLeft / 1000)})
-                            color: questionView.q && questionView.q.open ? root.pal.goldHi : root.pal.muted; font.family: Theme.display; font.pixelSize: 40; font.weight: Font.DemiBold
+                            color: questionView.q && questionView.q.open ? root.pal.gold : root.pal.muted; font.family: Theme.display; font.pixelSize: 60; font.weight: Font.Bold
                         }
                         Rectangle {
                             visible: !!questionView.q && questionView.q.open && !questionView.bingo && questionView.q.seconds > 0
@@ -337,35 +341,56 @@ Item {
                                 visible: questionView.items.length > 0
                                 Layout.fillWidth: true; Layout.fillHeight: true; Layout.verticalStretchFactor: 1000
                                 // Tiles grow into the space, up to a comfortable size.
-                                Layout.maximumHeight: Math.ceil(questionView.items.length / columns) * (190 + rowSpacing)
+                                Layout.maximumHeight: Math.ceil(questionView.items.length / columns) * (240 + rowSpacing)
                                 columns: questionView.isImage || questionView.items.length > 6 || !questionView.q || !["choice", "vote", "multi"].includes(questionView.q.type) ? 1 : 2
                                 columnSpacing: 18; rowSpacing: 16
                                 Repeater {
                                     model: questionView.items
                                     delegate: Rectangle {
+                                        id: tile
                                         required property string modelData
                                         required property int index
-                                        readonly property var tones: [root.pal.bad, "#3b82f6", root.pal.good, root.pal.gold, root.pal.violet, root.pal.teal]
+                                        objectName: "optionTile"
+                                        // Options are solid colour blocks, the same as on every phone and the web TV
+                                        // (style.css .options li): white letters, dark on the yellow one. Lists stay glass.
                                         readonly property bool options: !!questionView.q && ["choice", "vote", "multi"].includes(questionView.q.type)
-                                        readonly property color tone: options ? tones[index % 6] : root.pal.violet
+                                        readonly property var fill: root.optionFills[index % 8]
                                         readonly property bool correct: !!questionView.q && questionView.q.revealed && (questionView.q.answer === modelData || (questionView.q.correct || []).includes(modelData))
+                                        readonly property bool dimmed: options && !!questionView.q && questionView.q.revealed && !correct
                                         Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 64; implicitHeight: 92; radius: 20
-                                        readonly property real textSize: Math.max(32, Math.min(64, height * 0.44))
-                                        color: Qt.rgba(tone.r, tone.g, tone.b, questionView.q && questionView.q.revealed && options && !correct ? 0.1 : 0.28)
-                                        border.color: correct ? root.pal.good : Qt.rgba(tone.r, tone.g, tone.b, 0.7); border.width: correct ? 5 : 2
-                                        Behavior on color { ColorAnimation { duration: 400 } }
+                                        readonly property real textSize: Math.max(32, Math.min(68, height * 0.42))
+                                        // The darker edge along the bottom (the web TV's inset shadow) is this; the face sits on it.
+                                        color: options ? Qt.darker(fill[1], 1.35) : root.pal.violet
+                                        opacity: dimmed ? 0.3 : 1
+                                        Behavior on opacity { NumberAnimation { duration: 400 } }
+                                        border.color: correct ? root.pal.good : "transparent"; border.width: correct ? 6 : 0
+                                        Rectangle {
+                                            anchors.fill: parent; anchors.bottomMargin: tile.options ? 6 : 0; anchors.margins: tile.correct ? 6 : 0
+                                            radius: tile.radius - (tile.correct ? 4 : 0)
+                                            visible: tile.options
+                                            gradient: Gradient {
+                                                GradientStop { position: 0; color: tile.fill[0] }
+                                                GradientStop { position: 1; color: tile.fill[1] }
+                                            }
+                                        }
+                                        Rectangle {
+                                            anchors.fill: parent; radius: tile.radius; visible: !tile.options
+                                            color: Qt.rgba(1, 1, 1, 0.06); border.color: Qt.rgba(1, 1, 1, 0.16); border.width: 2
+                                        }
                                         Text {
-                                            anchors.fill: parent; anchors.leftMargin: 28; anchors.rightMargin: 28; verticalAlignment: Text.AlignVCenter
-                                            text: `${parent.options ? String.fromCharCode(65 + index) + ".  " : questionView.q && questionView.q.type === "sheet" ? (index + 1) + ".  " : questionView.q && questionView.q.type === "tiles" ? "" : "•  "}${modelData}`
-                                            color: root.pal.text; font.pixelSize: parent.textSize; font.weight: Font.Bold; elide: Text.ElideRight
+                                            anchors.fill: parent; anchors.leftMargin: 28; anchors.rightMargin: 28; anchors.bottomMargin: tile.options ? 6 : 0; verticalAlignment: Text.AlignVCenter
+                                            text: `${tile.options ? String.fromCharCode(65 + tile.index) + ".  " : questionView.q && questionView.q.type === "sheet" ? (tile.index + 1) + ".  " : questionView.q && questionView.q.type === "tiles" ? "" : "•  "}${tile.modelData}`
+                                            color: tile.options && tile.index % 8 === 3 ? "#241500" : root.pal.text
+                                            style: tile.options && tile.index % 8 !== 3 ? Text.Raised : Text.Normal; styleColor: Qt.rgba(0, 0, 0, 0.35)
+                                            font.pixelSize: tile.textSize; font.weight: Font.Black; elide: Text.ElideRight
                                             rightPadding: 90
                                         }
                                         // How many teams picked it, once revealed.
                                         Text {
-                                            visible: parent.options && !!questionView.q && questionView.q.revealed && !!questionView.q.tally
-                                            anchors.right: parent.right; anchors.rightMargin: 28; anchors.verticalCenter: parent.verticalCenter
-                                            text: questionView.q && questionView.q.tally ? (questionView.q.tally[modelData] || 0) : ""
-                                            color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: parent.textSize + 2; font.weight: Font.Bold
+                                            visible: tile.options && !!questionView.q && questionView.q.revealed && !!questionView.q.tally
+                                            anchors.right: parent.right; anchors.rightMargin: 28; anchors.verticalCenter: parent.verticalCenter; anchors.verticalCenterOffset: -3
+                                            text: questionView.q && questionView.q.tally ? (questionView.q.tally[tile.modelData] || 0) : ""
+                                            color: tile.index % 8 === 3 ? "#241500" : root.pal.text; font.family: Theme.display; font.pixelSize: tile.textSize + 4; font.weight: Font.Bold
                                         }
                                     }
                                 }

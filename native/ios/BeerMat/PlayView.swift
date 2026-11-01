@@ -323,18 +323,30 @@ private struct Keys: View {
     let enabled: Bool
     let tap: (Int) -> Void
     var body: some View {
+        // As the browser player (style.css .keypad): answers are solid colour blocks with a darker bottom edge; the picked
+        // one gets a white ring and the rest step back. Other lists are plain keys that turn gold when picked.
+        let anyPicked = keys.contains { picked($0.0) }
         VStack(spacing: 10) {
             ForEach(keys, id: \.0) { i, label in
-                let tone = colours ? Brand.options[i % Brand.options.count] : Brand.violet
-                let on = picked(i)
-                Button { UISelectionFeedbackGenerator().selectionChanged(); tap(i) } label: {
-                    Text(label).font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 60, alignment: .leading).padding(.horizontal, 18)
-                        .background(tone.opacity(on ? 0.55 : 0.18), in: RoundedRectangle(cornerRadius: 18))
-                        .overlay(RoundedRectangle(cornerRadius: 18).stroke(on ? Brand.text : tone.opacity(0.7), lineWidth: on ? 3 : 1))
-                }.disabled(!enabled).accessibilityAddTraits(on ? .isSelected : [])
-                .animation(.easeOut(duration: 0.15), value: on)
+                key(i, label, on: picked(i), anyPicked: anyPicked)
             }
         }
+    }
+
+    private func key(_ i: Int, _ label: String, on: Bool, anyPicked: Bool) -> some View {
+        let (light, dark) = colours ? Brand.options[i % Brand.options.count] : on ? (Brand.goldHi, Brand.gold) : (Brand.raised, Brand.raised)
+        let shape = RoundedRectangle(cornerRadius: 16)
+        let ink: Color = colours && i % 8 == 3 && !on ? Brand.onYellow : !colours && on ? Brand.onAccent : .white
+        return Button { UISelectionFeedbackGenerator().selectionChanged(); tap(i) } label: {
+            Text(label).font(.title3.weight(.heavy)).foregroundStyle(ink)
+                .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading).padding(.horizontal, 18)
+                .background(LinearGradient(colors: [light, dark], startPoint: .topLeading, endPoint: .bottomTrailing), in: shape)
+                .padding(.bottom, colours ? 4 : 0)
+                .background(colours ? dark.opacity(0.75) : .clear, in: shape)
+                .overlay(shape.stroke(on && colours ? Color.white : colours ? .clear : Brand.faint.opacity(0.4), lineWidth: on && colours ? 4 : 1))
+                .opacity(!enabled ? 0.55 : colours && anyPicked && !on ? 0.4 : 1)
+        }.disabled(!enabled).accessibilityAddTraits(on ? .isSelected : [])
+        .animation(.easeOut(duration: 0.15), value: on)
     }
 }
 
