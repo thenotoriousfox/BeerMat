@@ -267,11 +267,15 @@ Item {
                         // As big as the web TV's when answers or a short line follow; a round with a lot under the question
                         // (a board, a picture, a list, a grid) keeps it smaller so all of it fits.
                         readonly property bool roomy: !questionView.q || ["choice", "vote", "multi", "text", "letter", "number", "nearest", "buzzer"].includes(questionView.q.type) && !questionView.isImage
-                        font.pixelSize: roomy ? (text.length > 140 ? 66 : text.length > 80 ? 84 : 104) : (text.length > 140 ? 54 : text.length > 80 ? 66 : 78)
+                        // At the reveal the answer is the star (as the web TV): the question steps back to make room for it
+                        // and for who scored.
+                        readonly property bool revealed: !!questionView.q && (questionView.q.revealed || questionView.q.revealing)
+                        font.pixelSize: revealed ? (text.length > 140 ? 40 : text.length > 80 ? 48 : 60)
+                                      : roomy ? (text.length > 140 ? 66 : text.length > 80 ? 84 : 104) : (text.length > 140 ? 54 : text.length > 80 ? 66 : 78)
                     }
-                    // Time left, from the server's deadline.
+                    // Time left, from the server's deadline (gone at the reveal, as on the web TV: the answer needs the room).
                     RowLayout {
-                        visible: !!questionView.q
+                        visible: !!questionView.q && !questionView.q.revealed
                         spacing: 24
                         Text {
                             text: !questionView.q ? "" : questionView.bingo ? (questionView.q.paused ? root.t("Paused") : questionView.q.live ? root.t("Eyes down — game in progress") : root.t("Game over"))
@@ -410,9 +414,11 @@ Item {
                                 property bool sliding: false
                                 onSortedChanged: if (sorted && order.length) { sliding = true; slideEnd.restart() }
                                 Timer { id: slideEnd; interval: 800 + 90 * sequenceList.order.length; onTriggered: sequenceList.sliding = false }
-                                // Rows grow into the space, up to a comfortable size.
-                                readonly property real rowHeight: Math.max(64, Math.min(170, order.length ? (height + 16) / order.length - 16 : 92))
-                                readonly property real row: rowHeight + 16
+                                // Rows grow into the space, up to a comfortable size, and shrink (closer together) when eight of
+                                // them share it with who scored: the whole answer stays on the screen.
+                                readonly property real gap: order.length > 5 ? 8 : 16
+                                readonly property real rowHeight: Math.max(40, Math.min(170, order.length ? (height + gap) / order.length - gap : 92))
+                                readonly property real row: rowHeight + gap
                                 // Kept per question: every state update brings a new q.order, which would rebuild the rows
                                 // (and skip the slide) just as the reveal arrives.
                                 property var order: []
@@ -438,7 +444,7 @@ Item {
                                         Text {
                                             anchors.fill: parent; anchors.leftMargin: 28; anchors.rightMargin: 28; verticalAlignment: Text.AlignVCenter
                                             text: `${sequenceList.sorted ? (modelData + 1) + "." : "•"}  ${sequenceList.q.items[modelData]}`
-                                            color: root.pal.text; font.pixelSize: Math.max(32, Math.min(64, sequenceList.rowHeight * 0.44)); font.weight: Font.Bold; elide: Text.ElideRight
+                                            color: root.pal.text; font.pixelSize: Math.max(26, Math.min(64, sequenceList.rowHeight * 0.5)); font.weight: Font.Bold; elide: Text.ElideRight
                                         }
                                     }
                                 }

@@ -462,6 +462,34 @@ class TvStageTest(unittest.TestCase):
                         over.append((text[:30], round(bottom)))
             self.assertEqual(over, [], f'{name}: past the bottom of the TV')
 
+    def test_put_in_order_reveal_shows_the_whole_answer_and_who_scored(self):
+        """The most a put-in-order can have (8 items), a long question and ten teams scoring: at the reveal the question
+        steps back, and every item of the answer and the box of who scored are on the screen, clear of each other."""
+        items8 = ['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']
+        q = question(type='sequence', options=[], items=items8, order=[3, 1, 7, 4, 0, 6, 2, 5], round='Round 2 · In order',
+                     text='Put these planets in order, from the one nearest to the Sun to the one furthest away from it, as they were known in 2006')
+        self.show(state(q=q))
+        scorers = [{'name': f'Team number {i + 1}', 'ms': 2000 + 700 * i, 'points': 2} for i in range(10)]
+        self.show(state(q={**q, 'open': False, 'live': False, 'revealed': True, 'scorers': scorers}))
+        for _ in range(150):     # the slide into order, and the box of who scored coming up
+            app.processEvents(); time.sleep(0.02)
+        self.show(state(q={**q, 'open': False, 'live': False, 'revealed': True, 'scorers': scorers}), 'sequence-revealed-long')
+        def items(item):
+            yield item
+            for child in item.childItems():
+                yield from items(child)
+        def box(item):
+            p, r = item.mapToItem(self.stage, 0, 0), item.mapToItem(self.stage, item.property('width'), item.property('height'))
+            return p.y(), r.y()
+        rows = sorted(box(i) for i in items(self.stage) if i.objectName() == 'sequenceItem' and i.property('visible'))
+        scored = self.stage.findChild(QObject, 'reveal')
+        self.assertEqual(len(rows), 8)
+        top, bottom = box(scored)
+        self.assertLessEqual(rows[-1][1], top + 1, 'the last item of the answer is above who scored')
+        self.assertLessEqual(bottom, 1080 + 1, 'who scored is on the screen')
+        # Measured on the stage, where what's inside is scaled to fit: a row is at least as tall as a name in who scored.
+        self.assertGreaterEqual(min(b - a for a, b in rows), 25, 'every item is big enough to read')
+
     def test_wheel_spins_once_for_a_spin_seen_happening(self):
         spin = self.stage.findChild(QObject, 'wheelSpin')
         self.show(state('join'))
