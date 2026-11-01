@@ -19,6 +19,7 @@ const desktop = [
 		<p class="eyebrow">Version {v}</p>
 		<h1 class="text-4xl sm:text-5xl">Download BeerMat</h1>
 		<p class="max-w-2xl text-lg text-muted">For the quizmaster’s laptop. BeerMat Free makes and rehearses whole quizzes, with simulated teams, the TV and real phones testing the connection. BeerMat Pro hosts them live.</p>
+		<p class="max-w-2xl text-muted">TVs wired to a computer behind the bar? Install BeerMat there too and choose <strong class="text-cream">Use this computer as a TV screen</strong> in Settings: it finds the quiz laptop on the network and shows the TV, with the clips and music playing through its speakers.</p>
 		{!DOWNLOADS_READY && <div class="card mt-8 border-amber/60"><h2 class="text-xl">Downloads open soon</h2><p class="mb-0 text-muted">BeerMat is in a private beta with a few pubs. Want to run your quiz with it? Email <a href={`mailto:${CONTACT}?subject=BeerMat%20beta`}>{CONTACT}</a> and we’ll send you a copy.</p></div>}
 		{DOWNLOADS_READY && <>
 		<div class="mt-8 grid gap-4 md:grid-cols-2">
@@ -38,8 +39,8 @@ const desktop = [
 
 		</>}
 
-		<h2 id="app" class="mt-16 scroll-mt-8 text-3xl">The BeerMat app, for players</h2>
-		<p class="max-w-2xl text-muted">Teams don’t need it: every quiz plays in the phone’s browser. The app adds finding quizzes near you, a profile with your results and badges, and joining by scanning.</p>
+		<h2 id="app" class="mt-16 scroll-mt-8 text-3xl">The BeerMat app, for players and quizmasters</h2>
+		<p class="max-w-2xl text-muted">Teams don’t need it: every quiz plays in the phone’s browser. The app adds finding quizzes near you, a profile with your results and badges, and joining by scanning. For the quizmaster, <strong class="text-cream">Run the night</strong> hosts the quiz from your phone: sign in with your venue’s account, or type the code the desk shows.</p>
 		<div class="mt-6 grid gap-4 md:grid-cols-2">
 			{DOWNLOADS_READY ? <a href={file(`BeerMat-${v}.apk`)} class="card block no-underline transition hover:border-amber/60">
 				<p class="eyebrow !mb-1">Android</p>
