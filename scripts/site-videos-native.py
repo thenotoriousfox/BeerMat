@@ -221,6 +221,28 @@ try:
     steps = [(1.0 + i * 1.3, board_next) for i in range(4)] + [(6.6, board_next), (12.5, board_next)]
     shots = record({'tv-leaderboard': tv}, 15, steps)
     poster(shots['tv-leaderboard'], 14.5, 'tv-leaderboard')
+
+    # 4. A picture under tiles, coming off one by one as the clock runs down.
+    saved = [q for r in post('host/library', {}, host)['rounds'] for q in r['questions']]
+    picture = next(q for q in saved if q['type'] == 'picture')
+    current_id = current()['id']
+    post('host/close', {'expectedQuestion': current_id}, host)
+    shots = record({'tv-reveal-tiles': tv}, 13, [(0.5, lambda: post('host/open', {'text': 'What shape is under the tiles?', 'type': 'picture', 'media': picture['media'],
+                                                                              'answer': picture['answer'], 'round': 'Pictures', 'seconds': 12, 'points': 1, 'reveal': 'tiles'}, host))])
+    poster(shots['tv-reveal-tiles'], 7.5, 'tv-reveal-tiles')
+
+    # 5. Buzzers: the first team in takes the TV; a wrong answer passes it to the next.
+    post('host/close', {'expectedQuestion': current()['id']}, host)
+    def buzz(team):
+        return lambda: post('buzz', {'question': current()['id']}, team['secret'])
+    def verdict(action):
+        return lambda: post('host/buzz', {'question': current()['id'], 'action': action}, host)
+    shots = record({'tv-buzzer': tv}, 13, [(0.5, lambda: post('host/open', {'text': 'Fingers on buzzers: what is the capital of Australia?', 'type': 'buzzer',
+                                                                          'answer': 'Canberra', 'round': 'Buzzer round', 'seconds': 60, 'points': 2}, host)),
+                                           (2.6, buzz(teams[3])), (2.9, buzz(teams[0])), (3.3, buzz(teams[4])),
+                                           (6.0, verdict('wrong')), (8.6, verdict('correct')),
+                                           (9.0, lambda: post('host/reveal', {'question': current()['id'], 'revealed': True, 'delay': 0}, host))])
+    poster(shots['tv-buzzer'], 4.5, 'tv-buzzer')
 finally:
     server.terminate()
 print('Clips saved in', OUT)

@@ -1,5 +1,6 @@
 ---
 import Page from '../../layouts/Page.astro';
+import Clip from '../../components/Clip.astro';
 import {ONLINE, PRICE, TRIAL_DAYS, FOUNDING, SETUP_PRICE, CONTACT} from '../../consts';
 // Buying BeerMat Pro: the pub's details here, then Stripe's own page (BeerMat Online starts the checkout and sets the
 // venue up). A new venue tries Pro free first, with no card; the first venues to pay keep the founding price, which
@@ -26,6 +27,13 @@ import {ONLINE, PRICE, TRIAL_DAYS, FOUNDING, SETUP_PRICE, CONTACT} from '../../c
 				<li>✓ Works offline on quiz night once it’s set up</li>
 				<li>✓ Cancel any time from your quiz desk</li>
 			</ul>
+			<div class="mt-8 grid items-center gap-6 sm:grid-cols-[1fr_12rem]">
+				<div>
+					<h2 class="text-2xl">Run the night from your phone</h2>
+					<p class="mb-0 text-muted">Sign in to the BeerMat app with your venue’s account and host from anywhere in the room: the next question, closing answers, the reveal and the clips. The laptop keeps the TV and the sound.</p>
+				</div>
+				<div class="mx-auto w-full max-w-[12rem]"><Clip name="phone-deck" alt="Run the night in the BeerMat app: Start next question, answers counting in, Close answers, then Reveal answer and the leaderboard" width={720} height={1558} class="!rounded-3xl border-white/20" /></div>
+			</div>
 			<h2 class="mt-8 text-2xl">The first-month guarantee</h2>
 			<p class="text-muted">If BeerMat Pro isn’t right for your pub, email us within 30 days of your first payment and we’ll refund it in full. No forms.</p>
 			<h2 class="mt-6 text-2xl">Rather we set it up?</h2>

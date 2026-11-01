@@ -155,7 +155,7 @@ try {
     // The drum roll on the TV, then the answer on the phone too.
     for (let i = 0; i < 80 && !(await current()).revealed; i++) await sleep(250);
     await sleep(2500);
-  }, 9);
+  }, 10);
   console.log(`Clips saved in ${path.relative(root, out)}`);
 } finally {
   try {demo('exit');} catch {}
