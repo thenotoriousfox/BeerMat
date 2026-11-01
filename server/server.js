@@ -248,7 +248,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   };
   const settings = () => ({...defaultSettings, ...getMeta('settings', {})});
   // BeerMat Online's address: the desk's own, or BeerMat's when the box was saved empty.
-  const onlineBase = () => settings().onlineService || onlineDefault;
+  // A fixed plan is a test's (or a screenshot script's): it never talks to the real BeerMat Online, where a finished
+  // practice quiz would count on the website. A test that wants the service passes its own fetchImpl or address.
+  const onlineBase = () => {
+    const base = settings().onlineService || onlineDefault;
+    return fixedPlan && fetchImpl === globalThis.fetch && base === onlineDefault ? '' : base;
+  };
   // Each event has an ID, so phones can tell "a new quiz has started" from a revoked code.
   if (!getMeta('event', '')) setMeta('event', token().slice(0, 12));
   // Events saved before the automatic TV existed start on it once.

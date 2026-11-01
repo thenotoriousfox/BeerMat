@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {createQuiz} from '../server/server.js';
+import {createQuiz, onlineDefault} from '../server/server.js';
 
 const hostKey = 'a-secure-features-test-key';
 async function fixture(fn, options = {}) {
@@ -184,6 +184,28 @@ test('slides between rounds, the question report, and the anonymous quiz count',
   assert.equal(count.length, 1); assert.deepEqual(Object.keys(count[0].body), ['run'], 'nothing but a random id');
   assert.equal((await call('host/results')).pending, 0, 'the count is not a result waiting to send');
 }));
+
+test('a test quiz never counts on the real BeerMat Online', async () => {
+  // A quiz server with a fixed plan (tests, screenshot scripts) and the platform's own fetch: what it would send to
+  // online.beermatquiz.co.uk is recorded here instead of leaving the computer.
+  const real = globalThis.fetch, reached = [];
+  globalThis.fetch = (url, init) => String(url).startsWith(onlineDefault) ? (reached.push(String(url)), Promise.resolve(new Response('{}', {status: 201}))) : real(url, init);
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-features-'));
+  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, packDir: path.join(dir, 'no-pack'), soundsDir: path.join(dir, 'no-pack')});
+  try {
+    await new Promise(resolve => quiz.server.listen(0, '127.0.0.1', resolve));
+    const url = `http://127.0.0.1:${quiz.server.address().port}`;
+    const post = async (route, body, key = '') => (await real(url + '/api/' + route, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + key}, body: JSON.stringify(body)})).json();
+    const {key} = await post('login', {key: hostKey});
+    await post('host/settings', {waitingRoom: false}, key);
+    const {secret} = await post('join', {name: 'Alpha'});
+    await post('host/open', {...base, text: 'Q', type: 'text', answer: 'y'}, key);
+    await post('answer', {question: (await post('state', {}, secret)).question.id, value: 'y'}, secret);
+    await post('host/settings', {ended: true}, key);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    assert.deepEqual(reached, []);
+  } finally {globalThis.fetch = real; await quiz.close(); rmSync(dir, {recursive: true, force: true});}
+});
 
 test('the quiz count can be switched off', () => fixture(async ({call, teams, sent}) => {
   const [a] = await teams('Alpha');
