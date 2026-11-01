@@ -90,6 +90,12 @@ test('a free laptop stops at three questions and three teams, and gets Pro from 
     assert.equal((await api('GET', '/v1/admin/overview', undefined, admin.token)).proVenues, 1);
     const pro = await call('plan/refresh');
     assert.deepEqual([pro.plan, pro.name, pro.live, pro.paidUntil, pro.expires], ['pro', 'BeerMat Pro', true, time + 30 * day, time + 44 * day]);
+    // A free trial: Pro until it ends, which the desk shows, and no grace period after it.
+    service.db.prepare('UPDATE venues SET trial_until=?').run(time + 30 * day);
+    const trying = await call('plan/refresh');
+    assert.deepEqual([trying.plan, trying.trialUntil, trying.expires], ['pro', time + 30 * day, time + 30 * day]);
+    service.db.prepare('UPDATE venues SET trial_until=NULL').run();
+    assert.equal((await call('plan/refresh')).expires, time + 44 * day);
     // Pro hosts live: the rehearsal is cleared and real teams play.
     assert.equal((await call('live')).rehearsal.mode, 'live');
     await call('settings', {waitingRoom: false});

@@ -1,0 +1,47 @@
+---
+import Page from '../layouts/Page.astro';
+import {PRICE, FOUNDING, TRIAL_DAYS} from '../consts';
+// An honest comparison by kind of setup, not by product name: what a pub usually weighs BeerMat against. The rows
+// where something else wins stay in.
+const kinds = ['BeerMat', 'A quiz company', 'Paper and a microphone', 'Cloud quiz apps', 'All-in-one pub screens'];
+// [row, BeerMat, quiz company, paper, cloud apps, pub screens]; true/false show as ✓/✗, text as written.
+const rows: [string, ...(string | boolean)[]][] = [
+	['What it costs', `Free to rehearse; ${PRICE.monthly} a month to host (founding venues ${FOUNDING.monthly})`, 'A fee per night or per month', 'Pens and paper', 'A monthly subscription', 'A monthly subscription, usually the dearest'],
+	['Works with no internet', 'Yes: its own quiz Wi-Fi from the laptop', 'Depends on the company', true, false, false],
+	['Teams answer on their phones', true, 'Sometimes', false, true, true],
+	['Marking and scores', 'Automatic, with the host’s final say', 'Done by the host', 'By hand', 'Automatic', 'Automatic'],
+	['The question on every TV', true, 'Sometimes', false, true, true],
+	['Round formats', 'Eighteen: buzzers, bingo, music bingo, pinpoint, word trail, picture reveals and more', 'Whatever the company runs', 'Questions and answer sheets', 'A handful', 'A handful'],
+	['Questions written for you', 'An example quiz, and quizzes other pubs share', true, false, 'Some include a question bank', 'Some include a question bank'],
+	['A host on the night', 'You (or your quizmaster)', true, 'You', 'You', 'You'],
+	['TVs busy all week: offers, sport', false, false, false, 'Some', true],
+	['Run it from a phone', 'From the laptop', 'n/a', 'n/a', true, true],
+	['Your quiz and results stay in the pub', true, 'With the company', true, false, false],
+];
+const cell = (v: string | boolean) => v === true ? '✓' : v === false ? '✗' : v;
+---
+<Page title="How BeerMat compares" description="BeerMat compared honestly with a quiz company, paper and a microphone, cloud quiz apps and all-in-one pub screen systems.">
+	<section class="wrap py-10">
+		<p class="eyebrow">Compare</p>
+		<h1 class="text-4xl sm:text-5xl">How BeerMat compares</h1>
+		<p class="max-w-3xl text-lg text-muted">The usual ways a pub runs a quiz, side by side. We’ve kept the rows where something else is the better pick: if a company writing and hosting your quiz is what you want, that’s worth paying for.</p>
+		<div class="card mt-8 overflow-x-auto !p-0">
+			<table class="w-full min-w-[56rem] text-left text-sm">
+				<thead><tr class="border-b border-white/10">{['', ...kinds].map((k, i) => <th class={`p-4 font-semibold ${i === 1 ? 'text-amber' : 'text-white'}`}>{k}</th>)}</tr></thead>
+				<tbody>
+					{rows.map(([label, ...values]) => (
+						<tr class="border-b border-white/5 align-top">
+							<th class="p-4 font-semibold text-white">{label}</th>
+							{values.map((v, i) => <td class={`p-4 ${i === 0 ? 'text-cream' : 'text-muted'}`}>{cell(v)}</td>)}
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</div>
+		<p class="mt-4 text-sm text-muted">What each kind includes varies, and prices change: ask what you get for the money. Corrections welcome at the address below.</p>
+		<div class="mt-10 flex flex-wrap gap-3">
+			<a href="/pro" class="btn btn-primary">Try BeerMat Pro free for {TRIAL_DAYS} days</a>
+			<a href="/download" class="btn btn-ghost">Download BeerMat free</a>
+		</div>
+	</section>
+</Page>

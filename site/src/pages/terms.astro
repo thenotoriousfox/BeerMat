@@ -1,8 +1,8 @@
 ---
 import Page from '../layouts/Page.astro';
-import {CONTACT} from '../consts';
+import {CONTACT, TRIAL_DAYS, FOUNDING, SETUP_PRICE} from '../consts';
 // Written for BeerMat as it is (a sole trader, payments by Stripe); worth having reviewed.
-const updated = '29 October 2026';
+const updated = '1 November 2026';
 ---
 <Page title="Terms · BeerMat" description="The terms for using BeerMat, BeerMat Pro and BeerMat Online.">
 	<article class="wrap prose max-w-3xl py-10">
@@ -20,11 +20,15 @@ const updated = '29 October 2026';
 		<h2>BeerMat Pro</h2>
 		<ul>
 			<li>BeerMat Pro is a subscription for a venue, £19.99 a month or £199 a year, paid by card through <strong>Stripe</strong>, which handles billing and receipts.</li>
+			<li><strong>Free trial.</strong> A venue new to BeerMat can try Pro free for {TRIAL_DAYS} days, without giving card details. To keep Pro after the trial, add a card before it ends (Venue &amp; network → BeerMat Online → Manage the subscription); otherwise the venue goes back to BeerMat Free and nothing is charged. One trial per venue and email address.</li>
+			<li><strong>Founding venues.</strong> The first {FOUNDING.places} venues to pay for Pro keep the founding price, {FOUNDING.monthly} a month or {FOUNDING.yearly} a year, for as long as their subscription carries on (switching between monthly and yearly keeps it). If the subscription ends, the founding price ends with it. A venue counts once its first payment is made, not while it’s on a trial.</li>
 			<li>It renews automatically at the end of each month or year until you cancel. Cancel any time from the quiz desk (Venue → Manage subscription) or by emailing us; Pro then lasts until the end of the period you’ve paid for, and isn’t charged again.</li>
 			<li>You can switch between monthly and yearly in the same place; Stripe adjusts the charge for the time left.</li>
 			<li>While a venue has Pro, it’s listed on the BeerMat map and in quiz listings once we’ve checked it’s a real venue. We may decline or remove a listing that’s misleading.</li>
 			<li>A licence on the venue’s laptop keeps Pro working offline. If a subscription ends, the laptop returns to BeerMat Free after a short grace period. Your quizzes, questions and results stay on the laptop.</li>
-			<li>Refunds: we don’t refund part months or part years. When you cancel, you keep Pro until the end of the period you’ve paid for. If you were charged by mistake (for example twice), email us and we’ll put it right. This doesn’t affect your legal rights.</li>
+			<li><strong>First-month guarantee.</strong> If BeerMat Pro isn’t right for your pub, email us within 30 days of your first payment and we’ll refund that payment in full and end the subscription. Once per venue.</li>
+			<li>Refunds otherwise: we don’t refund part months or part years. When you cancel, you keep Pro until the end of the period you’ve paid for. If you were charged by mistake (for example twice), email us and we’ll put it right. This doesn’t affect your legal rights.</li>
+			<li><strong>Set-up service.</strong> For {SETUP_PRICE}, paid separately, we set BeerMat up with you: the quiz laptop, the quiz Wi-Fi or venue network, the TV and your first quiz, by video call or, where we can reach you, in person. It’s booked by email and invoiced on its own; it isn’t a subscription.</li>
 		</ul>
 
 		<h2>Your quizzes and music</h2>

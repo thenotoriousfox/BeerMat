@@ -54,7 +54,9 @@ ScrollView {
                 anchors.fill: parent; spacing: 8
                 Text {
                     Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
-                    text: plan.live
+                    text: plan.live && plan.trialUntil
+                        ? `Trying BeerMat Pro${plan.venue ? " for " + plan.venue : ""} until ${new Date(plan.trialUntil).toLocaleDateString()}: host live quizzes with real teams. To keep Pro after that, add a card: Venue & network → BeerMat Online → Manage the subscription. Without one it goes back to Free, with nothing to pay.`
+                        : plan.live
                         ? `BeerMat Pro${plan.venue ? " for " + plan.venue : ""}: host live quizzes with real teams.${plan.expires ? " Licence renews by " + new Date(plan.expires).toLocaleDateString() + "." : ""}`
                         : "BeerMat Free: create, edit and rehearse as many quizzes as you like, with simulated teams and real phones testing their connection. Hosting a live quiz with real teams is BeerMat Pro."
                 }

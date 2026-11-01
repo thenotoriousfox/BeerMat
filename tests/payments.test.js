@@ -12,7 +12,7 @@ import {createService} from '../online/service.js';
 
 const DAY = 86400000;
 
-async function setup({withStripe = true} = {}) {
+async function setup({withStripe = true, offers = {}} = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'online-payments-')), sent = [], calls = [];
   let time = Date.now();
   const subscriptions = new Map();
@@ -31,7 +31,7 @@ async function setup({withStripe = true} = {}) {
   const fetchImpl = (url, options) => url.startsWith('https://api.postcodes.io/postcodes/')
     ? Promise.resolve(new Response(JSON.stringify(url.endsWith('DE12RR') ? {status: 200, result: {postcode: 'DE1 2RR', latitude: 52.9168, longitude: -1.4646, admin_district: 'Derby'}} : {status: 404}), {status: url.endsWith('DE12RR') ? 200 : 404}))
     : fetch(url, options);
-  const stripe = withStripe ? {secretKey: 'sk_test_x', webhookSecret: 'whsec_test', prices: {monthly: 'price_m', yearly: 'price_y'}, siteUrl: 'https://site.test', apiBase: `http://127.0.0.1:${fake.address().port}`} : null;
+  const stripe = withStripe ? {secretKey: 'sk_test_x', webhookSecret: 'whsec_test', prices: {monthly: 'price_m', yearly: 'price_y'}, siteUrl: 'https://site.test', apiBase: `http://127.0.0.1:${fake.address().port}`, ...offers} : null;
   const service = createService({database: path.join(dir, 'online.sqlite'), now: () => time, publicUrl: 'https://online.test', mail: async m => {sent.push(m);}, adminEmail: 'hello@beermat.test', stripe, fetchImpl});
   await new Promise(r => service.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${service.server.address().port}`;
@@ -47,7 +47,7 @@ async function setup({withStripe = true} = {}) {
     const response = await fetch(base + '/v1/stripe/webhook', {method: 'POST', headers: {'Content-Type': 'application/json', 'Stripe-Signature': `t=${t},v1=${sig}`}, body});
     return response.status;
   };
-  const sub = (id, status, periodEnd) => {const s = {id, status, items: {data: [{current_period_end: Math.floor(periodEnd / 1000)}]}}; subscriptions.set(id, s); return s;};
+  const sub = (id, status, periodEnd) => {const s = {id, status, items: {data: [{current_period_end: Math.floor(periodEnd / 1000)}]}, ...(status === 'trialing' && {trial_end: Math.floor(periodEnd / 1000)})}; subscriptions.set(id, s); return s;};
   return {service, api, webhook, sub, sent, calls, tick: ms => {time += ms;}, now: () => time,
     done: async () => {await service.close(); fake.close(); rmSync(dir, {recursive: true, force: true});}};
 }
@@ -138,5 +138,52 @@ test('someone who already has a BeerMat account buys: the venue is theirs, and t
     const welcome = sent.find(m => m.to === 'lou@example.com');
     assert.match(welcome.text, /usual password/); assert.doesNotMatch(welcome.text, /reset\?token=/);
     assert.equal((await api('POST', '/v1/sessions', {email: 'lou@example.com', password: 'correct horse battery'})).status, 200);
+  } finally {await done();}
+});
+
+test('offers: a free trial for a new venue, no card asked; none for an email that has had a venue', async () => {
+  const {api, webhook, sub, calls, now, service, done} = await setup();
+  try {
+    assert.deepEqual((await api('GET', '/v1/offers')), {status: 200, trialDays: 14, founding: {places: 20, left: 0}}, 'no founding prices set up: none left');
+    await api('POST', '/v1/checkout', form);
+    let {params} = calls.filter(c => c.route === '/v1/checkout/sessions').at(-1);
+    assert.deepEqual([params.payment_method_collection, params['subscription_data[trial_period_days]'], params['subscription_data[trial_settings][end_behavior][missing_payment_method]'], params['line_items[0][price]'], params['metadata[founding]']],
+      ['if_required', '14', 'cancel', 'price_m', '0']);
+    // The trial starts: Pro until it ends, which the desk can show.
+    sub('sub_t', 'trialing', now() + 14 * DAY);
+    await webhook('checkout.session.completed', {mode: 'subscription', subscription: 'sub_t', customer: 'cus_t', customer_details: {email: form.email}, metadata: {venue: 'The Victoria Inn', town: 'Derby', postcode: 'DE1 2RR', founding: '0'}});
+    const v = service.db.prepare('SELECT * FROM venues').get();
+    assert.deepEqual([v.plan, v.trial_until, v.founding_offer], ['pro', Math.floor((now() + 14 * DAY) / 1000) * 1000, 0]);
+    // The same email again: no second trial.
+    await api('POST', '/v1/checkout', form);
+    params = calls.filter(c => c.route === '/v1/checkout/sessions').at(-1).params;
+    assert.equal(params.payment_method_collection, undefined); assert.equal(params['subscription_data[trial_period_days]'], undefined);
+  } finally {await done();}
+});
+
+test('offers: the founding price for the first venues to pay, kept by them, with their own portal', async () => {
+  const {api, webhook, sub, sent, calls, now, service, done} = await setup({offers: {founding: {monthly: 'price_fm', yearly: 'price_fy'}, foundingPlaces: 1, portalFounding: 'bpc_founding'}});
+  try {
+    assert.equal((await api('GET', '/v1/offers')).founding.left, 1);
+    await api('POST', '/v1/checkout', {...form, interval: 'yearly'});
+    let {params} = calls.filter(c => c.route === '/v1/checkout/sessions').at(-1);
+    assert.deepEqual([params['line_items[0][price]'], params['metadata[founding]']], ['price_fy', '1']);
+    // Trying Pro doesn't take a place; paying does.
+    sub('sub_f', 'trialing', now() + 14 * DAY);
+    await webhook('checkout.session.completed', {mode: 'subscription', subscription: 'sub_f', customer: 'cus_f', customer_details: {email: form.email}, metadata: {venue: 'The Victoria Inn', town: 'Derby', postcode: 'DE1 2RR', founding: '1'}});
+    assert.equal((await api('GET', '/v1/offers')).founding.left, 1, 'a trial holds no place');
+    await webhook('customer.subscription.updated', sub('sub_f', 'active', now() + 365 * DAY));
+    const v = service.db.prepare('SELECT * FROM venues').get();
+    assert.deepEqual([v.founding_offer, v.founding, v.trial_until], [1, 1, null]);
+    assert.equal((await api('GET', '/v1/offers')).founding.left, 0);
+    await api('POST', '/v1/checkout', {...form, email: 'next@example.com'});
+    params = calls.filter(c => c.route === '/v1/checkout/sessions').at(-1).params;
+    assert.deepEqual([params['line_items[0][price]'], params['metadata[founding]']], ['price_m', '0'], 'the places are gone: the usual price');
+    // The founding venue's billing portal only offers founding prices.
+    const token = /token=([\w-]+)/.exec(sent.find(m => m.to === 'vic@example.com').text)[1];
+    await api('POST', '/v1/password-reset/confirm', {token, password: 'pub quiz every monday'});
+    const vic = (await api('POST', '/v1/sessions', {email: 'vic@example.com', password: 'pub quiz every monday'})).token;
+    assert.equal((await api('POST', `/v1/venues/${v.id}/billing`, {}, vic)).url, 'https://billing.stripe.test/session');
+    assert.equal(calls.filter(c => c.route === '/v1/billing_portal/sessions').at(-1).params.configuration, 'bpc_founding');
   } finally {await done();}
 });

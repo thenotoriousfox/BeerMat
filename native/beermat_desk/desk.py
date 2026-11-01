@@ -401,7 +401,7 @@ class Desk(QObject):
             'mode': rehearsal.get('mode', 'live'), 'canGoLive': bool(rehearsal.get('canGoLive')), 'rehearsing': bool(rehearsal.get('options')),
             'rehearsalOptions': rehearsal.get('options') or {}, 'rehearsalLog': rehearsal.get('log') or [],
             'plan': {'code': plan.get('plan', 'free'), 'name': plan.get('name', 'BeerMat Free'), 'live': bool(plan.get('live')),
-                     'venue': plan.get('venue') or '', 'expires': plan.get('expires') or 0, 'paidUntil': plan.get('paidUntil') or 0},
+                     'venue': plan.get('venue') or '', 'expires': plan.get('expires') or 0, 'paidUntil': plan.get('paidUntil') or 0, 'trialUntil': plan.get('trialUntil') or 0},
             'devices': [{'name': d['name'], 'connected': bool(d.get('connected'))} for d in rehearsal.get('devices', [])],
             'sims': [{'name': t['name'], 'connected': bool(t.get('connected')), 'manual': bool(t.get('manual'))} for t in rehearsal.get('sims', [])],
             # Teams & marking: every team (disabled and waiting ones too), and the answers to the current question.

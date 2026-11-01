@@ -7,4 +7,9 @@ export const DOWNLOADS = 'https://downloads.beermatquiz.co.uk';
 export const DOWNLOADS_READY = false;
 export const CONTACT = 'hello@beermatquiz.co.uk';
 export const PRICE = {monthly: '£19.99', yearly: '£199'};
+// The offers (BeerMat Online's /v1/checkout and /v1/offers): a free trial of Pro with no card, the founding price kept
+// for life by the first venues to pay, a first-month guarantee, and setting a pub up for it.
+export const TRIAL_DAYS = 14;
+export const FOUNDING = {monthly: '£14.99', yearly: '£149', places: 20};
+export const SETUP_PRICE = '£75';
 // Free makes and rehearses quizzes with no limits; hosting a live quiz with real teams is Pro (server/edition.js).
