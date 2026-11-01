@@ -10,12 +10,12 @@ const rows: [string, ...(string | boolean)[]][] = [
 	['Works with no internet', 'Yes: its own quiz Wi-Fi from the laptop', 'Depends on the company', true, false, false],
 	['Teams answer on their phones', true, 'Sometimes', false, true, true],
 	['Marking and scores', 'Automatic, with the host’s final say', 'Done by the host', 'By hand', 'Automatic', 'Automatic'],
-	['The question on every TV', true, 'Sometimes', false, true, true],
+	['The question on every TV', 'Yes: a second screen, a TV stick, or another computer wired to the TVs', 'Sometimes', false, true, true],
 	['Round formats', 'Eighteen: buzzers, bingo, music bingo, pinpoint, word trail, picture reveals and more', 'Whatever the company runs', 'Questions and answer sheets', 'A handful', 'A handful'],
 	['Questions written for you', 'An example quiz, and quizzes other pubs share', true, false, 'Some include a question bank', 'Some include a question bank'],
 	['A host on the night', 'You (or your quizmaster)', true, 'You', 'You', 'You'],
 	['TVs busy all week: offers, sport', false, false, false, 'Some', true],
-	['Run it from a phone', 'From the laptop', 'n/a', 'n/a', true, true],
+	['Run it from a phone', 'Yes: the BeerMat app (Android and iPhone), with the laptop running the TV and sound', 'n/a', 'n/a', true, true],
 	['Your quiz and results stay in the pub', true, 'With the company', true, false, false],
 ];
 const cell = (v: string | boolean) => v === true ? '✓' : v === false ? '✗' : v;
