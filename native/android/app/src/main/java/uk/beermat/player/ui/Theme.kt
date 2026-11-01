@@ -28,8 +28,12 @@ object Brand {
     val line get() = c("line"); val text get() = c("text"); val muted get() = c("muted"); val faint get() = c("faint")
     val gold get() = c("gold"); val goldHi get() = c("goldHi"); val pink get() = c("pink"); val teal get() = c("teal")
     val violet get() = c("violet"); val good get() = c("good"); val bad get() = c("bad"); val onAccent get() = c("onAccent")
-    /** Answer keys, matching the TV's option tiles (the same in every look). */
-    val options = listOf(Color(0xFFFF5470), Color(0xFF3B82F6), Color(0xFF34D399), Color(0xFFFFB21A), Color(0xFF7A2CF0), Color(0xFF1FD6C6))
+    /** Answer A–H's colours, light to dark: the same blocks as the TV and the browser player (style.css .opt.o0…o7), in
+     *  every look. Text is white, dark on the yellow one. */
+    val options = listOf(
+        Color(0xFFFF6B5F) to Color(0xFFD6293D), Color(0xFF4F9DFF) to Color(0xFF2459D8), Color(0xFF3BE08C) to Color(0xFF129A55), Color(0xFFFFD34D) to Color(0xFFE09A12),
+        Color(0xFFB17BFF) to Color(0xFF7A3FE0), Color(0xFF3FE0E0) to Color(0xFF138F9C), Color(0xFFFF9F43) to Color(0xFFE0621F), Color(0xFFFF6FB0) to Color(0xFFD0306F))
+    val onYellow = Color(0xFF241500)
 
     /** A look's colour tokens (--bg, --gold…, as look.css names them) over BeerMat's own; an empty map goes back. */
     fun apply(tokens: Map<String, String>) {

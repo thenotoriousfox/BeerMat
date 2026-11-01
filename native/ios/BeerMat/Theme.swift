@@ -7,7 +7,12 @@ enum Brand {
     static let gold = Color(hex: 0xFFB21A), goldHi = Color(hex: 0xFFD25E), pink = Color(hex: 0xFF3D81), teal = Color(hex: 0x1FD6C6)
     static let violet = Color(hex: 0x7A2CF0), good = Color(hex: 0x34D399), bad = Color(hex: 0xFF5470), onAccent = Color(hex: 0x1C1036)
     /// Answer keys, matching the TV's option tiles.
-    static let options = [Color(hex: 0xFF5470), Color(hex: 0x3B82F6), Color(hex: 0x34D399), Color(hex: 0xFFB21A), Color(hex: 0x7A2CF0), Color(hex: 0x1FD6C6)]
+    /// Answer A–H's colours, light to dark: the same blocks as the TV and the browser player (style.css .opt.o0…o7), in
+    /// every look. Text is white, dark on the yellow one.
+    static let options: [(Color, Color)] = [(Color(hex: 0xFF6B5F), Color(hex: 0xD6293D)), (Color(hex: 0x4F9DFF), Color(hex: 0x2459D8)), (Color(hex: 0x3BE08C), Color(hex: 0x129A55)),
+        (Color(hex: 0xFFD34D), Color(hex: 0xE09A12)), (Color(hex: 0xB17BFF), Color(hex: 0x7A3FE0)), (Color(hex: 0x3FE0E0), Color(hex: 0x138F9C)),
+        (Color(hex: 0xFF9F43), Color(hex: 0xE0621F)), (Color(hex: 0xFF6FB0), Color(hex: 0xD0306F))]
+    static let onYellow = Color(hex: 0x241500)
 
     /// Fredoka for headings (bundled, UIAppFonts), scaled with Dynamic Type.
     static func display(_ size: CGFloat, _ style: Font.TextStyle = .title) -> Font { .custom("Fredoka", size: size, relativeTo: style).weight(.bold) }

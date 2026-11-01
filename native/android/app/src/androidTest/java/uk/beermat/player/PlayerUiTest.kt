@@ -112,7 +112,7 @@ class PlayerUiTest {
         waitText("You’re in!")
 
         // The team's buzzer sound and photo (the quizmaster approves photos first).
-        rule.onNodeWithText("Picked from your team name").performScrollTo().performClick()
+        rule.onNodeWithText("Chosen for you: tap to pick one").performScrollTo().performClick()
         rule.onNodeWithText("Siren").performClick()
         rule.waitUntil(10000) { team().optInt("sound", -1) == 2 }
         call("/api/host/settings", JSONObject().put("teamPhotos", true))

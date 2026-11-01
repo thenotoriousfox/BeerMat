@@ -382,6 +382,27 @@ class TvStageTest(unittest.TestCase):
         spotlight = self.stage.findChild(QObject, 'spotlight')
         spotlight.setProperty('shown', None); spotlight.setProperty('armedFor', None)
 
+    def test_answers_are_solid_colour_blocks(self):
+        """Options are the phones' solid colour blocks (as the web TV draws them), not tinted outlines: the middle of
+        answer A is bright red and of B bright blue, as style.css's .opt.o0 and .o1."""
+        self.show(state(q=question()))
+        for _ in range(30):
+            app.processEvents(); time.sleep(0.02)
+        image = self.window.grabWindow()
+        def items(item):
+            yield item
+            for child in item.childItems():
+                yield from items(child)
+        tiles = sorted([t for t in items(self.stage) if t.objectName() == 'optionTile' and t.property('visible')], key=lambda t: t.property('index'))
+        self.assertGreaterEqual(len(tiles), 2)
+        scale = image.width() / self.window.width()
+        def middle(tile):
+            p = tile.mapToItem(self.window.contentItem(), tile.property('width') / 2, tile.property('height') / 3)
+            return image.pixelColor(int(p.x() * scale), int(p.y() * scale))
+        red, blue = middle(tiles[0]), middle(tiles[1])
+        self.assertTrue(red.red() > 200 and red.green() < 140 and red.blue() < 140, f'A is solid red: {red.name()}')
+        self.assertTrue(blue.blue() > 200 and blue.red() < 120, f'B is solid blue: {blue.name()}')
+
     def test_wheel_spins_once_for_a_spin_seen_happening(self):
         spin = self.stage.findChild(QObject, 'wheelSpin')
         self.show(state('join'))

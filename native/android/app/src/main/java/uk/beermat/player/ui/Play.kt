@@ -47,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -367,17 +368,27 @@ private fun ready(q: Question, value: Any): Boolean = when (q.type) {
 @Composable
 private fun Keys(keys: List<Pair<Int, String>>, colours: Boolean, picked: (Int) -> Boolean, enabled: Boolean, tap: (Int) -> Unit) {
     val haptics = LocalHapticFeedback.current
+    // As the browser player (style.css .keypad): answers are solid colour blocks with a darker bottom edge; the picked
+    // one gets a white ring and the rest step back. Other lists are plain keys that turn gold when picked.
+    val anyPicked = keys.any { picked(it.first) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         keys.forEach { (i, label) ->
-            val tone = if (colours) Brand.options[i % Brand.options.size] else Brand.violet
             val on = picked(i)
-            val fill by animateColorAsState(tone.copy(alpha = if (on) .55f else .18f), label = "key")
+            val shape = RoundedCornerShape(16.dp)
+            val fade by androidx.compose.animation.core.animateFloatAsState(if (!enabled) .55f else if (colours && anyPicked && !on) .4f else 1f, label = "key")
+            val (light, dark) = if (colours) Brand.options[i % Brand.options.size] else if (on) Brand.goldHi to Brand.gold else Brand.raised to Brand.raised
             Box(
-                Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RoundedCornerShape(18.dp)).background(fill)
-                    .border(if (on) 3.dp else 1.dp, if (on) Brand.text else tone.copy(alpha = .7f), RoundedCornerShape(18.dp))
+                Modifier.fillMaxWidth().heightIn(min = 64.dp).alpha(fade).clip(shape)
+                    .background(if (colours) Color(dark.red * .78f, dark.green * .78f, dark.blue * .78f) else dark)
+                    .padding(bottom = if (colours) 4.dp else 0.dp).clip(shape)
+                    .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(light, dark)))
+                    .then(if (on && colours) Modifier.border(4.dp, Color.White, shape) else if (!colours) Modifier.border(1.dp, Brand.line, shape) else Modifier)
                     .clickable(enabled = enabled) { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); tap(i) }.padding(horizontal = 18.dp, vertical = 14.dp),
                 contentAlignment = Alignment.CenterStart,
-            ) { Text(label, fontWeight = FontWeight.Bold, fontSize = 19.sp) }
+            ) {
+                Text(label, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp,
+                    color = when { colours && i % 8 == 3 && !on -> Brand.onYellow; !colours && on -> Brand.onAccent; else -> Color.White })
+            }
         }
     }
 }
