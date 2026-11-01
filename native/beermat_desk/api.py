@@ -110,7 +110,8 @@ class DeskApi(QObject):
             return
         if self._stream:
             self._stream.abort()
-        request = QNetworkRequest(QUrl(f'{self.base}/api/events?key={self.session}'))
+        # desk=1: the quiz desk itself, which plays what a phone deck asks for (clips, songs: server.js deckCommand).
+        request = QNetworkRequest(QUrl(f'{self.base}/api/events?key={self.session}&desk=1'))
         request.setRawHeader(b'Accept', b'text/event-stream')
         self._stream_buffer = b''
         stream = self._stream = self._net.get(request)

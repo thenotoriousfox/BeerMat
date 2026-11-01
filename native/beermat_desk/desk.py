@@ -22,6 +22,9 @@ from .online import OnlineVenue
 from .prefs import Prefs
 from .updates import Updates
 
+# What a phone deck asked the desk to do, for its toast.
+DECK_LABELS = {'callNumber': 'next call', 'playClips': 'play all clips', 'playClip': 'play a clip', 'stopClips': 'stop the clips',
+               'playAudio': 'play the sound again', 'pauseAudio': 'pause or carry on the sound'}
 STEP_LABELS = {'reveal': 'Reveal next position', 'revealFirst': 'Reveal the leader', 'revealSecond': 'Reveal second place', 'show': 'Show leaderboard',
                'recap': 'Reveal the secret round', 'recapAnswer': 'Reveal the next secret answer', 'recapResults': 'Show the round’s results',
                'finish': 'Finish quiz', 'round': 'Start next round', 'question': 'Start next question'}
@@ -47,6 +50,7 @@ class Desk(QObject):
     quitRequested = Signal()        # Close BeerMat, pressed on a desk (also in a browser)
     transferCode = Signal(str)      # a team's 4-digit code to move to another phone
     networkChanged = Signal()
+    deckChanged = Signal()
     roleRequested = Signal(str)     # 'tv': this computer becomes a TV screen for another laptop (__main__.py)
 
     def __init__(self, data_dir, host_key, port=3000, laptop=True, parent=None):
@@ -72,6 +76,7 @@ class Desk(QObject):
         self._review, self._results = None, {}
         self._status, self._connected, self._busy = 'Starting the quiz server…', False, False
         self._crashes = []
+        self._deck_seq, self._deck_code = None, None
         self._refreshing = self._again = False
         self.server.ready.connect(self._server_ready)
         self.server.failed.connect(lambda message: self._set_status(f'Could not start: {message}'))
@@ -318,6 +323,7 @@ class Desk(QObject):
             self._state = state
             self._state['_receivedAt'] = time.time() * 1000
             self.tvSound.screens = len(state.get('tvScreens') or [])
+            self._follow_deck(state.get('deckCommand'))
             if state.get('libraryRevision') != (self._library or {}).get('revision'):
                 self.load_library()
             self._rebuild()
@@ -423,7 +429,7 @@ class Desk(QObject):
             'formats': [{'value': k, 'text': v} for k, v in TYPE_NAMES.items()],
             # The live controls read the server's own question (host view), settings, tie and countdown as they are.
             'raw': q or {}, 'settings': settings, 'tie': s.get('tie') or {}, 'timer': s.get('timer') or {},
-            'typeCode': (q or {}).get('type', ''), 'tvScreens': s.get('tvScreens') or [], 'clipsRunning': (self.liveTools.clipsRunning() or {}).get('index', -1),
+            'typeCode': (q or {}).get('type', ''), 'tvScreens': s.get('tvScreens') or [], 'decks': s.get('decks') or [], 'clipsRunning': (self.liveTools.clipsRunning() or {}).get('index', -1),
             'progress': f'{len(played & {item.get("id") for _, item in questions})} of {len(questions)} questions played' if questions else '',
             'upcoming': upcoming,
         }
@@ -801,6 +807,40 @@ class Desk(QObject):
     def becomeTvScreen(self):
         """This computer shows the TV of the quizmaster's laptop instead (tvscreen.py); its own quiz stays as it is."""
         self.roleRequested.emit('tv')
+
+    # ---- the phone deck ----
+    DECK_COMMANDS = {'callNumber': 'callNumber', 'playClips': 'playClips', 'stopClips': 'stopClips', 'playAudio': 'playAudio', 'pauseAudio': 'pauseAudio'}
+
+    def _follow_deck(self, command):
+        """A phone hosting asked the desk to play something (only the desk plays clips and songs). Each once, when
+        fresh; what was asked before the desk opened is left alone."""
+        if not command:
+            self._deck_seq = self._deck_seq if self._deck_seq is not None else 0
+            return
+        if command.get('seq') == self._deck_seq:
+            return
+        first, self._deck_seq = self._deck_seq is None, command.get('seq')
+        if first or time.time() * 1000 - command.get('at', 0) > 20000:
+            return
+        action = command.get('action')
+        if action == 'playClip' and isinstance(command.get('value'), int):
+            self.liveTools.playClip(command['value'])
+        elif action in self.DECK_COMMANDS:
+            getattr(self.liveTools, self.DECK_COMMANDS[action])()
+        self.toast.emit(f'{command.get("from") or "A phone"}: {DECK_LABELS.get(action, action)}', False)
+
+    @Slot()
+    def deckCode(self):
+        """A code for a phone with no internet to sign in as the phone deck (five minutes, once)."""
+        self.api.host('deck-code', {}, lambda reply: (setattr(self, '_deck_code', reply), self.deckChanged.emit()), lambda e: self.toast.emit(e, True))
+
+    @Property('QVariantMap', notify=deckChanged)
+    def deck(self):
+        return {'code': (self._deck_code or {}).get('code', ''), 'expires': (self._deck_code or {}).get('expires', 0)}
+
+    @Slot(str)
+    def disconnectDeck(self, deck_id):
+        self._act('deck/disconnect', {'id': deck_id}, 'That phone can’t host any more')
 
     # ---- first run ----
     @Property(bool, constant=True)

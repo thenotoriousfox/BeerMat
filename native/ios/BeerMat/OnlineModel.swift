@@ -40,6 +40,8 @@ final class OnlineModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var message = ""
     @Published var isError = false
     @Published var outbox = 0
+    /// Signed in with a venue's account or an admin's: the app offers Run the night (the phone deck).
+    @Published var hosts = false
     private let location = CLLocationManager()
 
     /// The badges the server can award (shared/achievements.js, bundled as badges.json).
@@ -52,6 +54,7 @@ final class OnlineModel: NSObject, ObservableObject, CLLocationManagerDelegate {
         super.init()
         location.delegate = self
         profile = client.profile; outbox = client.outbox.count
+        hosts = client.signedIn && UserDefaults.standard.bool(forKey: "online:hosts")
         if client.signedIn { refresh() }
     }
 
@@ -68,16 +71,20 @@ final class OnlineModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     func setService(_ url: String) { client.baseUrl = url.trimmingCharacters(in: CharacterSet(charactersIn: "/ ")); PhoneStorage().set("baseUrl", client.baseUrl); say(t("Saved")) }
     func signIn(_ email: String, _ password: String) { work { _ = try await self.client.signIn(email: email, password: password); await self.load(); self.say(t("Signed in")) } }
     func signUp(_ email: String, _ password: String, _ name: String) { work { _ = try await self.client.signUp(email: email, password: password, displayName: name); await self.load(); self.say(t("Account created: check your email to confirm it")) } }
-    func signOut() { work { await self.client.signOut(); self.stats = nil; self.say(t("Signed out")) } }
+    func signOut() { work { await self.client.signOut(); self.stats = nil; self.hosts = false; UserDefaults.standard.removeObject(forKey: "online:hosts"); self.say(t("Signed out")) } }
     func refresh() { work { await self.load() } }
     private func load() async {
         _ = try? await client.refreshProfile()
+        // Offline, what it was last time (a quizmaster may well be on the quiz Wi-Fi, with no internet).
+        let venues = try? await client.myVenues()
+        hosts = (client.profile?["admin"] as? Bool) == true || (venues.map { !$0.isEmpty } ?? hosts)
+        UserDefaults.standard.set(hosts, forKey: "online:hosts")
         if let flushed = try? await client.flush(), flushed.sent > 0 { say(t("{n} result(s) added to your profile", ["n": flushed.sent])) }
         stats = (try? await client.stats()) ?? stats
     }
     func privacy(_ key: String, _ on: Bool) { work { try await self.client.updateProfile(["privacy": [key: on]]); self.say(t("Privacy saved")) } }
     func resendVerify() { work { try await self.client.resendVerify(); self.say(t("We’ve sent the email again")) } }
-    func deleteAccount() { work { try await self.client.deleteAccount(); self.stats = nil; self.say(t("Your account and everything in it are deleted")) } }
+    func deleteAccount() { work { try await self.client.deleteAccount(); self.stats = nil; self.hosts = false; UserDefaults.standard.removeObject(forKey: "online:hosts"); self.say(t("Your account and everything in it are deleted")) } }
     func exportData() async -> String? {
         guard let data = try? await client.exportData(), let json = try? JSONSerialization.data(withJSONObject: data, options: .prettyPrinted) else { return nil }
         return String(decoding: json, as: UTF8.self)

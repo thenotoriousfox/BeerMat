@@ -437,6 +437,24 @@ $('next').onclick = () => {
   else if (step) action(() => request('next', {expectedQuestion: state.question?.id || null}), 'Next question opened');
 };
 // Level for first place after the last question: the desk offers the tie-breaker (Next never opens one).
+// Phones hosting this quiz (Run the night in the BeerMat app): each can be taken off.
+function renderDecks(s) {
+  const list = $('deckList'), decks = s.decks || [];
+  const signature = JSON.stringify(decks);
+  if (list.dataset.signature === signature) return;
+  list.dataset.signature = signature;
+  list.replaceChildren(...decks.map(d => {
+    const item = element('li', `${d.name} is hosting (${d.how === 'code' ? 'signed in with a code' : d.how === 'admin' ? 'BeerMat admin' : 'venue account'}) `), off = element('button', 'Disconnect', 'subtle');
+    off.type = 'button'; off.onclick = () => action(() => request('deck/disconnect', {id: d.id}), 'That phone can’t host any more');
+    item.append(off); return item;
+  }));
+}
+$('deckCodeButton').onclick = () => action(async () => {
+  const {code} = await request('deck-code');
+  $('deckCodeShown').textContent = `${code.slice(0, 3)} ${code.slice(3)} (works once, for five minutes)`;
+  $('deckCodeButton').textContent = 'New code';
+  return 'Type the code into the phone';
+});
 function renderTie(s) {
   const tie = s.tie; $('tiePrompt').hidden = !tie || s.settings.ended; if (!tie) return;
   $('tieText').textContent = `🎯 ${tie.teams.length} teams are tied for first on ${tie.points} ${tie.points === 1 ? 'point' : 'points'}: ${tie.teams.join(', ')}.` +
@@ -1284,7 +1302,7 @@ function renderState(s) {
   $('liveRound').textContent = (q?.secret && !s.settings.ended ? '🤫 Secret round · ' : '') + (q?.round || ''); $('liveText').textContent = q?.text || 'Ready when you are'; $('liveTimer').textContent = timeText(q, offset);
   $('liveKey').textContent = q ? (q.held ? 'Read it out, then Send question (S): phones see it and the clock starts. · ' : '') + answerKey(q) : '';
   if (q?.id !== liveQuestion) {liveQuestion = q?.id; $('announced').value = '';}
-  renderBuzzPanel(q); renderBingoPanel(q); audioClipCue(q); showDeskPlayer(); renderSounds(s); useSounds(s.sounds); renderLooks(s); renderTie(s);
+  renderBuzzPanel(q); renderBingoPanel(q); audioClipCue(q); showDeskPlayer(); renderSounds(s); useSounds(s.sounds); renderLooks(s); renderTie(s); renderDecks(s);
   if (clipRun && (q?.id !== clipRun.question || !q.live)) stopClips(); else renderClipsPanel(q);
   $('liveCount').textContent = q ? `${s.answers.length} answers received · ${s.teams.filter(t => t.enabled && !t.waiting).length} active teams` : 'Add rounds in Quizzes, then start your first question.';
   renderMedia($('liveMedia'), q); renderSolution($('liveSolution'), q);

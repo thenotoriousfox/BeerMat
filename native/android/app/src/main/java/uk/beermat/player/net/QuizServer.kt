@@ -90,6 +90,29 @@ class QuizServer(base: String) {
         request("POST", "/api/away", JSONObject().put("question", question).put("state", state), secret)
     }
 
+    // ---- the phone deck: the quizmaster's phone hosting the quiz (server.js /api/deck/*) ----
+    /** The laptop's quiz, for a phone about to host it: its title and the laptop's venue key (for a ticket). */
+    suspend fun deckHello(): JSONObject = withContext(Dispatchers.IO) {
+        request("GET", "/api/deck/hello", null, "").takeIf { it.optString("app") == "BeerMat" } ?: throw QuizError(t("That address isn’t a BeerMat quiz."), 0)
+    }
+
+    /** Signs this phone in as a host: with a ticket from BeerMat Online, or a code the desk shows. Returns its key. */
+    suspend fun deckLogin(name: String, ticket: JSONObject? = null, code: String? = null): String = withContext(Dispatchers.IO) {
+        request("POST", "/api/deck/login", JSONObject().put("name", name).apply { ticket?.let { put("ticket", it) }; code?.let { put("code", it) } }, "").getString("key")
+    }
+
+    /** One of the desk's own routes (/api/host/<route>), as the host. */
+    suspend fun host(key: String, route: String, body: JSONObject = JSONObject()): JSONObject = withContext(Dispatchers.IO) { request("POST", "/api/host/$route", body, key) }
+
+    /** How long one of the laptop's sounds lasts (the reveal's drum roll), in ms; 0 when it can't be read. */
+    suspend fun soundLength(src: String): Int = withContext(Dispatchers.IO) {
+        runCatching {
+            android.media.MediaMetadataRetriever().run {
+                try { setDataSource(if (src.startsWith("http")) src else base + src, emptyMap()); extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toIntOrNull() ?: 0 } finally { release() }
+            }
+        }.getOrDefault(0)
+    }
+
     /**
      * Live updates: the server's event stream sends a number whenever anything changes; each one means "fetch your
      * state again". Emits true when connected (and on every nudge), false when the stream drops; reconnects by itself.

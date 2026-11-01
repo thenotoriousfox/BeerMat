@@ -25,6 +25,8 @@ data class OnlineState(
     val venuesNote: String = "",
     val venue: JSONObject? = null,
     val favourites: Set<String> = emptySet(),
+    /** Signed in with a venue's account or an admin's: the app offers Run the night (the phone deck). */
+    val hosts: Boolean = false,
     val busy: Boolean = false,
     val message: String = "",
     val error: Boolean = false,
@@ -56,11 +58,16 @@ class OnlineViewModel(app: Application) : AndroidViewModel(app) {
     // ---- profile ----
     fun signIn(email: String, password: String) = work { client.signIn(email, password); loadProfile(); say(t("Signed in")) }
     fun signUp(email: String, password: String, name: String) = work { client.signUp(email, password, name); loadProfile(); say(t("Account created: check your email to confirm it")) }
-    fun signOut() = work { client.signOut(); _ui.update { it.copy(stats = null) }; say(t("Signed out")) }
+    fun signOut() = work { client.signOut(); favouritesHere.edit().remove("hosts").apply(); _ui.update { it.copy(stats = null, hosts = false) }; say(t("Signed out")) }
     fun refresh() = work { if (client.signedIn) loadProfile() }
 
     private suspend fun loadProfile() {
         runCatching { client.refreshProfile() }
+        val venues = runCatching { client.myVenues().length() }.getOrNull()
+        // Offline, what it was last time (a quizmaster may well be on the quiz Wi-Fi, with no internet).
+        val hosts = client.profile?.optBoolean("admin") == true || (venues ?: if (_ui.value.hosts) 1 else 0) > 0
+        favouritesHere.edit().putBoolean("hosts", hosts).apply()
+        _ui.update { it.copy(hosts = hosts) }
         val flushed = client.flush()
         if (flushed.sent > 0) say(t("{n} result(s) added to your profile", "n" to flushed.sent))
         val stats = runCatching { client.stats() }.getOrNull()
@@ -71,7 +78,7 @@ class OnlineViewModel(app: Application) : AndroidViewModel(app) {
     fun rename(name: String) = work { client.updateProfile(JSONObject().put("displayName", name)); say(t("Saved")) }
     fun privacy(key: String, on: Boolean) = work { client.updateProfile(JSONObject().put("privacy", JSONObject().put(key, on))); say(t("Privacy saved")) }
     fun resendVerify() = work { client.resendVerify(); say(t("We’ve sent the email again")) }
-    fun deleteAccount() = work { client.deleteAccount(); _ui.update { it.copy(stats = null) }; say(t("Your account and everything in it are deleted")) }
+    fun deleteAccount() = work { client.deleteAccount(); favouritesHere.edit().remove("hosts").apply(); _ui.update { it.copy(stats = null, hosts = false) }; say(t("Your account and everything in it are deleted")) }
     suspend fun exportData(): String = client.exportData().toString(2)
 
     /** The team's signed result from the quiz laptop, kept in the profile (or waiting until signed in and online). */
@@ -119,7 +126,7 @@ class OnlineViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     init {
-        _ui.update { it.copy(favourites = favouritesHere.getStringSet("favourites", emptySet()) ?: emptySet()) }
+        _ui.update { it.copy(favourites = favouritesHere.getStringSet("favourites", emptySet()) ?: emptySet(), hosts = client.signedIn && favouritesHere.getBoolean("hosts", false)) }
         if (client.signedIn) refresh()
     }
 }

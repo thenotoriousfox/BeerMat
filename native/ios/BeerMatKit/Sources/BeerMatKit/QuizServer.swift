@@ -101,7 +101,7 @@ public final class QuizServer: @unchecked Sendable {
     }
     #endif
 
-    private func request(_ method: String, _ route: String, _ body: [String: Any]? = nil, _ secret: String = "", raw: Data? = nil, rtt: Int? = nil) async throws -> [String: Any] {
+    func request(_ method: String, _ route: String, _ body: [String: Any]? = nil, _ secret: String = "", raw: Data? = nil, rtt: Int? = nil) async throws -> [String: Any] {
         var request = URLRequest(url: URL(string: base + route)!)
         request.httpMethod = method
         if !secret.isEmpty { request.setValue("Bearer \(secret)", forHTTPHeaderField: "Authorization") }

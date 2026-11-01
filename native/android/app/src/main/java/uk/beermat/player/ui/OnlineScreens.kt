@@ -74,7 +74,7 @@ private fun date(at: Long) = DateFormat.getDateTimeInstance(DateFormat.FULL, Dat
 
 // ---- Profile ----
 @Composable
-fun ProfileScreen(vm: OnlineViewModel, ui: OnlineState) {
+fun ProfileScreen(vm: OnlineViewModel, ui: OnlineState, runTheNight: (() -> Unit)? = null) {
     val me = ui.profile
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
@@ -121,6 +121,8 @@ fun ProfileScreen(vm: OnlineViewModel, ui: OnlineState) {
             else Row { Text(t("Delete everything, for good?"), color = Brand.bad, modifier = Modifier.weight(1f)); TextButton({ confirmDelete = false; vm.deleteAccount() }) { Text(t("Delete"), color = Brand.bad) } }
         }
         OnlineMessage(ui)
+        // The quizmaster's own phone: hosting needs the venue's account, or a code from the desk.
+        if (runTheNight != null && !ui.hosts) TextButton(runTheNight, modifier = Modifier.padding(top = 12.dp).testTag("runTheNight")) { Text(t("Quizmaster? Run the night from this phone")) }
     }
 }
 

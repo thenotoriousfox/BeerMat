@@ -76,9 +76,15 @@ import uk.beermat.player.game.Stage
 import uk.beermat.player.game.UiState
 
 @Composable
-fun BeerMatApp(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.online.OnlineViewModel, scan: () -> Unit) {
+fun BeerMatApp(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.online.OnlineViewModel, deck: uk.beermat.player.deck.DeckViewModel, scan: () -> Unit) {
     val o = online.ui.collectAsStateWithLifecycle().value
+    val d = deck.ui.collectAsStateWithLifecycle().value
     var tab by rememberSaveable { mutableStateOf(0) }
+    // Run the night (the phone deck): a tab for a venue's account or an admin's, and for a phone hosting now.
+    var deckAsked by rememberSaveable { mutableStateOf(false) }
+    val deckTab = o.hosts || deckAsked || d.stage == uk.beermat.player.deck.DeckStage.Run
+    // Hosting from this phone (again, after the app was closed): straight to it.
+    androidx.compose.runtime.LaunchedEffect(d.stage) { if (d.stage == uk.beermat.player.deck.DeckStage.Run) tab = 4 }
     // In a quiz, the quiz's language (the quizmaster chooses it, as for the TV and browsers); elsewhere the phone's.
     I18n.lang = ui.game?.settings?.language ?: I18n.phone
     // The quiz's look dresses the whole screen (its background and scenery, behind everything); otherwise BeerMat's own.
@@ -94,7 +100,8 @@ fun BeerMatApp(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.onlin
                         Stage.Connect -> when (shown) {
                             1 -> FindScreen(online, o)
                             2 -> MapScreen(online, o)
-                            3 -> ProfileScreen(online, o)
+                            3 -> ProfileScreen(online, o, runTheNight = { deckAsked = true; tab = 4 })
+                            4 -> DeckScreen(deck, d)
                             else -> ConnectScreen(vm, ui, scan)
                         }
                         Stage.Join -> JoinScreen(vm, ui)
@@ -104,7 +111,7 @@ fun BeerMatApp(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.onlin
             }
             // The app's own screens around the quiz; a quiz in play has the whole screen (Team → Other quizzes leads back).
             if (ui.stage == Stage.Connect) Row(Modifier.fillMaxWidth().background(Brand.panel).padding(vertical = 6.dp)) {
-                listOf("🍺" to t("Play"), "🔎" to t("Find a quiz"), "🗺" to t("Map"), "👤" to t("Profile")).forEachIndexed { i, (icon, label) ->
+                (listOf("🍺" to t("Play"), "🔎" to t("Find a quiz"), "🗺" to t("Map"), "👤" to t("Profile")) + if (deckTab) listOf("🎤" to t("Run the night")) else emptyList()).forEachIndexed { i, (icon, label) ->
                     Column(Modifier.weight(1f).clickable { tab = i }.padding(vertical = 4.dp).testTag("tab-$label"), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(icon, fontSize = 20.sp)
                         Text(label, fontSize = 12.sp, color = if (tab == i) Brand.gold else Brand.muted, fontWeight = if (tab == i) FontWeight.Bold else FontWeight.Normal)

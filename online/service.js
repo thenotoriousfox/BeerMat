@@ -23,7 +23,7 @@ import {fileURLToPath} from 'node:url';
 import {verifyClaim, keyId, validKey} from '../shared/claims.js';
 import {summarize, achievements} from '../shared/achievements.js';
 import {parseVenueList, checkQuizNights} from '../shared/venues.js';
-import {signLicence, plans} from '../shared/licence.js';
+import {signLicence, signDeckTicket, plans} from '../shared/licence.js';
 import {checkTheme, renameTheme, bundleOf} from '../shared/theme-bundle.js';
 import {checkQuizFile, quizOutline, QUIZ_LIMITS} from '../shared/quiz-file.js';
 
@@ -994,6 +994,17 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       // ---- Licences for quiz laptops ----
       // A laptop asks with a request signed by its venue key; the licence names its venue's plan. It lasts until the
       // plan ends (at most a month ahead, so it is renewed) plus two weeks, for laptops that are seldom online.
+      // The phone deck: a ticket that lets this account's phone host the quiz on a laptop of its venue (or any laptop, for
+      // an admin). The laptop checks it with the licence key, so it needs no internet itself.
+      if (method === 'POST' && p === '/v1/deck-tickets') {
+        check(account, 'Sign in first', 401);
+        check(licenceKey, 'The phone deck isn’t set up on this service yet', 503);
+        check(typeof input.venueKey === 'string' && input.venueKey.length < 200, 'Which laptop?');
+        const v = venueOfKey(input.venueKey);
+        check(account.admin || (v && v.owner === account.id), v ? 'Only the venue’s own account can host from a phone' : 'That laptop isn’t registered with a venue', 403);
+        return send(200, {ticket: signDeckTicket({venueKey: input.venueKey, account: account.id, name: account.display_name, admin: !!account.admin, venue: v?.id || null,
+          issued: now(), expires: now() + 5 * 60000}, licenceKey)});
+      }
       if (method === 'POST' && p === '/v1/licence') {
         limit('licence:' + ip);
         check(licenceKey, 'Licences aren’t set up on this service yet', 503);

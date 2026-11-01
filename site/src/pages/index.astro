@@ -1,6 +1,7 @@
 ---
 import Page from '../layouts/Page.astro';
 import Shot from '../components/Shot.astro';
+import Clip from '../components/Clip.astro';
 import {ONLINE, PRICE, TRIAL_DAYS, FOUNDING, SETUP_PRICE} from '../consts';
 
 // Screenshots are of the real app running a demo quiz (scripts/site-screenshots.mjs makes them again).
@@ -10,7 +11,7 @@ const screens = [
 		shot: {src: '/shots/tv-question.webp', alt: 'The TV during a question: four coloured answers and the time left', ...TV, retina: true, sizes: '(min-width: 1024px) 420px, 100vw'}},
 	{n: '2', where: 'On every table', title: 'Teams play on a phone', text: 'Heads together round one phone, then a tap to answer. They play in the browser: no app, no account, no sign-up.',
 		shot: {src: '/shots/phone-choice.webp', alt: 'A team’s phone during a question, with four answers to tap', ...PHONE}, tall: true},
-	{n: '3', where: 'Behind the bar', title: 'You run it from the desk', text: 'The next question is one big button. Answers are marked as they arrive, and you see which teams are in.',
+	{n: '3', where: 'Behind the bar', title: 'You run it from the desk', text: 'The next question is one big button. Answers are marked as they arrive, and you see which teams are in. Walking the room? Run the night from the BeerMat app on your phone.',
 		shot: {src: '/shots/desk.webp', alt: 'The quizmaster’s desk: the live question, which teams have answered, and what’s up next', ...DESK, retina: true, sizes: '(min-width: 1024px) 420px, 100vw'}},
 ];
 const formatShots = [
@@ -67,7 +68,7 @@ const reasons = [
 			<p class="mt-6 text-sm text-muted">Playing, not hosting? <a href="/find" class="font-semibold">Find a quiz near you →</a></p>
 		</div>
 		<div class="relative pb-10 sm:pb-14 lg:pb-0">
-			<Shot src="/shots/tv-question.webp" alt="The quiz on the TV: the question, four coloured answers and the time left" {...TV} retina sizes="(min-width: 1024px) 560px, 100vw" loading="eager" class="shadow-2xl shadow-pink/20" />
+			<Clip name="tv-question" alt="The quiz on the TV: a question opens, the teams answer, a drum roll, then the answer with how the room voted and the fastest teams" width={1280} height={720} eager class="shadow-2xl shadow-pink/20" />
 			<div class="absolute -bottom-4 right-3 w-[20%] max-w-[8rem] sm:right-6 lg:-bottom-16 lg:-right-6">
 				<Shot src="/shots/phone-choice.webp" alt="A team answering the same question on a phone" {...PHONE} loading="eager" class="!rounded-2xl border-white/30 shadow-2xl" />
 			</div>
@@ -118,8 +119,8 @@ const reasons = [
 			</ul>
 		</div>
 		<div class="grid grid-cols-6 items-end gap-4">
-			<div class="col-span-6 sm:col-span-4"><Shot src="/shots/tv-reveal.webp" alt="The answer revealed on the TV, with how many teams picked each answer and the fastest teams" {...TV} retina sizes="(min-width: 640px) 460px, 100vw" /></div>
-			<div class="col-span-6 sm:col-span-4 sm:col-start-3 sm:-mt-10"><Shot src="/shots/tv-leaderboard.webp" alt="The leaderboard on the TV" {...TV} retina sizes="(min-width: 640px) 460px, 100vw" /></div>
+			<div class="col-span-6 sm:col-span-4"><Clip name="tv-order" alt="A put-in-order question revealed on the TV: the planets slide into the right order and the teams who got it are named" width={1280} height={720} /></div>
+			<div class="col-span-6 sm:col-span-4 sm:col-start-3 sm:-mt-10"><Clip name="tv-leaderboard" alt="The leaderboard revealed on the TV a place at a time, from the bottom, then the winner in the spotlight" width={1280} height={720} /></div>
 		</div>
 	</section>
 

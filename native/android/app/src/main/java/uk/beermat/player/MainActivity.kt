@@ -21,6 +21,7 @@ import uk.beermat.player.ui.BeerMatTheme
 class MainActivity : ComponentActivity() {
     private val vm: PlayerViewModel by viewModels()
     private val online: OnlineViewModel by viewModels()
+    private val deck: uk.beermat.player.deck.DeckViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,7 +35,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             BeerMatTheme {
                 val ui = vm.ui.collectAsStateWithLifecycle().value
-                BeerMatApp(vm, ui, online, scan = ::scan)
+                BeerMatApp(vm, ui, online, deck, scan = ::scan)
             }
         }
     }

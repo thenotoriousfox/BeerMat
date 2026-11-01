@@ -351,6 +351,36 @@ ScrollView {
         }
     }
 
+    // The quizmaster's phone hosting the night (BeerMat app, signed in with the venue's account or an admin's, or a code).
+    Panel {
+        objectName: "phoneDeckPanel"
+        Layout.fillWidth: true; implicitHeight: Math.max(150, fitHeight)
+        title: "Phone deck"
+        ColumnLayout {
+            anchors.fill: parent; spacing: 8
+            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
+                   text: "Run the night from your phone: open the BeerMat app signed in with this venue's account and choose Run the night. It finds this laptop on the quiz Wi-Fi or the venue's. No account on the phone? Show a code and type it in there." }
+            Flow {
+                Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 10
+                DeskButton { objectName: "deckCodeButton"; text: desk.deck.code ? "New code" : "Show a code"; implicitHeight: 34; onClicked: desk.deckCode() }
+                Text { objectName: "deckCode"; visible: !!desk.deck.code; height: 34; verticalAlignment: Text.AlignVCenter; color: Theme.text; font.pixelSize: 22; font.bold: true
+                       text: desk.deck.code ? `${desk.deck.code.slice(0, 3)} ${desk.deck.code.slice(3)}` : "" }
+                Text { visible: !!desk.deck.code; height: 34; verticalAlignment: Text.AlignVCenter; color: Theme.faint; font.pixelSize: 12
+                       text: "Works once, for five minutes." }
+            }
+            Repeater {
+                model: settings.view.decks || []
+                delegate: Flow {
+                    required property var modelData
+                    Layout.fillWidth: true; Layout.maximumWidth: parent ? parent.width : 400; spacing: 10
+                    Text { height: 34; verticalAlignment: Text.AlignVCenter; color: Theme.good; font.pixelSize: 13
+                           text: `${modelData.name} is hosting (${modelData.how === "code" ? "signed in with a code" : modelData.how === "admin" ? "BeerMat admin" : "venue account"})` }
+                    DeskButton { text: "Disconnect"; implicitHeight: 34; onClicked: desk.disconnectDeck(modelData.id) }
+                }
+            }
+        }
+    }
+
     Panel {
         Layout.fillWidth: true; implicitHeight: Math.max(170, fitHeight)
         title: "Quizmaster key"

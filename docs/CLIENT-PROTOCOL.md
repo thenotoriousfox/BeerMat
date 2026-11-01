@@ -181,6 +181,19 @@ state (`plan`, `rehearsal: {mode, canGoLive, options, sims, devices, log}`, `que
 `teams`, `board`, `timer`, …). Actions are the routes listed in `docs/NATIVE-MIGRATION.md` §2; each mutating call
 that targets the current question carries `expectedQuestion` so a double press can't skip one.
 
+### The phone deck
+
+A phone hosting the quiz (Run the night in the Android app) uses the same `/api/host/*` routes, from the quiz Wi-Fi or
+the venue's (the only host session allowed off the quiz Wi-Fi). `GET /api/deck/hello` → `{app, title, venueKey, code}`
+(`code`: whether the desk is showing one). `POST /api/deck/login` `{name, ticket}` or `{name, code}` → `{key, title}`:
+a ticket comes from BeerMat Online (`POST /v1/deck-tickets {venueKey}`, for the venue's own account or an admin; signed
+with the licence key, bound to that laptop, five minutes); a code is six digits from the desk (`deck-code`), once, five
+minutes. `/api/host/state` adds `nextStep` (what the desk's Next does), `decks` (phones signed in: `{id, name, since,
+how}`), `deskConnected` and `deckCommand`. Clips, songs, bingo calls and audio play from the laptop, so a phone asks the
+desk: `deck-command {action: callNumber|playClips|playClip|stopClips|playAudio|pauseAudio, value}` (409 with no desk
+open); the Qt desk (its `/api/events?…&desk=1` stream) carries it out. The desk takes a phone off with `deck/disconnect
+{id}`.
+
 ## Compatibility rules
 
 1. Add fields; don't rename or remove them. Bump `protocol` if you must.
