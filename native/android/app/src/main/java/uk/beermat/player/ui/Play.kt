@@ -339,11 +339,21 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
         )
     }
 
+    // A wager: the team's stake, won if right and lost if wrong.
+    val most = q.raw.optInt("wager")
+    var stake by remember(q.id) { mutableStateOf<Int?>(null) }
+    if (most > 0 && submitted == null && q.open) {
+        Text(t("Your stake: win it if you’re right, lose it if you’re wrong (up to {n})", "n" to most), color = Brand.muted, modifier = Modifier.padding(top = 12.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            (0..most).forEach { n -> if (stake == n) androidx.compose.material3.Button({ stake = n }) { Text("$n") } else OutlinedButton({ stake = n }, enabled = !ui.busy) { Text("$n") } }
+        }
+    }
+    if (most > 0 && submitted != null) submitted.wager?.let { Text(t("Staked {n}", "n" to it), color = Brand.muted) }
     Spacer(Modifier.height(16.dp))
     when {
         submitted != null -> Result(q, submitted.points)
         !q.open -> Text(if (q.revealed) t("Answer revealed") else t("Answers closed"), color = Brand.muted)
-        else -> BigButton(t("Lock in answer"), enabled = !ui.busy && ready(q, value)) { vm.submit(value) }
+        else -> BigButton(t("Lock in answer"), enabled = !ui.busy && ready(q, value) && (most == 0 || stake != null)) { vm.submit(value, stake) }
     }
     if (q.revealed) revealLines(q).forEachIndexed { i, line -> Text(line, color = Brand.good, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(top = if (i == 0) 12.dp else 4.dp)) }
     if (q.revealed) VarCheck(vm, ui, q)

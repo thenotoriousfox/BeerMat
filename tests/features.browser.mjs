@@ -139,6 +139,17 @@ try {
   await phone.waitForFunction(() => document.getElementById('resultPoints').textContent === '+4 points'); void placesQ;
   log('pinpoint with several places: a tap for each, points for each place found');
 
+  // A wager: the phone stakes before sending; a right answer wins the stake.
+  await host('open', {text: 'Capital of Spain?', type: 'text', answer: 'Madrid', seconds: 60, wager: 5});
+  await phone.waitForFunction(() => document.querySelector('.keypad.stake') && document.getElementById('status').textContent.includes('Wager: up to 5 points'));
+  await phone.locator('#inputs input[name=answer-0]').fill('Madrid');
+  await phone.click('#submit'); await phone.waitForFunction(() => document.getElementById('message').textContent === 'Choose your stake first');
+  await phone.click('.keypad.stake button:text-is("3")'); await phone.click('#submit');
+  await phone.waitForFunction(() => /final answer/i.test(document.getElementById('draftStatus').textContent + document.getElementById('message').textContent));
+  await host('close');
+  await phone.waitForFunction(() => document.getElementById('resultPoints').textContent === '+3 points · Staked 3');
+  log('wager: the phone stakes before sending; a right answer wins the stake');
+
   // An older phone (before iOS 16 / Chrome 103): no AbortSignal.timeout (every request used it), Array at,
   // structuredClone or <dialog>. compat.js fills them in: it joins, answers, keeps a draft and opens the team menu.
   const oldContext = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});

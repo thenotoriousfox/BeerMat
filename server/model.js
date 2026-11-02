@@ -39,6 +39,8 @@ export const hostDriven = type => ['buzzer', 'bingo', 'musicbingo', 'clips'].inc
 export const isBingo = type => type === 'bingo' || type === 'musicbingo';
 
 export function validateQuestion(q, mediaDir) {
+  // A wager's points are its most stake, so they can be left out.
+  if (q?.wager && q.points === undefined) q = {...q, points: Math.min(100, Number(q.wager) || 0)};
   requireValue(q && typeof q === 'object', 'Question required');
   requireValue(text(q.text, 1000), 'Question text must be 1–1,000 characters');
   requireValue(types.includes(q.type), 'Unknown question type');
@@ -257,6 +259,14 @@ export function validateQuestion(q, mediaDir) {
     if (result.partScoring === 'each') result.points = q.items.length;
   }
   requireValue(!result.evil || autoMarked(result), 'Risk It needs a format with a correct answer set, so wrong answers can be spotted');
+  // Wager: each team stakes 0 to wager points with its answer; right wins the stake, anything else loses it. The
+  // question's points are its most. Not with Risk It, a speed bonus or a 50/50 (the stake is the whole score).
+  if (q.wager) {
+    requireValue(integer(q.wager, 1, 100), 'The most a team can stake is 1–100 points');
+    requireValue(autoMarked(result), 'A wager needs a format with a correct answer set');
+    requireValue(!result.evil && !result.fastestFingers && !result.fiftyFifty && !result.tieBreaker, 'A wager is the whole score: no Risk It, speed bonus or 50/50 with it');
+    result.wager = q.wager; result.points = q.wager;
+  }
   requireValue(result.bonusMode === 'sliding' || autoMarked(result), 'A fixed speed bonus needs a format with a correct answer set');
   return result;
 }

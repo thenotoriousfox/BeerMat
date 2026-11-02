@@ -208,6 +208,11 @@ const T = {
   // Pinpoint with several places to find.
   'Circled on the picture': ['Entouré sur l’image', 'Marcado con un círculo en la imagen'],
   'Tap the picture once for each place: {n} to find': ['Touchez l’image une fois par endroit : {n} à trouver', 'Tocad la imagen una vez por lugar: {n} por encontrar'],
+  // Wager questions: the team's stake.
+  'Your stake: win it if you’re right, lose it if you’re wrong (up to {n})': ['Votre mise : gagnée si c’est juste, perdue sinon (jusqu’à {n})', 'Vuestra apuesta: la ganáis si acertáis, la perdéis si falláis (hasta {n})'],
+  'Choose your stake first': ['Choisissez d’abord votre mise', 'Elegid antes vuestra apuesta'],
+  'Staked {n}': ['Mise : {n}', 'Apuesta: {n}'],
+  'Wager: up to {n} points': ['Mise : jusqu’à {n} points', 'Apuesta: hasta {n} puntos'],
   'Trace the word first': ['Tracez d’abord le mot', 'Trazad antes la palabra'],
   'Place the tiles first': ['Placez d’abord les tuiles', 'Colocad antes las fichas'],
   'Your answer': ['Votre réponse', 'Vuestra respuesta'],

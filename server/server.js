@@ -129,6 +129,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   column('answers', 'submitted', 'INTEGER');
   column('questions', 'closed_at', 'INTEGER');
   column('questions', 'revealed_at', 'INTEGER');
+  column('answers', 'wager', 'INTEGER');
   column('answers', 'marks', 'TEXT');
   // A question waiting for the quizmaster's Send (sendQuestion): its clock hasn't started and phones don't see it yet.
   column('questions', 'held', 'INTEGER NOT NULL DEFAULT 0');
@@ -2315,9 +2316,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       if (p === '/api/state') {
         const q = latest();
         if (q && pending(q) && !q.held) run('INSERT OR IGNORE INTO deliveries VALUES(?,?,?)', team.id, q.id, now());
-        const a = q && one('SELECT value,points,marks,submitted FROM answers WHERE team=? AND question=?', team.id, q.id);
+        const a = q && one('SELECT value,points,marks,submitted,wager FROM answers WHERE team=? AND question=?', team.id, q.id);
         // Points stay hidden until scoring is final.
-        const answer = !a || a.submitted === null && !q.settled && !q.closed ? null : pending(q) || secretQuestion(q) ? {value: a.value} : {value: a.value, points: a.points, marks: a.marks};
+        const answer = !a || a.submitted === null && !q.settled && !q.closed ? null : pending(q) || secretQuestion(q) ? {value: a.value, wager: a.wager} : {value: a.value, points: a.points, marks: a.marks, wager: a.wager};
         return send(200, {...publicState(), question: publicQuestion(q, false, team.id), team: teamInfo, answer, myVar: varForTeam(team.id, q),
           draft: one('SELECT value FROM drafts WHERE team=? AND question=?', team.id, q?.id || 0) || null, ...check});
       }
@@ -2437,8 +2438,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/draft') {
           run('INSERT INTO drafts VALUES(?,?,?) ON CONFLICT(team,question) DO UPDATE SET value=excluded.value', team.id, q.id, value); return send(200, {ok: true});
         }
-        const marked = autoMark(value, data, q, team.id);
-        run('INSERT INTO answers(team,question,value,points,submitted,marks) VALUES(?,?,?,?,?,?)', team.id, q.id, value, marked.points, now(), marked.marks ? JSON.stringify(marked.marks) : null);
+        // A wager: the team's stake, won if right and lost otherwise.
+        const stake = data.wager ? body.wager : null;
+        requireValue(!data.wager || (Number.isInteger(stake) && stake >= 0 && stake <= data.wager), `Choose your stake: 0–${data.wager} points`);
+        const marked = data.wager ? {points: isCorrect(value, data) ? stake : -stake, marks: null} : autoMark(value, data, q, team.id);
+        run('INSERT INTO answers(team,question,value,points,submitted,marks,wager) VALUES(?,?,?,?,?,?,?)', team.id, q.id, value, marked.points, now(), marked.marks ? JSON.stringify(marked.marks) : null, stake);
         run('DELETE FROM drafts WHERE team=? AND question=?', team.id, q.id); return send(200, {ok: true});
       }
       throw new QuizError('Unknown action', 404);

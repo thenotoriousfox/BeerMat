@@ -120,6 +120,15 @@ function parseSaved(value) {
     return current.question.type === 'wordsnake' && parsed?.path ? parsed.path : parsed; // stored final answers carry {path, wide}
   } catch {return null;}
 }
+// A wager: the team's stake, 0 to the question's most, chosen before sending (kept here until it's sent).
+let stake = null;
+function buildStake(q) {
+  stake = null; if (!q.wager) return;
+  const pad = element('div', undefined, 'keypad stake');
+  pad.append(...Array.from({length: q.wager + 1}, (_, n) => {const b = element('button', String(n)); b.type = 'button'; b.dataset.stake = n;
+    b.onclick = () => {stake = n; pad.querySelectorAll('button').forEach(x => x.classList.toggle('picked', Number(x.dataset.stake) === n));}; return b;}));
+  $('inputs').append(element('p', t('Your stake: win it if you’re right, lose it if you’re wrong (up to {n})', {n: q.wager}), 'muted'), pad);
+}
 function buildInputs(q) {
   const box = $('inputs');
   // Scrambled keypads put buttons in a different place on every team's phone, so neighbours cannot copy taps.
@@ -301,7 +310,7 @@ function playerState(s) {
     $('answerForm').hidden = !q || bingo || ['buzzer', 'clips'].includes(q?.type); $('buzzBox').hidden = q?.type !== 'buzzer'; $('bingoBox').hidden = !bingo; $('clipBox').hidden = q?.type !== 'clips';
     if (bingo) buildTicket(q);
     if (q && !q.held) {
-      buildInputs(q); syncPicks();
+      buildInputs(q); buildStake(q); syncPicks();
       const saved = readStorage(draftKey(q.id));
       if (saved) {try {localDraft = JSON.parse(saved);} catch {}}
       if (localDraft !== null) writeInputs(localDraft);
@@ -340,7 +349,8 @@ function renderResult(s) {
   const points = a?.points ?? 0;
   $('resultCard').className = `result-card ${points > 0 ? 'good' : 'bad'}`;
   $('resultMark').textContent = !a ? '–' : points > 0 ? '✓' : '✗';
-  $('resultPoints').textContent = !a ? t('No answer this time') : points > 0 ? (points === 1 ? t('+1 point') : t('+{n} points', {n: points})) : points < 0 ? t('{n} points', {n: points}) : t('No points this time');
+  $('resultPoints').textContent = (!a ? t('No answer this time') : points > 0 ? (points === 1 ? t('+1 point') : t('+{n} points', {n: points})) : points < 0 ? t('{n} points', {n: points}) : t('No points this time'))
+    + (a?.wager !== null && a?.wager !== undefined ? ' · ' + t('Staked {n}', {n: a.wager}) : '');
   renderVar(s);
 }
 // VAR Check: after the reveal a team that thinks its answer was marked wrong asks the quizmaster to look again.
@@ -860,8 +870,9 @@ if (role === 'player') {
     if ((q.type === 'sequence' && value.length !== q.items.length) || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length)) {
       return message(q.type === 'sequence' ? t('Place every item in order first') : q.type === 'pinpoint' ? t('Tap the picture first') : q.type === 'wordsnake' ? t('Trace the word first') : q.type === 'tiles' ? t('Place the tiles first') : keypad(q.type) || q.type === 'multi' ? t('Choose an answer first') : t('Type an answer first'), true);
     }
+    if (q.wager && stake === null) return message(t('Choose your stake first'), true);
     submitting = true; updateControls(); clearTimeout(draftTimer);
-    try {await api('answer', {question: q.id, value}, secret); message('Final answer received'); await refresh();}
+    try {await api('answer', {question: q.id, value, ...(q.wager && {wager: stake})}, secret); message('Final answer received'); await refresh();}
     catch (e) {message(e.status ? e.message : t('Could not confirm submission. Reconnecting will check whether it was received.'), true); await refresh();}
     finally {submitting = false; updateControls();}
   };

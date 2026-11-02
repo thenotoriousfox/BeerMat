@@ -65,7 +65,7 @@ data class Question(
     val isTimed get() = type != "bingo" && type != "musicbingo"
 }
 
-data class Answer(val value: Any?, val points: Double?)
+data class Answer(val value: Any?, val points: Double?, val wager: Int? = null)
 
 data class Settings(val title: String, val ended: Boolean, val registrationOpen: Boolean, val scrambleKeypads: Boolean, val leaderboardVisible: Boolean, val teamPhotos: Boolean = false, val language: String = "en")
 
@@ -127,7 +127,7 @@ object Parse {
             team = o.optJSONObject("team")?.let { Team(it.str("id"), it.str("name"), it.optBoolean("waiting"), if (it.isNull("sound") || !it.has("sound")) null else it.optInt("sound"), it.str("photo"), it.str("photoStatus")) },
             buzzerNames = o.optJSONObject("sounds")?.optJSONArray("buzzers")?.let { a -> List(a.length()) { a.optJSONObject(it)?.optString("name") ?: "" } } ?: emptyList(),
             question = o.optJSONObject("question")?.let(::question),
-            answer = o.optJSONObject("answer")?.let { Answer(it.opt("value"), it.numOrNull("points")) },
+            answer = o.optJSONObject("answer")?.let { Answer(it.opt("value"), it.numOrNull("points"), it.numOrNull("wager")?.toInt()) },
             draft = o.optJSONObject("draft")?.opt("value"),
             teams = o.optJSONArray("teams")?.let { a -> List(a.length()) { a.getJSONObject(it) }.map { Standing(it.str("name"), it.numOrNull("score"), it.optInt("rank")) } } ?: emptyList(),
             testDevice = rehearsal?.optBoolean("device") == true,

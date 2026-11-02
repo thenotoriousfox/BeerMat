@@ -171,6 +171,7 @@ dialog:not([open]) { display: none; }
 .var-box { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: -4px 0 14px; }
 .var-box .hint { margin: 0; flex: 1 1 12rem; }
 .keypad.pair { grid-template-columns: 1fr 1fr; }
+.keypad.stake { grid-template-columns: repeat(auto-fill, minmax(3.2rem, 1fr)); }
 .keypad.pair .opt { min-height: 6rem; font-size: 1.6rem; }
 /* ---------- Dialogs ---------- */
 dialog { background: var(--surface-solid); color: inherit; border: 1px solid var(--line-strong); border-radius: 20px; max-width: 90vw; padding: 28px; box-shadow: var(--shadow), 0 0 60px color-mix(in srgb, var(--violet) 25%, transparent); }

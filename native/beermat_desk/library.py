@@ -35,7 +35,8 @@ MARKED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint',
 # Two-button Multiple choice (model.js PAIRS): its two choices, set for it.
 PAIRS = {'trueFalse': ['True', 'False'], 'beforeAfter': ['Before', 'After']}
 OPTIONS = [
-    ('evil', 'Risk It: a wrong answer loses the points', 'bool', None, lambda t, q: t in MARKED),
+    ('evil', 'Risk It: a wrong answer loses the points', 'bool', None, lambda t, q: t in MARKED and not q.get('wager')),
+    ('wager', 'Wager: teams stake up to this many points, won if right, lost if wrong (0: off)', 'int', (0, 100), lambda t, q: t in MARKED and not q.get('evil')),
     ('fastestFingers', 'Fastest fingers first (speed bonus)', 'bool', None, lambda t, q: t in SPEED),
     ('speedBonus', 'Speed bonus points', 'int', (0, 100), lambda t, q: t in SPEED and q.get('fastestFingers')),
     ('bonusMode', 'Speed bonus', 'choice', [('sliding', 'Fades over the time allowed'), ('fixed', 'Only the fastest answers')], lambda t, q: t in SPEED & MARKED and q.get('fastestFingers')),
