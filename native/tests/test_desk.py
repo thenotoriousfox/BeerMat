@@ -258,6 +258,11 @@ class SpotifyClipTest(DeskCase):
         self.assertEqual(calls[-1], 'spotify/play')
         desk.liveTools.pauseAudio()
         self.assertEqual(calls[-1], 'spotify/pause')
+        # Closed (answers in, or revealing): Play again still plays it, as a preview.
+        http(port, 'host/close', {}, session)
+        wait(lambda: desk._state.get('question', {}).get('live') is False, what='the question closed')
+        desk.liveTools.playAudio()
+        self.assertEqual(calls[-1], 'spotify/preview')
 
 
 class ReplaySongTest(DeskCase):

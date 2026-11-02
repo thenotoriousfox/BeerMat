@@ -250,7 +250,7 @@ class LiveTools(QObject):
     # ---- a question's own Spotify clip (an audio question or answer sheet): on the Spotify player ----
     def _spotify_clip(self):
         q = self._q() or {}
-        return q.get('clip') if (q.get('clip') or {}).get('spotify') and q.get('live') else None
+        return q.get('clip') if (q.get('clip') or {}).get('spotify') else None
 
     def _play_spotify(self):
         q = self._q()
@@ -260,8 +260,13 @@ class LiveTools(QObject):
         def started(reply):
             self._spotify_playing = True
             # It stops after its play time (as the browser desk's playAudioClip).
-            QTimer.singleShot(int((reply.get('seconds') or 30) * 1000), lambda: run == self._spotify_run and self._stop_spotify())
-        self.api.host('spotify/play', {'question': q['id']}, started, lambda e: self.desk.toast.emit(e, True))
+            QTimer.singleShot(int((reply.get('seconds') or q['clip'].get('seconds') or 30) * 1000), lambda: run == self._spotify_run and self._stop_spotify())
+        failed = lambda e: self.desk.toast.emit(e, True)
+        if q.get('live'):
+            self.api.host('spotify/play', {'question': q['id']}, started, failed)
+        else:
+            # Closed or revealed: played again for the room, as a preview (nothing logged against the question).
+            self.api.host('spotify/preview', {'link': q['clip']['spotify'], 'start': q['clip'].get('start') or 0}, started, failed)
 
     def _stop_spotify(self):
         self._spotify_run += 1

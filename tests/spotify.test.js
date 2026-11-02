@@ -30,6 +30,8 @@ function fakeSpotify() {
     if (url.pathname === '/v1/me/player/devices') return json(200, {devices: [{id: 'tv', name: 'Living room TV', type: 'TV', is_active: false}, {id: 'laptop', name: 'CachyOS laptop', type: 'Computer', is_active: !state.idle}]});
     // idle: the Spotify app open but not in use, so Spotify plays only when asked for a player by name.
     if (url.pathname.startsWith('/v1/me/player/') && state.idle && !url.searchParams.get('device_id')) return json(404, {error: {status: 404, message: 'Player command failed: No active device found', reason: 'NO_ACTIVE_DEVICE'}});
+    // A player that has gone (its app closed): Spotify doesn't know its id any more.
+    if (url.pathname.startsWith('/v1/me/player/') && url.searchParams.get('device_id') && !['tv', 'laptop'].includes(url.searchParams.get('device_id'))) return json(404, {error: {status: 404, message: 'Device not found'}});
     if (url.pathname.startsWith('/v1/me/player/')) return state.device ? json(204) : json(404, {error: {status: 404, message: 'Player command failed: No active device found', reason: 'NO_ACTIVE_DEVICE'}});
     if (url.pathname === `/v1/playlists/${'p'.repeat(22)}/items`) {
       const offset = Number(url.searchParams.get('offset') || 0);
@@ -42,11 +44,11 @@ function fakeSpotify() {
   });
   return {server, log, state};
 }
-async function fixture(fn) {
+async function fixture(fn, options = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-spotify-')), fake = fakeSpotify(); let time = 1000000;
   await new Promise(r => fake.server.listen(0, '127.0.0.1', r));
   const spotifyBase = `http://127.0.0.1:${fake.server.address().port}`;
-  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, now: () => time, spotifyAccountsUrl: spotifyBase, spotifyApiUrl: spotifyBase + '/v1'});
+  const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: dir, now: () => time, spotifyAccountsUrl: spotifyBase, spotifyApiUrl: spotifyBase + '/v1', spotifyLocalApp: options.localApp});
   await new Promise(r => quiz.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${quiz.server.address().port}`;
   const call = async (route, body = {}, key = route.startsWith('host/') ? host : '') => {
@@ -137,6 +139,40 @@ test('with no player in use, BeerMat plays on the Spotify app on a computer rath
   assert.deepEqual(played.map(l => l.path), ['/v1/me/player/play', '/v1/me/player/play?device_id=laptop'], 'asked for the active player, then the laptop by name (not the TV)');
   assert.deepEqual(JSON.parse(played.at(-1).body), {uris: [`spotify:track:${id(3)}`], position_ms: 42000});
 }));
+
+test('a chosen player that has gone (its app closed): BeerMat plays on this laptop’s instead', () => fixture(async ctx => {
+  const {call, fake} = ctx; await connect(ctx);
+  await call('host/spotify/device', {id: 'gone-phone'});
+  fake.state.idle = true;
+  assert.equal((await call('host/spotify/preview', {link: `spotify:track:${id(3)}`})).ok, true);
+  assert.deepEqual(fake.log.filter(l => l.path.startsWith('/v1/me/player/play')).map(l => l.path), ['/v1/me/player/play?device_id=gone-phone', '/v1/me/player/play?device_id=laptop']);
+  await call('host/spotify/pause');
+  assert.deepEqual(fake.log.filter(l => l.path.startsWith('/v1/me/player/pause')).map(l => l.path), ['/v1/me/player/pause?device_id=gone-phone', '/v1/me/player/pause'], 'pauses whichever is playing');
+  // A chosen player that's there but refuses isn't swapped for another.
+  await call('host/spotify/device', {id: 'tv'});
+  fake.state.device = false; fake.state.idle = false;
+  assert.equal((await call('host/spotify/preview', {link: `spotify:track:${id(3)}`})).status, 409);
+}));
+
+test('the Spotify app on this laptop is told directly (its Connect link can stop answering); a chosen player isn’t', () => {
+  const told = [], app = {works: true, play: async (uri, start) => {if (!app.works) throw new Error('not open'); told.push(['play', uri, start]);}, pause: async () => {told.push(['pause']);}};
+  return fixture(async ctx => {
+    const {call, fake} = ctx; await connect(ctx);
+    const webPlays = () => fake.log.filter(l => l.path.startsWith('/v1/me/player/play')).length;
+    const audio = await call('host/open', {text: 'Name the artist', type: 'audio', seconds: 30, points: 1, answer: 'Queen', clip: {spotify: `spotify:track:${id(3)}`, start: 42, seconds: 12}});
+    assert.equal((await call('host/spotify/play', {question: audio.id})).seconds, 12);
+    await call('host/spotify/pause');
+    assert.deepEqual(told, [['play', `spotify:track:${id(3)}`, 42], ['pause']]);
+    assert.equal(webPlays(), 0, 'not through Spotify Connect');
+    app.works = false;
+    assert.equal((await call('host/spotify/play', {question: audio.id})).status, 200);
+    assert.equal(webPlays(), 1, 'the app not open: through Spotify Connect');
+    app.works = true;
+    await call('host/spotify/device', {id: 'tv'});
+    await call('host/spotify/preview', {link: `spotify:track:${id(4)}`});
+    assert.deepEqual([told.length, fake.log.findLast(l => l.path.startsWith('/v1/me/player/play')).path], [2, '/v1/me/player/play?device_id=tv'], 'the TV chosen: on the TV');
+  }, {localApp: app});
+});
 
 test('Build quiz previews a track from its start point on the chosen player, for the desk only', () => fixture(async ctx => {
   const {call, fake} = ctx; await connect(ctx);

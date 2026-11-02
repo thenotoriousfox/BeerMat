@@ -1,8 +1,9 @@
 import os from 'node:os';
 // Optional Spotify control for music rounds. The laptop's own Spotify app does the playing; this only tells it what
-// to play, through Spotify's Web API. Sign-in uses PKCE (no app secret). Tokens stay in the quiz database on this laptop.
+// to play, over D-Bus when it's on this laptop (Linux), else through Spotify's Web API. Sign-in uses PKCE (no app secret). Tokens stay in the quiz database on this laptop.
 // Needs internet on the laptop (e.g. hotspot.py --keep-wifi) and Spotify Premium for playback control.
 import {randomBytes, createHash} from 'node:crypto';
+import {execFile} from 'node:child_process';
 import {QuizError, requireValue} from './model.js';
 
 // streaming, user-read-email and user-read-private let the quiz desk itself be a Spotify player (Web Playback SDK).
@@ -12,7 +13,18 @@ export const trackId = link => /(?:spotify:track:|open\.spotify\.com\/(?:intl-[a
 export const playlistId = link => /(?:spotify:playlist:|open\.spotify\.com\/(?:intl-[a-z-]+\/)?playlist\/)([A-Za-z0-9]{22})/.exec(link || '')?.[1] || null;
 const songTitle = track => `${track.name}${track.artists?.length ? ' — ' + track.artists.map(a => a.name).join(', ') : ''}`.slice(0, 100);
 
-export function createSpotify({getMeta, setMeta, now, accountsUrl = 'https://accounts.spotify.com', apiUrl = 'https://api.spotify.com/v1'}) {
+// The Spotify app on this laptop, told what to play over D-Bus (MPRIS, Linux). Its Spotify Connect link can stop
+// answering: Spotify then accepts a play and the app does nothing, while D-Bus still reaches it.
+const mpris = (...args) => new Promise((resolve, reject) => execFile('gdbus', ['call', '--session', '--dest', 'org.mpris.MediaPlayer2.spotify', '--object-path', '/org/mpris/MediaPlayer2', '--method', ...args], {timeout: 3000}, e => e ? reject(e) : resolve()));
+export const appOnThisLaptop = process.platform !== 'linux' ? null : {
+  async play(uri, startSeconds) {
+    await mpris('org.mpris.MediaPlayer2.Player.OpenUri', uri);
+    if (startSeconds) {await new Promise(r => setTimeout(r, 600)); await mpris('org.mpris.MediaPlayer2.Player.Seek', String(startSeconds * 1e6));}
+  },
+  pause: () => mpris('org.mpris.MediaPlayer2.Player.Pause')
+};
+
+export function createSpotify({getMeta, setMeta, now, accountsUrl = 'https://accounts.spotify.com', apiUrl = 'https://api.spotify.com/v1', localApp = apiUrl === 'https://api.spotify.com/v1' ? appOnThisLaptop : null}) {
   const saved = () => getMeta('spotify', {});
   const save = changes => setMeta('spotify', {...saved(), ...changes});
   let pending = null;
@@ -93,21 +105,37 @@ export function createSpotify({getMeta, setMeta, now, accountsUrl = 'https://acc
     return songs.slice(0, 300);
   }
   async function accessToken() {const value = await token(); return {accessToken: value, expiresAt: saved().expiresAt};}
-  // With no player chosen, Spotify plays on the one in use; when none is (the app open but idle), BeerMat picks one
-  // itself rather than refuse: the Spotify app on this laptop, else another computer, else any player there is.
+  // The Spotify app on this laptop plays it when it's open and no other player is chosen. Otherwise, with no player
+  // chosen, Spotify plays on the one in use; when none is (the app open but idle), or the chosen one has gone (the app
+  // closed, or Spotify gave it a new id), BeerMat picks one itself rather than refuse: the Spotify app on this laptop,
+  // else another computer, else any player there is.
+  let playedHere = false;
   async function play(uri, startSeconds = 0) {
-    const body = {uris: [uri], position_ms: startSeconds * 1000}, chosen = saved().device;
+    const body = {uris: [uri], position_ms: startSeconds * 1000}, chosen = saved().device, here = os.hostname().toLowerCase();
+    playedHere = false;
+    const devices = async () => (await api('GET', '/me/player/devices').catch(() => null))?.devices?.filter(d => !d.is_restricted) || [];
+    if (localApp && (!chosen || (await devices()).some(d => d.id === chosen && d.name.toLowerCase() === here))) {
+      await token();
+      playedHere = await localApp.play(uri, startSeconds).then(() => true, () => false);
+      if (playedHere) return null;
+    }
     try {return await api('PUT', `/me/player/play${chosen ? '?device_id=' + encodeURIComponent(chosen) : ''}`, body);}
     catch (e) {
-      if (!e.noPlayer || chosen) throw e;
-      const devices = (await api('GET', '/me/player/devices').catch(() => null))?.devices?.filter(d => !d.is_restricted) || [];
-      const here = os.hostname().toLowerCase(), computers = devices.filter(d => d.type === 'Computer');
-      const pick = computers.find(d => d.name.toLowerCase() === here) || computers[0] || devices[0];
+      if (!e.noPlayer) throw e;
+      const players = await devices();
+      if (chosen && players.some(d => d.id === chosen)) throw e;
+      const computers = players.filter(d => d.type === 'Computer');
+      const pick = computers.find(d => d.name.toLowerCase() === here) || computers[0] || players[0];
       if (!pick) throw e;
       return api('PUT', `/me/player/play?device_id=${encodeURIComponent(pick.id)}`, body);
     }
   }
-  const pause = () => api('PUT', `/me/player/pause${saved().device ? '?device_id=' + encodeURIComponent(saved().device) : ''}`).catch(() => {});
+  // The chosen player, or (once it has gone) whichever is playing; the app on this laptop when it was told directly.
+  async function pause() {
+    if (playedHere && await localApp.pause().then(() => true, () => false)) return;
+    return api('PUT', `/me/player/pause${saved().device ? '?device_id=' + encodeURIComponent(saved().device) : ''}`)
+      .catch(e => e.noPlayer && saved().device ? api('PUT', '/me/player/pause').catch(() => {}) : undefined);
+  }
   function device(id) {requireValue(typeof id === 'string' && id.length <= 200, 'Unknown Spotify player'); save({device: id});}
   function disconnect() {setMeta('spotify', {clientId: saved().clientId || ''});}
   return {authorizeUrl, callback, status, accessToken, playlist, tracks, play, pause, device, disconnect, connected: () => !!saved().refreshToken};
