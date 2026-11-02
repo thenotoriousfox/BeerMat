@@ -36,7 +36,7 @@ function saveIdentity(code) {
 }
 function inputValue() {
   const q = current.question, values = inputs().map(i => i.value);
-  if (q.type === 'sheet') return values;
+  if (q.type === 'sheet' || q.type === 'list') return values;
   if (listValue(q.type)) {try {return JSON.parse(values[0] || '[]');} catch {return [];}}
   return values[0];
 }
@@ -110,13 +110,13 @@ function pick(value) {
 function writeInputs(value) {
   const q = current.question;
   if (listValue(q.type)) {$('inputs').querySelector('input[type=hidden]').value = JSON.stringify(value || []); return syncPicks();}
-  const values = q.type === 'sheet' ? value : [value];
+  const values = q.type === 'sheet' || q.type === 'list' ? value : [value];
   inputs().forEach((input, i) => input.value = values?.[i] ?? '');
   syncPicks();
 }
 function parseSaved(value) {
   try {
-    const parsed = current.question.type === 'sheet' || listValue(current.question.type) ? JSON.parse(value) : value;
+    const parsed = ['sheet', 'list'].includes(current.question.type) || listValue(current.question.type) ? JSON.parse(value) : value;
     return current.question.type === 'wordsnake' && parsed?.path ? parsed.path : parsed; // stored final answers carry {path, wide}
   } catch {return null;}
 }
@@ -172,6 +172,15 @@ function buildInputs(q) {
     hiddenInput(); const area = element('div'); area.id = 'pinArea';
     const undo = element('button', t('Undo tap'), 'subtle'); undo.type = 'button'; undo.onclick = () => pick(JSON.stringify(inputValue().slice(0, -1)));
     box.append(element('p', q.targetCount ? t('Tap the picture once for each place: {n} to find', {n: q.targetCount}) : q.goWide ? t('Tap the picture. Second guess: a second tap scores {n} if your first misses.', {n: q.goWidePoints}) : t('Tap the picture to place your answer'), 'muted'), area, undo); return;
+  }
+  if (q.type === 'list') {
+    // List answers: a box for each, any order; each right one scores (a repeat counts once).
+    box.append(element('p', t('Name up to {n}: a point for each right one, any order', {n: q.slots}), 'muted'));
+    for (let i = 0; i < q.slots; i++) {
+      const label = element('label', `${i + 1}.`), input = element('input'); input.name = `answer-${i}`; input.autocomplete = 'off'; input.maxLength = 300; input.type = 'text';
+      label.className = 'list-box'; label.append(input); box.append(label);
+    }
+    return;
   }
   if (q.type === 'sheet') {
     q.items.forEach((text, i) => {
@@ -868,7 +877,7 @@ if (role === 'player') {
     e.preventDefault(); if ($('submit').disabled) return;
     const value = inputValue(), q = current.question;
     if (q.type === 'sheet' && value.some(v => !v.trim()) && !confirm(t('Some sheet answers are blank. Submit this as your final sheet?'))) return;
-    if ((q.type === 'sequence' && value.length !== q.items.length) || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length)) {
+    if ((q.type === 'sequence' && value.length !== q.items.length) || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length) || (q.type === 'list' && !value.some(v => v.trim()))) {
       return message(q.type === 'sequence' ? t('Place every item in order first') : q.type === 'pinpoint' ? t('Tap the picture first') : q.type === 'wordsnake' ? t('Trace the word first') : q.type === 'tiles' ? t('Place the tiles first') : keypad(q.type) || q.type === 'multi' ? t('Choose an answer first') : t('Type an answer first'), true);
     }
     if (q.wager && stake === null) return message(t('Choose your stake first'), true);

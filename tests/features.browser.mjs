@@ -157,6 +157,16 @@ try {
   await host('close');
   log('progressive clues: the phone shows the clues so far, a new one every few seconds');
 
+  // List answers: a box each; each right one scores once.
+  await host('open', {text: 'Name the countries of the UK.', type: 'list', seconds: 60, points: 1, slots: 3, accepted: ['England', 'Scotland', 'Wales | Cymru', 'Northern Ireland']});
+  await phone.waitForFunction(() => document.querySelectorAll('#inputs .list-box input').length === 3);
+  const boxes = phone.locator('#inputs .list-box input');
+  await boxes.nth(0).fill('cymru'); await boxes.nth(1).fill('Wales'); await boxes.nth(2).fill('England');
+  await phone.click('#submit'); await phone.waitForFunction(() => /final answer/i.test(document.getElementById('draftStatus').textContent + document.getElementById('message').textContent));
+  await host('close');
+  await phone.waitForFunction(() => document.getElementById('resultPoints').textContent === '+2 points');
+  log('list answers: a box each, a point for each right one (Wales and Cymru count once)');
+
   // An older phone (before iOS 16 / Chrome 103): no AbortSignal.timeout (every request used it), Array at,
   // structuredClone or <dialog>. compat.js fills them in: it joins, answers, keeps a draft and opens the team menu.
   const oldContext = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});
@@ -168,6 +178,7 @@ try {
   await oldPhone.locator('#game').waitFor({state: 'visible'});
   const sendWas = (await host('state')).settings.sendQuestion; await host('settings', {sendQuestion: false});
   await host('open', {text: 'Capital of Wales?', type: 'text', answer: 'Cardiff', seconds: 60, points: 1});
+  await oldPhone.waitForFunction(() => document.getElementById('question').textContent === 'Capital of Wales?' && document.querySelectorAll('#inputs input:not([type=hidden])').length === 1);
   await oldPhone.locator('#inputs input').fill('Cardiff');
   await oldPhone.waitForFunction(() => /draft/i.test(document.getElementById('draftStatus').textContent));
   await oldPhone.click('#submit');

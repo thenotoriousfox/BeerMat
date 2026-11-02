@@ -622,6 +622,7 @@ Item {
                     // Choices are marked on their tiles, and a put-in-order list sorts itself: the box then only says who scored.
                     readonly property bool tiles: !!q && ["choice", "vote", "multi", "sequence"].includes(q.type)
                     readonly property string answer: !q ? "" : q.type === "sheet" ? (q.items || []).map((item, i) => `${i + 1}. ${(q.itemAnswers || [])[i] || root.t("Marked by quizmaster")}`).join("   ")
+                        : q.type === "list" ? (q.accepted || []).map((a, i) => `${i + 1}. ${a.split("|").map(x => x.trim()).filter(x => x).join(" / ")}`).join("   ")
                         : q.type === "pinpoint" && !q.answer ? root.t("Circled on the picture")
                         : q.answer && q.tolerance ? `${q.answer} (± ${q.tolerance}${q.tolerancePercent ? "%" : ""})` : (q.answer || root.t("Marked by quizmaster"))
                     // Who scored, fastest first (closest first for nearest wins), each with its time or answer and points,

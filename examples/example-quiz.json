@@ -203,6 +203,20 @@
      ]
     },
     {
+     "id": "example-q13c",
+     "type": "list",
+     "text": "Name the countries of the United Kingdom.",
+     "seconds": 60,
+     "points": 1,
+     "slots": 4,
+     "accepted": [
+      "England",
+      "Scotland",
+      "Wales | Cymru",
+      "Northern Ireland | N Ireland | NI"
+     ]
+    },
+    {
      "id": "example-q13",
      "type": "nearest",
      "text": "How many bones are there in the adult human body?",

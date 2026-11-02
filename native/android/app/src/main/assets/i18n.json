@@ -799,6 +799,10 @@
   "Indice {n} sur {total} : {p} points maintenant",
   "Pista {n} de {total}: {p} puntos ahora"
  ],
+ "Name up to {n}: a point for each right one, any order": [
+  "Citez-en jusqu’à {n} : un point par bonne réponse, dans n’importe quel ordre",
+  "Nombrad hasta {n}: un punto por cada acierto, en cualquier orden"
+ ],
  "Trace the word first": [
   "Tracez d’abord le mot",
   "Trazad antes la palabra"

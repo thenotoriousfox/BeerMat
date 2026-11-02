@@ -179,6 +179,8 @@ def quiz(land_file):
             q('13b', type='clues', text='Who am I? A point less with each clue.', seconds=60, points=4, clueSeconds=10,
               clues=['I was born on Christmas Day, 1642.', 'I was a professor at Cambridge and Master of the Royal Mint.', 'I wrote the Principia.',
                      'An apple is said to have fallen near me.'], answer='Isaac Newton', aliases=['Newton', 'Sir Isaac Newton']),
+            q('13c', type='list', text='Name the countries of the United Kingdom.', seconds=60, points=1, slots=4,
+              accepted=['England', 'Scotland', 'Wales | Cymru', 'Northern Ireland | N Ireland | NI']),
             q(13, type='nearest', text='How many bones are there in the adult human body?', seconds=30, points=3, answer='206', places=3),
         ]),
         ('On the buzzer', [
