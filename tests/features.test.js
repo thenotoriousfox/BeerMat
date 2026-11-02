@@ -215,3 +215,29 @@ test('the quiz count can be switched off', () => fixture(async ({call, teams, se
   await call('host/settings', {ended: true});
   assert.equal(sent.filter(s => s.url.endsWith('/v1/quiz-runs')).length, 0);
 }));
+
+test('a picture revealed over its first seconds: the speed bonus steps 3, 2, 1 while it uncovers, then none', () => fixture(async ({call, teams, dir, tick}) => {
+  const media = picture(dir);
+  const q = {type: 'picture', media, text: 'Who is this?', answer: 'Mars', seconds: 30, points: 3, reveal: 'tiles', revealSeconds: 15, fastestFingers: true, speedBonus: 3};
+  assert.equal((await call('host/open', {...q, revealSeconds: 31})).status, 400, 'no longer than the question');
+  assert.equal((await call('host/open', {...q, reveal: undefined})).status, 400, 'needs a reveal');
+  const [a, b, c, d, e] = await teams('Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo');
+  const opened = await call('host/open', q);
+  assert.equal(opened.status, 200, opened.error);
+  const seen = await call('state', {}, a.secret);
+  assert.ok(seen.question, JSON.stringify(seen).slice(0, 300));
+  const id = seen.question.id;
+  assert.equal((await call('state', {}, a.secret)).question.revealSeconds, 15, 'phones and the TV know the reveal time');
+  // One second in, then six, eleven and sixteen: each third of the 15-second reveal, then the whole picture.
+  let clock = 0;
+  for (const [team, at] of [[a, 1000], [b, 6000], [c, 11000], [d, 16000]]) {
+    tick(at - clock); clock = at;
+    await call('answer', {question: id, value: 'Mars'}, team.secret);
+  }
+  await call('answer', {question: id, value: 'Venus'}, e.secret);
+  await call('host/close');
+  const points = Object.fromEntries((await call('host/state')).answers.map(x => [x.team, x.points]));
+  const teamsNow = (await call('host/state')).teams;
+  const of = name => points[teamsNow.find(t => t.name === name).id];
+  assert.deepEqual(['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo'].map(of), [6, 5, 4, 3, 0], 'first, second and last third of the reveal; whole picture; wrong');
+}));

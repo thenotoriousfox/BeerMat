@@ -527,6 +527,26 @@ class TvStageTest(unittest.TestCase):
         self.show(state(q=question()))
         self.assertEqual(heading(), 'Which planet is red?')
 
+    def test_a_picture_revealed_over_its_first_seconds_is_whole_after_them(self):
+        """revealSeconds: twenty seconds into a 30-second question, a picture revealed over its first 15 has every tile
+        off; revealed over the whole time, a third of them are still on."""
+        def tiles_on():
+            on = []
+            def walk(item):
+                for c in item.childItems():
+                    if c.objectName() == 'revealTile' and c.property('opacity') > 0.5:
+                        on.append(c)
+                    walk(c)
+            walk(self.stage)
+            return len(on)
+        now = time.time() * 1000
+        for over, expected in ((15, 0), (None, 4)):
+            q = question(type='picture', options=[], media=PICTURE, reveal='tiles', seconds=30, deadline=now + 10000, remaining=10000, **({'revealSeconds': over} if over else {}))
+            self.show(state(q=q))
+            for _ in range(40):     # the tiles fade
+                app.processEvents(); time.sleep(0.02)
+            self.assertEqual(tiles_on(), expected, f'revealed over {over or 30}s')
+
     def test_wheel_spins_once_for_a_spin_seen_happening(self):
         spin = self.stage.findChild(QObject, 'wheelSpin')
         self.show(state('join'))

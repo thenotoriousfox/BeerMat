@@ -439,7 +439,9 @@ private func revealShare(_ q: Question, now: Double, offset: Double) -> Double {
     if q.reveal.isEmpty || !q.live || q.revealed { return 1 }
     if q.held { return 0 }
     let left = q.paused ? q.remaining : max(0, q.deadline - now - offset)
-    return min(1, max(0, 1 - left / (Double(q.seconds) * 1000)))
+    // Over the first revealSeconds when set (then whole for the rest of the time), else the whole time.
+    let over = Double(q.revealSeconds > 0 ? q.revealSeconds : q.seconds) * 1000
+    return min(1, max(0, (Double(q.seconds) * 1000 - left) / over))
 }
 
 /// Twelve tiles over a picture, going one by one in the order every screen uses (seededOrder(12, "tiles:<id>")).

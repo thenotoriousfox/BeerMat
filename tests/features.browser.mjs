@@ -83,6 +83,16 @@ try {
   await phone.waitForFunction(() => document.querySelectorAll('#media .reveal-tiles span:not(.gone)').length === 0);
   log('a picture starts under twelve tiles, all gone once answers close');
 
+  // revealSeconds: revealed over its first 3 seconds of 30, the picture is whole after them, answers still open.
+  await host('open', {text: 'Quick one', type: 'picture', media: '/media/red.png', answer: 'Mars', reveal: 'tiles', revealSeconds: 3, seconds: 30, points: 1});
+  const quick = String((await host('state')).question.id);
+  await phone.waitForFunction(id => document.querySelector('#media .reveal-tiles')?.dataset.question === id, quick);
+  assert.ok(await phone.locator('#media .reveal-tiles span:not(.gone)').count() >= 9, 'it starts under its tiles');
+  await phone.waitForFunction(() => document.querySelectorAll('#media .reveal-tiles span:not(.gone)').length === 0, null, {timeout: 6000});
+  assert.equal((await host('state')).question.open, true, 'still open');
+  await host('close');
+  log('a picture revealed over its first seconds is whole after them');
+
   const songs = Array.from({length: 15}, (_, i) => ({title: `Song ${i + 1}`}));
   await host('open', {text: 'Music bingo', type: 'musicbingo', mode: 'line', songs, reactions: true, reactionPoints: 1, seconds: 600, points: 3});
   const q = (await host('state')).question, {number} = await host('bingo', {question: q.id});

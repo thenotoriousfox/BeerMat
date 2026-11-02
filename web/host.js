@@ -130,7 +130,7 @@ function formTypes() {
   const fastest = speedTypes.includes(type) && $('qFastest').checked;
   show('pointsLabel', (type !== 'sheet' || $('qPartScoring').value !== 'each') && !(isBingoType(type) && $('qMode').value === 'progressive')); show('fastestLabel', speedTypes.includes(type)); show('speedLabel', fastest);
   show('bingoExtras', type === 'bingo');
-  show('hideTextLabel', !['bingo', 'musicbingo', 'clips'].includes(type)); show('revealLabel', type === 'picture');
+  show('hideTextLabel', !['bingo', 'musicbingo', 'clips'].includes(type)); show('revealLabel', type === 'picture'); show('revealSecondsLabel', type === 'picture' && !!$('qReveal').value);
   show('bonusModeLabel', fastest && markedTypes.includes(type)); show('bonusPlacesLabel', fastest && markedTypes.includes(type) && $('qBonusMode').value === 'fixed'); show('evilLabel', markedTypes.includes(type));
   $('answerLabel').textContent = {choice: 'Correct choice (copy one line from above; blank for manual marking)', letter: 'Correct letter (A–Z)', wordsnake: 'Answer word (letters only, 3–20; spaces are removed)', tiles: 'Answer (4–40 letters; spaces mark separate words)', number: 'Correct number', nearest: 'Correct number', buzzer: 'Expected answer (shown only to you)'}[type] || 'Correct answer (blank for manual marking)';
   $('pointsText').textContent = {nearest: 'Points for the closest team', buzzer: 'Points for a correct buzz', vote: 'Points (votes score nothing)', multi: 'Points for every right tick', pinpoint: 'Points for a first-tap hit', bingo: 'Points for a valid bingo', musicbingo: 'Points for a valid bingo', clips: 'Points for tapping the right clip'}[type] || 'Correct answer points';
@@ -230,7 +230,7 @@ function fillQuestion(q = null) {
   $('qSongs').value = (q?.songs || []).map(s => s.media || s.spotify ? `${s.title} | ${s.media || s.spotify}${s.start !== undefined || s.seconds !== undefined ? ` | ${s.start ?? ''} | ${s.seconds ?? ''}` : ''}` : s.title).join('\n'); $('qStartAt').value = q?.startAt ?? 0; $('qSongSeconds').value = q?.songSeconds ?? 0; $('qAutoNext').checked = !!q?.autoNext; $('qClipSeconds').value = q?.clipSeconds ?? 15; $('qRevealNow').checked = !!q?.revealNow;
   clipItems = structuredClone(q?.clips || []); targetClip = q?.targetClip ?? 0; renderClipList();
   $('qFastest').checked = !!q?.fastestFingers; $('qBonusMode').value = q?.bonusMode || 'sliding'; $('qBonusPlaces').value = q?.bonusPlaces ?? 1; $('qEvil').checked = !!q?.evil;
-  $('qHideText').checked = !!q?.hideText; $('qReveal').value = q?.reveal || ''; $('qWipeout').checked = !!q?.wipeout;
+  $('qHideText').checked = !!q?.hideText; $('qReveal').value = q?.reveal || ''; $('qRevealSeconds').value = q?.revealSeconds || 0; $('qWipeout').checked = !!q?.wipeout;
   $('qPerCall').value = String(q?.perCall || 1); $('qSpeedBingo').checked = !!q?.speed; $('qReactions').checked = !!q?.reactions; $('qReactionPoints').value = q?.reactionPoints ?? 0;
   $('qGoWide').checked = !!q?.goWide; $('qGoWidePoints').value = q?.goWidePoints ?? 0; $('qFifty').checked = !!q?.fiftyFifty; $('qFiftyPoints').value = q?.fiftyPoints ?? 0; $('qMode').value = q?.mode || 'progressive';
   [$('qLinePoints').value, $('qTwoLinePoints').value, $('qHousePoints').value] = q?.stagePoints || [1, 2, 3];
@@ -286,6 +286,7 @@ function readQuestion() {
   if (type === 'multi') Object.assign(q, {correct: lines('qCorrect'), wipeout: $('qWipeout').checked});
   if (!['bingo', 'musicbingo', 'clips'].includes(type) && $('qHideText').checked) q.hideText = true;
   if ($('qReveal').value && type === 'picture') q.reveal = $('qReveal').value;
+  if (q.reveal && Number($('qRevealSeconds').value) > 0) q.revealSeconds = Number($('qRevealSeconds').value);
   if (type === 'pinpoint') q.target = pinTarget;
   if (type === 'choice') Object.assign(q, {fiftyFifty: $('qFifty').checked, fiftyPoints: Number($('qFiftyPoints').value)});
   if (type === 'pinpoint' || type === 'wordsnake') Object.assign(q, {goWide: $('qGoWide').checked, goWidePoints: Number($('qGoWidePoints').value)});
@@ -303,7 +304,7 @@ function readQuestion() {
   return q;
 }
 $('questionForm').oninput = editorChanged;
-$('qType').onchange = $('qVariation').onchange = $('qBonusMode').onchange = $('qFastest').onchange = $('qMode').onchange = $('qSongs').onchange = $('qPartScoring').onchange = () => {formTypes(); editorChanged();};
+$('qType').onchange = $('qReveal').onchange = $('qVariation').onchange = $('qBonusMode').onchange = $('qFastest').onchange = $('qMode').onchange = $('qSongs').onchange = $('qPartScoring').onchange = () => {formTypes(); editorChanged();};
 $('clearMedia').onclick = () => {$('qMedia').value = ''; renderMedia($('mediaPreview'), null); pinTarget = null; renderPinTarget(); editorChanged();};
 $('addSheetItem').onclick = () => {addSheetItem(); editorChanged();};
 $('questionForm').onsubmit = e => {e.preventDefault(); action(async () => {

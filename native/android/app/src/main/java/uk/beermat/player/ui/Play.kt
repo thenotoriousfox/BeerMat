@@ -500,7 +500,8 @@ private fun revealShare(q: Question, now: Long, offset: Long): Float {
     if (q.reveal.isEmpty() || !q.live || q.revealed) return 1f
     if (q.held) return 0f
     val left = if (q.paused) q.remaining else maxOf(0L, q.deadline - now - offset)
-    return (1f - left.toFloat() / (q.seconds * 1000f)).coerceIn(0f, 1f)
+    // Over the first revealSeconds when set (then whole for the rest of the time), else the whole time.
+    return ((q.seconds * 1000f - left) / ((q.revealSeconds.takeIf { it > 0 } ?: q.seconds) * 1000f)).coerceIn(0f, 1f)
 }
 
 /** A button that asks first: for the hint and the 50/50, which cost points. */
