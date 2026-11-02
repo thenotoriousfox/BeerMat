@@ -93,6 +93,7 @@ Optional on most types:
   - `r` (0.01–0.5) is the target radius as a fraction of the width;
   - `aspect` is the picture's height ÷ width.
   - Optional **second guess** (the field is still called `goWide`): `goWide: true` plus `goWidePoints` (0–100). If the first tap misses, a second tap scores `goWidePoints`.
+  - **Several places to find:** `targets`, a list of 2–10 targets (each as `target` above), in place of `target`. Teams tap once per place, in any order, and score `points` for each place found (one tap finds one place). For example "Tap Paris, Rome and Berlin on the map" with three targets. Not with a second guess.
 
 **Hosted games (the quizmaster runs them live):**
 - `buzzer`: first to buzz answers out loud and the quizmaster rules. `answer` is for the quizmaster's reference.

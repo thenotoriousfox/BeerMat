@@ -126,6 +126,19 @@ try {
   await host('close');
   log('a blurred picture sharpens on the phone as on the TV');
 
+  // Pinpoint with several places to find: a tap for each, the points for each place found.
+  const placesQ = await host('open', {text: 'Tap both corners', type: 'pinpoint', media: '/media/red.png', seconds: 60, points: 2,
+    targets: [{x: 0.1, y: 0.1, r: 0.08}, {x: 0.9, y: 0.9, r: 0.08}]});
+  await phone.waitForFunction(() => document.querySelector('#pinArea img'));
+  assert.match(await phone.locator('#inputs').textContent(), /2 to find/);
+  const box = await phone.locator('#pinArea img').boundingBox();
+  await phone.mouse.click(box.x + box.width * 0.1, box.y + box.height * 0.1); await phone.mouse.click(box.x + box.width * 0.9, box.y + box.height * 0.9);
+  await phone.waitForFunction(() => document.querySelectorAll('#pinArea .tap').length === 2);
+  await phone.click('#submit'); await phone.waitForFunction(() => /final answer/i.test(document.getElementById('draftStatus').textContent + document.getElementById('message').textContent));
+  await host('close');
+  await phone.waitForFunction(() => document.getElementById('resultPoints').textContent === '+4 points'); void placesQ;
+  log('pinpoint with several places: a tap for each, points for each place found');
+
   // An older phone (before iOS 16 / Chrome 103): no AbortSignal.timeout (every request used it), Array at,
   // structuredClone or <dialog>. compat.js fills them in: it joins, answers, keeps a draft and opens the team menu.
   const oldContext = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});

@@ -177,8 +177,20 @@ RowLayout {
                     fillMode: Image.PreserveAspectFit; asynchronous: true
                     readonly property real ox: (width - paintedWidth) / 2
                     readonly property real oy: (height - paintedHeight) / 2
+                    // Several places to find: every one placed so far.
+                    Repeater {
+                        model: q.type === "pinpoint" && q.targets ? q.targets : []
+                        delegate: Rectangle {
+                            required property var modelData
+                            readonly property real rx: (modelData.r || 0.06) * picture.paintedWidth
+                            width: rx * 2; height: width; radius: width / 2
+                            x: picture.ox + modelData.x * picture.paintedWidth - width / 2
+                            y: picture.oy + modelData.y * picture.paintedHeight - height / 2
+                            color: Qt.rgba(Theme.good.r, Theme.good.g, Theme.good.b, 0.25); border.color: Theme.good; border.width: 3
+                        }
+                    }
                     Rectangle {
-                        visible: q.type === "pinpoint" && q.target && q.target.x !== undefined
+                        visible: q.type === "pinpoint" && !q.targets && q.target && q.target.x !== undefined
                         readonly property real rx: (q.target ? q.target.r || 0.06 : 0) * picture.paintedWidth
                         width: rx * 2; height: width; radius: width / 2
                         x: picture.ox + (q.target ? q.target.x : 0) * picture.paintedWidth - width / 2
@@ -192,9 +204,19 @@ RowLayout {
                 }
                 RowLayout {
                     visible: q.type === "pinpoint"
-                    Text { text: q.target && q.target.x !== undefined ? "Target size" : "Click the picture to place the target"; color: Theme.muted }
-                    Slider { visible: !!(q.target && q.target.x !== undefined); from: 0.01; to: 0.5; value: q.target && q.target.r ? q.target.r : 0.06; Layout.preferredWidth: 220
+                    readonly property bool placed: q.targets ? q.targets.length > 0 : !!(q.target && q.target.x !== undefined)
+                    Text { text: q.targets ? (q.targets.length ? `${q.targets.length} ${q.targets.length === 1 ? "place" : "places"}: click to add more (2–10), size` : "Click the picture for each place to find (2–10)")
+                                : parent.placed ? "Target size" : "Click the picture to place the target"; color: Theme.muted }
+                    Slider { visible: parent.placed; from: 0.01; to: 0.5; value: q.targets && q.targets.length ? q.targets[0].r : q.target && q.target.r ? q.target.r : 0.06; Layout.preferredWidth: 220
                              onMoved: lib.setTargetShape(value, picture.paintedWidth / Math.max(1, picture.paintedHeight)) }
+                    DeskButton { visible: !!q.targets && q.targets.length > 0; text: "Clear"; implicitHeight: 32; onClicked: lib.clearTargets() }
+                }
+                CheckBox {
+                    visible: q.type === "pinpoint"
+                    objectName: "severalTargets"
+                    text: "Several places to find: each click adds one, the question's points for each found"
+                    checked: !!q.targets; palette.windowText: Theme.text
+                    onToggled: lib.setSeveralTargets(checked)
                 }
                 // An audio question (or a sheet) can play a Spotify track instead of a file.
                 RowLayout {

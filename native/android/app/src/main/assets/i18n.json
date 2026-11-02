@@ -771,6 +771,14 @@
   "Après",
   "Después"
  ],
+ "Circled on the picture": [
+  "Entouré sur l’image",
+  "Marcado con un círculo en la imagen"
+ ],
+ "Tap the picture once for each place: {n} to find": [
+  "Touchez l’image une fois par endroit : {n} à trouver",
+  "Tocad la imagen una vez por lugar: {n} por encontrar"
+ ],
  "Trace the word first": [
   "Tracez d’abord le mot",
   "Trazad antes la palabra"

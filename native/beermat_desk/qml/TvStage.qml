@@ -348,13 +348,18 @@ Item {
                                     }
                                 }
                             }
-                            // Pinpoint: the target appears on the picture once revealed.
-                            Rectangle {
-                                readonly property var target: questionView.q && questionView.q.revealed ? questionView.q.target : null
-                                visible: !!target && parent.status === Image.Ready
-                                width: 44; height: 44; radius: 22; color: "transparent"; border.color: root.pal.good; border.width: 6
-                                x: !target ? 0 : (parent.width - parent.paintedWidth) / 2 + target.x * parent.paintedWidth - 22
-                                y: !target ? 0 : (parent.height - parent.paintedHeight) / 2 + target.y * parent.paintedHeight - 22
+                            // Pinpoint: the target (or every place to find) appears on the picture once revealed.
+                            Repeater {
+                                id: pinTargets
+                                readonly property var picture: parent
+                                model: questionView.q && questionView.q.revealed && questionView.q.type === "pinpoint" ? (questionView.q.targets || (questionView.q.target ? [questionView.q.target] : [])) : []
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    visible: pinTargets.picture.status === Image.Ready
+                                    width: 44; height: 44; radius: 22; color: "transparent"; border.color: root.pal.good; border.width: 6
+                                    x: (pinTargets.picture.width - pinTargets.picture.paintedWidth) / 2 + modelData.x * pinTargets.picture.paintedWidth - 22
+                                    y: (pinTargets.picture.height - pinTargets.picture.paintedHeight) / 2 + modelData.y * pinTargets.picture.paintedHeight - 22
+                                }
                             }
                         }
                         Text { visible: questionView.isAudio; text: root.t("♪  Listen"); color: root.pal.teal; font.family: Theme.display; font.pixelSize: 110; font.weight: Font.Bold }
@@ -614,6 +619,7 @@ Item {
                     // Choices are marked on their tiles, and a put-in-order list sorts itself: the box then only says who scored.
                     readonly property bool tiles: !!q && ["choice", "vote", "multi", "sequence"].includes(q.type)
                     readonly property string answer: !q ? "" : q.type === "sheet" ? (q.items || []).map((item, i) => `${i + 1}. ${(q.itemAnswers || [])[i] || root.t("Marked by quizmaster")}`).join("   ")
+                        : q.type === "pinpoint" && !q.answer ? root.t("Circled on the picture")
                         : q.answer && q.tolerance ? `${q.answer} (± ${q.tolerance}${q.tolerancePercent ? "%" : ""})` : (q.answer || root.t("Marked by quizmaster"))
                     // Who scored, fastest first (closest first for nearest wins), each with its time or answer and points,
                     // as the web TV (renderSolution in web/app.js).
