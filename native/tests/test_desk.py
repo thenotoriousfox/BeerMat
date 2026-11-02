@@ -230,6 +230,36 @@ class PlanButtonsTest(DeskCase):
         self.assertEqual(opened, [('POST', '/v1/venues/red-lion/billing')])
 
 
+class SpotifyClipTest(DeskCase):
+    def test_a_questions_spotify_clip_plays_as_it_opens_and_stops_after_its_time(self):
+        """An answer sheet with a Spotify clip (name the song): the desk starts it on the Spotify player as the question
+        opens, stops it after its play time, and its buttons play it again or stop it."""
+        desk = self.desk
+        desk.start()
+        wait(lambda: desk.connected and desk.view.get('phase'), what='the server')
+        calls, real = [], desk.api.host
+        def host(route, body=None, done=None, failed=None, **kw):
+            if route.startswith('spotify/'):      # Spotify itself isn't here: the desk's requests are what's checked
+                calls.append(route)
+                if done:
+                    done({'ok': True, 'seconds': 1} if route == 'spotify/play' else {'ok': True})
+                return None
+            return real(route, body, done, failed, **kw)
+        desk.api.host = host
+        port, session = desk.server.info['port'], desk.api.session
+        http(port, 'host/settings', {'waitingRoom': False}, session)
+        http(port, 'host/open', {'text': 'Name the artist and song in clip 1.', 'type': 'sheet', 'partScoring': 'split', 'seconds': 60, 'points': 4,
+                                 'clip': {'spotify': 'spotify:track:2M9ro2krNb7nr7HSprkEgo', 'start': 0, 'seconds': 3},
+                                 'items': ['Artist', 'Title'], 'itemAnswers': ['Tracy Chapman', 'Fast Car']}, session)
+        wait(lambda: calls[:1] == ['spotify/play'], what='the clip started as the question opened')
+        wait(lambda: calls[:2] == ['spotify/play', 'spotify/pause'], what='stopped after its play time')
+        self.assertTrue(self.window.findChild(QObject, 'playAudio').property('visible'), 'Play again shows for a Spotify clip')
+        desk.liveTools.playAudio()
+        self.assertEqual(calls[-1], 'spotify/play')
+        desk.liveTools.pauseAudio()
+        self.assertEqual(calls[-1], 'spotify/pause')
+
+
 class QuizzesPageTest(DeskCase):
     def test_loading_a_quiz_replaces_the_quizzes_page(self):
         desk, lib = self.desk, self.desk.quizzes

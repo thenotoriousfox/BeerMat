@@ -22,6 +22,9 @@ class LiveTools(QObject):
         super().__init__(desk)
         self.desk, self.api, self.sound = desk, desk.api, desk.tvSound
         self._clips = None          # {'question', 'index', 'spotify'} while the clips game plays
+        # A question's own Spotify clip (audio or answer sheet): which question it was started for, whether it's playing,
+        # and a count that cancels the stop timer of an earlier start.
+        self._spotify_cued, self._spotify_playing, self._spotify_run = None, False, 0
         self._clip_player = None
         self._clip_media = None
         self._song_timer = QTimer(self, singleShot=True)
@@ -202,13 +205,17 @@ class LiveTools(QObject):
     @Slot()
     def playAudio(self):
         """From the start."""
+        if self._spotify_clip():
+            return self._play_spotify()
         media = self._audio()
         if media and not self.sound.desk_play(media):
             self.desk.toast.emit('Open the TV to play the sound through it', True)
 
     @Slot()
     def pauseAudio(self):
-        """Pauses it, or carries on from where it paused."""
+        """Pauses it, or carries on from where it paused (a Spotify clip starts again: Spotify has no carry-on here)."""
+        if self._spotify_clip():
+            return self._stop_spotify() if self._spotify_playing else self._play_spotify()
         media = self._audio()
         player = self.sound._players.get(media, (None,))[0] if media else None
         if player and player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
@@ -219,6 +226,38 @@ class LiveTools(QObject):
     def _audio(self):
         media = (self._q() or {}).get('media') or ''
         return media if media.lower().endswith(('.mp3', '.ogg', '.wav')) else ''
+
+    # ---- a question's own Spotify clip (an audio question or answer sheet): on the Spotify player ----
+    def _spotify_clip(self):
+        q = self._q() or {}
+        return q.get('clip') if (q.get('clip') or {}).get('spotify') and q.get('live') else None
+
+    def _play_spotify(self):
+        q = self._q()
+        self._spotify_run += 1
+        run = self._spotify_run
+
+        def started(reply):
+            self._spotify_playing = True
+            # It stops after its play time (as the browser desk's playAudioClip).
+            QTimer.singleShot(int((reply.get('seconds') or 30) * 1000), lambda: run == self._spotify_run and self._stop_spotify())
+        self.api.host('spotify/play', {'question': q['id']}, started, lambda e: self.desk.toast.emit(e, True))
+
+    def _stop_spotify(self):
+        self._spotify_run += 1
+        self._spotify_playing = False
+        self.api.host('spotify/pause', {}, lambda _: None, lambda _: None)
+
+    def followSpotifyClip(self, q):
+        """Each state: a question with a Spotify clip starts it as it opens (once it's sent, with Send Question), not
+        when the desk catches up with one already running; a question moving on stops it."""
+        if self._spotify_cued is not None and (not q or q.get('id') != self._spotify_cued) and self._spotify_playing:
+            self._stop_spotify()
+        if not q or not (q.get('clip') or {}).get('spotify') or not q.get('live') or q.get('held') or q.get('id') == self._spotify_cued:
+            return
+        self._spotify_cued = q['id']
+        if (q.get('seconds') or 0) * 1000 - (q.get('remaining') or 0) < 5000:
+            self._play_spotify()
 
     # ---- wheel, countdown, TV mode, tie-breaker ----
     @Slot(str)
