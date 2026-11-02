@@ -1295,6 +1295,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // so the phone keeps the quiz Wi-Fi as its main connection instead of falling back to mobile data.
   const probes = {'/generate_204': 'android', '/gen_204': 'android', '/hotspot-detect.html': 'apple', '/library/test/success.html': 'apple',
     '/connecttest.txt': 'Microsoft Connect Test', '/ncsi.txt': 'Microsoft NCSI', '/success.txt': 'success\n'};
+  // What sign-in sheets open besides the checks above: Windows' msftconnecttest.com/redirect, Firefox's canonical.html.
+  const signInSheets = new Set(['/redirect', '/canonical.html']);
   function answerProbe(req, res, p) {
     if (!probes[p] || !settings().onlineAfterJoin || !deviceTeam(req)) return false;
     if (probes[p] === 'android') {res.writeHead(204, {'Cache-Control': 'no-store'}); res.end(); return true;}
@@ -1367,7 +1369,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         // still leads there.
         if (p === '/display') {res.writeHead(301, {...security, Location: '/tv' + url.search}); return res.end();}
         // /deck: Run the night in a phone's browser (deck.js).
-        const routes = {'/host': 'host.html', '/tv': 'display.html', '/deck': 'deck.html', '/deck.js': 'deck.js', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
+        const routes = {'/host': 'host.html', '/tv': 'display.html', '/deck': 'deck.html', '/deck.js': 'deck.js', '/wifi.js': 'wifi.js', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
         if (p.startsWith('/media/')) {
           requireValue(mediaPattern.test(p), 'Media not found', 404);
           const file = path.join(mediaDir, path.basename(p));
@@ -1393,7 +1395,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           return page('Spotify connected', 'Close this tab and go back to the quiz desk.');
         }
         if (answerProbe(req, res, p)) return;
-        // OS HTTP probes and arbitrary HTTP landing URLs get registration.
+        // A phone's own internet check opens the Wi-Fi's sign-in sheet: it only says how to stay on the Wi-Fi, since a
+        // team that joined in the sheet loses its page when the sheet closes. Other landing URLs get registration.
+        if (probes[p] || signInSheets.has(p)) return sendFile(req, res, path.join(web, 'wifi.html'), security);
         return sendFile(req, res, path.join(web, routes[p] || 'player.html'), p === '/host' ? deskSecurity : security);
       }
       if (req.method === 'GET' && p === '/api/leaderboard') return send(200, {...publicState(), playback});

@@ -71,7 +71,9 @@ try {
   await saveQuestion('audio', 'Audio question', {answer: 'silence', file: {name: 'silence.wav', mimeType: 'audio/wav', buffer: wav}});
   await host.reload(); await visible(host, '#panel'); await host.locator('[data-tab=build]').click(); await waitFor(host, () => document.getElementById('questionSelect').options.length === 6);
   log('form authoring: text, choice, one-item sheet, picture and audio upload; saved quiz survives reload');
-  await player.goto(base + '/hotspot-detect.html'); await player.locator('#name').fill('Fox team'); await player.locator('#joinButton').click(); await visible(player, '#game'); const recovery = await player.locator('#code').textContent(); assert.equal(recovery.length, 48);
+  // A phone's Wi-Fi sign-in sheet only says how to stay on the Wi-Fi; teams join at the quiz address.
+  await player.goto(base + '/hotspot-detect.html'); await visible(player, 'text=Use this network as is'); await visible(player, 'text=Use Without Internet'); assert.equal(await player.locator('#name').count(), 0);
+  await player.goto(base + '/'); await player.locator('#name').fill('Fox team'); await player.locator('#joinButton').click(); await visible(player, '#game'); const recovery = await player.locator('#code').textContent(); assert.equal(recovery.length, 48);
   // The TV starts in Auto: before the first question it shows how to join.
   await projector.goto(base + '/tv'); await visible(projector, '#joinSection');
   await host.locator('[data-tab=live]').click(); assert.equal(await host.locator('#displayMode').inputValue(), 'auto');

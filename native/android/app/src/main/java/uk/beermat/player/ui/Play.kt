@@ -102,7 +102,7 @@ fun PlayScreen(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.onlin
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
             if (menu) TeamMenu(vm, ui)
             else when {
-                game.team?.waiting == true -> Lobby(t("You’re in the waiting room"), t("The quizmaster will let you in shortly."))
+                game.team?.waiting == true -> { Lobby(t("You’re in the waiting room"), t("The quizmaster will let you in shortly.")); WaitingSetup(vm, ui) }
                 game.settings.ended -> {
                     Lobby(t("That’s the quiz!"), t("Thanks for playing. Final scores are on the TV."))
                     // A live quiz's result, signed by the quiz laptop, can be kept in a BeerMat Online profile.
@@ -111,7 +111,7 @@ fun PlayScreen(vm: PlayerViewModel, ui: UiState, online: uk.beermat.player.onlin
                     val o = online.ui.collectAsStateWithLifecycle().value
                     if (o.message.isNotEmpty()) Text(t(o.message), color = if (o.error) Brand.bad else Brand.goldHi, modifier = Modifier.padding(top = 8.dp))
                 }
-                q == null -> { Lobby(t("You’re in!"), t("Waiting for the quiz to start. Keep this app open.")); Spacer(Modifier.height(24.dp)); TeamSetup(vm, ui) }
+                q == null -> { Lobby(t("You’re in!"), t("Waiting for the quiz to start. Keep this app open.")); WaitingSetup(vm, ui) }
                 q.type !in NATIVE_TYPES -> BrowserRound(vm, q)
                 else -> Question(vm, ui, q)
             }
@@ -151,6 +151,14 @@ private fun Lobby(title: String, text: String) {
         Text(title, style = MaterialTheme.typography.displaySmall, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 12.dp))
         Text(text, color = Brand.muted, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
     }
+}
+
+/** Until the quiz starts, or while the quizmaster hasn't let the team in yet, as the browser player's waiting screen. */
+@Composable
+private fun WaitingSetup(vm: PlayerViewModel, ui: UiState) {
+    Spacer(Modifier.height(24.dp))
+    Text(t("While you wait: add a team photo and pick your buzzer sound."), color = Brand.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+    TeamSetup(vm, ui)
 }
 
 @Composable

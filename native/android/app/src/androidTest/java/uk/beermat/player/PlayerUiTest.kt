@@ -102,6 +102,7 @@ class PlayerUiTest {
         questions = call("/api/host/library").getJSONArray("rounds").let { r -> (0 until r.length()).flatMap { i -> r.getJSONObject(i).getJSONArray("questions").let { a -> (0 until a.length()).map(a::getJSONObject) } } }
         join(server.removePrefix("http://"), "Android Aces")
         waitText("You’re in!")
+        waitText("While you wait: add a team photo and pick your buzzer sound.")
         shot("01-lobby")
 
         // The quizmaster switches the quiz to French: the app follows, as the TV and browsers do.

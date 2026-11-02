@@ -18,7 +18,7 @@ async function fixture(fn) {
   const host = (await call('login', {key: hostKey})).key; await call('host/settings', {waitingRoom: false});
   const board = async () => (await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/leaderboard`)).json();
   const upload = async (name, data) => (await (await fetch(`http://127.0.0.1:${quiz.server.address().port}/api/host/media?name=${name}`, {method: 'POST', headers: {Authorization: 'Bearer ' + host}, body: data})).json()).media;
-  try {await fn({call, board, upload, tick: ms => time += ms});} finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
+  try {await fn({call, board, upload, base: `http://127.0.0.1:${quiz.server.address().port}`, tick: ms => time += ms});} finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
 }
 const score = (s, name) => s.teams.find(t => t.name === name).score;
 
@@ -71,7 +71,7 @@ test('a team renames itself from its team menu, with joining’s checks', () => 
   void owl;
 }));
 
-test('waiting room holds new teams until let in; max teams caps joining', () => fixture(async ({call, board}) => {
+test('waiting room holds new teams until let in; max teams caps joining', () => fixture(async ({call, board, base}) => {
   const early = await call('join', {name: 'Early'});
   await call('host/settings', {waitingRoom: true, maxTeams: 3});
   const late = await call('join', {name: 'Late'}), later = await call('join', {name: 'Later'});
@@ -79,6 +79,11 @@ test('waiting room holds new teams until let in; max teams caps joining', () => 
   assert.equal((await call('join', {name: 'Too many'})).status, 409);
   let s = await call('state', {}, late.secret);
   assert.equal(s.team.waiting, true); assert.equal(s.question, null);
+  // While it waits a team can pick its buzzer sound and send a photo (the phones and apps offer both there).
+  assert.equal((await call('team/sound', {sound: 2}, late.secret)).status, 200);
+  const photo = await fetch(`${base}/api/team/photo`, {method: 'POST', headers: {Authorization: 'Bearer ' + late.secret}, body: Buffer.from([255, 216, 255, 224, 1, 2])}).then(r => r.json());
+  assert.equal(photo.status, 'pending');
+  assert.deepEqual([(await call('state', {}, late.secret)).team.sound, (await call('state', {}, late.secret)).team.photoStatus], [2, 'pending']);
   assert.deepEqual((await board()).teams.map(t => t.name), ['Early']);
   const {id} = await call('host/open', question());
   assert.equal((await call('answer', {question: id, value: 'Cardiff'}, late.secret)).status, 403);
