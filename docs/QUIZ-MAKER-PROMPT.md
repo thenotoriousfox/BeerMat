@@ -36,8 +36,13 @@ Optional on most types:
   - `bonusPlaces` (1–50, default 1): how many of the fastest correct answers get a fixed bonus.
   - On fastest-fingers questions the TV shows the fastest correct team large at the reveal.
 - `evil: true` (Risk It): a wrong answer *loses* the question's points.
-- `hideText: true`: phones don't show the wording (the quizmaster reads it out), for wording that would give the answer
-  away on a phone. Not for bingo, music bingo or clips.
+- `hideText: true`: the TV and phones don't show the wording until the answer is revealed (they show "Listen to the
+  quizmaster" and the quizmaster reads it out), while the clock runs as normal. **Only for the rare question whose
+  wording would give the answer away when read** (e.g. a spelling question). Leave it out everywhere else. Not for
+  bingo, music bingo or clips.
+  - Reading every question out before teams see it is not `hideText`: that is the desk's **Send Question** switch, a
+    setting on the night (not in the file). With it on, each question waits until the quizmaster presses Send, and its
+    clock starts then.
 
 `evil` and `"bonusMode": "fixed"` only work on questions BeerMat can mark by itself. Those are:
 - multi, sequence, pinpoint, wordsnake and tiles;
@@ -61,6 +66,12 @@ Optional on most types:
 - `picture`: like `text`, plus `media` (a picture; see Media).
   - Optional `reveal`: `"blur"` (the picture starts blurred and sharpens) or `"tiles"` (it starts under twelve tiles that
     come off one by one) as the clock runs down: the quicker a team guesses, the less it saw.
+  - Optional `revealSeconds` (3 up to `seconds`, with a `reveal`): the picture shows itself over its first
+    `revealSeconds`, then stays whole for the rest of the time. With `fastestFingers: true` and `speedBonus`, the bonus
+    counts only while the picture is still uncovering, in whole steps: with `"speedBonus": 3` a right answer in the
+    first third of the reveal scores `points` + 3, then + 2, then + 1, and just `points` once the picture is whole. For
+    example `"seconds": 30, "points": 3, "reveal": "tiles", "revealSeconds": 15, "fastestFingers": true, "speedBonus": 3`
+    gives 6, 5 or 4 during the first 15 seconds and 3 after.
 - `audio`: like `text`, plus the sound to play: either `media` (a sound file; see Media) or a Spotify `clip`, which the desk plays when the question opens:
 
   ```json

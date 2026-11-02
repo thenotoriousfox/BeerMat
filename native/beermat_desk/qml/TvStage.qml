@@ -310,7 +310,8 @@ Item {
                             // A picture revealed over the question's time (reveal: blur or tiles): how much shows, 0–1.
                             readonly property string revealMode: questionView.q && questionView.q.reveal ? questionView.q.reveal : ""
                             readonly property real shownShare: !revealMode || !questionView.q.live || questionView.q.revealed ? 1 : questionView.q.held ? 0
-                                : Math.min(1, Math.max(0, 1 - questionView.msLeft / (questionView.q.seconds * 1000)))
+                                // Over the first revealSeconds when set (then whole for the rest of the time), else the whole time.
+                                : Math.min(1, Math.max(0, (questionView.q.seconds * 1000 - questionView.msLeft) / ((questionView.q.revealSeconds || questionView.q.seconds) * 1000)))
                             // Blur: the picture loaded tiny and stretched (soft), sharper step by step; 0 is its own size.
                             sourceSize.width: revealMode === "blur" && shownShare < 1 ? [6, 8, 12, 16, 24, 32, 48, 72, 112, 176][Math.floor(shownShare * 10)] : 0
                             retainWhileLoading: true
@@ -324,6 +325,7 @@ Item {
                                     model: 12
                                     delegate: Rectangle {
                                         required property int index
+                                        objectName: "revealTile"
                                         width: (revealTiles.width - 12) / 4; height: (revealTiles.height - 8) / 3; radius: 8
                                         color: root.pal.violet; border.color: root.pal.lineStrong
                                         opacity: revealTiles.order[index] < Math.floor(revealTiles.parent.shownShare * 12) ? 0 : 1

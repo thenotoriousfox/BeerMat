@@ -1126,7 +1126,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     // A fixed bonus is handed out when the question settles.
     if (base !== data.points || !isCorrect(value, data) || data.bonusMode === 'fixed') return {points: base, marks: null};
     // The bonus decays over the accepted time (a pause extends the deadline).
-    const fraction = Math.min(1, Math.max(0, q.deadline - now() + lateness(q, teamId)) / (data.seconds * 1000));
+    const left = Math.max(0, q.deadline - now() + lateness(q, teamId));
+    // A picture revealed over its first revealSeconds: the bonus is earned only while it's uncovering, in whole steps
+    // (with 3: 3, then 2, then 1 as each third of the reveal passes), and none once the picture is whole.
+    if (data.revealSeconds) {
+      const window = data.revealSeconds * 1000, inWindow = Math.max(0, window - (data.seconds * 1000 - left));
+      return {points: data.points + Math.ceil(speedBonusOf(data) * Math.min(1, inWindow / window)), marks: null};
+    }
+    const fraction = Math.min(1, left / (data.seconds * 1000));
     return {points: data.points + Math.floor(speedBonusOf(data) * fraction), marks: null};
   }
   // Each team's clock starts when its phone received the question, but never more than a short grace period after opening.

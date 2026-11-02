@@ -36,7 +36,8 @@ export function revealPicture(container, question, offset = 0) {
   if (cover && cover.dataset.question !== String(question?.id)) {cover.remove(); cover = null;}
   if (!img || !mode) {cover?.remove(); container.classList.remove('revealing-picture'); if (img) img.style.filter = ''; return;}
   const total = question.seconds * 1000, left = question.held ? total : question.paused ? question.remaining : Math.max(0, question.deadline - Date.now() - offset);
-  const shown = !question.live || question.revealed ? 1 : Math.min(1, Math.max(0, 1 - left / total));
+  // Over the first revealSeconds when set (then whole for the rest of the time), else the whole time.
+  const shown = !question.live || question.revealed ? 1 : Math.min(1, Math.max(0, (total - left) / ((question.revealSeconds || question.seconds) * 1000)));
   container.classList.add('revealing-picture');
   if (mode === 'blur') {img.style.filter = shown >= 1 ? '' : `blur(${Math.round((1 - shown) * 28)}px)`; cover?.remove(); return;}
   if (!cover) {

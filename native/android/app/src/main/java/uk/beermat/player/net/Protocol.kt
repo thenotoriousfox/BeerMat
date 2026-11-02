@@ -53,6 +53,8 @@ data class Question(
     val onTheFly: Boolean = false,
     /** The picture shows itself over the question's time: "blur", "tiles" or "". */
     val reveal: String = "",
+    /** The picture shows itself over these first seconds, then stays whole (0: over the whole time). */
+    val revealSeconds: Int = 0,
     /** The whole question as the server sent it, for the formats with more to draw (bingo, word trail, clips…). */
     val raw: JSONObject = JSONObject(),
 ) {
@@ -138,7 +140,7 @@ object Parse {
             Buzz(b.strOrNull("buzzed"), b.optJSONObject("active")?.str("name"), queue, b.optBoolean("lockedOut"), b.optBoolean("agreeOpen"), b.optBoolean("agreed"), b.str("announced"))
         },
         wordLengths = q.optJSONArray("wordLengths").ints(),
-        held = q.optBoolean("held"), fixedSix = q.optBoolean("fixedSix"), onTheFly = q.optBoolean("onTheFly"), reveal = q.str("reveal"),
+        held = q.optBoolean("held"), fixedSix = q.optBoolean("fixedSix"), onTheFly = q.optBoolean("onTheFly"), reveal = q.str("reveal"), revealSeconds = q.optInt("revealSeconds"),
         raw = q,
     )
 }

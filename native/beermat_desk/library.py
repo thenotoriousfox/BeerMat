@@ -62,6 +62,8 @@ OPTIONS = [
     ('hideText', "The TV and phones don't show the wording until the reveal (you read it out): for wording that gives the answer away", 'bool', None, lambda t, q: t not in BINGO | {'clips'}),
     ('reveal', 'Picture reveal', 'choice', [('', 'Shown straight away'), ('blur', 'Starts blurred, sharpens over the time'), ('tiles', 'Under twelve tiles that go one by one')],
      lambda t, q: t == 'picture'),
+    # The picture shows itself over its first N seconds, then stays whole; a sliding speed bonus only counts until then.
+    ('revealSeconds', 'Reveal over (seconds; 0 = the whole time)', 'int', (0, 7200), lambda t, q: t == 'picture' and q.get('reveal')),
     ('wipeout', 'Wipeout: any wrong tick scores nothing', 'bool', None, lambda t, q: t == 'multi'),
     ('perCall', 'Numbers called each time (1–3)', 'int', (1, 3), lambda t, q: t == 'bingo'),
     ('speed', 'Speed bingo: only numbers on a team’s ticket are called', 'bool', None, lambda t, q: t == 'bingo'),
@@ -203,6 +205,9 @@ class Library(QObject):
         except ValueError:
             self.toast.emit(f'{spec[1]}: give whole numbers', True)
             return
+        # 0 is "over the whole time"; with no reveal there's no reveal time either.
+        if key == 'revealSeconds' and not q[key] or key == 'reveal' and not value:
+            q.pop('revealSeconds', None)
         self._touch()
 
     @Slot(str, QUrl)

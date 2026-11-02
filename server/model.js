@@ -207,7 +207,14 @@ export function validateQuestion(q, mediaDir) {
     requireValue(['blur', 'tiles'].includes(q.reveal), 'A picture reveal is blur or tiles');
     requireValue(result.media && pictureExtensions.includes(path.extname(result.media).toLowerCase()) && q.type !== 'pinpoint', 'Only a picture can be revealed bit by bit');
     result.reveal = q.reveal;
+    // revealSeconds: the picture shows itself over its first N seconds, then stays whole for the rest; a sliding speed
+    // bonus is earned only while it's still uncovering.
+    if (q.revealSeconds) {
+      requireValue(integer(q.revealSeconds, 3, 7200) && q.revealSeconds <= q.seconds, 'Reveal the picture over 3 seconds up to the question\'s time');
+      result.revealSeconds = q.revealSeconds;
+    }
   }
+  requireValue(!q.revealSeconds || result.reveal, 'A reveal time needs a picture reveal (blur or tiles)');
   requireValue(q.type !== 'pinpoint' || pictureExtensions.includes(path.extname(result.media).toLowerCase()), 'Pinpoint needs a picture');
   if (q.type === 'sheet') {
     requireValue(Array.isArray(q.items) && q.items.length >= 1 && q.items.length <= 50 && q.items.every(i => text(i, 500)), 'Supply 1–50 sheet questions');

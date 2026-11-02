@@ -46,6 +46,8 @@ public struct Question: Equatable {
     public var fixedSix = false, onTheFly = false
     /// The picture shows itself over the question's time: "blur", "tiles" or "".
     public var reveal = ""
+    /// The picture shows itself over these first seconds, then stays whole (0: over the whole time).
+    public var revealSeconds = 0
     /// Music bingo's reaction table: the song playing (its number), quickest dabs first.
     public var reactionSong: Int? { (raw["reactionTable"] as? [String: Any]).map { $0.int("song") } }
     /// The whole question as the server sent it, for the formats with more to draw (bingo, word trail, clips…).
@@ -118,7 +120,7 @@ extension Question {
                         deadline: q.num("deadline") ?? 0, remaining: q.num("remaining") ?? 0, open: q.bool("open"), live: q.bool("live"),
                         paused: q.bool("paused"), revealed: q.bool("revealed"), answer: answer, answerNote: q.str("answerNote"), buzz: buzz)
         question.wordLengths = (q["wordLengths"] as? [Any] ?? []).compactMap { number($0).map { Int($0) } }
-        question.held = q.bool("held"); question.fixedSix = q.bool("fixedSix"); question.onTheFly = q.bool("onTheFly"); question.reveal = q.str("reveal")
+        question.held = q.bool("held"); question.fixedSix = q.bool("fixedSix"); question.onTheFly = q.bool("onTheFly"); question.reveal = q.str("reveal"); question.revealSeconds = q.int("revealSeconds")
         question.raw = q
         return question
     }
