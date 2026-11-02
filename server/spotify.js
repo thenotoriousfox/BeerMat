@@ -1,3 +1,4 @@
+import os from 'node:os';
 // Optional Spotify control for music rounds. The laptop's own Spotify app does the playing; this only tells it what
 // to play, through Spotify's Web API. Sign-in uses PKCE (no app secret). Tokens stay in the quiz database on this laptop.
 // Needs internet on the laptop (e.g. hotspot.py --keep-wifi) and Spotify Premium for playback control.
@@ -56,7 +57,7 @@ export function createSpotify({getMeta, setMeta, now, accountsUrl = 'https://acc
     const text = await response.text(), data = text ? JSON.parse(text) : null;
     if (response.ok) return data;
     const reason = data?.error?.reason, detail = data?.error?.message || response.status;
-    if (reason === 'NO_ACTIVE_DEVICE' || (response.status === 404 && path.startsWith('/me/player'))) throw new QuizError('No Spotify player found. Press “Start Spotify player” on the desk (or open the Spotify app on this laptop and play any song once), then try again.', 409);
+    if (reason === 'NO_ACTIVE_DEVICE' || (response.status === 404 && path.startsWith('/me/player'))) throw Object.assign(new QuizError('No Spotify player found. Open the Spotify app on this laptop and play any song once (or press “Start Spotify player” on the browser desk), then try again.', 409), {noPlayer: true});
     if (reason === 'PREMIUM_REQUIRED') throw new QuizError('Playing songs from the quiz needs Spotify Premium.', 409);
     throw new QuizError(`Spotify: ${detail}`, response.status === 404 ? 404 : 502);
   }
@@ -92,7 +93,20 @@ export function createSpotify({getMeta, setMeta, now, accountsUrl = 'https://acc
     return songs.slice(0, 300);
   }
   async function accessToken() {const value = await token(); return {accessToken: value, expiresAt: saved().expiresAt};}
-  const play = (uri, startSeconds = 0) => api('PUT', `/me/player/play${saved().device ? '?device_id=' + encodeURIComponent(saved().device) : ''}`, {uris: [uri], position_ms: startSeconds * 1000});
+  // With no player chosen, Spotify plays on the one in use; when none is (the app open but idle), BeerMat picks one
+  // itself rather than refuse: the Spotify app on this laptop, else another computer, else any player there is.
+  async function play(uri, startSeconds = 0) {
+    const body = {uris: [uri], position_ms: startSeconds * 1000}, chosen = saved().device;
+    try {return await api('PUT', `/me/player/play${chosen ? '?device_id=' + encodeURIComponent(chosen) : ''}`, body);}
+    catch (e) {
+      if (!e.noPlayer || chosen) throw e;
+      const devices = (await api('GET', '/me/player/devices').catch(() => null))?.devices?.filter(d => !d.is_restricted) || [];
+      const here = os.hostname().toLowerCase(), computers = devices.filter(d => d.type === 'Computer');
+      const pick = computers.find(d => d.name.toLowerCase() === here) || computers[0] || devices[0];
+      if (!pick) throw e;
+      return api('PUT', `/me/player/play?device_id=${encodeURIComponent(pick.id)}`, body);
+    }
+  }
   const pause = () => api('PUT', `/me/player/pause${saved().device ? '?device_id=' + encodeURIComponent(saved().device) : ''}`).catch(() => {});
   function device(id) {requireValue(typeof id === 'string' && id.length <= 200, 'Unknown Spotify player'); save({device: id});}
   function disconnect() {setMeta('spotify', {clientId: saved().clientId || ''});}

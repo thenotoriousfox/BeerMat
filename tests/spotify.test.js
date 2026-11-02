@@ -12,7 +12,7 @@ const hostKey = 'a-secure-quiz-test-key', clientId = '0123456789abcdef0123456789
 const id = n => `track${String(n).padStart(17, '0')}`;
 // A stand-in for Spotify's accounts service and Web API that records what the quiz asked for.
 function fakeSpotify() {
-  const log = [], state = {challenge: null, device: true, tokens: 0};
+  const log = [], state = {challenge: null, device: true, idle: false, tokens: 0};
   const server = http.createServer(async (req, res) => {
     let body = ''; for await (const chunk of req) body += chunk;
     const url = new URL(req.url, 'http://x'), json = (status, data) => {res.writeHead(status, {'Content-Type': 'application/json'}); res.end(data === undefined ? '' : JSON.stringify(data));};
@@ -27,7 +27,9 @@ function fakeSpotify() {
       return json(200, {access_token: `access-${state.tokens}`, expires_in: 3600, refresh_token: `refresh-${state.tokens}`, scope: 'streaming user-modify-playback-state'});
     }
     if (url.pathname === '/v1/me') return json(200, {display_name: 'Quiz Host'});
-    if (url.pathname === '/v1/me/player/devices') return json(200, {devices: [{id: 'laptop', name: 'CachyOS laptop', type: 'Computer', is_active: true}]});
+    if (url.pathname === '/v1/me/player/devices') return json(200, {devices: [{id: 'tv', name: 'Living room TV', type: 'TV', is_active: false}, {id: 'laptop', name: 'CachyOS laptop', type: 'Computer', is_active: !state.idle}]});
+    // idle: the Spotify app open but not in use, so Spotify plays only when asked for a player by name.
+    if (url.pathname.startsWith('/v1/me/player/') && state.idle && !url.searchParams.get('device_id')) return json(404, {error: {status: 404, message: 'Player command failed: No active device found', reason: 'NO_ACTIVE_DEVICE'}});
     if (url.pathname.startsWith('/v1/me/player/')) return state.device ? json(204) : json(404, {error: {status: 404, message: 'Player command failed: No active device found', reason: 'NO_ACTIVE_DEVICE'}});
     if (url.pathname === `/v1/playlists/${'p'.repeat(22)}/items`) {
       const offset = Number(url.searchParams.get('offset') || 0);
@@ -79,7 +81,7 @@ test('connect with PKCE, import a playlist, refresh tokens, disconnect', () => f
   assert.match(await (await fetch(`${base}/spotify/callback?code=x&state=forged`)).text(), /expired/);
   await connect(ctx);
   let status = await call('host/spotify/status');
-  assert.deepEqual([status.connected, status.user, status.devices[0].name, status.redirectUri, status.deskPlayer], [true, 'Quiz Host', 'CachyOS laptop', `${base}/spotify/callback`, true]);
+  assert.deepEqual([status.connected, status.user, status.devices.map(d => d.name), status.redirectUri, status.deskPlayer], [true, 'Quiz Host', ['Living room TV', 'CachyOS laptop'], `${base}/spotify/callback`, true]);
   // The desk player gets the current access token only.
   assert.deepEqual(Object.keys(await call('host/spotify/token')).sort(), ['accessToken', 'expiresAt', 'status']);
   assert.equal((await call('host/spotify/token')).accessToken, 'access-1');
@@ -124,6 +126,16 @@ test('music bingo plays Spotify songs from the start time; clips play and log; n
   assert.equal((await call('host/spotify/play', {question: audio.id})).seconds, 12);
   assert.deepEqual(JSON.parse(fake.log.findLast(l => l.path === '/v1/me/player/play').body), {uris: [`spotify:track:${id(3)}`], position_ms: 42000});
   const seen = (await call('state', {}, team.secret)).question; assert.deepEqual([seen.clip, seen.playsSong], [undefined, true]);
+}));
+
+test('with no player in use, BeerMat plays on the Spotify app on a computer rather than refuse', () => fixture(async ctx => {
+  const {call, fake} = ctx; await connect(ctx);
+  fake.state.idle = true;
+  const audio = await call('host/open', {text: 'Name the artist', type: 'audio', seconds: 30, points: 1, answer: 'Queen', clip: {spotify: `spotify:track:${id(3)}`, start: 42, seconds: 12}});
+  assert.equal((await call('host/spotify/play', {question: audio.id})).status, 200);
+  const played = fake.log.filter(l => l.path.startsWith('/v1/me/player/play'));
+  assert.deepEqual(played.map(l => l.path), ['/v1/me/player/play', '/v1/me/player/play?device_id=laptop'], 'asked for the active player, then the laptop by name (not the TV)');
+  assert.deepEqual(JSON.parse(played.at(-1).body), {uris: [`spotify:track:${id(3)}`], position_ms: 42000});
 }));
 
 test('Build quiz previews a track from its start point on the chosen player, for the desk only', () => fixture(async ctx => {
