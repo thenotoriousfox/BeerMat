@@ -26,14 +26,14 @@ const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = 
 
 // Question types. Keypad formats follow common pub-quiz handset conventions:
 // letters (first letter of the answer), numbers, multiple choice and sequence.
-export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet', 'clues'];
+export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet', 'clues', 'list'];
 export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
 // Buzzer questions stay open until the quizmaster rules on them; the timer only limits buzzing.
 // Formats the server marks right or wrong by itself: these can use Risk It and a fixed speed bonus.
 // Two-button Multiple choice (pair): true or false, before or after. The stored values stay English; phones and TVs
 // label the buttons in the quiz's language.
 export const PAIRS = {trueFalse: ['True', 'False'], beforeAfter: ['Before', 'After']};
-export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio', 'clues'].includes(q.type) && !!q.answer);
+export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'list'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio', 'clues'].includes(q.type) && !!q.answer);
 export const speedBonusOf = q => q.fastestFingers ? q.speedBonus || 0 : 0;
 export const hostDriven = type => ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(type);
 export const isBingo = type => type === 'bingo' || type === 'musicbingo';
@@ -69,6 +69,13 @@ export function validateQuestion(q, mediaDir) {
   // Asked on the fly: the quizmaster reads out a question that isn't saved and sets its answer after answers close.
   if (q.onTheFly === true) result.onTheFly = true;
   if (['text', 'picture', 'audio', 'clues'].includes(q.type)) result.aliases = aliases;
+  // List answers: teams fill up to `slots` boxes; each box matching an accepted answer not already used scores the
+  // points. An accepted answer may give alternatives: "UK | United Kingdom".
+  if (q.type === 'list') {
+    requireValue(Array.isArray(q.accepted) && q.accepted.length >= 2 && q.accepted.length <= 50 && q.accepted.every(a => text(a, 200)), 'Give 2–50 accepted answers');
+    result.accepted = q.accepted.map(a => a.trim()); result.slots = q.slots ?? Math.min(result.accepted.length, 10);
+    requireValue(integer(result.slots, 1, Math.min(20, result.accepted.length)), `Boxes for teams: 1–${Math.min(20, result.accepted.length)}`);
+  }
   // Progressive clues: one more every clueSeconds; an answer on the first clue scores the points, each later one less.
   if (q.type === 'clues') {
     requireValue(Array.isArray(q.clues) && q.clues.length >= 2 && q.clues.length <= 8 && q.clues.every(c => text(c, 200)), 'Give 2–8 clues');
@@ -308,6 +315,10 @@ export function answerValue(value, q, final = true) {
     requireValue(!final || value.length, q.type === 'tiles' ? 'Place the tiles first' : 'Trace the word first');
     return JSON.stringify(value);
   }
+  if (q.type === 'list') {
+    requireValue(Array.isArray(value) && value.length <= q.slots && value.every(v => typeof v === 'string' && v.length <= 300), 'One answer per box');
+    return JSON.stringify(value.map(v => v.trim()));
+  }
   if (q.type === 'pinpoint') {
     const point = p => Array.isArray(p) && p.length === 2 && p.every(v => typeof v === 'number' && v >= 0 && v <= 1);
     requireValue(Array.isArray(value) && value.length <= (q.targets?.length || (q.goWide ? 2 : 1)) && value.every(point) && (!final || value.length), 'Tap the picture');
@@ -335,6 +346,7 @@ export const tolerance = q => !q.tolerance ? 0 : q.tolerancePercent ? Math.abs(N
 export function isCorrect(value, q) {
   if (q.type === 'sequence') return JSON.stringify(JSON.parse(value)) === JSON.stringify(q.items.map((_, i) => i));
   if (q.type === 'multi') return JSON.parse(value).join('\n') === q.correct.join('\n');
+  if (q.type === 'list') return listFound(JSON.parse(value), q) === q.slots;
   if (q.type === 'pinpoint') return q.targets ? targetsFound(JSON.parse(value), q.targets) === q.targets.length : hits(JSON.parse(value)[0], q.target);
   if (q.type === 'wordsnake') {const {path} = JSON.parse(value); return validSnake(path, q.snake) && path.map(i => q.snake.grid[i]).join('') === q.answer;}
   if (q.type === 'tiles') return JSON.parse(value).map(i => q.pieces[i]).join('') === q.tiles.join('');
@@ -357,12 +369,20 @@ export function basePoints(value, q) {
     return Math.max(0, Math.round(q.points * (right - (picks.length - right)) / q.correct.length));
   }
   if (q.type === 'wordsnake') return isCorrect(value, q) ? JSON.parse(value).wide ? q.goWidePoints : q.points : 0;
+  if (q.type === 'list') return listFound(JSON.parse(value), q) * q.points;
   if (q.type === 'pinpoint' && q.targets) return targetsFound(JSON.parse(value), q.targets) * q.points;
   if (q.type === 'pinpoint') {
     const [first, second] = JSON.parse(value);
     return hits(first, q.target) ? q.points : hits(second, q.target) ? q.goWidePoints : 0;
   }
   return isCorrect(value, q) ? q.points : 0;
+}
+
+// List answers: how many boxes match an accepted answer, each accepted answer counting once.
+export const alternatives = accepted => accepted.split('|').map(a => a.trim()).filter(Boolean);
+export function listFound(values, q) {
+  const used = new Set();
+  return values.filter(v => {const i = q.accepted.findIndex((a, k) => !used.has(k) && v.trim() && matches(v, alternatives(a))); if (i < 0) return false; used.add(i); return true;}).length;
 }
 
 // Several places to find: how many targets the taps found, each tap counting for one target at most.

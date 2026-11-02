@@ -105,7 +105,8 @@ export function renderSolution(container, question, {onScreen = false} = {}) {
   if (!question?.revealed) return;
   container.classList.remove('reveal'); void container.offsetWidth; container.classList.add('reveal');
   container.append(element('h3', t(question.type === 'vote' ? 'Votes' : 'Answer reveal')));
-  if (question.type === 'sheet') container.append(...question.items.map((item, i) => element('p', `${i + 1}. ${item} — ${question.itemAnswers?.[i] || t('Marked by quizmaster')}`, 'solution')));
+  if (question.type === 'list') {const list = element('ol', undefined, 'solution'); list.append(...(question.accepted || []).map(a => element('li', a.split('|').map(x => x.trim()).filter(Boolean).join(' / ')))); container.append(list);}
+  else if (question.type === 'sheet') container.append(...question.items.map((item, i) => element('p', `${i + 1}. ${item} — ${question.itemAnswers?.[i] || t('Marked by quizmaster')}`, 'solution')));
   else if (question.type === 'sequence' && onScreen) {}
   else if (question.type === 'sequence') {const list = element('ol', undefined, 'solution'); list.append(...question.items.map(item => element('li', item))); container.append(list);}
   else if (question.type === 'choice') {const i = question.options.indexOf(question.answer); container.append(element('p', i < 0 ? t('Marked by quizmaster') : optionLabel(question, i), 'solution'));}
