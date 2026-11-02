@@ -6,7 +6,7 @@
 // (Windows' Mobile Hotspot, kept off the internet by Windows Filtering Platform filters, so it asks for administrator
 // approval once per start), which always has a password.
 import {execFile, spawn} from 'node:child_process';
-import {existsSync} from 'node:fs';
+import {copyFileSync, existsSync, mkdtempSync, rmSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {QuizError, requireValue} from './model.js';
@@ -21,6 +21,14 @@ const onPath = name => [...(process.env.PATH || '').split(path.delimiter), path.
 const tidy = out => out.split('\n').filter(l => l.trim() && !/^usage: /.test(l)).map(l => l.replace(/^\S+\.py: error: /, '')).slice(-6).join('\n');
 // Node scripts run with this same runtime; inside the desktop app that is Electron, which runs them as plain Node with this.
 const nodeEnv = () => process.versions.electron ? {...process.env, ELECTRON_RUN_AS_NODE: '1'} : undefined;
+// pkexec runs the hotspot script as root, and root can't read inside the AppImage (its files are mounted for this user
+// alone): each run gets a copy in a folder of its own (only this user and root can open it), removed afterwards.
+function asRoot(run, python, script, args, timeout) {
+  let folder = null, file = script;
+  try {folder = mkdtempSync(path.join(os.tmpdir(), 'beermat-hotspot-')); file = path.join(folder, path.basename(script)); copyFileSync(script, file);}
+  catch {if (folder) rmSync(folder, {recursive: true, force: true}); folder = null; file = script;}
+  return Promise.resolve(run('pkexec', [python, file, ...args], timeout)).finally(() => folder && rmSync(folder, {recursive: true, force: true}));
+}
 export const hotspotAddress = platform => platform === 'win32' ? '192.168.137.1' : '10.42.0.1';
 // Windows reports the address its hotspot adapter really has (ICS's ScopeAddress can move it off 192.168.137.1).
 const reported = (platform, address) => platform === 'win32' && /^\d{1,3}(\.\d{1,3}){3}$/.test(address || '') ? address : hotspotAddress(platform);
@@ -77,7 +85,7 @@ export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cl
         return job('wifi', () => run(...ps('up', config, '-OwnerPid', String(ownerPid)), 180000), done);
       }
       requireValue(Number.isInteger(port) && port > 0 && port < 65536, 'Invalid port');
-      job('wifi', () => run('pkexec', [python, hotspot, 'up', '--interface', card, '--ssid', ssid.trim(), '--port', String(port), '--apply', '--replace'], 180000), done);
+      job('wifi', () => asRoot(run, python, hotspot, ['up', '--interface', card, '--ssid', ssid.trim(), '--port', String(port), '--apply', '--replace'], 180000), done);
     },
     online,
     goOnline(port, changed) {
@@ -102,7 +110,7 @@ export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cl
       child.on('error', e => ended('Could not start cloudflared: ' + e.message));
     },
     goOffline() {if (tunnel) {tunnel.stopping = true; tunnel.child.kill();}},
-    stopWifi(done) {job('wifi', () => windows ? run(...ps('down'), 60000) : run('pkexec', [python, hotspot, 'down', '--apply'], 180000), done);},
+    stopWifi(done) {job('wifi', () => windows ? run(...ps('down'), 60000) : asRoot(run, python, hotspot, ['down', '--apply'], 180000), done);},
     async wifiOn() {
       requireValue(!windows, 'Switch Wi-Fi on from the Windows quick settings (the network icon on the taskbar)');
       const result = await run('nmcli', ['radio', 'wifi', 'on'], 10000); if (!result.ok) throw new QuizError(tidy(result.out) || 'Could not switch Wi-Fi on');
