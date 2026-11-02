@@ -370,6 +370,22 @@ ScrollView {
             anchors.fill: parent; spacing: 8
             Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
                    text: "Run the night from your phone: open the BeerMat app signed in with this venue's account and choose Run the night. It finds this laptop on the quiz Wi-Fi or the venue's. No account on the phone? Show a code and type it in there." }
+            // No app: the same in the phone's browser, at this laptop's address (the venue's Wi-Fi when the laptop is on
+            // it, else where players join) + /deck.
+            RowLayout {
+                id: webDeck
+                readonly property var lan: ((desk.network || {}).addresses || []).find(a => a.kind === "lan") || null
+                readonly property int port: (desk.network || {}).port || 0
+                readonly property string address: lan && port ? `http://${lan.address}${port === 80 ? "" : ":" + port}/deck`
+                                                : ((desk.tv.settings || {}).joinUrl || "") ? (desk.tv.settings.joinUrl.replace(/\/$/, "") + "/deck") : ""
+                Component.onCompleted: desk.loadNetwork()
+                visible: address !== ""
+                Layout.fillWidth: true; spacing: 12
+                Rectangle { Layout.preferredWidth: 112; Layout.preferredHeight: 112; radius: 10; color: "white"
+                            QrCode { anchors.fill: parent; anchors.margins: 8; text: webDeck.address } }
+                Text { objectName: "webDeckAddress"; Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.text; font.pixelSize: 14
+                       text: `No app? Scan this, or open ${webDeck.address} in the phone's browser, and type the code.` }
+            }
             Flow {
                 Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 10
                 DeskButton { objectName: "deckCodeButton"; text: desk.deck.code ? "New code" : "Show a code"; implicitHeight: 34; onClicked: desk.deckCode() }

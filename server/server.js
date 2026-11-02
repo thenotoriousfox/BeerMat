@@ -1240,7 +1240,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   let deckCode = null, deckCommand = null;
   const deskConnected = () => [...streams].some(s => s.desk);
   const decks = () => [...deckSessions].filter(([h]) => one('SELECT 1 FROM host_sessions WHERE hash=?', h)).map(([, d]) => d);
-  const deckAllowed = (req, url) => url.pathname.startsWith('/api/deck/') || deckSessions.has(hash(req.headers.authorization?.replace(/^Bearer /, '') || url.searchParams.get('key') || ''));
+  // A phone deck: its sign-in, its page in a browser (/deck), and anything with a deck's key.
+  const deckAllowed = (req, url) => url.pathname.startsWith('/api/deck/') || ((req.method === 'GET' || req.method === 'HEAD') && (url.pathname === '/deck' || url.pathname === '/deck.js')) || deckSessions.has(hash(req.headers.authorization?.replace(/^Bearer /, '') || url.searchParams.get('key') || ''));
   // The desk's big button, as nextStep() in web/host.js and desk.py's _next_step, worked out here for the phone deck.
   function nextStep(board, recap) {
     if (board.active && !board.done) return board.shown === board.rest ? 'revealFirst' : board.second ? 'revealSecond' : 'reveal';
@@ -1364,7 +1365,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         // /tv: the TV page (short to type with a remote; client.js shows a start button). /display, its old address,
         // still leads there.
         if (p === '/display') {res.writeHead(301, {...security, Location: '/tv' + url.search}); return res.end();}
-        const routes = {'/host': 'host.html', '/tv': 'display.html', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
+        // /deck: Run the night in a phone's browser (deck.js).
+        const routes = {'/host': 'host.html', '/tv': 'display.html', '/deck': 'deck.html', '/deck.js': 'deck.js', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
         if (p.startsWith('/media/')) {
           requireValue(mediaPattern.test(p), 'Media not found', 404);
           const file = path.join(mediaDir, path.basename(p));
