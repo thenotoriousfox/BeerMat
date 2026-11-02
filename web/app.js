@@ -74,7 +74,15 @@ export function renderBoard(container, teams) {
   }
 }
 // The time left, and for a wager question the most a team can stake.
-export const timeText = (question, offset = 0) => clockText(question, offset) + (question?.wager && !question.revealed && !question.held ? ' · ' + t('Wager: up to {n} points', {n: question.wager}) : '');
+export const timeText = (question, offset = 0) => clockText(question, offset) + (question?.wager && !question.revealed && !question.held ? ' · ' + t('Wager: up to {n} points', {n: question.wager}) : '')
+  + (question?.type === 'clues' && question.open && !question.wager ? ' · ' + t('Clue {n} of {total}: {p} points now', {n: question.cluesShown, total: question.clueCount, p: question.cluePoints}) : '');
+// Progressive clues: those showing so far, the newest last (redrawn only when one more appears).
+export function renderClues(list, question) {
+  const clues = question?.type === 'clues' ? question.clues || [] : [], key = JSON.stringify([question?.id, clues]);
+  if (list.dataset.clues === key) return;
+  list.dataset.clues = key; list.replaceChildren(...clues.map(c => element('li', c)));
+  list.lastElementChild?.classList.add('new');
+}
 function clockText(question, offset = 0) {
   if (!question) return t('Waiting for the quizmaster');
   if (question.type === 'bingo' || question.type === 'musicbingo') return t(question.paused ? 'Paused' : question.live ? 'Eyes down — game in progress' : 'Game over');

@@ -213,6 +213,8 @@ const T = {
   'Choose your stake first': ['Choisissez d’abord votre mise', 'Elegid antes vuestra apuesta'],
   'Staked {n}': ['Mise : {n}', 'Apuesta: {n}'],
   'Wager: up to {n} points': ['Mise : jusqu’à {n} points', 'Apuesta: hasta {n} puntos'],
+  // Progressive clues.
+  'Clue {n} of {total}: {p} points now': ['Indice {n} sur {total} : {p} points maintenant', 'Pista {n} de {total}: {p} puntos ahora'],
   'Trace the word first': ['Tracez d’abord le mot', 'Trazad antes la palabra'],
   'Place the tiles first': ['Placez d’abord les tuiles', 'Colocad antes las fichas'],
   'Your answer': ['Votre réponse', 'Vuestra respuesta'],

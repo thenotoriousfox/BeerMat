@@ -1,7 +1,7 @@
 import './compat.js';
 import {qrMatrix} from './qr.js';
 import {t, setLanguage, language, languages, translatePage} from './i18n.js';
-import {$, element, api, message, readStorage, writeStorage, renderMedia, revealPicture, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, soundLength, isAudio, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord, optionLabel} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, renderMedia, revealPicture, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, soundLength, isAudio, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord, optionLabel, renderClues} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('beermat-team'), current = null, renderedQuestion = 'unset', offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
 // The native apps hand their team to this page, for a round format they don't draw themselves, as #team=<code>: the
@@ -339,7 +339,7 @@ function playerState(s) {
   $('myScore').textContent = !me ? '' : me.score === null ? t('#{rank}', {rank: me.rank}) : t('#{rank} · {score} pts', {rank: me.rank, score: me.score});
   $('menuButton').hidden = false;
   if (q && (listValue(q.type) || q.fiftyFifty)) syncPicks();
-  renderSolution($('solution'), q); updateControls();
+  renderSolution($('solution'), q); renderClues($('clueList'), q); $('clueList').hidden = q?.type !== 'clues'; updateControls();
 }
 // After a question: a clear ✓ / ✗ card with the points it earned.
 function renderResult(s) {
@@ -414,6 +414,7 @@ function displayState(s) {
     // Answer options show as coloured tiles matching the phone keypad.
     $('projectItems').classList.toggle('options', ['choice', 'vote', 'multi'].includes(q?.type));
   }
+  if (q?.type === 'clues') renderClues($('projectItems'), q);
   if (q?.type === 'sequence') sortSequence($('projectItems'), q);
   $('projectSnake').hidden = q?.type !== 'wordsnake';
   if (q?.type === 'wordsnake') renderSnake($('projectSnake'), q.grid, q.revealed ? q.snakePath : []);
