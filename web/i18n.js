@@ -104,6 +104,9 @@ const T = {
   '✕ Exit full screen': ['✕ Quitter le plein écran', '✕ Salir de pantalla completa'],
   'Join the quiz on your phone': ['Rejoignez le quiz sur votre téléphone', 'Únete al quiz con tu móvil'],
   'Scan with your phone camera': ['Scannez avec l’appareil photo', 'Escanea con la cámara del móvil'],
+  // The quiz Wi-Fi's sign-in sheet (wifi.html): how to stay on the Wi-Fi, then join in the browser.
+  'You’re on the quiz Wi-Fi': ['Vous êtes sur le Wi-Fi du quiz', 'Estás en el wifi del quiz'],
+  'Then close this and scan the code on the TV, or open {url} in your browser.': ['Puis fermez cette page et scannez le code à la télé, ou ouvrez {url} dans votre navigateur.', 'Luego cierra esto y escanea el código de la tele, o abre {url} en tu navegador.'],
   'If your phone warns about “no internet”, choose “Use network as is” or “Stay connected”.': ['Si le téléphone signale « pas d’internet », choisissez « Utiliser ce réseau tel quel » ou « Rester connecté ».', 'Si el móvil avisa de «sin internet», elige «Usar la red tal cual» o «Mantener conexión».'],
   'This phone was playing as {name}.': ['Ce téléphone jouait pour {name}.', 'Este móvil jugaba como {name}.'],
   'Continue as {name}': ['Continuer avec {name}', 'Continuar como {name}'],
