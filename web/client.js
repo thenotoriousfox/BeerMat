@@ -332,11 +332,22 @@ function playerState(s) {
 function renderResult(s) {
   const q = s.question, a = s.answer, done = q && !q.live && q.type !== 'vote';
   $('resultCard').hidden = !done || (a && a.points === undefined);
-  if (!done) return;
+  if (!done) {$('varBox').hidden = true; return;}
   const points = a?.points ?? 0;
   $('resultCard').className = `result-card ${points > 0 ? 'good' : 'bad'}`;
   $('resultMark').textContent = !a ? '–' : points > 0 ? '✓' : '✗';
   $('resultPoints').textContent = !a ? t('No answer this time') : points > 0 ? (points === 1 ? t('+1 point') : t('+{n} points', {n: points})) : points < 0 ? t('{n} points', {n: points}) : t('No points this time');
+  renderVar(s);
+}
+// VAR Check: after the reveal a team that thinks its answer was marked wrong asks the quizmaster to look again.
+function renderVar(s) {
+  const v = s.myVar, q = s.question, shown = !!v && !!q?.revealed && (v.canAsk || !!v.status);
+  $('varBox').hidden = !shown; if (!shown) return;
+  $('varButton').hidden = !v.canAsk;
+  const left = v.left === null ? '' : ' ' + t(s.settings.varCheck === 'night' ? '{n} left tonight' : '{n} left this round', {n: v.left});
+  $('varStatus').textContent = v.status === 'pending' ? t('VAR Check sent: the quizmaster is reviewing it')
+    : v.status === 'overturned' ? t('VAR Check: overturned! +{n} points', {n: v.points}) : v.status === 'stands' ? t('VAR Check: the decision stands')
+    : t('Think it was marked wrong? Ask for a VAR Check.') + left;
 }
 function sharedState(s) {
   // Phones may be on a sign-in probe address (hotspot-detect.html and the like), so they come back to the quiz's own page.
@@ -421,7 +432,7 @@ function displayState(s) {
     const slide = s.slides.find(x => (at -= x.seconds * 1000) < 0) || s.slides[0];
     if ($('slideImage').getAttribute('src') !== slide.media) $('slideImage').src = slide.media;
   }
-  renderFastTrack(s.fastTrack);
+  renderFastTrack(s.fastTrack); renderVarCheck(s.varCheck);
   // Team groups (groupBoard): each group's average, best first, above the leaderboard.
   $('groupBoard').hidden = !s.groups?.length;
   if (s.groups?.length) $('groupBoard').replaceChildren(element('li', t('Groups'), 'eyebrow'), ...s.groups.map(g => element('li', g.average === null ? g.name : `${g.name} · ${g.teams === 1 ? t('1 team · average {score}', {score: g.average}) : t('{n} teams · average {score}', {n: g.teams, score: g.average})}`, g.rank === 1 ? 'top' : '')));
@@ -471,7 +482,7 @@ function sortSequence(list, q) {
 }
 function renderFirst(q) {
   if (q && !q.revealed) firstArmed = q.id;
-  if (String(q?.id) !== $('firstPlace').dataset.question && $('firstPlace').dataset.question !== 'fasttrack') {clearTimeout(firstTimer); $('firstPlace').hidden = true;}
+  if (String(q?.id) !== $('firstPlace').dataset.question && !['fasttrack', 'var'].includes($('firstPlace').dataset.question)) {clearTimeout(firstTimer); $('firstPlace').hidden = true;}
   if (!q?.revealed || firstArmed !== q.id) return;
   firstArmed = null;
   const f = q.first; if (!f) return;
@@ -495,6 +506,26 @@ function renderFastTrack(f) {
   $('firstDetail').textContent = t('Straight to first place!');
   box.hidden = false; box.classList.remove('show'); void box.offsetWidth; box.classList.add('show');
   buzzSound(f.name, f.sound); clearTimeout(firstTimer); firstTimer = setTimeout(() => {box.hidden = true;}, 6000);
+}
+// VAR Check: a ruling on a team's appeal fills the TV (only one seen happening): "VAR CHECK" over a drum roll while the
+// replay is checked, then the decision.
+let varSeen = null, varTimer;
+function renderVarCheck(v) {
+  if (!v || v.id === varSeen) return;
+  const first = varSeen === null; varSeen = v.id; if (first && Date.now() + offset - v.decided > 3000) return;
+  const box = $('firstPlace'); box.dataset.question = 'var';
+  $('firstKind').textContent = t('📺 VAR CHECK'); $('firstName').textContent = v.team;
+  $('firstPhoto').replaceChildren(element('span', '📺', 'avatar first-initial'));
+  $('firstDetail').textContent = t('Checking the replay…');
+  box.hidden = false; box.classList.remove('show'); void box.offsetWidth; box.classList.add('show');
+  playSound('reveal'); clearTimeout(firstTimer); clearTimeout(varTimer);
+  varTimer = setTimeout(() => {
+    $('firstKind').textContent = v.status === 'overturned' ? t('OVERTURNED') : t('DECISION STANDS');
+    $('firstDetail').textContent = v.status === 'overturned' ? t('+{n} points', {n: v.points}) : t('No change to the score');
+    box.classList.remove('show'); void box.offsetWidth; box.classList.add('show');
+    playSound(v.status === 'overturned' ? 'correct' : 'wrong');
+    firstTimer = setTimeout(() => {box.hidden = true;}, 5000);
+  }, 3000);
 }
 // First place's turn in the leaderboard reveal: it fills the TV for a few seconds (photo, name, points, buzzer sound)
 // with the whole board behind it. Teams tied for first share the moment.
@@ -886,6 +917,10 @@ if (role === 'player') {
   $('renameForm').onsubmit = async e => {
     e.preventDefault();
     try {await api('team/name', {name: $('newName').value}, secret); message('Team name saved'); await updates.update();} catch (err) {message(err.message, true);}
+  };
+  $('varButton').onclick = async () => {
+    if (!current?.question || !confirm(t('Ask the quizmaster for a VAR Check on this answer?'))) return;
+    try {await api('team/var', {question: current.question.id}, secret); message('VAR Check sent: the quizmaster is reviewing it'); await updates.update();} catch (e) {message(e.message, true);}
   };
   $('sound').onchange = async () => {hear(); if ($('sound').value === '') return; const sound = Number($('sound').value); try {await api('team/sound', {sound}, secret); message('Buzzer sound saved');} catch (e) {message(e.message, true);}};
 }

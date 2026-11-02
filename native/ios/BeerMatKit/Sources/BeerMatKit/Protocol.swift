@@ -61,6 +61,9 @@ public struct Question: Equatable {
 public struct Answer { public let value: Any?, points: Double? }
 public struct Settings: Equatable { public let title: String, ended: Bool, registrationOpen: Bool, scrambleKeypads: Bool, leaderboardVisible: Bool; public var teamPhotos = false; public var language = "en" }
 
+/// VAR Check: whether this team can appeal the question just revealed, how many it has left (nil: no limit), how it went.
+public struct MyVar: Equatable { public let left: Int?, status: String?, points: Int?, canAsk: Bool }
+
 public struct PlayerState {
     public let proto: Int, serverTime: Double, build: String, event: String
     public let settings: Settings, team: Team?, question: Question?, answer: Answer?, draft: Any?
@@ -71,6 +74,9 @@ public struct PlayerState {
     public let testDevice: Bool
     /// The leaderboard reveal on the TV, while there is one.
     public var reveal: BoardReveal?
+    /// VAR Check for the question on the phone (nil when switched off); one a night rather than one a round.
+    public var myVar: MyVar?
+    public var varPerNight = false
 
     /// The leaderboard as a team's phone shows it: during a reveal, only the places already on the TV.
     public var board: [Standing] {
@@ -97,6 +103,10 @@ public struct PlayerState {
             testDevice: (o["rehearsal"] as? [String: Any])?.bool("device") == true)
         state.buzzerNames = ((o["sounds"] as? [String: Any])?["buzzers"] as? [[String: Any]] ?? []).map { $0.str("name") }
         state.reveal = (o["reveal"] as? [String: Any]).map { BoardReveal(hidden: Set($0.strings("hidden")), leader: $0.bool("leader"), done: $0.bool("done")) }
+        state.myVar = (o["myVar"] as? [String: Any]).map { v in
+            MyVar(left: number(v["left"]).map { Int($0) }, status: v["status"] as? String, points: number(v["points"]).map { Int($0) }, canAsk: v.bool("canAsk"))
+        }
+        state.varPerNight = s.str("varCheck") == "night"
         return state
     }
 }

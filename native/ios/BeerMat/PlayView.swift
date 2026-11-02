@@ -298,6 +298,7 @@ private struct QuestionView: View {
             else if !q.open { Text(q.revealed ? t("Answer revealed") : t("Answers closed")).foregroundStyle(Brand.muted) }
             else { BigButton(title: t("Lock in answer"), enabled: !model.busy && ready) { model.submit(value) } }
             if q.revealed { ForEach(revealLines(q), id: \.self) { Text($0).font(.title3.bold()).foregroundStyle(Brand.good) } }
+            if q.revealed { VarCheckView(question: q.id) }
             if q.revealed && !q.answerNote.isEmpty { Text(q.answerNote).foregroundStyle(Brand.muted) }
         }
         Color.clear.frame(height: 0)
@@ -523,4 +524,40 @@ func revealLines(_ q: Question) -> [String] {
     }
     if let answer = q.answer, !answer.isEmpty { return [t("Answer: {answer}", ["answer": answer])] }
     return []
+}
+
+/// VAR Check: after the reveal a team that thinks its answer was marked wrong asks the quizmaster to look again.
+private struct VarCheckView: View {
+    @EnvironmentObject var model: PlayerModel
+    let question: Int
+    @State private var asking = false
+
+    private var status: String {
+        guard let v = model.game?.myVar else { return "" }
+        switch v.status {
+        case "pending": return t("VAR Check sent: the quizmaster is reviewing it")
+        case "overturned": return t("VAR Check: overturned! +{n} points", ["n": v.points ?? 0])
+        case "stands": return t("VAR Check: the decision stands")
+        default:
+            let left = v.left.map { " " + t(model.game?.varPerNight == true ? "{n} left tonight" : "{n} left this round", ["n": $0]) } ?? ""
+            return t("Think it was marked wrong? Ask for a VAR Check.") + left
+        }
+    }
+
+    var body: some View {
+        Group {
+            if let v = model.game?.myVar, v.canAsk || v.status != nil {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(status).foregroundStyle(Brand.muted)
+                    if v.canAsk { Button(t("📺 VAR Check")) { asking = true }.buttonStyle(.bordered).disabled(model.busy) }
+                }.padding(.top, 10)
+            }
+        }
+        .alert(t("📺 VAR Check"), isPresented: $asking) {
+            Button(t("📺 VAR Check")) { model.askVar(question) }
+            Button(t("Cancel"), role: .cancel) {}
+        } message: {
+            Text(t("Ask the quizmaster for a VAR Check on this answer?"))
+        }
+    }
 }

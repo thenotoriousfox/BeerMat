@@ -165,6 +165,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun send() { if (deck?.canSend == true) act("send", done = t("Question sent to the phones")) }
+    /** VAR Check ruling: overturned gives the question's points; either way the TV shows the decision. */
+    fun ruleVar(check: Long, decision: String) = act("var", JSONObject().put("id", check).put("decision", decision), if (decision == "overturned") t("VAR Check: overturned") else t("VAR Check: the decision stands"))
     fun close() { if (deck?.canClose == true) act("close", JSONObject().put("expectedQuestion", current), t("Answers closed")) }
     fun pause() { if (deck?.canPause == true) act("pause", JSONObject().put("expectedQuestion", current), t("Timer paused")) }
     fun resume() { if (deck?.canResume == true) act("resume", JSONObject().put("expectedQuestion", current), t("Timer resumed")) }

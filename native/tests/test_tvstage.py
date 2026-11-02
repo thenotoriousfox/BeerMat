@@ -192,6 +192,20 @@ class TvStageTest(unittest.TestCase):
         self.assertEqual(spotlight.property('shown').property('kind').toString(), '🚀 FAST TRACK')
         self.assertEqual(spotlight.property('shown').property('names').toString(), 'Foxes')
 
+    def test_var_check_shows_then_the_decision(self):
+        """A VAR Check ruling fills the TV: VAR CHECK while it's checked, then the decision (only one seen happening)."""
+        spotlight = self.stage.findChild(QObject, 'spotlight')
+        self.show(state(q=question()))
+        spotlight.setProperty('shown', None)
+        self.show(state(q=question(), varCheck={'id': 3, 'team': 'Owls', 'status': 'overturned', 'points': 2, 'decided': time.time() * 1000}))
+        self.assertEqual(spotlight.property('shown').property('kind').toString(), '📺 VAR CHECK')
+        self.assertEqual(spotlight.property('shown').property('names').toString(), 'Owls')
+        deadline = time.time() + 6
+        while spotlight.property('shown').property('kind').toString() != 'OVERTURNED' and time.time() < deadline:
+            app.processEvents(); time.sleep(0.05)
+        self.assertEqual(spotlight.property('shown').property('detail').toString(), '+2 points')
+        self.show(state(q=question(), varCheck={'id': 3, 'team': 'Owls', 'status': 'overturned', 'points': 2, 'decided': time.time() * 1000}), 'var-check')
+
     def test_a_looks_tv_json_styles_the_tv(self):
         def items(item):
             yield item

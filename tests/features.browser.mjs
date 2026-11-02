@@ -182,6 +182,32 @@ try {
   await host('close'); await host('settings', {sendQuestion: false});
   log('desk: Send Question switch, the Send button and the S key; the TV shows the question only once it is sent');
 
+  // VAR Check: after the reveal the team appeals from its phone; the desk overturns it; the TV shows the decision.
+  const varQ = await host('open', {text: 'Capital of Spain?', type: 'text', answer: 'Madrid', seconds: 60, points: 2, round: 'VAR round'});
+  await phone.waitForFunction(() => document.getElementById('question').textContent === 'Capital of Spain?' && document.querySelector('#inputs input'));
+  await phone.locator('#inputs input').fill('Madird'); await phone.click('#submit');
+  await phone.waitForFunction(() => /final answer/i.test(document.getElementById('draftStatus').textContent + document.getElementById('message').textContent));
+  await host('close'); await host('reveal', {question: varQ.id});
+  await phone.locator('#varButton').waitFor({state: 'visible', timeout: 20000});
+  assert.match(await phone.locator('#varStatus').textContent(), /Ask for a VAR Check\. 1 left this round/);
+  await phone.click('#varButton');
+  await phone.waitForFunction(() => document.getElementById('varStatus').textContent.includes('reviewing'));
+  await desk.locator('#varChecks .var-check').waitFor({state: 'visible'});
+  assert.match(await desk.locator('#varChecks').textContent(), /Owls answered “Madird”/);
+  await shot(desk, 'desk-var-check');
+  await desk.click('#varChecks button:text("Overturn (+2)")');
+  await tv.waitForFunction(() => document.getElementById('firstKind').textContent.includes('VAR CHECK'));
+  await tv.waitForFunction(() => document.getElementById('firstKind').textContent === 'OVERTURNED', null, {timeout: 8000});
+  assert.equal(await tv.locator('#firstDetail').textContent(), '+2 points');
+  await shot(tv, 'tv-var-check');
+  await phone.waitForFunction(() => document.getElementById('varStatus').textContent.includes('overturned! +2'));
+  assert.equal(await phone.locator('#varButton').isVisible(), false, 'one a round: used');
+  await desk.click('[data-tab=settings]'); await desk.selectOption('#varCheck', 'night');
+  await desk.waitForFunction(async () => true); await new Promise(r => setTimeout(r, 500));
+  assert.equal((await host('state')).settings.varCheck, 'night', 'the desk sets the limit');
+  await host('settings', {varCheck: 'round'}); await desk.click('[data-tab=live]');
+  log('VAR Check: a team appeals from its phone after the reveal, the desk overturns it, the TV shows the decision');
+
   await desk.locator('details.tools summary').click();
   await desk.selectOption('#flyType', 'letter'); await desk.click('#flyForm button');
   await desk.waitForFunction(() => document.querySelector('#liveText').textContent === 'Question on the fly');

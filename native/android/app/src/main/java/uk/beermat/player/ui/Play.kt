@@ -343,6 +343,7 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
         else -> BigButton(t("Lock in answer"), enabled = !ui.busy && ready(q, value)) { vm.submit(value) }
     }
     if (q.revealed) revealLines(q).forEachIndexed { i, line -> Text(line, color = Brand.good, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(top = if (i == 0) 12.dp else 4.dp)) }
+    if (q.revealed) VarCheck(vm, ui, q)
     if (q.revealed && q.answerNote.isNotEmpty()) Text(q.answerNote, color = Brand.muted)
 }
 
@@ -351,6 +352,24 @@ internal fun revealLines(q: Question): List<String> = when {
     q.type == "sheet" && q.items.isNotEmpty() -> q.items.mapIndexed { i, item -> "${i + 1}. $item — ${q.itemAnswers.getOrNull(i)?.ifBlank { null } ?: t("Marked by quizmaster")}" }
     !q.answer.isNullOrEmpty() -> listOf(t("Answer: {answer}", "answer" to q.answer))
     else -> emptyList()
+}
+
+/** VAR Check: after the reveal a team that thinks its answer was marked wrong asks the quizmaster to look again. */
+@Composable
+private fun VarCheck(vm: PlayerViewModel, ui: UiState, q: Question) {
+    val v = ui.game?.myVar ?: return
+    if (!v.canAsk && v.status == null) return
+    var confirm by remember(q.id) { mutableStateOf(false) }
+    val left = v.left?.let { " " + t(if (ui.game.varPerNight) "{n} left tonight" else "{n} left this round", "n" to it) } ?: ""
+    Text(when (v.status) {
+        "pending" -> t("VAR Check sent: the quizmaster is reviewing it")
+        "overturned" -> t("VAR Check: overturned! +{n} points", "n" to (v.points ?: 0))
+        "stands" -> t("VAR Check: the decision stands")
+        else -> t("Think it was marked wrong? Ask for a VAR Check.") + left
+    }, color = Brand.muted, modifier = Modifier.padding(top = 14.dp))
+    if (v.canAsk) OutlinedButton({ confirm = true }, enabled = !ui.busy, modifier = Modifier.fillMaxWidth().testTag("varCheck")) { Text(t("📺 VAR Check")) }
+    if (confirm) androidx.compose.material3.AlertDialog({ confirm = false }, title = { Text(t("📺 VAR Check")) }, text = { Text(t("Ask the quizmaster for a VAR Check on this answer?")) },
+        confirmButton = { TextButton({ confirm = false; vm.askVar(q.id) }) { Text(t("📺 VAR Check")) } }, dismissButton = { TextButton({ confirm = false }) { Text(t("Cancel")) } })
 }
 
 /** Scoring feedback: what the server marked, once marking is final. */

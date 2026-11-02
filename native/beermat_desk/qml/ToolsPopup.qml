@@ -202,6 +202,18 @@ Popup {
                         }
                     }
                 }
+                // VAR Check: teams appeal their marking from their phones after a reveal.
+                RowLayout {
+                    Layout.topMargin: 6; spacing: 10
+                    Text { text: "VAR Check (teams appeal their marking)"; color: Theme.text; font.pixelSize: 14 }
+                    ComboBox {
+                        objectName: "varCheckSetting"; Layout.preferredWidth: 260
+                        textRole: "text"; valueRole: "value"
+                        model: [{value: "round", text: "One per team each round"}, {value: "night", text: "One per team each night"}, {value: "any", text: "No limit"}, {value: "off", text: "Off"}]
+                        currentIndex: Math.max(0, indexOfValue(tools.settings.varCheck || "round"))
+                        onActivated: desk.live.setVarCheck(currentValue)
+                    }
+                }
             }
         }
     }

@@ -389,7 +389,7 @@ class TvSound(QObject):
             'shouts': {x['id']: x['status'] for x in bingo.get('shouts') or []},
             'buzz': {b['team']: b['status'] for b in ((q or {}).get('buzz') or {}).get('queue') or []},
             'leader': (((q or {}).get('buzz') or {}).get('active') or {}).get('name', ''),
-            'fastTrack': (s.get('fastTrack') or {}).get('id'),
+            'fastTrack': (s.get('fastTrack') or {}).get('id'), 'varCheck': (s.get('varCheck') or {}).get('id'),
             'view': s.get('view'), 'boardLeader': (s.get('reveal') or {}).get('question') if (s.get('reveal') or {}).get('leader') else None,
             'winner': ' & '.join(t['name'] for t in s.get('teams', []) if t.get('rank') == 1) if s.get('view') == 'winner' else ''}
         self._follow_wheel(s, before is None)
@@ -410,6 +410,11 @@ class TvSound(QObject):
                 QTimer.singleShot(600 + i * 2500, lambda team=team: self.buzz(team.get('name', ''), team.get('sound')))
         if heard['fastTrack'] is not None and heard['fastTrack'] != before['fastTrack']:
             self.buzz(s['fastTrack'].get('name', ''), s['fastTrack'].get('sound'))
+        # VAR Check: a drum roll while it's checked, then the decision (TvStage's spotlight shows the same).
+        if heard['varCheck'] is not None and heard['varCheck'] != before['varCheck']:
+            self.play('reveal')
+            overturned = s['varCheck'].get('status') == 'overturned'
+            QTimer.singleShot(3000, lambda: self.play('correct' if overturned else 'wrong'))
         jingle = ''
         if q and q.get('id') != before['id'] and q.get('live'):
             if q.get('round') and q['round'] != before['round'] and self.play('startRound'):

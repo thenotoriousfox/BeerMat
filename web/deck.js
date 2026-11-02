@@ -92,6 +92,11 @@ const can = {
 function render() {
   if (!state) return;
   const question = q();
+  // VAR Check: teams' appeals waiting for a ruling (overturned gives the question's points; the TV shows the decision).
+  const rule = (c, decision) => {const b = element('button', decision === 'overturned' ? t('Overturn (+{n})', {n: c.full}) : t('Decision stands'), decision === 'overturned' ? '' : 'subtle'); b.type = 'button'; b.disabled = busy;
+    b.onclick = () => act(() => host('var', {id: c.id, decision}), decision === 'overturned' ? t('VAR Check: overturned') : t('VAR Check: the decision stands')); return b;};
+  $('varChecks').replaceChildren(...(state.varChecks || []).map(c => {const row = element('div', undefined, 'var-check');
+    row.append(element('p', t('📺 VAR Check: {team} answered “{answer}”', {team: c.name, answer: c.answer || '–'})), rule(c, 'overturned'), rule(c, 'stands')); return row;}));
   $('questionCard').hidden = !question;
   if (question) {
     $('round').textContent = question.round || '';

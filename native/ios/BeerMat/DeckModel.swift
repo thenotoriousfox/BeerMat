@@ -168,6 +168,8 @@ final class DeckModel: ObservableObject {
     }
 
     func send() { if deck?.canSend == true { act("send", [:], t("Question sent to the phones")) } }
+    /// VAR Check ruling: overturned gives the question's points; either way the TV shows the decision.
+    func ruleVar(_ check: Int, _ decision: String) { act("var", ["id": check, "decision": decision], decision == "overturned" ? t("VAR Check: overturned") : t("VAR Check: the decision stands")) }
     func close() { if deck?.canClose == true { act("close", ["expectedQuestion": current], t("Answers closed")) } }
     func pause() { if deck?.canPause == true { act("pause", ["expectedQuestion": current], t("Timer paused")) } }
     func resume() { if deck?.canResume == true { act("resume", ["expectedQuestion": current], t("Timer resumed")) } }

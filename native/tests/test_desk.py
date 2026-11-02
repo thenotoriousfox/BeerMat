@@ -265,6 +265,37 @@ class SpotifyClipTest(DeskCase):
         self.assertEqual(calls[-1], 'spotify/preview')
 
 
+class VarCheckTest(DeskCase):
+    def test_a_teams_var_check_shows_on_the_desk_and_overturn_gives_the_points(self):
+        """A team appeals after the reveal: the live page lists it with the team's answer, and Overturn gives the
+        question's points (the TV then shows the decision)."""
+        desk = self.desk
+        desk.start()
+        wait(lambda: desk.connected and desk.view.get('phase'), what='the server')
+        port, session = desk.server.info['port'], desk.api.session
+        http(port, 'host/settings', {'waitingRoom': False}, session)
+        # A rehearsal (this desk has no Pro licence): phones can't answer, so the team's answer and its appeal go
+        # straight into the quiz database (tests/var-check.test.js covers appealing from a phone).
+        owls = http(port, 'join', {'name': 'Owls'})
+        q = http(port, 'host/open', {'text': 'Capital of Wales?', 'type': 'text', 'answer': 'Cardiff', 'seconds': 60, 'points': 2, 'round': 'Round 1'}, session)
+        http(port, 'host/close', {'expectedQuestion': q['id']}, session)
+        import sqlite3
+        db = sqlite3.connect(str(Path(desk.server.data_dir) / 'quiz.sqlite'), timeout=10)
+        team = db.execute('SELECT id FROM teams WHERE name=?', ('Owls',)).fetchone()[0]
+        db.execute("INSERT INTO answers(team,question,value,points,submitted) VALUES(?,?,'Cardif',0,1) ON CONFLICT(team,question) DO UPDATE SET value='Cardif'", (team, q['id']))
+        db.execute('INSERT INTO var_checks(question,team,at) VALUES(?,?,1)', (q['id'], team)); db.commit(); db.close()
+        desk.refresh()
+        wait(lambda: [c['name'] for c in desk.view.get('varChecks', [])] == ['Owls'], what='the desk lists the VAR Check')
+        self.assertEqual(desk.view['varChecks'][0]['answer'], 'Cardif')
+        bar = self.window.findChild(QObject, 'varChecks')
+        wait(lambda: bar.property('count') == 1, what='a bar on the live page, with Overturn and Decision stands')
+        self.assertEqual(desk.view['varChecks'][0]['full'], 2, 'Overturn (+2)')
+        desk.liveTools.ruleVar(desk.view['varChecks'][0]['id'], 'overturned')
+        wait(lambda: desk.view.get('varChecks') == [], what='ruled')
+        self.assertEqual(http(port, 'host/state', {}, session)['varCheck']['status'], 'overturned', 'the TV shows the decision')
+        self.assertEqual(next(a['points'] for a in http(port, 'host/state', {}, session)['answers'] if a['value'] == 'Cardif'), 2)
+
+
 class ReplaySongTest(DeskCase):
     def test_music_bingo_plays_the_song_just_called_again(self):
         """Music bingo: Play this song again plays the song just called from its start on the Spotify player (not calling

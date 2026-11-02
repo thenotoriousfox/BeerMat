@@ -13,6 +13,9 @@ data class DeckQuestion(
 
 data class DeckTeam(val name: String, val score: Double, val rank: Int, val connected: Boolean)
 
+/** A team's VAR Check waiting for a ruling: its answer and the question's full points (what Overturn gives). */
+data class DeckVar(val id: Long, val team: String, val answer: String, val full: Int)
+
 /**
  * The quiz as the phone deck shows it, from /api/host/state: what the big button does next (the server's nextStep, as
  * the Qt desk's Next), the question and what can be done with it (the desk's canSend, canClose… in desk.py), and the
@@ -21,6 +24,7 @@ data class DeckTeam(val name: String, val score: Double, val rank: Int, val conn
 data class DeckState(
     val title: String, val nextStep: String?, val question: DeckQuestion?, val teams: List<DeckTeam>, val answered: Int,
     val back: String?, val backAnswers: Int, val deskOpen: Boolean, val revealSound: String?, val fastRehearsal: Boolean, val rehearsal: Boolean,
+    val varChecks: List<DeckVar> = emptyList(),
 ) {
     val canNext get() = nextStep != null && question?.live != true
     val canSend get() = question.let { it != null && it.held && it.live }
@@ -59,6 +63,7 @@ data class DeckState(
                 answered = s.optJSONArray("answers")?.length() ?: 0,
                 back = back?.optString("label")?.takeIf { it.isNotBlank() }, backAnswers = back?.optInt("answers") ?: 0,
                 deskOpen = s.optBoolean("deskConnected"),
+                varChecks = s.optJSONArray("varChecks")?.let { a -> List(a.length()) { a.getJSONObject(it) } }.orEmpty().map { DeckVar(it.optLong("id"), it.optString("name"), it.optString("answer"), it.optInt("full", 1)) },
                 revealSound = s.optJSONObject("sounds")?.optJSONObject("slots")?.optString("reveal")?.takeIf { it.isNotBlank() },
                 fastRehearsal = s.optJSONObject("rehearsal")?.optJSONObject("options")?.optString("speed") == "fast",
                 rehearsal = s.optJSONObject("rehearsal")?.optJSONObject("options") != null,

@@ -325,6 +325,7 @@ class Desk(QObject):
             self.tvSound.screens = len(state.get('tvScreens') or [])
             self._follow_deck(state.get('deckCommand'))
             self.liveTools.followSpotifyClip(state.get('question'))
+            self._follow_var(state.get('varChecks') or [])
             if state.get('libraryRevision') != (self._library or {}).get('revision'):
                 self.load_library()
             self._rebuild()
@@ -430,7 +431,7 @@ class Desk(QObject):
             'soundThemes': s.get('soundThemes') or [], 'soundThemesByType': s.get('soundThemesByType') or {},
             'formats': [{'value': k, 'text': v} for k, v in TYPE_NAMES.items()],
             # The live controls read the server's own question (host view), settings, tie and countdown as they are.
-            'raw': q or {}, 'settings': settings, 'tie': s.get('tie') or {}, 'timer': s.get('timer') or {},
+            'raw': q or {}, 'settings': settings, 'tie': s.get('tie') or {}, 'timer': s.get('timer') or {}, 'varChecks': s.get('varChecks') or [],
             'typeCode': (q or {}).get('type', ''), 'tvScreens': s.get('tvScreens') or [], 'decks': s.get('decks') or [], 'clipsRunning': (self.liveTools.clipsRunning() or {}).get('index', -1),
             'progress': f'{len(played & {item.get("id") for _, item in questions})} of {len(questions)} questions played' if questions else '',
             'upcoming': upcoming,
@@ -812,6 +813,14 @@ class Desk(QObject):
 
     # ---- the phone deck ----
     DECK_COMMANDS = {'callNumber': 'callNumber', 'replaySong': 'replaySong', 'playClips': 'playClips', 'stopClips': 'stopClips', 'playAudio': 'playAudio', 'pauseAudio': 'pauseAudio'}
+
+    def _follow_var(self, checks):
+        """A team asked for a VAR Check: say so once (the live page lists it until it's ruled)."""
+        seen = getattr(self, '_var_seen', None)
+        self._var_seen = {c['id'] for c in checks}
+        for c in checks:
+            if seen is not None and c['id'] not in seen:
+                self.toast.emit(f'📺 VAR Check: {c["name"]} asks you to look at their answer again', False)
 
     def _follow_deck(self, command):
         """A phone hosting asked the desk to play something (only the desk plays clips and songs). Each once, when

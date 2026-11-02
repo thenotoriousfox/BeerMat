@@ -67,6 +67,7 @@ public final class QuizServer: @unchecked Sendable {
     public func fifty(_ secret: String, question: Int) async throws { _ = try await request("POST", "/api/fifty", ["question": question], secret) }
     public func goWide(_ secret: String, question: Int) async throws { _ = try await request("POST", "/api/gowide", ["question": question], secret) }
     public func rename(_ secret: String, name: String) async throws { _ = try await request("POST", "/api/team/name", ["name": name], secret) }
+    public func varCheck(_ secret: String, question: Int) async throws { _ = try await request("POST", "/api/team/var", ["question": question], secret) }
     public func sound(_ secret: String, index: Int) async throws { _ = try await request("POST", "/api/team/sound", ["sound": index], secret) }
     /// The team's photo for the TV: a square JPEG; the quizmaster approves it first.
     public func photo(_ secret: String, jpeg: Data) async throws { _ = try await request("POST", "/api/team/photo", nil, secret, raw: jpeg) }

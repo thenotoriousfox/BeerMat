@@ -797,6 +797,7 @@ $('joinDetails').onsubmit = e => {e.preventDefault(); const body = {joinSsid: $(
 $('titleForm').onsubmit = e => {e.preventDefault(); const title = $('eventName').value; action(() => request('settings', {title}));};
 $('registration').onclick = () => action(() => request('settings', {registrationOpen: !state.settings.registrationOpen}));
 $('visibility').onclick = () => action(() => request('settings', {leaderboardVisible: !state.settings.leaderboardVisible}));
+$('varCheck').onchange = () => action(() => request('settings', {varCheck: $('varCheck').value}), 'VAR Check updated');
 $('scramble').onclick = () => action(() => request('settings', {scrambleKeypads: !state.settings.scrambleKeypads}), 'Keypad scrambling updated — applies from the next question');
 // Room switches added with Send Question: each a boolean setting, its button saying whether it's on.
 const switches = {sendQuestion: 'Send Question', fixedSix: 'Multiple choice A–F', askTable: 'Ask for table numbers', groupBoard: 'Team groups on the TV', slidesAuto: 'Slides after each round', simpleMode: 'Simple mode', countQuizzes: 'Count this venue’s quizzes'};
@@ -1349,6 +1350,8 @@ function renderState(s) {
   renderWheels(s);
   selectOptions($('fastTeam'), s.teams.filter(t => t.enabled && !t.waiting).map(t => [t.id, t.name]), $('fastTeam').value);
   $('slidesInfo').textContent = `${s.slides.length ? `${s.slides.length} ${s.slides.length === 1 ? 'picture' : 'pictures'}` : 'No pictures yet'}: your adverts, food, next week’s quiz. With “Slides after each round” on, the TV plays them 20 seconds after a round’s leaderboard is fully revealed (or a minute after the round if you don’t show it); TV shows → Slides plays them now.`;
+  if (document.activeElement !== $('varCheck')) $('varCheck').value = s.settings.varCheck || 'round';
+  renderVarChecks(s.varChecks || []);
   $('scramble').textContent = `Scramble keypads: ${s.settings.scrambleKeypads ? 'on' : 'off'}`; $('phrases').textContent = `Bingo phrases: ${s.settings.bingoPhrases ? 'on' : 'off'}`; $('caller').textContent = `Bingo caller voice: ${s.settings.bingoVoice ? 'on' : 'off'}`; $('board').textContent = `TV shows called numbers: ${s.settings.bingoBoard ? 'on' : 'off'}`;
   if (!$('blockedForm').contains(document.activeElement)) $('blockedWords').value = s.blockedWords.join('\n'); $('displayMode').value = s.settings.displayMode; $('autoView').textContent = s.settings.displayMode === 'auto' ? `(now: ${{join: 'join screen', leaderboard: 'leaderboard', question: 'question', winner: 'winner'}[s.view] || s.view})` : ''; $('tvLanguage').value = s.settings.language; $('finish').textContent = s.settings.ended ? 'Resume quiz' : 'Finish quiz';
   const offline = s.teams.filter(t => t.enabled && !t.waiting && !t.connected), photos = s.teams.filter(t => t.photo_status === 'pending').length;
@@ -1583,3 +1586,17 @@ async function runPreflight() {
 $('preflightRun').onclick = () => {$('preflightDialog').showModal(); runPreflight().catch(e => message(e.message, true));};
 $('preflightAgain').onclick = () => runPreflight().catch(e => message(e.message, true));
 $('preflightClose').onclick = () => $('preflightDialog').close();
+
+// VAR Check: teams' appeals waiting for a ruling. Overturned gives the question's points; either way the TV shows it.
+function renderVarChecks(checks) {
+  const box = $('varChecks'), key = JSON.stringify(checks.map(c => [c.id, c.points]));
+  box.hidden = !checks.length; if (box.dataset.key === key) return; box.dataset.key = key;
+  box.replaceChildren(...checks.map(c => {
+    const row = element('div', undefined, 'var-check'), text = element('p', `📺 VAR Check: ${c.name} answered “${c.answer || '(nothing)'}” (${c.points} ${c.points === 1 ? 'point' : 'points'} now)${c.questionText ? ` · ${c.questionText}` : ''}`);
+    const over = element('button', `Overturn (+${c.full})`), stand = element('button', 'Decision stands', 'subtle');
+    over.type = stand.type = 'button';
+    over.onclick = () => action(() => request('var', {id: c.id, decision: 'overturned'}), `VAR Check: overturned, ${c.name} gets ${c.full} ${c.full === 1 ? 'point' : 'points'}`);
+    stand.onclick = () => action(() => request('var', {id: c.id, decision: 'stands'}), 'VAR Check: the decision stands');
+    row.append(text, over, stand); return row;
+  }));
+}

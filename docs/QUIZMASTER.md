@@ -296,6 +296,8 @@ A team can send one final answer per question. Sheet answers may be left blank, 
 
 Use **Answers & marking** and choose any played question. The marking key, alternatives and media appear above the team cards. Live/paused questions cannot be marked. Save the total points for a text/media/choice answer; for a sheet mark each item zero or one. Blank keyed sheet items are automatically wrong; items without a key need review. You can save marks for a team that did not submit, such as a paper answer delivered to the host. Repeated saves replace the answer's points rather than adding points. Every manual change is included in the marking log in results export.
 
+**VAR Check:** after a reveal, a team that thinks its answer was marked wrong taps **📺 VAR Check** on its phone. The live page shows it in a gold bar with the team's answer: **Overturn** gives the question's full points, **Decision stands** leaves it. Either way the TV shows *VAR CHECK* over a drum roll, then the decision. Run the night can rule too. How many a team gets is set in **Tools → The room**: one each round (the default), one each night, no limit, or off.
+
 For paper-round totals or general corrections, use **Teams → Paper round / score correction**. Enter positive or negative whole points and a reason. Each form submission has an idempotency key: retrying after a lost response does not add the same adjustment twice. To correct an already accepted adjustment, record a new reversing adjustment with an explanatory reason.
 
 Scores update after question closure/expiry and after each saved mark/correction. Equal scores share rank. Hide the public leaderboard for suspense if needed; the quizmaster retains scores.

@@ -971,6 +971,14 @@ Item {
             property var shownFor: null
             property string boardDone: ""
             property int fastTrackSeen: -1
+            property int varSeen: -1
+            // VAR Check: "VAR CHECK" over a drum roll, then the decision.
+            Timer {
+                id: varDecision; interval: 3000
+                property var check: null
+                onTriggered: { const v = check; if (v) spotlight.show({kind: v.status === "overturned" ? root.t("OVERTURNED") : root.t("DECISION STANDS"), names: v.team, photos: [], initials: ["📺"],
+                                                                     detail: v.status === "overturned" ? root.t("+{n} points", {n: v.points}) : root.t("No change to the score")}, 5000) }
+            }
             opacity: shown ? 1 : 0; visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: 350 } }
             Timer { id: spotlightTimer; onTriggered: spotlight.shown = null }
@@ -1002,6 +1010,17 @@ Item {
                                                         detail: top[0].score === null ? "" : root.t("{n} points", {n: top[0].score})}, 5000 + (top.length - 1) * 2500)
                     }
                     spotlight.boardDone = done || (spotlight.boardDone === "" ? "-" : spotlight.boardDone)
+                    // VAR Check: a ruling on a team's appeal, seen happening.
+                    const v = root.tv.varCheck
+                    if (v && v.id !== spotlight.varSeen) {
+                        const fresh = spotlight.varSeen !== -1 || root.serverNow - v.decided < 3000
+                        spotlight.varSeen = v.id
+                        if (fresh) {
+                            spotlight.shownFor = null
+                            spotlight.show({kind: root.t("📺 VAR CHECK"), names: v.team, photos: [], initials: ["📺"], detail: root.t("Checking the replay…")}, 3500)
+                            varDecision.check = v; varDecision.restart()
+                        }
+                    }
                     // Fast Track: a team jumping into first place, seen happening.
                     const f = root.tv.fastTrack
                     if (f && f.id !== spotlight.fastTrackSeen) {
@@ -1029,8 +1048,8 @@ Item {
                             // Big: the team's moment (one photo half the screen's height; joint leaders share the width).
                             readonly property int size: spotlight.shown && spotlight.shown.initials.length > 2 ? 340 : spotlight.shown && spotlight.shown.initials.length > 1 ? 440 : 540
                             width: size; height: size; radius: size / 2; color: root.pal.violet; border.color: root.pal.gold; border.width: 10; clip: true
-                            Image { anchors.fill: parent; anchors.margins: 8; visible: modelData.length > 1; source: visible ? root.serverUrl + modelData : ""; fillMode: Image.PreserveAspectCrop }
-                            Text { anchors.centerIn: parent; visible: modelData.length === 1; text: modelData; color: root.pal.text; font.family: Theme.display; font.pixelSize: parent.size * 0.55; font.weight: Font.Bold }
+                            Image { anchors.fill: parent; anchors.margins: 8; visible: /^(\/|https?:)/.test(modelData); source: visible ? root.serverUrl + modelData : ""; fillMode: Image.PreserveAspectCrop }
+                            Text { objectName: "spotlightInitial"; anchors.centerIn: parent; visible: !/^(\/|https?:)/.test(modelData); text: modelData; color: root.pal.text; font.family: Theme.display; font.pixelSize: parent.size * 0.55; font.weight: Font.Bold }
                         }
                     }
                 }

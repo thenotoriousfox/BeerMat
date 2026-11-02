@@ -145,6 +145,16 @@ class TvSoundTest(unittest.TestCase):
         self.assertEqual(self.step(self.state(None, view='leaderboard', teams=teams, fastTrack={'id': 4, 'name': 'Cats', 'sound': 0, 'at': 0})), ['buzzer'])
         self.assertEqual(self.step(self.state(None, view='leaderboard', teams=teams, fastTrack={'id': 4, 'name': 'Cats', 'sound': 0, 'at': 0})), [])
 
+    def test_var_check_drum_roll_then_the_decision(self):
+        self.step(self.state(None, view='leaderboard'))
+        self.heard.clear()
+        self.sound.follow(self.state(None, view='leaderboard', varCheck={'id': 5, 'team': 'Owls', 'status': 'stands', 'points': None, 'decided': 0}))
+        self.assertEqual(self.heard, ['reveal'])
+        deadline = time.time() + 5
+        while 'wrong' not in self.heard and time.time() < deadline:
+            app.processEvents(); time.sleep(0.02)
+        self.assertEqual(self.heard, ['reveal', 'wrong'], 'the decision stands')
+
     def test_quiet_questions_have_no_music(self):
         self.assertEqual(self.step(self.state(question(type='audio'))), [])
         self.assertEqual(self.step(self.state(question(media='/media/song.mp3'))), [])

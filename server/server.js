@@ -103,6 +103,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     CREATE TABLE IF NOT EXISTS regulars(id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE COLLATE NOCASE,pin TEXT NOT NULL UNIQUE,sound INTEGER,photo TEXT,last_played INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS music_reactions(question INTEGER REFERENCES questions(id),seq INTEGER NOT NULL,team TEXT REFERENCES teams(id),at INTEGER NOT NULL,ms INTEGER,PRIMARY KEY(question,seq,team));
     CREATE TABLE IF NOT EXISTS event_reports(event TEXT PRIMARY KEY,data TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS var_checks(id INTEGER PRIMARY KEY,question INTEGER REFERENCES questions(id),team TEXT REFERENCES teams(id),at INTEGER NOT NULL,status TEXT NOT NULL DEFAULT 'pending',decided INTEGER,points INTEGER,UNIQUE(team,question));
     CREATE TABLE IF NOT EXISTS sync_outbox(id TEXT PRIMARY KEY,kind TEXT NOT NULL,payload TEXT NOT NULL,created INTEGER NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,last_error TEXT,sent INTEGER);
   `);
   function column(table, name, definition) {
@@ -155,7 +156,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return value ? JSON.parse(value.value) : fallback;
   };
   const setMeta = (key, value) => run('INSERT INTO metadata VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', key, JSON.stringify(value));
-  const defaultSettings = {title: 'BeerMat', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'BeerMat', joinUrl: 'http://10.42.0.1', joinMode: 'hotspot', joinPassword: '', shareResults: false, onlineService: onlineDefault, scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, bingoBoard: false, teamPhotos: true, language: 'en', onlineAfterJoin: true, deskOnline: false, waitingRoom: true, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {},
+  const defaultSettings = {title: 'BeerMat', registrationOpen: true, leaderboardVisible: true, displayMode: 'auto', ended: false, joinSsid: 'BeerMat', joinUrl: 'http://10.42.0.1', joinMode: 'hotspot', joinPassword: '', varCheck: 'round', shareResults: false, onlineService: onlineDefault, scrambleKeypads: false, bingoPhrases: true, bingoVoice: true, bingoBoard: false, teamPhotos: true, language: 'en', onlineAfterJoin: true, deskOnline: false, waitingRoom: true, maxTeams: 0, showScores: true, soundTheme: '', soundThemeByType: {}, look: 'stage', lookByType: {},
     sendQuestion: false, fixedSix: false, groupBoard: false, askTable: false, simpleMode: false, slidesAuto: false, countQuizzes: true};
   const SOUNDS = 8;
   // Sound effects for the TV and extra buzzer sounds, both from the quizmaster's own files; custom bingo calls (1–90).
@@ -650,7 +651,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       requireValue(!step.answers || discard === true, `${step.answers} ${step.answers === 1 ? 'team has' : 'teams have'} answered: taking the question back throws those answers away`, 409);
       if (usesSpotify(dataOf(q)) && spotify.connected()) spotify.pause();
       transaction(() => {
-        for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'fifty', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'music_reactions', 'marking_log']) run(`DELETE FROM ${table} WHERE question=?`, q.id);
+        for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'fifty', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'music_reactions', 'marking_log', 'var_checks']) run(`DELETE FROM ${table} WHERE question=?`, q.id);
         run('DELETE FROM questions WHERE id=?', q.id);
       });
     }
@@ -842,7 +843,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     simulator?.stop(); simulator = null; rehearsalLog = [];
     const photos = rows('SELECT photo FROM teams WHERE photo IS NOT NULL AND photo NOT IN (SELECT photo FROM regulars WHERE photo IS NOT NULL)').map(t => t.photo);
     transaction(() => {
-      for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'fifty', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'music_reactions', 'marking_log', 'adjustments', 'device_ips', 'actions', 'questions', 'teams']) run(`DELETE FROM ${table}`);
+      for (const table of ['answers', 'drafts', 'deliveries', 'buzzes', 'agrees', 'go_wide', 'fifty', 'away', 'clip_plays', 'bingo_shouts', 'bingo_claims', 'bingo_calls', 'music_reactions', 'marking_log', 'var_checks', 'adjustments', 'device_ips', 'actions', 'questions', 'teams']) run(`DELETE FROM ${table}`);
       if (nextLibrary) {keepQuiz(library()); setMeta('library', {...nextLibrary, revision: library().revision + 1});}
       setMeta('timer', null); setMeta('wheel', null); setMeta('board', null); setMeta('fastTrack', null); setMeta('event', token().slice(0, 12));
       setMeta('settings', {...settings(), title: title || nextLibrary?.title || library().title, ended: false, registrationOpen: true, displayMode: 'auto'});
@@ -982,10 +983,41 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     // The board once per state (every phone asks for one on each change): its rows, whether to reveal it, team groups.
     const board = publicScores();
     return {protocol: PROTOCOL, serverTime: now(), build, rehearsal: !liveNow(), settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: board, reveal: board.length ? boardReveal() : null, recap: recapState(), wheel: getMeta('wheel', null), timer: getMeta('timer', null),
-      groups: groupScores(board), slides: slides(), fastTrack: fastTrackShown()};
+      groups: groupScores(board), slides: slides(), fastTrack: fastTrackShown(), varCheck: varShown()};
   }
   // The Fast Track moment on the TV: a team jumping to first place fills the screen for a few seconds.
   const fastTrackShown = () => {const f = getMeta('fastTrack', null); return f && now() - f.at < 8000 ? f : null;};
+
+  // ---- VAR Check: a team appeals its marking after a reveal; the quizmaster rules, and the TV shows the decision ----
+  // How many appeals a team has left for question q (null: no limit): one a round counts the round's questions, one a
+  // night every question of the quiz.
+  function varLeft(teamId, q) {
+    const mode = settings().varCheck || 'round';
+    if (mode === 'off') return 0;
+    if (mode === 'any') return null;
+    const used = rows('SELECT q.data FROM var_checks v JOIN questions q ON q.id=v.question WHERE v.team=?', teamId)
+      .filter(r => mode === 'night' || (JSON.parse(r.data).round || '') === (dataOf(q).round || '')).length;
+    return Math.max(0, 1 - used);
+  }
+  // A team's own VAR Check for the question on its phone: whether it can ask, how many it has left, and how it went.
+  function varForTeam(teamId, q) {
+    if (!q || settings().varCheck === 'off') return null;
+    const mine = one('SELECT status,points FROM var_checks WHERE team=? AND question=?', teamId, q.id), left = varLeft(teamId, q);
+    const answered = !!one('SELECT 1 FROM answers WHERE team=? AND question=? AND submitted IS NOT NULL', teamId, q.id);
+    return {left, status: mine?.status || null, points: mine?.points ?? null, canAsk: !mine && answered && revealedNow(q) && !pending(q) && left !== 0 && !settings().ended};
+  }
+  // The TV's moment: "VAR CHECK" for a few seconds, then the decision (only once ruled, and only for a while).
+  const VAR_SHOW_MS = 9000;
+  function varShown() {
+    const v = one("SELECT v.id,v.status,v.points,v.decided,t.name FROM var_checks v JOIN teams t ON t.id=v.team WHERE v.status<>'pending' ORDER BY v.decided DESC LIMIT 1");
+    return v && now() - v.decided < VAR_SHOW_MS ? {id: v.id, team: v.name, status: v.status, points: v.points, decided: v.decided} : null;
+  }
+  // The desk's list: appeals waiting for a ruling (any question), with the team's answer and its points now.
+  const varChecks = () => rows(`SELECT v.id,v.question,v.team,v.at,v.status,v.points,t.name,a.value,a.points current FROM var_checks v JOIN teams t ON t.id=v.team
+    LEFT JOIN answers a ON a.team=v.team AND a.question=v.question WHERE v.status='pending' ORDER BY v.at`).map(v => {
+      const q = questionById(v.question), data = q ? dataOf(q) : {};
+      return {id: v.id, question: v.question, questionText: data.text || '', team: v.team, name: v.name, answer: v.value ?? '', points: v.current ?? 0, full: data.points ?? 1, at: v.at};
+    });
 
   // ---- the wheel ----
   const FAST_TRACK = ['🚀 Fast Track to first!', '+3 points', '+1 point', 'No luck', '+2 points', '+1 point', 'No luck', '+2 points'];
@@ -1495,7 +1527,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/plan/refresh') return send(200, await refreshLicence());
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats(), board = boardStep(), recap = {...recapState(), active: !!recapState(), available: !recapState() && !!recapOffer()};
-          return send(200, {protocol: PROTOCOL, serverTime: now(), tvScreens: tvScreens(), decks: decks(), deskConnected: deskConnected(), deckCommand, nextStep: nextStep(board, recap), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board, recap, back: backStep(), timer: getMeta('timer', null), wheels: getMeta('wheels', []), slides: slides(), wheel: getMeta('wheel', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {protocol: PROTOCOL, serverTime: now(), varChecks: varChecks(), varCheck: varShown(), tvScreens: tvScreens(), decks: decks(), deskConnected: deskConnected(), deckCommand, nextStep: nextStep(board, recap), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board, recap, back: backStep(), timer: getMeta('timer', null), wheels: getMeta('wheels', []), slides: slides(), wheel: getMeta('wheel', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -1820,6 +1852,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           if (Object.hasOwn(body, 'joinSsid')) {requireValue(typeof body.joinSsid === 'string' && body.joinSsid.trim() && Buffer.byteLength(body.joinSsid.trim()) <= 32, 'Wi-Fi name must be 1–32 bytes'); next.joinSsid = body.joinSsid.trim();}
           // hotspot: the TV's code joins the quiz Wi-Fi; lan: phones are already on the venue's network, so it opens the quiz.
           if (Object.hasOwn(body, 'joinMode')) {requireValue(['hotspot', 'lan'].includes(body.joinMode), 'Unknown way to join'); next.joinMode = body.joinMode;}
+          // VAR Check: how many times a team may appeal its marking after a reveal (off, one a round, one a night, no limit).
+          if (Object.hasOwn(body, 'varCheck')) {requireValue(['off', 'round', 'night', 'any'].includes(body.varCheck), 'Unknown VAR Check setting'); next.varCheck = body.varCheck;}
           if (Object.hasOwn(body, 'joinPassword')) {requireValue(typeof body.joinPassword === 'string' && (body.joinPassword === '' || /^[\x20-\x7e]{8,63}$/.test(body.joinPassword)), 'Wi-Fi password must be empty or 8–63 characters'); next.joinPassword = body.joinPassword;}
           if (Object.hasOwn(body, 'joinUrl')) {requireValue(typeof body.joinUrl === 'string' && /^https?:\/\/[^\s]{1,150}$/.test(body.joinUrl.trim()), 'Join address must start with http:// and have no spaces'); next.joinUrl = body.joinUrl.trim();}
           // Picking a theme puts every moment back to that theme's sounds; added buzzer sounds stay.
@@ -2100,6 +2134,24 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           });
           return send(200, {ok: true});
         }
+        // VAR Check ruling: overturned gives the points (the question's full points unless others are given), or the
+        // decision stands. Either way the TV shows the decision.
+        if (p === '/api/host/var') {
+          const v = one("SELECT * FROM var_checks WHERE id=? AND status='pending'", body.id); requireValue(v, 'No VAR Check waiting', 404);
+          requireValue(['overturned', 'stands'].includes(body.decision), 'Overturned or decision stands');
+          const q = questionById(v.question), data = dataOf(q);
+          const points = body.decision === 'overturned' ? (body.points ?? data.points ?? 1) : null;
+          if (points !== null) requireValue(Number.isInteger(points) && Math.abs(points) <= 200, 'Points must be a whole number between −200 and 200');
+          transaction(() => {
+            if (points !== null) {
+              const previous = one('SELECT points FROM answers WHERE team=? AND question=?', v.team, q.id);
+              run('UPDATE answers SET points=? WHERE team=? AND question=?', points, v.team, q.id);
+              run('INSERT INTO marking_log(team,question,previous_points,new_points,marks,changed) VALUES(?,?,?,?,?,?)', v.team, q.id, previous?.points ?? null, points, null, now());
+            }
+            run('UPDATE var_checks SET status=?,decided=?,points=? WHERE id=?', body.decision, now(), points, v.id);
+          });
+          return send(200, {ok: true});
+        }
         if (p === '/api/host/adjust') {
           requireValue(Number.isInteger(body.points) && Math.abs(body.points) <= 100 && typeof body.reason === 'string' && body.reason.trim() && body.reason.length <= 200 && typeof body.team === 'string' && one('SELECT id FROM teams WHERE id=?', body.team), 'Valid team, points and reason required');
           if (body.requestId) {
@@ -2264,7 +2316,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         const a = q && one('SELECT value,points,marks,submitted FROM answers WHERE team=? AND question=?', team.id, q.id);
         // Points stay hidden until scoring is final.
         const answer = !a || a.submitted === null && !q.settled && !q.closed ? null : pending(q) || secretQuestion(q) ? {value: a.value} : {value: a.value, points: a.points, marks: a.marks};
-        return send(200, {...publicState(), question: publicQuestion(q, false, team.id), team: teamInfo, answer,
+        return send(200, {...publicState(), question: publicQuestion(q, false, team.id), team: teamInfo, answer, myVar: varForTeam(team.id, q),
           draft: one('SELECT value FROM drafts WHERE team=? AND question=?', team.id, q?.id || 0) || null, ...check});
       }
       // A team's signed result once the quiz is finished, for players who choose to keep it in an online profile.
@@ -2283,6 +2335,15 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         requireValue(!offensive(name, getMeta('blockedWords', [])), 'Please choose a different team name', 400);
         requireValue(!one('SELECT id FROM teams WHERE name=? COLLATE NOCASE AND id<>?', name, team.id), 'That team name is taken', 409);
         run('UPDATE teams SET name=? WHERE id=?', name, team.id); return send(200, {name});
+      }
+      // VAR Check: the team appeals its marking of the question just revealed (within the quiz's limit).
+      if (p === '/api/team/var') {
+        const q = latest(); requireValue(q && body.question === q.id, 'That question has moved on', 409);
+        const mine = varForTeam(team.id, q); requireValue(mine, 'VAR Check is switched off', 403);
+        requireValue(!mine.status, 'Already sent for a VAR Check', 409);
+        requireValue(mine.left !== 0, settings().varCheck === 'night' ? 'No VAR Checks left tonight' : 'No VAR Checks left this round', 409);
+        requireValue(mine.canAsk, 'A VAR Check is for an answer you sent, once it’s revealed', 409);
+        run('INSERT INTO var_checks(question,team,at) VALUES(?,?,?)', q.id, team.id, now()); return send(200, {ok: true});
       }
       if (p === '/api/team/sound') {
         requireValue(Number.isInteger(body.sound) && body.sound >= 0 && body.sound < SOUNDS + soundPack().buzzers.length, 'Unknown buzzer sound');
