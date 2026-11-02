@@ -120,7 +120,7 @@ run on the local monotonic clock; it is only a display. The server decides laten
 
 Also: `/api/react` `{question, title}` or `{question, pass: true}` (music bingo's reaction table: the team dabbed a
 song on its ticket, one go per song played), `/api/gowide` (word trail's hint), `/api/fifty` `{question}` (multiple choice's 50/50; the team's state then has `fiftyRemoved`: the choices to hide), `/api/away` `{question, state}` (the player left the app mid-question; the desk
-sees it), `/api/team/sound`, `/api/team/photo` (JPEG body), `/api/team/result` (signed result after a live quiz),
+sees it), `/api/team/name` (`{name}`: the team renames itself; join's checks), `/api/team/sound`, `/api/team/photo` (JPEG body), `/api/team/result` (signed result after a live quiz),
 `GET /api/leaderboard`.
 
 The server checks every answer against the question and its timing; clients only shape the value.

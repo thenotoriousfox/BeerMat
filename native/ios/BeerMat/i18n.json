@@ -183,6 +183,18 @@
   "Présentez-vous",
   "Presentaos"
  ],
+ "Rename": [
+  "Renommer",
+  "Cambiar nombre"
+ ],
+ "Team name saved": [
+  "Nom de l’équipe enregistré",
+  "Nombre del equipo guardado"
+ ],
+ "That team name is taken": [
+  "Ce nom d’équipe est déjà pris",
+  "Ese nombre de equipo ya está cogido"
+ ],
  "Team name": [
   "Nom de l'équipe",
   "Nombre del equipo"

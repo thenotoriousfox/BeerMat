@@ -277,6 +277,7 @@ function playerState(s) {
   $('rehearsalCard').hidden = true;
   current = s; writeStorage('beermat-event', s.event || ''); offset = s.serverTime - Date.now(); $('join').hidden = true; $('game').hidden = false;
   $('team').textContent = s.team.name; $('code').textContent = secret; const q = s.question;
+  if (document.activeElement !== $('newName')) $('newName').value = s.team.name;
   // Once the quiz is finished, a player may keep the team's result (signed by the quiz laptop) in an online profile.
   $('keepResult').hidden = !s.settings.ended || s.team.waiting || !(appPlatform || s.settings.onlineService);
   // A team in the waiting room sees only a holding screen until the quizmaster lets it in.
@@ -874,6 +875,10 @@ if (role === 'player') {
   // Each buzzer sound plays on the phone as it is picked, once the phone's sound is running.
   const hear = async () => {await enableSound(); const v = $('sound').value; buzzSound($('sound').dataset.team || '', v === '' ? null : Number(v));};
   $('hearSound').onclick = hear;
+  $('renameForm').onsubmit = async e => {
+    e.preventDefault();
+    try {await api('team/name', {name: $('newName').value}, secret); message('Team name saved'); await updates.update();} catch (err) {message(err.message, true);}
+  };
   $('sound').onchange = async () => {hear(); if ($('sound').value === '') return; const sound = Number($('sound').value); try {await api('team/sound', {sound}, secret); message('Buzzer sound saved');} catch (e) {message(e.message, true);}};
 }
 if (role === 'display') {

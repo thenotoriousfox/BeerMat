@@ -52,6 +52,25 @@ test('fixed speed bonus goes only to the fastest correct answers', () => fixture
   assert.equal((await call('host/open', question({bonusMode: 'sometimes'}))).status, 400);
 }));
 
+test('a team renames itself from its team menu, with joining’s checks', () => fixture(async ({call}) => {
+  const fox = await call('join', {name: 'Fox'}), owl = await call('join', {name: 'Owl'});
+  assert.deepEqual(await call('team/name', {name: '  The Foxes  '}, fox.secret), {status: 200, name: 'The Foxes'});
+  assert.equal((await call('state', {}, fox.secret)).team.name, 'The Foxes');
+  assert.ok((await call('host/state')).teams.some(t => t.name === 'The Foxes'), 'the desk sees it');
+  assert.equal((await call('team/name', {name: 'owl'}, fox.secret)).status, 409, 'another team’s name, any case');
+  assert.equal((await call('team/name', {name: 'the foxes'}, fox.secret)).status, 200, 'its own name in another case');
+  for (const name of ['F', 'x'.repeat(41), '', null]) assert.equal((await call('team/name', {name}, fox.secret)).status, 400, String(name));
+  await call('host/settings', {blockedWords: 'rude'});
+  assert.equal((await call('team/name', {name: 'Rude Boys'}, fox.secret)).status, 400, 'a blocked word');
+  assert.equal((await call('team/name', {name: 'Fox'}, 'not-a-team')).status, 401);
+  // A team in the waiting room can rename itself too, before the quizmaster lets it in.
+  await call('host/settings', {waitingRoom: true});
+  const late = await call('join', {name: 'Late'});
+  assert.equal((await call('team/name', {name: 'Late Comers'}, late.secret)).status, 200);
+  assert.equal((await call('state', {}, late.secret)).team.name, 'Late Comers');
+  void owl;
+}));
+
 test('waiting room holds new teams until let in; max teams caps joining', () => fixture(async ({call, board}) => {
   const early = await call('join', {name: 'Early'});
   await call('host/settings', {waitingRoom: true, maxTeams: 3});
