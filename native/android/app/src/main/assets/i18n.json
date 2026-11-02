@@ -655,6 +655,14 @@
   "Touchez d’abord l’image",
   "Tocad antes la imagen"
  ],
+ "Tap the answer’s letters in order: each touches the last, diagonals too. Any route that spells it is right.": [
+  "Touchez les lettres de la réponse dans l’ordre : chacune touche la précédente, en diagonale aussi. Tout chemin qui l’épelle est bon.",
+  "Tocad las letras de la respuesta en orden: cada una toca la anterior, también en diagonal. Vale cualquier camino que la deletree."
+ ],
+ "Tapping a letter that doesn’t touch starts again.": [
+  "Toucher une lettre qui ne touche pas recommence.",
+  "Tocar una letra que no toca vuelve a empezar."
+ ],
  "Trace the word first": [
   "Tracez d’abord le mot",
   "Trazad antes la palabra"
@@ -698,10 +706,6 @@
  "Tap the picture. Second guess: a second tap scores {n} if your first misses.": [
   "Touchez l’image. Deuxième essai : une 2e touche rapporte {n} si la 1re rate.",
   "Tocad la imagen. Segundo intento: un 2.º toque suma {n} si el 1.º falla."
- ],
- "Trace the answer: each letter touches the last, diagonals too. Tapping a letter that does not touch starts again.": [
-  "Tracez la réponse : chaque lettre touche la précédente, en diagonale aussi. Une lettre non voisine recommence.",
-  "Trazad la respuesta: cada letra toca la anterior, también en diagonal. Una letra que no toca empieza de nuevo."
  ],
  "Tap the first letter": [
   "Touchez la première lettre",
@@ -1414,10 +1418,6 @@
  "Loading the picture…": [
   "Chargement de l’image…",
   "Cargando la imagen…"
- ],
- "Trace the answer: each letter touches the last, diagonals too.": [
-  "Tracez la réponse : chaque lettre touche la précédente, en diagonale aussi.",
-  "Trazad la respuesta: cada letra toca la anterior, también en diagonal."
  ],
  "{n} called": [
   "{n} tirés",

@@ -71,7 +71,7 @@ struct WordSnakeView: View {
         let letters = grid["letters"] as? [String] ?? []
         let wide = (q.raw["wideCells"] as? [Any])?.compactMap { ($0 as? NSNumber)?.intValue }
         let adjacent = { (a: Int, b: Int) in a != b && abs(a / n - b / n) <= 1 && abs(a % n - b % n) <= 1 }
-        Text(t("Trace the answer: each letter touches the last, diagonals too.")).foregroundStyle(Brand.muted)
+        Text(t("Tap the answer’s letters in order: each touches the last, diagonals too. Any route that spells it is right.")).foregroundStyle(Brand.muted)
         Text(path.map { letters[$0] }.joined().isEmpty ? t("Tap the first letter") : path.map { letters[$0] }.joined()).font(Brand.display(28))
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: n), spacing: 6) {
             ForEach(letters.indices, id: \.self) { i in
