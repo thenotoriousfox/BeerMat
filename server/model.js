@@ -89,6 +89,13 @@ export function validateQuestion(q, mediaDir) {
   if (q.type === 'number' || q.type === 'nearest') {
     requireValue(q.type === 'number' && !result.answer || numberPattern.test(result.answer), 'Correct answer must be a number');
   }
+  // Number: answers within ± tolerance count (tolerancePercent: that percentage of the answer).
+  if (q.type === 'number' && q.tolerance) {
+    requireValue(typeof q.tolerance === 'number' && q.tolerance > 0 && q.tolerance <= 1e9, 'Tolerance must be a number above 0');
+    result.tolerance = q.tolerance; if (q.tolerancePercent === true) result.tolerancePercent = true;
+  }
+  // Nearest wins, closest without going over: answers above the answer score nothing.
+  if (q.type === 'nearest' && q.notOver === true) result.notOver = true;
   if (q.type === 'nearest') {
     result.places = q.places ?? 1;
     requireValue(integer(result.places, 1, 20), 'Places scored must be 1–20');
@@ -283,6 +290,9 @@ export function answerValue(value, q, final = true) {
   return q.type === 'letter' ? value.trim().toUpperCase() : value.trim();
 }
 
+// How far from a Number question's answer still counts.
+export const tolerance = q => !q.tolerance ? 0 : q.tolerancePercent ? Math.abs(Number(q.answer)) * q.tolerance / 100 : q.tolerance;
+
 // Whether a single answer is correct, or null when only the quizmaster (or a ranking) can decide.
 export function isCorrect(value, q) {
   if (q.type === 'sequence') return JSON.stringify(JSON.parse(value)) === JSON.stringify(q.items.map((_, i) => i));
@@ -291,7 +301,7 @@ export function isCorrect(value, q) {
   if (q.type === 'wordsnake') {const {path} = JSON.parse(value); return validSnake(path, q.snake) && path.map(i => q.snake.grid[i]).join('') === q.answer;}
   if (q.type === 'tiles') return JSON.parse(value).map(i => q.pieces[i]).join('') === q.tiles.join('');
   if (['vote', 'nearest', 'buzzer', 'bingo', 'musicbingo', 'clips', 'sheet'].includes(q.type) || !q.answer) return null;
-  if (q.type === 'number') return Number(value) === Number(q.answer);
+  if (q.type === 'number') return Math.abs(Number(value) - Number(q.answer)) <= tolerance(q) + 1e-9;
   if (q.type === 'choice' || q.type === 'letter') return value === q.answer;
   return matches(value, [q.answer, ...(q.aliases || [])]);
 }
@@ -381,12 +391,13 @@ export const bingoNeeded = mode => ({line: 1, twoLines: 2, fullHouse: 3})[mode];
 export const bingoStages = mode => mode === 'progressive' ? ['line', 'twoLines', 'fullHouse'] : [mode];
 export const stagePoints = q => q.mode === 'progressive' ? q.stagePoints : [q.points];
 
-// Nearest wins: rank by distance, ties to the earlier answer; top places score on a sliding scale.
+// Nearest wins: rank by distance, ties to the earlier answer; top places score on a sliding scale. Without going over
+// (notOver), answers above the answer rank after every other and score nothing.
 export function rankNearest(q, answers) {
-  const target = Number(q.answer);
-  const ranked = answers.filter(a => numberPattern.test(a.value)).map(a => ({...a, distance: Math.abs(Number(a.value) - target)}))
-    .sort((a, b) => a.distance - b.distance || a.submitted - b.submitted);
-  return ranked.map((a, i) => ({team: a.team, distance: a.distance, points: i < q.places ? Math.round(q.points * (q.places - i) / q.places) : 0}));
+  const target = Number(q.answer), over = a => q.notOver && Number(a.value) > target;
+  const ranked = answers.filter(a => numberPattern.test(a.value)).map(a => ({...a, distance: Math.abs(Number(a.value) - target), over: over(a)}))
+    .sort((a, b) => a.over - b.over || a.distance - b.distance || a.submitted - b.submitted);
+  return ranked.map((a, i) => ({team: a.team, distance: a.distance, points: !a.over && i < q.places ? Math.round(q.points * (q.places - i) / q.places) : 0}));
 }
 
 export function validateLibrary(input, mediaDir) {

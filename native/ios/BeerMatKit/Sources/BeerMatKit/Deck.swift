@@ -39,7 +39,7 @@ public struct DeckState: Equatable {
     /// The answer to read: an answer sheet's lines (a music round's artist and title) when it has no single answer.
     static func answerText(_ o: [String: Any]) -> String {
         let answer = o.str("answer")
-        if !answer.isEmpty { return answer }
+        if !answer.isEmpty { return withTolerance(answer, o.num("tolerance") ?? 0, percent: o.bool("tolerancePercent")) }
         let items = o.strings("items")
         return o.strings("itemAnswers").enumerated().compactMap { i, a in a.isEmpty ? nil : i < items.count && !items[i].isEmpty ? "\(items[i]): \(a)" : a }.joined(separator: " · ")
     }

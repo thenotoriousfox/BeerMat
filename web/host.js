@@ -122,7 +122,7 @@ function editorChanged() {dirty = true; $('editorStatus').textContent = 'Unsaved
 function formTypes() {
   const type = $('qType').value, show = (id, on) => {$(id).hidden = !on;};
   show('choiceFields', ['choice', 'vote', 'multi'].includes(type)); show('multiFields', type === 'multi'); show('sheetFields', type === 'sheet'); show('sequenceFields', type === 'sequence');
-  show('nearestFields', type === 'nearest'); show('buzzerFields', type === 'buzzer'); show('pinpointFields', type === 'pinpoint'); show('goWideFields', type === 'pinpoint' || type === 'wordsnake');
+  show('nearestFields', type === 'nearest'); show('numberFields', type === 'number'); show('buzzerFields', type === 'buzzer'); show('pinpointFields', type === 'pinpoint'); show('goWideFields', type === 'pinpoint' || type === 'wordsnake');
   show('fiftyFields', type === 'choice'); $('goWidePointsText').textContent = type === 'wordsnake' ? 'Points with the hint' : 'Points for a second guess';
   $('goWideText').textContent = type === 'wordsnake' ? 'Hint: teams can hide the decoy letters, for fewer points' : 'Second guess: a second tap scores if the first misses'; show('bingoFields', type === 'bingo' || type === 'musicbingo'); show('stagePointsFields', (type === 'bingo' || type === 'musicbingo') && $('qMode').value === 'progressive');
   const songs = $('qSongs').value.split('\n').filter(l => l.trim()).length; $('songCount').textContent = `${songs} songs${songs < 30 ? ' — add at least 30 so each team gets a different mix (a ticket holds 15)' : ''}`; show('musicFields', type === 'musicbingo'); show('clipsFields', type === 'clips');
@@ -225,7 +225,7 @@ function fillQuestion(q = null) {
   editingId = q?.id || null;
   $('qText').value = q?.text || ''; $('qType').value = q?.type || 'text'; $('qSeconds').value = q?.seconds ?? 30; $('qPoints').value = q?.points ?? 1; $('qSpeed').value = q?.speedBonus || 0;
   $('qAnswer').value = q?.answer || ''; $('qAliases').value = (q?.aliases || []).join('\n'); $('qOptions').value = (q?.options || []).join('\n'); $('qMedia').value = q?.media || '';
-  $('qNote').value = q?.answerNote || ''; $('qItems').value = q?.type === 'sequence' ? q.items.join('\n') : ''; $('qPlaces').value = q?.places ?? 1; $('qPartScoring').value = q?.partScoring || 'each'; $('qTieBreaker').checked = !!q?.tieBreaker;
+  $('qNote').value = q?.answerNote || ''; $('qItems').value = q?.type === 'sequence' ? q.items.join('\n') : ''; $('qPlaces').value = q?.places ?? 1; $('qNotOver').checked = !!q?.notOver; $('qTolerance').value = q?.tolerance ?? 0; $('qTolerancePercent').checked = !!q?.tolerancePercent; $('qPartScoring').value = q?.partScoring || 'each'; $('qTieBreaker').checked = !!q?.tieBreaker;
   $('qClipLink').value = q?.clip?.spotify || ''; $('qClipStart').value = q?.clip?.start ?? 0; $('qClipPlay').value = q?.clip?.seconds ?? 30;
   $('qCorrect').value = (q?.correct || []).join('\n'); pinTarget = q?.target || null; $('qRadius').value = Math.round((q?.target?.r ?? 0.08) * 100);
   $('qSongs').value = (q?.songs || []).map(s => s.media || s.spotify ? `${s.title} | ${s.media || s.spotify}${s.start !== undefined || s.seconds !== undefined ? ` | ${s.start ?? ''} | ${s.seconds ?? ''}` : ''}` : s.title).join('\n'); $('qStartAt').value = q?.startAt ?? 0; $('qSongSeconds').value = q?.songSeconds ?? 0; $('qAutoNext').checked = !!q?.autoNext; $('qClipSeconds').value = q?.clipSeconds ?? 15; $('qRevealNow').checked = !!q?.revealNow;
@@ -299,7 +299,8 @@ function readQuestion() {
   // A sheet answer can list alternatives after the answer: "Shakespeare / William Shakespeare".
   const keys = rows.map(row => row.querySelectorAll('input')[1].value.split(' / ').map(s => s.trim()).filter(Boolean));
   if (type === 'sheet') Object.assign(q, {items: rows.map(row => row.querySelectorAll('input')[0].value.trim()), itemAnswers: keys.map(k => k[0] || ''), itemAliases: keys.map(k => k.slice(1)), partScoring: $('qPartScoring').value, answerNote: ''});
-  if (type === 'nearest') Object.assign(q, {places: Number($('qPlaces').value), tieBreaker: $('qTieBreaker').checked});
+  if (type === 'nearest') Object.assign(q, {places: Number($('qPlaces').value), tieBreaker: $('qTieBreaker').checked, ...($('qNotOver').checked && {notOver: true})});
+  if (type === 'number' && Number($('qTolerance').value) > 0) Object.assign(q, {tolerance: Number($('qTolerance').value), ...($('qTolerancePercent').checked && {tolerancePercent: true})});
   if ((type === 'audio' || type === 'sheet') && $('qClipLink').value.trim()) q.clip = {spotify: $('qClipLink').value.trim(), start: Number($('qClipStart').value), seconds: Number($('qClipPlay').value)};
   if (type === 'buzzer') Object.assign(q, {variation: $('qVariation').value, penalty: Number($('qPenalty').value), passPenalty: Number($('qPassPenalty').value), agreePoints: Number($('qAgreePoints').value), agreeSeconds: Number($('qAgreeSeconds').value)});
   return q;

@@ -37,6 +37,8 @@ data class DeckState(
         /** The answer to read: an answer sheet's lines (a music round's artist and title) when it has no single answer. */
         private fun answerText(o: JSONObject): String {
             val answer = o.optString("answer").takeIf { !o.isNull("answer") } ?: ""
+            val margin = o.optDouble("tolerance", 0.0).takeUnless { it.isNaN() } ?: 0.0
+            if (answer.isNotEmpty() && margin > 0) return "$answer (± ${if (margin % 1.0 == 0.0) margin.toLong().toString() else margin.toString()}${if (o.optBoolean("tolerancePercent")) "%" else ""})"
             if (answer.isNotEmpty()) return answer
             val items = o.optJSONArray("items"); val answers = o.optJSONArray("itemAnswers") ?: return ""
             return List(answers.length()) { i -> answers.optString(i).takeIf { it.isNotBlank() }?.let { a -> items?.optString(i)?.takeIf { it.isNotBlank() }?.let { "$it: $a" } ?: a } }

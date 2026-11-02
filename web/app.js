@@ -83,6 +83,8 @@ export function timeText(question, offset = 0) {
 }
 export const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 // onScreen: the TV, where a put-in-order list moves into the right order itself, so the box only says who got it right.
+// A Number answer with the margin that also counted: "1969 (± 2)".
+export const answerWithTolerance = q => !q.answer || !q.tolerance ? q.answer : `${q.answer} (± ${q.tolerance}${q.tolerancePercent ? '%' : ''})`;
 export function renderSolution(container, question, {onScreen = false} = {}) {
   // Only rebuild when the reveal changes, so its entrance animation plays once.
   const key = question?.revealed ? JSON.stringify([question.id, question.answer, question.tally, question.scorers, question.answerNote]) : '';
@@ -95,7 +97,7 @@ export function renderSolution(container, question, {onScreen = false} = {}) {
   else if (question.type === 'sequence' && onScreen) {}
   else if (question.type === 'sequence') {const list = element('ol', undefined, 'solution'); list.append(...question.items.map(item => element('li', item))); container.append(list);}
   else if (question.type === 'choice') {const i = question.options.indexOf(question.answer); container.append(element('p', i < 0 ? t('Marked by quizmaster') : `${letters[i]}. ${question.answer}`, 'solution'));}
-  else if (question.type !== 'vote') container.append(element('p', question.answer || t('Marked by quizmaster'), 'solution'));
+  else if (question.type !== 'vote') container.append(element('p', answerWithTolerance(question) || t('Marked by quizmaster'), 'solution'));
   if (question.answerNote) container.append(element('p', question.answerNote, 'muted'));
   if (question.tally) {
     const keys = question.type === 'choice' || question.type === 'vote' ? question.options : Object.keys(question.tally).sort();

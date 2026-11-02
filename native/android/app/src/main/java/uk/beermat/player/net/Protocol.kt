@@ -50,6 +50,8 @@ data class Question(
     val held: Boolean = false,
     /** An answer sheet's answers, line by line, once revealed (a music round's artist and title). */
     val itemAnswers: List<String> = emptyList(),
+    /** Number: answers within ± this count (tolerancePercent: of the answer). Nearest wins: closest without going over. */
+    val tolerance: Double = 0.0, val tolerancePercent: Boolean = false, val notOver: Boolean = false,
     /** Multiple choice as letters only: six fixed A–F buttons (fixedSix), or a question asked on the fly. */
     val fixedSix: Boolean = false,
     val onTheFly: Boolean = false,
@@ -144,6 +146,7 @@ object Parse {
         deadline = q.optLong("deadline"), remaining = q.optLong("remaining"),
         open = q.optBoolean("open"), live = q.optBoolean("live"), paused = q.optBoolean("paused"), revealed = q.optBoolean("revealed"),
         answer = q.strOrNull("answer"), answerNote = q.str("answerNote"), itemAnswers = q.optJSONArray("itemAnswers").strings(),
+        tolerance = q.optDouble("tolerance", 0.0).takeUnless { it.isNaN() } ?: 0.0, tolerancePercent = q.optBoolean("tolerancePercent"), notOver = q.optBoolean("notOver"),
         buzz = q.optJSONObject("buzz")?.let { b ->
             val queue = b.optJSONArray("queue")?.let { a -> List(a.length()) { a.getJSONObject(it) }.map { BuzzEntry(it.str("team"), it.str("name"), it.str("status")) } } ?: emptyList()
             Buzz(b.strOrNull("buzzed"), b.optJSONObject("active")?.str("name"), queue, b.optBoolean("lockedOut"), b.optBoolean("agreeOpen"), b.optBoolean("agreed"), b.str("announced"))

@@ -44,6 +44,8 @@ public struct Question: Equatable {
     public var held = false
     /// An answer sheet's answers, line by line, once revealed (a music round's artist and title).
     public var itemAnswers: [String] = []
+    /// Number: answers within ± this count (tolerancePercent: of the answer). Nearest wins: closest without going over.
+    public var tolerance = 0.0, tolerancePercent = false, notOver = false
     /// Multiple choice as letters only: six fixed A–F buttons (fixedSix), or a question asked on the fly.
     public var fixedSix = false, onTheFly = false
     /// The picture shows itself over the question's time: "blur", "tiles" or "".
@@ -62,6 +64,13 @@ public struct Answer { public let value: Any?, points: Double? }
 public struct Settings: Equatable { public let title: String, ended: Bool, registrationOpen: Bool, scrambleKeypads: Bool, leaderboardVisible: Bool; public var teamPhotos = false; public var language = "en" }
 
 /// VAR Check: whether this team can appeal the question just revealed, how many it has left (nil: no limit), how it went.
+/// A Number answer with the margin that also counted: "1969 (± 2)".
+public func withTolerance(_ answer: String, _ tolerance: Double, percent: Bool) -> String {
+    guard !answer.isEmpty, tolerance > 0 else { return answer }
+    let n = tolerance == tolerance.rounded() ? String(Int(tolerance)) : String(tolerance)
+    return "\(answer) (± \(n)\(percent ? "%" : ""))"
+}
+
 public struct MyVar: Equatable { public let left: Int?, status: String?, points: Int?, canAsk: Bool }
 
 public struct PlayerState {
@@ -133,6 +142,7 @@ extension Question {
                         paused: q.bool("paused"), revealed: q.bool("revealed"), answer: answer, answerNote: q.str("answerNote"), buzz: buzz)
         question.wordLengths = (q["wordLengths"] as? [Any] ?? []).compactMap { number($0).map { Int($0) } }
         question.itemAnswers = q.strings("itemAnswers")
+        question.tolerance = q.num("tolerance") ?? 0; question.tolerancePercent = q.bool("tolerancePercent"); question.notOver = q.bool("notOver")
         question.held = q.bool("held"); question.fixedSix = q.bool("fixedSix"); question.onTheFly = q.bool("onTheFly"); question.reveal = q.str("reveal"); question.revealSeconds = q.int("revealSeconds")
         question.raw = q
         return question

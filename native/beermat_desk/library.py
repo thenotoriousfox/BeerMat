@@ -38,7 +38,10 @@ OPTIONS = [
     ('speedBonus', 'Speed bonus points', 'int', (0, 100), lambda t, q: t in SPEED and q.get('fastestFingers')),
     ('bonusMode', 'Speed bonus', 'choice', [('sliding', 'Fades over the time allowed'), ('fixed', 'Only the fastest answers')], lambda t, q: t in SPEED & MARKED and q.get('fastestFingers')),
     ('bonusPlaces', 'Fastest answers given the fixed bonus', 'int', (1, 50), lambda t, q: t in SPEED & MARKED and q.get('fastestFingers') and q.get('bonusMode') == 'fixed'),
+    ('tolerance', 'Also accept answers within ± (0: exact only)', 'int', (0, 1000000000), lambda t, q: t == 'number'),
+    ('tolerancePercent', 'The margin is a percentage of the answer', 'bool', None, lambda t, q: t == 'number' and q.get('tolerance')),
     ('places', 'Places scored (closest first)', 'int', (1, 20), lambda t, q: t == 'nearest'),
+    ('notOver', 'Closest without going over: answers above the answer score nothing', 'bool', None, lambda t, q: t == 'nearest'),
     ('tieBreaker', 'Tie-breaker (scores nothing, orders teams level on points)', 'bool', None, lambda t, q: t == 'nearest'),
     # goWide is the hint on a word trail and the second guess on a pinpoint (the key stays as it is in quiz files).
     ('goWide', 'Hint: teams can hide the decoy letters, for fewer points', 'bool', None, lambda t, q: t == 'wordsnake'),

@@ -202,7 +202,7 @@ function buildInputs(q) {
     }
     return;
   }
-  const label = element('label', q.type === 'nearest' ? t('Your number (closest wins)') : q.type === 'number' ? t('Your number') : t('Your answer')), input = element('input');
+  const label = element('label', q.type === 'nearest' ? (q.notOver ? t('Your number (closest without going over)') : t('Your number (closest wins)')) : q.type === 'number' ? t('Your number') : t('Your answer')), input = element('input');
   input.name = 'answer-0'; input.autocomplete = 'off'; input.maxLength = 300; input.type = 'text';
   if (q.type === 'number' || q.type === 'nearest') {input.inputMode = 'decimal'; input.pattern = '-?[0-9]+(\\.[0-9]+)?';}
   label.append(input); box.append(label);
