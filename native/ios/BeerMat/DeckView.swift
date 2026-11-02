@@ -127,6 +127,7 @@ struct DeckQuestionCard: View {
                 Text(t("Read it out: the TV and phones don’t show the wording until the answer is revealed.")).fontWeight(.semibold).foregroundStyle(Brand.goldHi)
             }
             DeckStatus(d: d, q: q).id("\(q.id)-\(q.remaining)-\(q.paused)")
+            DeckVarChecks(checks: d.varChecks)
             DeckControls(d: d, q: q)
             DeckRoundControls(d: d, q: q)
         }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(Brand.panel, in: RoundedRectangle(cornerRadius: 18))
@@ -205,6 +206,23 @@ struct DeckRoundControls: View {
                 Button(t("Wrong")) { deck.buzz("wrong") }
                 Button(t("Pass")) { deck.buzz("pass") }
             }
+        }
+    }
+}
+
+/// VAR Check: teams' appeals waiting for a ruling (overturned gives the question's points; the TV shows the decision).
+struct DeckVarChecks: View {
+    @EnvironmentObject var deck: DeckModel
+    let checks: [DeckVar]
+    var body: some View {
+        ForEach(checks, id: \.id) { v in
+            VStack(alignment: .leading, spacing: 6) {
+                Text(t("📺 VAR Check: {team} answered “{answer}”", ["team": v.team, "answer": v.answer.isEmpty ? "–" : v.answer])).foregroundStyle(Brand.goldHi)
+                HStack {
+                    Button(t("Overturn (+{n})", ["n": v.full])) { deck.ruleVar(v.id, "overturned") }.buttonStyle(.borderedProminent)
+                    Button(t("Decision stands")) { deck.ruleVar(v.id, "stands") }.buttonStyle(.bordered)
+                }
+            }.padding(.top, 8)
         }
     }
 }

@@ -193,6 +193,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun result(): org.json.JSONObject? = try { server?.result(_ui.value.secret) } catch (e: QuizError) { say(e.message ?: "", true); null } catch (_: Exception) { say(t("Can’t reach the quiz"), true); null }
 
     fun rename(name: String) = work(quiet = true) { server!!.rename(_ui.value.secret, name.trim()); say(t("Team name saved")); refresh() }
+    /** VAR Check: ask the quizmaster to look at this team's marking of the question again. */
+    fun askVar(question: Long) = work(quiet = true) { server!!.varCheck(_ui.value.secret, question); say(t("VAR Check sent: the quizmaster is reviewing it")); refresh() }
     fun setSound(index: Int) = work(quiet = true) { server!!.sound(_ui.value.secret, index); say(t("Buzzer sound saved")); refresh() }
 
     /** A picture from the phone, cropped square to 360 px and sent as a JPEG (as the browser player does). */

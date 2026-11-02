@@ -67,6 +67,9 @@ data class Answer(val value: Any?, val points: Double?)
 
 data class Settings(val title: String, val ended: Boolean, val registrationOpen: Boolean, val scrambleKeypads: Boolean, val leaderboardVisible: Boolean, val teamPhotos: Boolean = false, val language: String = "en")
 
+/** VAR Check: whether this team can appeal the question just revealed, how many it has left (null: no limit), how it went. */
+data class MyVar(val left: Int?, val status: String?, val points: Int?, val canAsk: Boolean)
+
 data class PlayerState(
     val protocol: Int, val serverTime: Long, val build: String, val event: String,
     val settings: Settings, val team: Team?, val question: Question?, val answer: Answer?, val draft: Any?,
@@ -79,6 +82,8 @@ data class PlayerState(
     val look: String = "stage",
     /** The leaderboard reveal on the TV, while there is one. */
     val reveal: BoardReveal? = null,
+    /** VAR Check for the question on the phone (null when switched off); one a night rather than one a round. */
+    val myVar: MyVar? = null, val varPerNight: Boolean = false,
 ) {
     /** The leaderboard as a team's phone shows it: during a reveal, only the places already on the TV. */
     val board: List<Standing> get() = reveal?.takeIf { it.active }?.let { r -> teams.filter { it.name !in r.hidden } } ?: teams
@@ -126,6 +131,8 @@ object Parse {
             testDevice = rehearsal?.optBoolean("device") == true,
             look = o.optString("look", "stage").ifBlank { "stage" },
             reveal = o.optJSONObject("reveal")?.let { r -> BoardReveal(r.optJSONArray("hidden").strings().toSet(), r.optBoolean("leader"), r.optBoolean("done")) },
+            myVar = o.optJSONObject("myVar")?.let { v -> MyVar(if (v.isNull("left")) null else v.optInt("left"), v.strOrNull("status"), if (v.isNull("points") || !v.has("points")) null else v.optInt("points"), v.optBoolean("canAsk")) },
+            varPerNight = s.optString("varCheck") == "night",
         )
     }
 

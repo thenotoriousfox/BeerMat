@@ -87,6 +87,26 @@ ColumnLayout {
         }
     }
 
+    // ---- VAR Check: teams' appeals waiting for a ruling (overturned gives the question's points; the TV shows it) ----
+    Repeater {
+        objectName: "varChecks"
+        model: view.varChecks || []
+        delegate: Rectangle {
+            required property var modelData
+            objectName: "varCheck"
+            Layout.fillWidth: true; implicitHeight: varRow.implicitHeight + 20; radius: Theme.radius
+            color: Qt.rgba(Theme.gold.r, Theme.gold.g, Theme.gold.b, 0.12); border.color: Qt.rgba(Theme.gold.r, Theme.gold.g, Theme.gold.b, 0.6)
+            RowLayout {
+                id: varRow
+                anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 12; spacing: 12
+                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.text; font.pixelSize: 15
+                       text: `📺 VAR Check: ${modelData.name} answered “${modelData.answer || "(nothing)"}”, ${modelData.points} ${modelData.points === 1 ? "point" : "points"} now${modelData.questionText ? ` · ${modelData.questionText}` : ""}` }
+                DeskButton { objectName: "varOverturn"; text: `Overturn (+${modelData.full})`; kind: "primary"; implicitHeight: 38; enabled: !desk.busy; onClicked: desk.live.ruleVar(modelData.id, "overturned") }
+                DeskButton { objectName: "varStands"; text: "Decision stands"; implicitHeight: 38; enabled: !desk.busy; onClicked: desk.live.ruleVar(modelData.id, "stands") }
+            }
+        }
+    }
+
     // ---- main area ----
     RowLayout {
         Layout.fillWidth: true

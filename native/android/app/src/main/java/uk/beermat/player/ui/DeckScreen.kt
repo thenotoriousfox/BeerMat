@@ -140,6 +140,14 @@ private fun QuestionCard(vm: DeckViewModel, ui: DeckUi, d: DeckState, q: DeckQue
         Text(status, color = if (q.open) Brand.good else Brand.goldHi, fontWeight = FontWeight.SemiBold)
         Text(t("{n} of {total} teams answered", "n" to d.answered, "total" to d.teams.size), color = Brand.muted, fontSize = 13.sp)
         if (!q.revealed && q.answer.isNotBlank()) Text(t("Answer: {answer}", "answer" to q.answer), color = Brand.faint, fontSize = 13.sp)
+        // VAR Check: teams' appeals waiting for a ruling.
+        d.varChecks.forEach { v ->
+            Text(t("📺 VAR Check: {team} answered “{answer}”", "team" to v.team, "answer" to v.answer.ifBlank { "–" }), color = Brand.goldHi, modifier = Modifier.padding(top = 10.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton({ vm.ruleVar(v.id, "overturned") }, enabled = !ui.busy, modifier = Modifier.testTag("deckVarOverturn")) { Text(t("Overturn (+{n})", "n" to v.full)) }
+                OutlinedButton({ vm.ruleVar(v.id, "stands") }, enabled = !ui.busy) { Text(t("Decision stands")) }
+            }
+        }
         FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val busy = ui.busy
             if (d.canSend) OutlinedButton(vm::send, enabled = !busy) { Text(t("Send question")) }

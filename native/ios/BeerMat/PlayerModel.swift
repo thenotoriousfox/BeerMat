@@ -162,6 +162,8 @@ final class PlayerModel: ObservableObject {
     func fifty() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.fifty(self.secret, question: q.id); await self.refresh() } }
     func goWide() { guard let q = game?.question else { return }; work(quiet: true) { try await self.server!.goWide(self.secret, question: q.id); await self.refresh() } }
     func rename(_ name: String) { work(quiet: true) { try await self.server!.rename(self.secret, name: name.trimmingCharacters(in: .whitespaces)); self.say(t("Team name saved")); await self.refresh() } }
+    /// VAR Check: ask the quizmaster to look at this team's marking of the question again.
+    func askVar(_ question: Int) { work(quiet: true) { try await self.server!.varCheck(self.secret, question: question); self.say(t("VAR Check sent: the quizmaster is reviewing it")); await self.refresh() } }
     func setSound(_ index: Int) { work(quiet: true) { try await self.server!.sound(self.secret, index: index); self.say(t("Buzzer sound saved")); await self.refresh() } }
 
     /// A picture from the phone, cropped square to 360 px and sent as a JPEG (as the browser player does).

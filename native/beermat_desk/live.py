@@ -331,6 +331,17 @@ class LiveTools(QObject):
         if name in SWITCHES:
             self._call('settings', {name: on})
 
+    @Slot(str)
+    def setVarCheck(self, mode):
+        """How many VAR Checks a team gets: one a round, one a night, no limit, or off."""
+        if mode in ('round', 'night', 'any', 'off'):
+            self._call('settings', {'varCheck': mode}, 'VAR Check updated')
+
+    @Slot(int, str)
+    def ruleVar(self, check, decision):
+        """A team's VAR Check: overturned gives the question's points; either way the TV shows the decision."""
+        self._call('var', {'id': check, 'decision': decision}, 'VAR Check: overturned' if decision == 'overturned' else 'VAR Check: the decision stands')
+
     @Slot('QVariantMap')
     def saveWheel(self, wheel):
         self._call('wheels', {'action': 'save', 'wheel': dict(wheel)}, f'Wheel saved: {wheel.get("name", "")}')

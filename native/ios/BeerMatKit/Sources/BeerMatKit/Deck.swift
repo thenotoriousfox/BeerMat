@@ -16,12 +16,18 @@ public struct DeckTeam: Equatable {
     public let name: String, score: Double, rank: Int, connected: Bool
 }
 
+/// A team's VAR Check waiting for a ruling: its answer and the question's full points (what Overturn gives).
+public struct DeckVar: Equatable {
+    public let id: Int, team: String, answer: String, full: Int
+}
+
 /// The quiz as the phone deck (Run the night) shows it, from /api/host/state: what the big button does next (the
 /// server's nextStep, as the Qt desk's Next), the question and what can be done with it (desk.py's canSend, canClose…),
 /// and the teams. As DeckState.kt in the Android app.
 public struct DeckState: Equatable {
     public let title: String, nextStep: String?, question: DeckQuestion?, teams: [DeckTeam], answered: Int
     public let back: String?, backAnswers: Int, deskOpen: Bool, revealSound: String?, fastRehearsal: Bool, rehearsal: Bool
+    public var varChecks: [DeckVar] = []
 
     public var canNext: Bool { nextStep != nil && question?.live != true }
     public var canSend: Bool { question.map { $0.held && $0.live } ?? false }
@@ -55,10 +61,12 @@ public struct DeckState: Equatable {
         let back = s["back"] as? [String: Any], rehearsal = (s["rehearsal"] as? [String: Any])?["options"] as? [String: Any]
         let title = (s["settings"] as? [String: Any])?.str("title") ?? ""
         let step = s.str("nextStep")
-        return DeckState(title: title.isEmpty ? "BeerMat" : title, nextStep: step.isEmpty ? nil : step, question: q, teams: teams,
+        var state = DeckState(title: title.isEmpty ? "BeerMat" : title, nextStep: step.isEmpty ? nil : step, question: q, teams: teams,
                          answered: (s["answers"] as? [Any])?.count ?? 0, back: back.map { $0.str("label") }.flatMap { $0.isEmpty ? nil : $0 }, backAnswers: back?.int("answers") ?? 0,
                          deskOpen: s.bool("deskConnected"), revealSound: (((s["sounds"] as? [String: Any])?["slots"] as? [String: Any])?.str("reveal")).flatMap { $0.isEmpty ? nil : $0 },
                          fastRehearsal: rehearsal?.str("speed") == "fast", rehearsal: rehearsal != nil)
+        state.varChecks = (s["varChecks"] as? [[String: Any]] ?? []).map { DeckVar(id: $0.int("id"), team: $0.str("name"), answer: $0.str("answer"), full: number($0["full"]).map { Int($0) } ?? 1) }
+        return state
     }
 }
 
