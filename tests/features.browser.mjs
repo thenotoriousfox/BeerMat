@@ -119,11 +119,14 @@ try {
   await host('open', {text: 'Capital of Peru?', type: 'text', answer: 'Lima', seconds: 30, points: 1});
   await desk.locator('#send').waitFor({state: 'visible'});
   await shot(desk, 'desk-held');
+  // While it's read out, the TV asks the room to listen; Send puts it on the TV and phones together.
+  await tv.waitForFunction(() => document.querySelector('#question').textContent.includes('Listen to the quizmaster'));
   await desk.keyboard.press('s');
   await desk.locator('#send').waitFor({state: 'hidden'});
+  await tv.waitForFunction(() => document.querySelector('#question').textContent === 'Capital of Peru?');
   assert.equal((await host('state')).question.open, true, 'S sent it');
   await host('close'); await host('settings', {sendQuestion: false});
-  log('desk: Send Question switch, the Send button and the S key');
+  log('desk: Send Question switch, the Send button and the S key; the TV shows the question only once it is sent');
 
   await desk.locator('details.tools summary').click();
   await desk.selectOption('#flyType', 'letter'); await desk.click('#flyForm button');

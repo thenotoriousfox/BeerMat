@@ -116,8 +116,8 @@ CASES = {
     'halloween': state(q=question(), look='halloween'),
     'rehearsal': state('join', rehearsal=True),
     'blank': state('blank'),
-    # Send Question: on the TV for reading out, its clock not started.
-    'held': state(q=question(held=True, open=False, paused=True, remaining=30000)),
+    # Send Question: waiting for Send, the TV gets nothing to read (server.js): the room listens, its clock not started.
+    'held': state(q=question(held=True, open=False, paused=True, remaining=30000, text='', options=[])),
     'picture-tiles': state(q=question(type='picture', options=[], media=PICTURE, reveal='tiles')),
     'picture-blur': state(q=question(type='picture', options=[], media=PICTURE, reveal='blur')),
     'reactions': state(q=question(type='musicbingo', options=[], bingo={'played': 3, 'titles': [], 'winners': [], 'board': False, 'music': True},
@@ -184,6 +184,7 @@ class TvStageTest(unittest.TestCase):
         texts = lambda: [o.property('text') for o in self.stage.findChildren(QObject) if isinstance(o.property('text'), str) and o.property('visible')]
         self.show(CASES['held'])
         self.assertIn('Get ready: the question is on its way', texts())
+        self.assertTrue(any('Listen to the quizmaster' in t for t in texts()), 'the room listens while it is read out')
         spotlight = self.stage.findChild(QObject, 'spotlight')
         self.show(state(q=question()))
         spotlight.setProperty('shown', None)

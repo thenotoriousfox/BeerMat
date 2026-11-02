@@ -1314,7 +1314,7 @@ function renderState(s) {
   const q = s.question, pending = q?.live;
   $('liveRound').textContent = (q?.secret && !s.settings.ended ? '🤫 Secret round · ' : '') + (q?.round || ''); $('liveText').textContent = q?.text || 'Ready when you are'; $('liveTimer').textContent = timeText(q, offset);
   $('liveKey').textContent = q ? (q.hideText && !q.revealed ? '🎙 Read it out: the TV and phones don’t show the wording until the answer is revealed. · ' : '')
-    + (q.held ? 'Read it out, then Send question (S): phones see it and the clock starts. · ' : '') + answerKey(q) : '';
+    + (q.held ? 'Read it out, then Send question (S): the TV and phones show it and the clock starts. · ' : '') + answerKey(q) : '';
   if (q?.id !== liveQuestion) {liveQuestion = q?.id; $('announced').value = '';}
   renderBuzzPanel(q); renderBingoPanel(q); audioClipCue(q); showDeskPlayer(); renderSounds(s); useSounds(s.sounds); renderLooks(s); renderTie(s); renderDecks(s);
   if (clipRun && (q?.id !== clipRun.question || !q.live)) stopClips(); else renderClipsPanel(q);
