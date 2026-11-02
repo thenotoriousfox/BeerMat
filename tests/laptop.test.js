@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync, rmSync} from 'node:fs';
+import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import {EventEmitter} from 'node:events';
@@ -35,6 +35,25 @@ test('laptop jobs: the Wi-Fi goes through pkexec with fixed arguments, and messa
 
   for (const bad of [{card: 'wlan0; rm -rf', ssid: 'Quiz'}, {card: 'auto', ssid: ''}, {card: 'auto', ssid: 'x'.repeat(33)}, {card: 'auto', ssid: 'a\nb'}]) assert.throws(() => laptop.startWifi(bad), /Pick a Wi-Fi card|Wi-Fi name/);
   assert.throws(() => laptop.bingoVoice(), /Piper is not installed/);
+});
+
+test('the Wi-Fi script runs as root from a copy: root can’t read inside the AppImage it ships in', async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'quiz-appimage-'));
+  mkdirSync(path.join(root, 'scripts')); writeFileSync(path.join(root, 'scripts', 'hotspot.py'), '# the hotspot script\n');
+  const calls = [];
+  const run = async (file, args) => {calls.push([file, ...args, args[1] && existsSync(args[1]) ? readFileSync(args[1], 'utf8') : 'gone']); return {ok: true, code: 0, out: ''};};
+  try {
+    const laptop = createLaptop({root, run, python: '/usr/bin/python3', piper: ['/nowhere']});
+    await new Promise(r => laptop.startWifi({card: 'auto', ssid: 'Quiz'}, r, 3000));
+    await new Promise(r => laptop.stopWifi(r));
+    for (const call of calls) {
+      const [file, python, script, action] = call, content = call.at(-1);
+      assert.deepEqual([file, python, path.basename(script), content], ['pkexec', '/usr/bin/python3', 'hotspot.py', '# the hotspot script\n'], action);
+      assert.ok(!script.startsWith(root), 'not from inside the app');
+      assert.ok(!existsSync(script), 'the copy is removed afterwards');
+    }
+    assert.deepEqual(calls.map(c => c[3]), ['up', 'down']);
+  } finally {rmSync(root, {recursive: true, force: true});}
 });
 
 test('laptop jobs on Windows: Mobile Hotspot through PowerShell, always with a password, settings passed as base64 JSON', async () => {
