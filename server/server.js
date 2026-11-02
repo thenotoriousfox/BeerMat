@@ -1320,7 +1320,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // beside its quiz Wi-Fi, so the TV page (/tv; /display leads there), what it loads and its live updates answer on every network
   // the laptop is on. Only reading, and only what the room sees on the TV anyway: playing, joining and the desk stay on
   // the quiz Wi-Fi.
-  const tvFiles = new Set(['/tv', '/display', '/client.js', '/app.js', '/qr.js', '/soundnames.js', '/i18n.js', '/style.css', '/themes.css', '/api/leaderboard', '/api/hello']);
+  const tvFiles = new Set(['/tv', '/display', '/client.js', '/compat.js', '/app.js', '/qr.js', '/soundnames.js', '/i18n.js', '/style.css', '/themes.css', '/api/leaderboard', '/api/hello']);
   const tvOnly = (req, url) => (req.method === 'GET' || req.method === 'HEAD') && (tvFiles.has(url.pathname)
     || /^\/(themes|brand|media|sounds|pack)\//.test(url.pathname) || (url.pathname === '/api/events' && !url.searchParams.get('key')));
   // Windows: whether players are kept off the internet. The script says whether its filters are on ("configured");
@@ -1369,7 +1369,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         // still leads there.
         if (p === '/display') {res.writeHead(301, {...security, Location: '/tv' + url.search}); return res.end();}
         // /deck: Run the night in a phone's browser (deck.js).
-        const routes = {'/host': 'host.html', '/tv': 'display.html', '/deck': 'deck.html', '/deck.js': 'deck.js', '/wifi.js': 'wifi.js', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
+        const routes = {'/host': 'host.html', '/tv': 'display.html', '/deck': 'deck.html', '/deck.js': 'deck.js', '/wifi.js': 'wifi.js', '/compat.js': 'compat.js', '/app.js': 'app.js', '/host.js': 'host.js', '/client.js': 'client.js', '/qr.js': 'qr.js', '/soundnames.js': 'soundnames.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
         if (p.startsWith('/media/')) {
           requireValue(mediaPattern.test(p), 'Media not found', 404);
           const file = path.join(mediaDir, path.basename(p));

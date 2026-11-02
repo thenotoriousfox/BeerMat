@@ -2,6 +2,7 @@
 // app's Run the night does (native/android deck/), with no app to install. It signs in with the code the desk shows
 // (no internet needed) and works on the quiz Wi-Fi or the venue's, where the laptop also is. Clips, songs and audio
 // play from the laptop: the phone asks the desk (deck-command).
+import './compat.js';
 import {$, element, readStorage, writeStorage} from './app.js';
 import {t, setLanguage, translatePage} from './i18n.js';
 

@@ -1,3 +1,4 @@
+import './compat.js';
 import {t} from './i18n.js';
 export const $ = id => document.getElementById(id);
 export const element = (tag, text, className) => {const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (className) el.className = className; return el;};

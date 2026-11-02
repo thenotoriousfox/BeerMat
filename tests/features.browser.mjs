@@ -126,6 +126,27 @@ try {
   await host('close');
   log('a blurred picture sharpens on the phone as on the TV');
 
+  // An older phone (before iOS 16 / Chrome 103): no AbortSignal.timeout (every request used it), Array at,
+  // structuredClone or <dialog>. compat.js fills them in: it joins, answers, keeps a draft and opens the team menu.
+  const oldContext = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});
+  const oldPhone = await oldContext.newPage(); oldPhone.on('pageerror', e => errors.push('older phone: ' + e.message)); oldPhone.on('dialog', d => d.accept());
+  await oldPhone.addInitScript(() => {delete AbortSignal.timeout; delete Array.prototype.at; delete window.structuredClone; delete window.HTMLDialogElement;});
+  await oldPhone.goto(base + '/');
+  assert.equal(await oldPhone.evaluate(() => typeof structuredClone === 'function' && typeof AbortSignal.timeout === 'function' && [1, 2].at(-1) === 2), true, 'filled in');
+  await oldPhone.fill('#name', 'Old Phones'); await oldPhone.fill('#table', '9'); await oldPhone.click('#joinButton');
+  await oldPhone.locator('#game').waitFor({state: 'visible'});
+  const sendWas = (await host('state')).settings.sendQuestion; await host('settings', {sendQuestion: false});
+  await host('open', {text: 'Capital of Wales?', type: 'text', answer: 'Cardiff', seconds: 60, points: 1});
+  await oldPhone.locator('#inputs input').fill('Cardiff');
+  await oldPhone.waitForFunction(() => /draft/i.test(document.getElementById('draftStatus').textContent));
+  await oldPhone.click('#submit');
+  await oldPhone.waitForFunction(() => /final answer/i.test(document.getElementById('draftStatus').textContent + document.getElementById('message').textContent));
+  assert.ok((await host('state')).answers.some(a => a.value === 'Cardiff'), 'its answer reached the desk');
+  await oldPhone.click('#menuButton'); await oldPhone.locator('#teamMenu').waitFor({state: 'visible'});
+  await oldPhone.click('#teamMenu form[method=dialog] button'); await oldPhone.locator('#teamMenu').waitFor({state: 'hidden'});
+  await host('close'); await host('settings', {sendQuestion: sendWas}); await oldContext.close();
+  log('an older phone (no AbortSignal.timeout, at, structuredClone or dialog) joins, answers and opens its team menu');
+
   const songs = Array.from({length: 15}, (_, i) => ({title: `Song ${i + 1}`}));
   await host('open', {text: 'Music bingo', type: 'musicbingo', mode: 'line', songs, reactions: true, reactionPoints: 1, seconds: 600, points: 3});
   const q = (await host('state')).question, {number} = await host('bingo', {question: q.id});
