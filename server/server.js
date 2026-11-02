@@ -2255,7 +2255,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       requireValue(team.kind === 'sim' ? !liveNow() : liveNow(), team.kind === 'sim' ? 'Simulated teams only take part in a rehearsal' : 'This quiz isn’t live yet. Ask the quizmaster.', 403);
       const teamInfo = {id: team.id, name: team.name, sound: team.sound, photo: team.photo, photoStatus: team.photo_status, waiting: !!team.waiting};
       if (team.waiting) {
-        requireValue(p === '/api/state' || p === '/api/team/sound', 'Waiting for the quizmaster to let you in', 403);
+        requireValue(['/api/state', '/api/team/sound', '/api/team/name'].includes(p), 'Waiting for the quizmaster to let you in', 403);
         if (p === '/api/state') return send(200, {...publicState(), question: null, team: teamInfo, answer: null, draft: null, ...check});
       }
       if (p === '/api/state') {
@@ -2275,6 +2275,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         const mine = saved && JSON.parse(saved.data).find(r => r.team === team.id); requireValue(mine, 'No result for this team', 404);
         const {team: _id, ...result} = mine;
         return send(200, {claim: signClaim({v: 1, kind: 'beermat.result', event, title: settings().title, date: saved.finished, team: teamRef(event, team.id), result}, venueKey())});
+      }
+      // A team renames itself from its team menu, with the same checks as joining (the desk can rename any team too).
+      if (p === '/api/team/name') {
+        const name = typeof body.name === 'string' ? body.name.trim() : '';
+        requireValue(name.length >= 2 && name.length <= 40, 'Team name must be 2–40 characters');
+        requireValue(!offensive(name, getMeta('blockedWords', [])), 'Please choose a different team name', 400);
+        requireValue(!one('SELECT id FROM teams WHERE name=? COLLATE NOCASE AND id<>?', name, team.id), 'That team name is taken', 409);
+        run('UPDATE teams SET name=? WHERE id=?', name, team.id); return send(200, {name});
       }
       if (p === '/api/team/sound') {
         requireValue(Number.isInteger(body.sound) && body.sound >= 0 && body.sound < SOUNDS + soundPack().buzzers.length, 'Unknown buzzer sound');

@@ -65,6 +65,7 @@ class QuizServer(base: String) {
 
     suspend fun buzz(secret: String, question: Long) = withContext(Dispatchers.IO) { request("POST", "/api/buzz", JSONObject().put("question", question), secret) }
 
+    suspend fun rename(secret: String, name: String) = withContext(Dispatchers.IO) { request("POST", "/api/team/name", JSONObject().put("name", name), secret) }
     suspend fun sound(secret: String, index: Int) = withContext(Dispatchers.IO) { request("POST", "/api/team/sound", JSONObject().put("sound", index), secret) }
 
     /** The team's photo for the TV: a square JPEG; the quizmaster approves it first. */

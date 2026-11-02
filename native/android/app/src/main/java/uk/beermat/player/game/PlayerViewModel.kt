@@ -192,6 +192,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     /** The signed result to keep (after the quiz ends); null with a message when there's none. */
     suspend fun result(): org.json.JSONObject? = try { server?.result(_ui.value.secret) } catch (e: QuizError) { say(e.message ?: "", true); null } catch (_: Exception) { say(t("Can’t reach the quiz"), true); null }
 
+    fun rename(name: String) = work(quiet = true) { server!!.rename(_ui.value.secret, name.trim()); say(t("Team name saved")); refresh() }
     fun setSound(index: Int) = work(quiet = true) { server!!.sound(_ui.value.secret, index); say(t("Buzzer sound saved")); refresh() }
 
     /** A picture from the phone, cropped square to 360 px and sent as a JPEG (as the browser player does). */

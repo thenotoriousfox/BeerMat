@@ -164,6 +164,7 @@ private fun WaitingSetup(vm: PlayerViewModel, ui: UiState) {
 @Composable
 private fun TeamMenu(vm: PlayerViewModel, ui: UiState) {
     Text(t("Your team"), style = MaterialTheme.typography.headlineMedium)
+    Rename(vm, ui)
     Text(t("Recovery code"), color = Brand.muted, modifier = Modifier.padding(top = 12.dp))
     Text(ui.secret, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 4.dp))
     Text(t("Keep it to rejoin from another phone. The quizmaster can also give you a 4-digit code to move your team."), color = Brand.faint, fontSize = 13.sp)
@@ -174,6 +175,16 @@ private fun TeamMenu(vm: PlayerViewModel, ui: UiState) {
     OutlinedButton({ openInBrowser(vmContext(vm), vm.webPlayerUrl()) }, modifier = Modifier.fillMaxWidth()) { Text(t("Open in the browser instead")) }
     OutlinedButton(vm::switchTeam, modifier = Modifier.fillMaxWidth()) { Text(t("Switch team")) }
     OutlinedButton(vm::leave, modifier = Modifier.fillMaxWidth()) { Text(t("Other quizzes")) }
+}
+
+/** The team renames itself (the server checks the name as when joining). */
+@Composable
+private fun Rename(vm: PlayerViewModel, ui: UiState) {
+    val current = ui.game?.team?.name ?: return
+    var name by remember(current) { mutableStateOf(current) }
+    androidx.compose.material3.OutlinedTextField(name, { name = it.take(40) }, label = { Text(t("Team name")) }, singleLine = true,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+    OutlinedButton({ vm.rename(name) }, enabled = name.trim().length >= 2 && name.trim() != current && !ui.busy, modifier = Modifier.fillMaxWidth()) { Text(t("Rename")) }
 }
 
 private fun vmContext(vm: PlayerViewModel) = vm.getApplication<android.app.Application>()

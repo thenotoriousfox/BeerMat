@@ -79,6 +79,20 @@ private struct Lobby: View {
     }
 }
 
+/// The team renames itself (the server checks the name as when joining).
+private struct RenameTeam: View {
+    @EnvironmentObject var model: PlayerModel
+    @State private var name = ""
+    var body: some View {
+        let current = model.game?.team?.name ?? ""
+        HStack {
+            TextField(t("Team name"), text: $name).textFieldStyle(.roundedBorder).onAppear { name = current }
+            Button(t("Rename")) { model.rename(String(name.prefix(40))) }.buttonStyle(.bordered)
+                .disabled(name.trimmingCharacters(in: .whitespaces).count < 2 || name == current)
+        }
+    }
+}
+
 /// Until the quiz starts, or while the quizmaster hasn't let the team in yet, as the browser player's waiting screen.
 private struct WaitingSetup: View {
     var body: some View {
@@ -93,6 +107,7 @@ private struct TeamMenu: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(t("Your team")).font(Brand.display(26))
+            RenameTeam()
             Text(t("Recovery code")).foregroundStyle(Brand.muted)
             Text(model.secret).font(.footnote.monospaced().bold()).textSelection(.enabled)
             Text(t("Keep it to rejoin from another phone. The quizmaster can also give you a 4-digit code to move your team.")).font(.footnote).foregroundStyle(Brand.faint)

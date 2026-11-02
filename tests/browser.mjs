@@ -181,7 +181,7 @@ try {
   await host.locator('[data-tab=teams]').click(); await waitFor(host, () => !document.getElementById('teamCards').textContent.includes('Loading'));
   assert.equal(await scoreOf('Fox team'), fox + 2); assert.equal(await scoreOf('Owl team'), owl);
   log('multi-tap ticks and pinpoint taps scored; C shortcut closes');
-  await player.locator('#menuButton').click(); await visible(player, '#teamMenu'); await player.locator('#sound').selectOption('3'); await waitFor(player, () => document.getElementById('message').textContent === 'Buzzer sound saved'); await player.locator('#teamMenu form button').click();
+  await player.locator('#menuButton').click(); await visible(player, '#teamMenu'); await player.locator('#sound').selectOption('3'); await waitFor(player, () => document.getElementById('message').textContent === 'Buzzer sound saved'); await player.locator('#teamMenu form[method=dialog] button').click();
   await play('Bingo night'); await visible(player, '#ticket');
   const row = (await player.locator('#ticket .ticket-row').first().locator('button').allTextContents()).map(Number);
   assert.equal((await player.locator('#ticket button').count()), 15);
@@ -248,7 +248,7 @@ try {
   await player.locator('#menuButton').click(); await player.locator('#photoPick').setInputFiles({name: 'selfie.png', mimeType: 'image/png', buffer: makePng(640, 480)});
   await waitFor(player, () => document.getElementById('photoStatus').textContent.includes('Waiting'));
   await host.locator('[data-tab=teams]').click(); await host.locator('#teamCards article', {hasText: 'Fox team'}).getByRole('button', {name: 'Approve photo'}).click();
-  await waitFor(player, () => document.getElementById('photoStatus').textContent.includes('Approved')); await player.locator('#teamMenu form button').click();
+  await waitFor(player, () => document.getElementById('photoStatus').textContent.includes('Approved')); await player.locator('#teamMenu form[method=dialog] button').click();
   await host.locator('[data-tab=live]').click(); await host.locator('#displayMode').selectOption('leaderboard');
   await waitFor(projector, () => document.querySelector('#leaderboard .avatar')?.naturalWidth === 360);
   log('team photo: shrunk to a 360px JPEG on the phone, approved by the host, shown on the TV leaderboard');

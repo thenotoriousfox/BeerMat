@@ -53,6 +53,10 @@ const T = {
   'QUIZ NIGHT': ['SOIRÉE QUIZ', 'NOCHE DE QUIZ'],
   'Connecting…': ['Connexion…', 'Conectando…'],
   'Make yourselves known': ['Présentez-vous', 'Presentaos'],
+  // A team renames itself (team menu).
+  'Rename': ['Renommer', 'Cambiar nombre'],
+  'Team name saved': ['Nom de l’équipe enregistré', 'Nombre del equipo guardado'],
+  'That team name is taken': ['Ce nom d’équipe est déjà pris', 'Ese nombre de equipo ya está cogido'],
   'Team name': ["Nom de l'équipe", 'Nombre del equipo'],
   'Join quiz': ['Rejoindre le quiz', 'Unirse al quiz'],
   'Played here before, or lost your team? Get it back': ['Déjà venus, ou équipe perdue ? Récupérez-la', '¿Ya habéis jugado aquí o perdisteis el equipo? Recuperadlo'],
