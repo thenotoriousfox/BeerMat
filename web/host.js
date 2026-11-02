@@ -205,15 +205,25 @@ $('clipUpload').onchange = () => action(async () => {
   for (const file of $('clipUpload').files) clipItems.push({media: await uploadMedia(file), label: file.name.replace(/\.[^.]+$/, '').slice(0, 100)});
   $('clipUpload').value = ''; renderClipList(); editorChanged();
 }, 'Clips uploaded — pick the right one, then save the question');
+// Several places to find (pinTargets): each click adds one; otherwise a click moves the one target.
+let pinTargets = null;
 function renderPinTarget() {
   const media = $('qMedia').value;
+  $('clearTargets').hidden = !pinTargets?.length;
   if ($('qType').value !== 'pinpoint' || !media || /\.(mp3|ogg|wav)$/i.test(media)) return $('pinTarget').replaceChildren();
-  renderPinpoint($('pinTarget'), {media, target: pinTarget}, [], (point, img) => {
-    pinTarget = {x: point[0], y: point[1], r: Number($('qRadius').value) / 100, aspect: Math.round(1000 * img.naturalHeight / img.naturalWidth) / 1000 || 1};
+  renderPinpoint($('pinTarget'), {media, ...(pinTargets ? {targets: pinTargets} : {target: pinTarget})}, [], (point, img) => {
+    const area = {x: point[0], y: point[1], r: Number($('qRadius').value) / 100, aspect: Math.round(1000 * img.naturalHeight / img.naturalWidth) / 1000 || 1};
+    if (pinTargets) {if (pinTargets.length < 10) pinTargets = [...pinTargets, area];} else pinTarget = area;
     editorChanged(); renderPinTarget();
   });
 }
-$('qRadius').oninput = () => {if (pinTarget) {pinTarget = {...pinTarget, r: Number($('qRadius').value) / 100}; renderPinTarget();}};
+$('qRadius').oninput = () => {
+  const r = Number($('qRadius').value) / 100;
+  if (pinTargets) pinTargets = pinTargets.map(t => ({...t, r})); else if (pinTarget) pinTarget = {...pinTarget, r};
+  renderPinTarget();
+};
+$('qSeveral').onchange = () => {pinTargets = $('qSeveral').checked ? (pinTarget ? [pinTarget] : []) : null; if (!pinTargets && !pinTarget) pinTarget = null; editorChanged(); renderPinTarget();};
+$('clearTargets').onclick = () => {pinTargets = []; editorChanged(); renderPinTarget();};
 function addSheetItem(text = '', answer = '') {
   const row = element('div', undefined, 'sheet-row');
   const label = element('label', 'Question'); const input = element('input'); input.maxLength = 500; input.value = text; input.required = true; label.append(input);
@@ -227,7 +237,7 @@ function fillQuestion(q = null) {
   $('qAnswer').value = q?.answer || ''; $('qAliases').value = (q?.aliases || []).join('\n'); $('qOptions').value = (q?.options || []).join('\n'); $('qMedia').value = q?.media || '';
   $('qNote').value = q?.answerNote || ''; $('qItems').value = q?.type === 'sequence' ? q.items.join('\n') : ''; $('qPlaces').value = q?.places ?? 1; $('qPair').value = q?.pair || ''; $('qNotOver').checked = !!q?.notOver; $('qTolerance').value = q?.tolerance ?? 0; $('qTolerancePercent').checked = !!q?.tolerancePercent; $('qPartScoring').value = q?.partScoring || 'each'; $('qTieBreaker').checked = !!q?.tieBreaker;
   $('qClipLink').value = q?.clip?.spotify || ''; $('qClipStart').value = q?.clip?.start ?? 0; $('qClipPlay').value = q?.clip?.seconds ?? 30;
-  $('qCorrect').value = (q?.correct || []).join('\n'); pinTarget = q?.target || null; $('qRadius').value = Math.round((q?.target?.r ?? 0.08) * 100);
+  $('qCorrect').value = (q?.correct || []).join('\n'); pinTarget = q?.targets ? null : q?.target || null; pinTargets = q?.targets || null; $('qSeveral').checked = !!q?.targets; $('qRadius').value = Math.round((q?.targets?.[0]?.r ?? q?.target?.r ?? 0.08) * 100);
   $('qSongs').value = (q?.songs || []).map(s => s.media || s.spotify ? `${s.title} | ${s.media || s.spotify}${s.start !== undefined || s.seconds !== undefined ? ` | ${s.start ?? ''} | ${s.seconds ?? ''}` : ''}` : s.title).join('\n'); $('qStartAt').value = q?.startAt ?? 0; $('qSongSeconds').value = q?.songSeconds ?? 0; $('qAutoNext').checked = !!q?.autoNext; $('qClipSeconds').value = q?.clipSeconds ?? 15; $('qRevealNow').checked = !!q?.revealNow;
   clipItems = structuredClone(q?.clips || []); targetClip = q?.targetClip ?? 0; renderClipList();
   $('qFastest').checked = !!q?.fastestFingers; $('qBonusMode').value = q?.bonusMode || 'sliding'; $('qBonusPlaces').value = q?.bonusPlaces ?? 1; $('qEvil').checked = !!q?.evil;
@@ -290,7 +300,7 @@ function readQuestion() {
   if (!['bingo', 'musicbingo', 'clips'].includes(type) && $('qHideText').checked) q.hideText = true;
   if ($('qReveal').value && type === 'picture') q.reveal = $('qReveal').value;
   if (q.reveal && Number($('qRevealSeconds').value) > 0) q.revealSeconds = Number($('qRevealSeconds').value);
-  if (type === 'pinpoint') q.target = pinTarget;
+  if (type === 'pinpoint') {if (pinTargets) q.targets = pinTargets; else q.target = pinTarget;}
   if (type === 'choice') Object.assign(q, {fiftyFifty: $('qFifty').checked, fiftyPoints: Number($('qFiftyPoints').value)});
   if (type === 'pinpoint' || type === 'wordsnake') Object.assign(q, {goWide: $('qGoWide').checked, goWidePoints: Number($('qGoWidePoints').value)});
   const stagePoints = $('qMode').value === 'progressive' ? {stagePoints: [Number($('qLinePoints').value), Number($('qTwoLinePoints').value), Number($('qHousePoints').value)]} : {};
@@ -1248,7 +1258,7 @@ function answerKey(q) {
   if (q.type === 'vote') return 'Vote — no right answer';
   if (q.type === 'sequence') return 'Order: ' + q.items.join(' → ');
   if (q.type === 'multi') return 'Right ticks: ' + q.correct.join(', ');
-  if (q.type === 'pinpoint') return `Pinpoint target set${q.goWide ? ` · a second guess scores ${q.goWidePoints}` : ''}`;
+  if (q.type === 'pinpoint') return q.targets ? `${q.targets.length} places to find, ${q.points} ${q.points === 1 ? 'point' : 'points'} each` : `Pinpoint target set${q.goWide ? ` · a second guess scores ${q.goWidePoints}` : ''}`;
   if (q.type === 'bingo') return `Bingo — ${modes[q.mode]} wins`;
   if (q.type === 'musicbingo') return `Music bingo — ${q.songs.length} songs, ${modes[q.mode]} wins`;
   if (q.type === 'clips') return `Right clip: ${q.targetClip + 1}. ${q.clips[q.targetClip].label || '(unnamed)'}`;

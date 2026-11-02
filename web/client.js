@@ -76,7 +76,7 @@ function syncPicks() {
   if (q.type === 'multi') $('inputs').querySelectorAll('[data-value]').forEach(b => b.classList.toggle('picked', list.includes(b.dataset.value)));
   if (q.type === 'pinpoint') renderPinpoint($('pinArea'), q, list, point => {
     if ($('submit').disabled) return;
-    pick(JSON.stringify(list.length < (q.goWide ? 2 : 1) ? [...list, point] : [...list.slice(0, -1), point]));
+    pick(JSON.stringify(list.length < (q.targetCount || (q.goWide ? 2 : 1)) ? [...list, point] : [...list.slice(0, -1), point]));
   });
   if (q.type === 'wordsnake') {
     renderSnake($('snakeArea'), q.grid, list, q.wideCells || null, i => {
@@ -162,7 +162,7 @@ function buildInputs(q) {
   if (q.type === 'pinpoint') {
     hiddenInput(); const area = element('div'); area.id = 'pinArea';
     const undo = element('button', t('Undo tap'), 'subtle'); undo.type = 'button'; undo.onclick = () => pick(JSON.stringify(inputValue().slice(0, -1)));
-    box.append(element('p', q.goWide ? t('Tap the picture. Second guess: a second tap scores {n} if your first misses.', {n: q.goWidePoints}) : t('Tap the picture to place your answer'), 'muted'), area, undo); return;
+    box.append(element('p', q.targetCount ? t('Tap the picture once for each place: {n} to find', {n: q.targetCount}) : q.goWide ? t('Tap the picture. Second guess: a second tap scores {n} if your first misses.', {n: q.goWidePoints}) : t('Tap the picture to place your answer'), 'muted'), area, undo); return;
   }
   if (q.type === 'sheet') {
     q.items.forEach((text, i) => {

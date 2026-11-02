@@ -205,6 +205,9 @@ const T = {
   'Your number (closest without going over)': ['Votre nombre (le plus proche sans dépasser)', 'Vuestro número (el más cercano sin pasarse)'],
   // Two-button Multiple choice (pair): the buttons' labels.
   'True': ['Vrai', 'Verdadero'], 'False': ['Faux', 'Falso'], 'Before': ['Avant', 'Antes'], 'After': ['Après', 'Después'],
+  // Pinpoint with several places to find.
+  'Circled on the picture': ['Entouré sur l’image', 'Marcado con un círculo en la imagen'],
+  'Tap the picture once for each place: {n} to find': ['Touchez l’image une fois par endroit : {n} à trouver', 'Tocad la imagen una vez por lugar: {n} por encontrar'],
   'Trace the word first': ['Tracez d’abord le mot', 'Trazad antes la palabra'],
   'Place the tiles first': ['Placez d’abord les tuiles', 'Colocad antes las fichas'],
   'Your answer': ['Votre réponse', 'Vuestra respuesta'],

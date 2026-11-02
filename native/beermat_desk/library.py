@@ -48,8 +48,8 @@ OPTIONS = [
     # goWide is the hint on a word trail and the second guess on a pinpoint (the key stays as it is in quiz files).
     ('goWide', 'Hint: teams can hide the decoy letters, for fewer points', 'bool', None, lambda t, q: t == 'wordsnake'),
     ('goWidePoints', 'Points with the hint', 'int', (0, 100), lambda t, q: t == 'wordsnake' and q.get('goWide')),
-    ('goWide', 'Second guess: a second tap scores if the first misses', 'bool', None, lambda t, q: t == 'pinpoint'),
-    ('goWidePoints', 'Points for a second guess', 'int', (0, 100), lambda t, q: t == 'pinpoint' and q.get('goWide')),
+    ('goWide', 'Second guess: a second tap scores if the first misses', 'bool', None, lambda t, q: t == 'pinpoint' and 'targets' not in q),
+    ('goWidePoints', 'Points for a second guess', 'int', (0, 100), lambda t, q: t == 'pinpoint' and q.get('goWide') and 'targets' not in q),
     ('pair', 'Buttons', 'choice', [('', 'Your own choices'), ('trueFalse', 'True or false: two big buttons'), ('beforeAfter', 'Before or after: two big buttons')], lambda t, q: t == 'choice'),
     ('fiftyFifty', '50/50: teams can take away half the wrong choices, for fewer points', 'bool', None, lambda t, q: t == 'choice' and not q.get('pair')),
     ('fiftyPoints', 'Points after a 50/50', 'int', (0, 100), lambda t, q: t == 'choice' and q.get('fiftyFifty')),
@@ -250,17 +250,50 @@ class Library(QObject):
 
     @Slot(float, float)
     def setTarget(self, x, y):
-        """Pinpoint: the target's centre, as fractions of the picture; its size stays (or a sensible first size)."""
+        """Pinpoint: the target's centre, as fractions of the picture; its size stays (or a sensible first size). With
+        several places to find, each click adds one (up to ten)."""
         q = self._current()
-        if q is not None:
-            t = q.get('target') or {'r': 0.06, 'aspect': 1}
-            q['target'] = {**t, 'x': round(min(1, max(0, x)), 4), 'y': round(min(1, max(0, y)), 4)}
+        if q is None:
+            return
+        point = {'x': round(min(1, max(0, x)), 4), 'y': round(min(1, max(0, y)), 4)}
+        if 'targets' in q:
+            if len(q['targets']) >= 10:
+                return self.toast.emit('Ten places is the most: clear them to start again', True)
+            last = q['targets'][-1] if q['targets'] else {'r': 0.06, 'aspect': 1}
+            q['targets'] = q['targets'] + [{'r': last['r'], 'aspect': last.get('aspect', 1), **point}]
+        else:
+            q['target'] = {**(q.get('target') or {'r': 0.06, 'aspect': 1}), **point}
+        self._touch()
+
+    @Slot(bool)
+    def setSeveralTargets(self, on):
+        """Pinpoint: several places to find (each click adds one; a point for each found), or the one target."""
+        q = self._current()
+        if q is None or on == ('targets' in q):
+            return
+        if on:
+            q['targets'] = [q.pop('target')] if q.get('target') else []
+            q.pop('goWide', None)
+        else:
+            targets = q.pop('targets')
+            if targets:
+                q['target'] = targets[0]
+        self._touch()
+
+    @Slot()
+    def clearTargets(self):
+        q = self._current()
+        if q is not None and q.get('targets'):
+            q['targets'] = []
             self._touch()
 
     @Slot(float, float)
     def setTargetShape(self, radius, aspect):
         q = self._current()
-        if q is not None and q.get('target'):
+        if q is not None and q.get('targets'):
+            q['targets'] = [{**t, 'r': round(radius, 3), 'aspect': round(aspect, 3)} for t in q['targets']]
+            self._touch()
+        elif q is not None and q.get('target'):
             q['target'] = {**q['target'], 'r': round(radius, 3), 'aspect': round(aspect, 3)}
             self._touch()
 

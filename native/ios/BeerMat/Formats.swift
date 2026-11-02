@@ -8,12 +8,13 @@ struct PinpointView: View {
     @Binding var taps: [[Double]]
     let enabled: Bool
     // In parts with their types spelled out: as one expression it was too much for the compiler to type-check.
-    private var most: Int { (q.raw["goWide"] as? Bool) == true ? 2 : 1 }
+    private var several: Int { (q.raw["targetCount"] as? NSNumber)?.intValue ?? 0 }
+    private var most: Int { several > 0 ? several : (q.raw["goWide"] as? Bool) == true ? 2 : 1 }
     private var goWidePoints: Int { (q.raw["goWidePoints"] as? NSNumber)?.intValue ?? 0 }
     private var url: URL? { URL(string: q.media.hasPrefix("http") ? q.media : server + q.media) }
 
     var body: some View {
-        Text(most == 2 ? t("Tap the picture. Second guess: a second tap scores {n} if your first misses.", ["n": goWidePoints]) : t("Tap the picture to place your answer"))
+        Text(several > 0 ? t("Tap the picture once for each place: {n} to find", ["n": several]) : most == 2 ? t("Tap the picture. Second guess: a second tap scores {n} if your first misses.", ["n": goWidePoints]) : t("Tap the picture to place your answer"))
             .foregroundStyle(Brand.muted)
         AsyncImage(url: url) { image in
             image.resizable().scaledToFit()
@@ -36,10 +37,10 @@ private struct PinpointMarks: View {
             Color.clear.contentShape(Rectangle())
                 .onTapGesture(coordinateSpace: .local) { (at: CGPoint) in tap(at) }
             ForEach(Array(taps.enumerated()), id: \.offset) { (i: Int, point: [Double]) in
-                Circle().fill(i == 0 ? Brand.pink : Brand.gold).overlay(Circle().stroke(Brand.text, lineWidth: 3))
+                Circle().fill(i == 0 || most > 2 ? Brand.pink : Brand.gold).overlay(Circle().stroke(Brand.text, lineWidth: 3))
                     .frame(width: 28, height: 28).position(x: point[0] * size.width, y: point[1] * size.height)
             }
-            if let target {
+            ForEach(Array(targets.enumerated()), id: \.offset) { (_: Int, target: (x: Double, y: Double, r: Double)) in
                 Circle().stroke(Brand.good, lineWidth: 4).frame(width: target.r * 2 * size.width, height: target.r * 2 * size.width)
                     .position(x: target.x * size.width, y: target.y * size.height)
             }
@@ -52,10 +53,15 @@ private struct PinpointMarks: View {
         taps = taps.count < most ? taps + [point] : Array(taps.dropLast()) + [point]
     }
 
-    /// The target circle, once the answer is revealed: its centre and radius as fractions of the picture's width.
-    private var target: (x: Double, y: Double, r: Double)? {
-        guard q.revealed, let t = q.raw["target"] as? [String: Any], let x = number(t["x"]), let y = number(t["y"]), let r = number(t["r"]) else { return nil }
-        return (x, y, r)
+    /// The target circles (several places to find, or the one), once the answer is revealed: centre and radius as
+    /// fractions of the picture's width.
+    private var targets: [(x: Double, y: Double, r: Double)] {
+        guard q.revealed else { return [] }
+        let all = (q.raw["targets"] as? [[String: Any]]) ?? [(q.raw["target"] as? [String: Any])].compactMap { $0 }
+        return all.compactMap { t in
+            guard let x = number(t["x"]), let y = number(t["y"]), let r = number(t["r"]) else { return nil }
+            return (x, y, r)
+        }
     }
 }
 

@@ -117,10 +117,18 @@ export function validateQuestion(q, mediaDir) {
     result.answer = '';
   }
   if (q.type === 'pinpoint') {
-    const t = q.target, fraction = v => typeof v === 'number' && v >= 0 && v <= 1;
-    requireValue(t && fraction(t.x) && fraction(t.y) && typeof t.r === 'number' && t.r >= 0.01 && t.r <= 0.5, 'Click the picture to set the target area');
-    requireValue(t.aspect === undefined || (typeof t.aspect === 'number' && t.aspect >= 0.1 && t.aspect <= 10), 'Invalid picture shape');
-    result.target = {x: t.x, y: t.y, r: t.r, aspect: t.aspect ?? 1};
+    const fraction = v => typeof v === 'number' && v >= 0 && v <= 1, area = t => {
+      requireValue(t && fraction(t.x) && fraction(t.y) && typeof t.r === 'number' && t.r >= 0.01 && t.r <= 0.5, 'Click the picture to set the target area');
+      requireValue(t.aspect === undefined || (typeof t.aspect === 'number' && t.aspect >= 0.1 && t.aspect <= 10), 'Invalid picture shape');
+      return {x: t.x, y: t.y, r: t.r, aspect: t.aspect ?? 1};
+    };
+    // Several places to find (targets): a tap for each, and the question's points for each found. The first is also
+    // its target, for screens that only know one.
+    if (Array.isArray(q.targets) && q.targets.length) {
+      requireValue(q.targets.length >= 2 && q.targets.length <= 10, 'Place 2–10 targets');
+      requireValue(q.goWide !== true, 'A second guess is for a single target');
+      result.targets = q.targets.map(area); result.target = result.targets[0];
+    } else result.target = area(q.target);
   }
   if (q.type === 'wordsnake') {
     result.answer = result.answer.toUpperCase().replace(/[^A-Z]/g, '');
@@ -284,7 +292,7 @@ export function answerValue(value, q, final = true) {
   }
   if (q.type === 'pinpoint') {
     const point = p => Array.isArray(p) && p.length === 2 && p.every(v => typeof v === 'number' && v >= 0 && v <= 1);
-    requireValue(Array.isArray(value) && value.length <= (q.goWide ? 2 : 1) && value.every(point) && (!final || value.length), 'Tap the picture');
+    requireValue(Array.isArray(value) && value.length <= (q.targets?.length || (q.goWide ? 2 : 1)) && value.every(point) && (!final || value.length), 'Tap the picture');
     return JSON.stringify(value.map(p => p.map(v => Math.round(v * 10000) / 10000)));
   }
   requireValue(!['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q.type), 'Use the buttons for this question');
@@ -305,7 +313,7 @@ export const tolerance = q => !q.tolerance ? 0 : q.tolerancePercent ? Math.abs(N
 export function isCorrect(value, q) {
   if (q.type === 'sequence') return JSON.stringify(JSON.parse(value)) === JSON.stringify(q.items.map((_, i) => i));
   if (q.type === 'multi') return JSON.parse(value).join('\n') === q.correct.join('\n');
-  if (q.type === 'pinpoint') return hits(JSON.parse(value)[0], q.target);
+  if (q.type === 'pinpoint') return q.targets ? targetsFound(JSON.parse(value), q.targets) === q.targets.length : hits(JSON.parse(value)[0], q.target);
   if (q.type === 'wordsnake') {const {path} = JSON.parse(value); return validSnake(path, q.snake) && path.map(i => q.snake.grid[i]).join('') === q.answer;}
   if (q.type === 'tiles') return JSON.parse(value).map(i => q.pieces[i]).join('') === q.tiles.join('');
   if (['vote', 'nearest', 'buzzer', 'bingo', 'musicbingo', 'clips', 'sheet'].includes(q.type) || !q.answer) return null;
@@ -327,11 +335,18 @@ export function basePoints(value, q) {
     return Math.max(0, Math.round(q.points * (right - (picks.length - right)) / q.correct.length));
   }
   if (q.type === 'wordsnake') return isCorrect(value, q) ? JSON.parse(value).wide ? q.goWidePoints : q.points : 0;
+  if (q.type === 'pinpoint' && q.targets) return targetsFound(JSON.parse(value), q.targets) * q.points;
   if (q.type === 'pinpoint') {
     const [first, second] = JSON.parse(value);
     return hits(first, q.target) ? q.points : hits(second, q.target) ? q.goWidePoints : 0;
   }
   return isCorrect(value, q) ? q.points : 0;
+}
+
+// Several places to find: how many targets the taps found, each tap counting for one target at most.
+export function targetsFound(taps, targets) {
+  const used = new Set();
+  return targets.filter(t => {const i = taps.findIndex((p, k) => !used.has(k) && hits(p, t)); if (i < 0) return false; used.add(i); return true;}).length;
 }
 
 // Letter tiles: the answer's letters cut into at most seven pieces, longest first.

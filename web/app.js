@@ -99,7 +99,7 @@ export function renderSolution(container, question, {onScreen = false} = {}) {
   else if (question.type === 'sequence' && onScreen) {}
   else if (question.type === 'sequence') {const list = element('ol', undefined, 'solution'); list.append(...question.items.map(item => element('li', item))); container.append(list);}
   else if (question.type === 'choice') {const i = question.options.indexOf(question.answer); container.append(element('p', i < 0 ? t('Marked by quizmaster') : optionLabel(question, i), 'solution'));}
-  else if (question.type !== 'vote') container.append(element('p', answerWithTolerance(question) || t('Marked by quizmaster'), 'solution'));
+  else if (question.type !== 'vote') container.append(element('p', answerWithTolerance(question) || (question.type === 'pinpoint' ? t('Circled on the picture') : t('Marked by quizmaster')), 'solution'));
   if (question.answerNote) container.append(element('p', question.answerNote, 'muted'));
   if (question.tally) {
     const keys = question.type === 'choice' || question.type === 'vote' ? question.options : Object.keys(question.tally).sort();
@@ -238,13 +238,13 @@ export function buzzSound(name = '', sound = null) {
 }
 // Picture with tap markers and, once known, the target circle. Coordinates are fractions of the picture.
 export function renderPinpoint(container, question, taps = [], onTap = null) {
-  const key = JSON.stringify([question.media, taps, question.target ?? null, !!onTap]);
+  const key = JSON.stringify([question.media, taps, question.targets ?? question.target ?? null, !!onTap]);
   if (container.dataset.pinpoint === key) return;
   delete container.dataset.media; container.dataset.pinpoint = key; container.replaceChildren();
   const frame = element('div', undefined, 'pinpoint'), img = element('img'); img.src = question.media; img.alt = 'Tap the picture'; frame.append(img);
   const dot = (point, className) => {const d = element('span', undefined, className); d.style.left = `${point[0] * 100}%`; d.style.top = `${point[1] * 100}%`; return d;};
-  if (question.target) {const t = question.target, ring = dot([t.x, t.y], 'target'); ring.style.width = `${t.r * 200}%`; ring.style.aspectRatio = '1'; frame.append(ring);}
-  taps.forEach((point, i) => frame.append(dot(point, i ? 'tap wide' : 'tap')));
+  for (const t of question.targets || (question.target ? [question.target] : [])) {const ring = dot([t.x, t.y], 'target'); ring.style.width = `${t.r * 200}%`; ring.style.aspectRatio = '1'; frame.append(ring);}
+  taps.forEach((point, i) => frame.append(dot(point, i && !question.targetCount && !question.targets ? 'tap wide' : 'tap')));
   if (onTap) frame.onclick = e => {const r = img.getBoundingClientRect(); onTap([Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))], img);};
   container.append(frame);
 }

@@ -63,9 +63,10 @@ fun Pinpoint(server: String, q: Question, taps: List<List<Double>>, enabled: Boo
     val bitmap by produceState<android.graphics.Bitmap?>(null, url) {
         value = withContext(Dispatchers.IO) { try { URL(url).openStream().use { BitmapFactory.decodeStream(it) } } catch (_: Exception) { null } }
     }
-    val most = if (q.raw.optBoolean("goWide")) 2 else 1
-    val target = q.raw.optJSONObject("target")
-    Text(if (most == 2) t("Tap the picture. Second guess: a second tap scores {n} if your first misses.", "n" to q.raw.optInt("goWidePoints")) else t("Tap the picture to place your answer"),
+    val several = q.raw.optInt("targetCount")
+    val most = if (several > 0) several else if (q.raw.optBoolean("goWide")) 2 else 1
+    val targets = q.raw.optJSONArray("targets")?.let { a -> List(a.length()) { a.getJSONObject(it) } } ?: listOfNotNull(q.raw.optJSONObject("target"))
+    Text(if (several > 0) t("Tap the picture once for each place: {n} to find", "n" to several) else if (most == 2) t("Tap the picture. Second guess: a second tap scores {n} if your first misses.", "n" to q.raw.optInt("goWidePoints")) else t("Tap the picture to place your answer"),
         color = Brand.muted, modifier = Modifier.padding(bottom = 8.dp))
     val image = bitmap ?: return Text(t("Loading the picture…"), color = Brand.faint)
     Box(Modifier.fillMaxWidth().aspectRatio(image.width.toFloat() / image.height).clip(RoundedCornerShape(12.dp))
@@ -79,10 +80,10 @@ fun Pinpoint(server: String, q: Question, taps: List<List<Double>>, enabled: Boo
         Canvas(Modifier.matchParentSize()) {
             taps.forEachIndexed { i, t ->
                 val c = Offset((t[0] * size.width).toFloat(), (t[1] * size.height).toFloat())
-                drawCircle(if (i == 0) Brand.pink else Brand.gold, 14.dp.toPx(), c)
+                drawCircle(if (i == 0 || several > 0) Brand.pink else Brand.gold, 14.dp.toPx(), c)
                 drawCircle(Brand.text, 14.dp.toPx(), c, style = Stroke(3.dp.toPx()))
             }
-            if (target != null && q.revealed) {
+            if (q.revealed) targets.forEach { target ->
                 drawCircle(Brand.good, (target.optDouble("r") * size.width).toFloat(), Offset((target.optDouble("x") * size.width).toFloat(), (target.optDouble("y") * size.height).toFloat()),
                     style = Stroke(4.dp.toPx()))
             }
