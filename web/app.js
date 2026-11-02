@@ -73,7 +73,9 @@ export function renderBoard(container, teams) {
     else if (old !== now) li.animate([{transform: `translateY(${old - now}px)`}, {transform: 'none'}], {duration: 800, easing: 'cubic-bezier(.2,.8,.2,1)'});
   }
 }
-export function timeText(question, offset = 0) {
+// The time left, and for a wager question the most a team can stake.
+export const timeText = (question, offset = 0) => clockText(question, offset) + (question?.wager && !question.revealed && !question.held ? ' · ' + t('Wager: up to {n} points', {n: question.wager}) : '');
+function clockText(question, offset = 0) {
   if (!question) return t('Waiting for the quizmaster');
   if (question.type === 'bingo' || question.type === 'musicbingo') return t(question.paused ? 'Paused' : question.live ? 'Eyes down — game in progress' : 'Game over');
   if (question.held) return t('Get ready: the question is on its way');

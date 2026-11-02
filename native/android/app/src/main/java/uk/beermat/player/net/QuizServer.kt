@@ -55,8 +55,8 @@ class QuizServer(base: String) {
         request("POST", "/api/react", JSONObject().put("question", question).apply { if (title == null) put("pass", true) else put("title", title) }, secret)
     }
 
-    suspend fun answer(secret: String, question: Long, value: Any) = withContext(Dispatchers.IO) {
-        request("POST", "/api/answer", JSONObject().put("question", question).put("value", value), secret)
+    suspend fun answer(secret: String, question: Long, value: Any, wager: Int? = null) = withContext(Dispatchers.IO) {
+        request("POST", "/api/answer", JSONObject().put("question", question).put("value", value).apply { if (wager != null) put("wager", wager) }, secret)
     }
 
     suspend fun draft(secret: String, question: Long, value: Any) = withContext(Dispatchers.IO) {

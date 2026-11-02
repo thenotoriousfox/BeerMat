@@ -132,9 +132,9 @@ final class PlayerModel: ObservableObject {
     /// A short buzz in the pocket: a new question, or the team's buzzer turn.
     private func nudge() { if identity.haptics { UINotificationFeedbackGenerator().notificationOccurred(.warning) } }
 
-    func submit(_ value: Any) {
+    func submit(_ value: Any, wager: Int? = nil) {
         guard let q = game?.question else { return }
-        work(quiet: true) { try await self.server!.answer(self.secret, question: q.id, value: value); self.say(t("Final answer received")); await self.refresh() }
+        work(quiet: true) { try await self.server!.answer(self.secret, question: q.id, value: value, wager: wager); self.say(t("Final answer received")); await self.refresh() }
     }
 
     func saveDraft(_ value: Any) {

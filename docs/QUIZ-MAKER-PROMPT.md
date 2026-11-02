@@ -36,6 +36,7 @@ Optional on most types:
   - `bonusPlaces` (1–50, default 1): how many of the fastest correct answers get a fixed bonus.
   - On fastest-fingers questions the TV shows the fastest correct team large at the reveal.
 - `evil: true` (Risk It): a wrong answer *loses* the question's points.
+- `wager` (1–100): a wager question. Each team stakes 0 to `wager` points with its answer: a right answer wins the stake, a wrong one loses it. `points` is set to `wager`. Only for formats with a correct answer set, and not with `evil`, `fastestFingers` or `fiftyFifty`.
 - `hideText: true`: the TV and phones don't show the wording until the answer is revealed (they show "Listen to the
   quizmaster" and the quizmaster reads it out), while the clock runs as normal. **Only for the rare question whose
   wording would give the answer away when read** (e.g. a spelling question). Leave it out everywhere else. Not for

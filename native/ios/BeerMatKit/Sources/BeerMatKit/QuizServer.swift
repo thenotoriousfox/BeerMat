@@ -56,7 +56,11 @@ public final class QuizServer: @unchecked Sendable {
         _ = try await request("POST", "/api/react", body, secret)
     }
 
-    public func answer(_ secret: String, question: Int, value: Any) async throws { _ = try await request("POST", "/api/answer", ["question": question, "value": value], secret) }
+    public func answer(_ secret: String, question: Int, value: Any, wager: Int? = nil) async throws {
+        var body: [String: Any] = ["question": question, "value": value]
+        if let wager { body["wager"] = wager }
+        _ = try await request("POST", "/api/answer", body, secret)
+    }
     public func draft(_ secret: String, question: Int, value: Any) async throws { _ = try await request("POST", "/api/draft", ["question": question, "value": value], secret) }
     public func buzz(_ secret: String, question: Int) async throws { _ = try await request("POST", "/api/buzz", ["question": question], secret) }
     /// Bingo: the team shouts; the quizmaster checks the ticket.

@@ -214,6 +214,8 @@ private struct QuestionView: View {
     @State private var sheet: [String] = []
     @State private var points: [[Double]] = []
     @State private var loaded = false
+    @State private var stake: Int?
+    private var most: Int { (q.raw["wager"] as? NSNumber)?.intValue ?? 0 }
     /// The choices this team's 50/50 took away (none until it takes one).
     private var fiftyRemoved: [String] { q.raw["fiftyRemoved"] as? [String] ?? [] }
 
@@ -297,9 +299,11 @@ private struct QuestionView: View {
                 }
             }
             Spacer(minLength: 12)
+            if most > 0 && submitted == nil && q.open { StakeView(most: most, stake: $stake, enabled: !model.busy) }
+            if let wager = submitted?.wager { Text(t("Staked {n}", ["n": wager])).foregroundStyle(Brand.muted) }
             if let submitted { ResultView(points: submitted.points) }
             else if !q.open { Text(q.revealed ? t("Answer revealed") : t("Answers closed")).foregroundStyle(Brand.muted) }
-            else { BigButton(title: t("Lock in answer"), enabled: !model.busy && ready) { model.submit(value) } }
+            else { BigButton(title: t("Lock in answer"), enabled: !model.busy && ready && (most == 0 || stake != nil)) { model.submit(value, wager: stake) } }
             if q.revealed { ForEach(revealLines(q), id: \.self) { Text($0).font(.title3.bold()).foregroundStyle(Brand.good) } }
             if q.revealed { VarCheckView(question: q.id) }
             if q.revealed && !q.answerNote.isEmpty { Text(q.answerNote).foregroundStyle(Brand.muted) }
@@ -562,5 +566,22 @@ private struct VarCheckView: View {
         } message: {
             Text(t("Ask the quizmaster for a VAR Check on this answer?"))
         }
+    }
+}
+
+/// A wager: the team's stake, 0 to the question's most, won if right and lost if wrong.
+private struct StakeView: View {
+    let most: Int
+    @Binding var stake: Int?
+    let enabled: Bool
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(t("Your stake: win it if you’re right, lose it if you’re wrong (up to {n})", ["n": most])).foregroundStyle(Brand.muted)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 48), spacing: 6)], spacing: 6) {
+                ForEach(0...most, id: \.self) { (n: Int) in
+                    Button("\(n)") { stake = n }.buttonStyle(.bordered).tint(stake == n ? Brand.gold : nil).disabled(!enabled)
+                }
+            }
+        }.padding(.top, 8)
     }
 }

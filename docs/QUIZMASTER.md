@@ -290,6 +290,8 @@ Text marking normalises Unicode, surrounding/repeated whitespace and letter case
 
 **Risk It** (per question, for formats with a correct answer set) takes the question's points off a team whose answer scores nothing. Teams that don't answer lose nothing. Buzz-in has its own wrong-answer penalty instead. Each team's clock starts when its phone received the question, so a slow phone is not penalised — but never more than 2 seconds after the question opened, so a phone that slept or looked at the projector gains nothing. Automatic points are withheld from player scores while the question remains open/paused to avoid revealing correctness during play.
 
+**Wager** (per question, for formats with a correct answer set): set the most a team can stake. Each team picks its stake, 0 up to that, with its answer; a right answer wins the stake and a wrong one loses it. The TV and phones show "Wager: up to N points", and the desk shows each team's stake. Not with Risk It, a speed bonus or a 50/50.
+
 A team can send one final answer per question. Sheet answers may be left blank, with a confirmation before submitting. Phone drafts save in browser storage and on the quiz laptop while connected. They are not submitted for marking until the team presses **Submit final answer**. Local drafts survive reload; server drafts allow another browser with the recovery code to resume. Reconnection never automatically submits a draft. If a submission's confirmation is lost, the next refresh checks whether the server stored it before re-enabling the button.
 
 ## Marking

@@ -132,7 +132,7 @@ function formTypes() {
   show('pointsLabel', (type !== 'sheet' || $('qPartScoring').value !== 'each') && !(isBingoType(type) && $('qMode').value === 'progressive')); show('fastestLabel', speedTypes.includes(type)); show('speedLabel', fastest);
   show('bingoExtras', type === 'bingo');
   show('hideTextLabel', !['bingo', 'musicbingo', 'clips'].includes(type)); show('revealLabel', type === 'picture'); show('revealSecondsLabel', type === 'picture' && !!$('qReveal').value);
-  show('bonusModeLabel', fastest && markedTypes.includes(type)); show('bonusPlacesLabel', fastest && markedTypes.includes(type) && $('qBonusMode').value === 'fixed'); show('evilLabel', markedTypes.includes(type));
+  show('bonusModeLabel', fastest && markedTypes.includes(type)); show('bonusPlacesLabel', fastest && markedTypes.includes(type) && $('qBonusMode').value === 'fixed'); show('evilLabel', markedTypes.includes(type)); show('wagerLabel', markedTypes.includes(type));
   $('answerLabel').textContent = {choice: 'Correct choice (copy one line from above; blank for manual marking)', letter: 'Correct letter (A–Z)', wordsnake: 'Answer word (letters only, 3–20; spaces are removed)', tiles: 'Answer (4–40 letters; spaces mark separate words)', number: 'Correct number', nearest: 'Correct number', buzzer: 'Expected answer (shown only to you)'}[type] || 'Correct answer (blank for manual marking)';
   $('pointsText').textContent = {nearest: 'Points for the closest team', buzzer: 'Points for a correct buzz', vote: 'Points (votes score nothing)', multi: 'Points for every right tick', pinpoint: 'Points for a first-tap hit', bingo: 'Points for a valid bingo', musicbingo: 'Points for a valid bingo', clips: 'Points for tapping the right clip'}[type] || 'Correct answer points';
   $('speedText').textContent = type === 'bingo' || type === 'musicbingo' ? 'Bonus for the first claim' : 'Maximum speed bonus';
@@ -240,7 +240,7 @@ function fillQuestion(q = null) {
   $('qCorrect').value = (q?.correct || []).join('\n'); pinTarget = q?.targets ? null : q?.target || null; pinTargets = q?.targets || null; $('qSeveral').checked = !!q?.targets; $('qRadius').value = Math.round((q?.targets?.[0]?.r ?? q?.target?.r ?? 0.08) * 100);
   $('qSongs').value = (q?.songs || []).map(s => s.media || s.spotify ? `${s.title} | ${s.media || s.spotify}${s.start !== undefined || s.seconds !== undefined ? ` | ${s.start ?? ''} | ${s.seconds ?? ''}` : ''}` : s.title).join('\n'); $('qStartAt').value = q?.startAt ?? 0; $('qSongSeconds').value = q?.songSeconds ?? 0; $('qAutoNext').checked = !!q?.autoNext; $('qClipSeconds').value = q?.clipSeconds ?? 15; $('qRevealNow').checked = !!q?.revealNow;
   clipItems = structuredClone(q?.clips || []); targetClip = q?.targetClip ?? 0; renderClipList();
-  $('qFastest').checked = !!q?.fastestFingers; $('qBonusMode').value = q?.bonusMode || 'sliding'; $('qBonusPlaces').value = q?.bonusPlaces ?? 1; $('qEvil').checked = !!q?.evil;
+  $('qFastest').checked = !!q?.fastestFingers; $('qBonusMode').value = q?.bonusMode || 'sliding'; $('qBonusPlaces').value = q?.bonusPlaces ?? 1; $('qEvil').checked = !!q?.evil; $('qWager').value = q?.wager ?? 0;
   $('qHideText').checked = !!q?.hideText; $('qReveal').value = q?.reveal || ''; $('qRevealSeconds').value = q?.revealSeconds || 0; $('qWipeout').checked = !!q?.wipeout;
   $('qPerCall').value = String(q?.perCall || 1); $('qSpeedBingo').checked = !!q?.speed; $('qReactions').checked = !!q?.reactions; $('qReactionPoints').value = q?.reactionPoints ?? 0;
   $('qGoWide').checked = !!q?.goWide; $('qGoWidePoints').value = q?.goWidePoints ?? 0; $('qFifty').checked = !!q?.fiftyFifty; $('qFiftyPoints').value = q?.fiftyPoints ?? 0; $('qMode').value = q?.mode || 'progressive';
@@ -293,6 +293,7 @@ function readQuestion() {
   const q = {id: editingId || uid(), text: $('qText').value.trim(), type, seconds: Number($('qSeconds').value), points: Number($('qPoints').value),
     speedBonus: speedTypes.includes(type) ? Number($('qSpeed').value) : 0, fastestFingers: speedTypes.includes(type) && $('qFastest').checked, answer: $('qAnswer').value.trim(), answerNote: $('qNote').value.trim(), aliases: lines('qAliases'), media: $('qMedia').value};
   if (markedTypes.includes(type)) Object.assign(q, {evil: $('qEvil').checked, bonusMode: $('qBonusMode').value, bonusPlaces: Number($('qBonusPlaces').value)});
+  if (markedTypes.includes(type) && Number($('qWager').value) > 0) q.wager = Number($('qWager').value);
   if (['choice', 'vote', 'multi'].includes(type)) q.options = lines('qOptions');
   // Two big buttons: the server sets their choices (True/False, Before/After).
   if (type === 'choice' && $('qPair').value) Object.assign(q, {pair: $('qPair').value, options: {trueFalse: ['True', 'False'], beforeAfter: ['Before', 'After']}[$('qPair').value]});

@@ -62,7 +62,7 @@ public struct Question: Equatable {
     public static func == (a: Question, b: Question) -> Bool { a.id == b.id && a.open == b.open && a.revealed == b.revealed && a.paused == b.paused && a.held == b.held }
 }
 
-public struct Answer { public let value: Any?, points: Double? }
+public struct Answer { public let value: Any?, points: Double?; public var wager: Int? = nil }
 public struct Settings: Equatable { public let title: String, ended: Bool, registrationOpen: Bool, scrambleKeypads: Bool, leaderboardVisible: Bool; public var teamPhotos = false; public var language = "en" }
 
 /// VAR Check: whether this team can appeal the question just revealed, how many it has left (nil: no limit), how it went.
@@ -108,7 +108,7 @@ public struct PlayerState {
             proto: o.int("protocol"), serverTime: o.num("serverTime") ?? Date().timeIntervalSince1970 * 1000, build: o.str("build"), event: o.str("event"),
             settings: settings,
             team: team, question: (o["question"] as? [String: Any]).map(Question.parse),
-            answer: (o["answer"] as? [String: Any]).map { Answer(value: $0["value"], points: $0.num("points")) },
+            answer: (o["answer"] as? [String: Any]).map { Answer(value: $0["value"], points: $0.num("points"), wager: number($0["wager"]).map { Int($0) }) },
             draft: (o["draft"] as? [String: Any])?["value"],
             teams: (o["teams"] as? [[String: Any]] ?? []).map { Standing(name: $0.str("name"), score: $0.num("score"), rank: $0.int("rank")) },
             testDevice: (o["rehearsal"] as? [String: Any])?.bool("device") == true)

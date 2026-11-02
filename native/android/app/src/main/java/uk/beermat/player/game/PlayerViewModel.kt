@@ -177,9 +177,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
     private fun undress() { lookShown = ""; uk.beermat.player.ui.Brand.apply(emptyMap()); _ui.update { it.copy(look = null) } }
 
-    fun submit(value: Any) {
+    fun submit(value: Any, wager: Int? = null) {
         val q = _ui.value.game?.question ?: return
-        work(quiet = true) { server!!.answer(_ui.value.secret, q.id, QuizServer.jsonValue(value)); refresh() }
+        work(quiet = true) { server!!.answer(_ui.value.secret, q.id, QuizServer.jsonValue(value), wager); refresh() }
     }
 
     fun saveDraft(value: Any) {
