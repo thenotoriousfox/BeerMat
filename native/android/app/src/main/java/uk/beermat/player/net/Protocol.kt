@@ -48,6 +48,8 @@ data class Question(
     val wordLengths: List<Int> = emptyList(),
     /** Waiting for the quizmaster's Send: nothing to read or answer yet (the clock hasn't started). */
     val held: Boolean = false,
+    /** An answer sheet's answers, line by line, once revealed (a music round's artist and title). */
+    val itemAnswers: List<String> = emptyList(),
     /** Multiple choice as letters only: six fixed A–F buttons (fixedSix), or a question asked on the fly. */
     val fixedSix: Boolean = false,
     val onTheFly: Boolean = false,
@@ -134,7 +136,7 @@ object Parse {
         media = q.str("media"), points = q.optDouble("points", 0.0), seconds = q.optInt("seconds"),
         deadline = q.optLong("deadline"), remaining = q.optLong("remaining"),
         open = q.optBoolean("open"), live = q.optBoolean("live"), paused = q.optBoolean("paused"), revealed = q.optBoolean("revealed"),
-        answer = q.strOrNull("answer"), answerNote = q.str("answerNote"),
+        answer = q.strOrNull("answer"), answerNote = q.str("answerNote"), itemAnswers = q.optJSONArray("itemAnswers").strings(),
         buzz = q.optJSONObject("buzz")?.let { b ->
             val queue = b.optJSONArray("queue")?.let { a -> List(a.length()) { a.getJSONObject(it) }.map { BuzzEntry(it.str("team"), it.str("name"), it.str("status")) } } ?: emptyList()
             Buzz(b.strOrNull("buzzed"), b.optJSONObject("active")?.str("name"), queue, b.optBoolean("lockedOut"), b.optBoolean("agreeOpen"), b.optBoolean("agreed"), b.str("announced"))

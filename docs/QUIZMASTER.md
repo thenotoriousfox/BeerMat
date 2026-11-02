@@ -210,7 +210,7 @@ The link reaches the players' page and the TV. The desk joins them only while **
 - **Signal**: the desk shows each phone's last round trip (green under half a second, amber under two, red beyond), to spot a weak table before it complains.
 - **Simple mode** (Settings): Quizzes shows only the everyday formats and options.
 - **Count this venue's quizzes** (Settings, on by default): when a live quiz finishes, BeerMat Online is told "one quiz finished" (a random number, nothing else) for the counter on the BeerMat website.
-- **Finish quiz** switches the projector to the **winner celebration**: the winning team (or tied teams) with confetti, a short fanfare if sound is enabled, and second and third place. It respects a hidden leaderboard.
+- **Finish quiz & reveal leaderboard** puts the final standings on the projector, revealed with **Next** from the bottom up; then the **winner celebration**: the winning team (or tied teams) with confetti, a short fanfare if sound is enabled, and second and third place. It respects a hidden leaderboard.
 
 ## Keeping phones on the quiz Wi-Fi
 
@@ -310,7 +310,7 @@ If a code is lost, use **Issue recovery code** for that team and give the new co
 
 ## End and next event
 
-**Finish quiz** closes the current question and registration and shows the winner. You can resume a finished quiz if needed.
+**Finish quiz & reveal leaderboard** (Next after the last round) closes the current question and registration and puts the final standings on the TV, revealed with **Next** from the bottom up, then the winner. You can resume a finished quiz if needed.
 
 **End quiz & start next…** (Tonight → Settings → Quiz room) is for the next quiz night:
 

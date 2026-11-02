@@ -614,7 +614,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return {question: q.id, shown: k, rest, leader: k > rest, second: seconds && k === rest + 1, done, hidden};
   }
   // What the desk's Next button can do with the board: show it at the end of a round (when there is a board to show
-  // and more questions to come; the last round's reveal comes with Finish quiz), then reveal it.
+  // and more questions to come; the last round's reveal comes with Finish quiz & reveal leaderboard), then reveal it.
   function boardStep() {
     const q = latest(), reveal = boardReveal(), visible = publicScores().length > 0;
     const played = new Set(rows('SELECT data FROM questions').map(p => dataOf(p).sourceId)), more = library().rounds.some(r => r.questions.some(x => !x.tieBreaker && !played.has(x.id)));

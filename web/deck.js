@@ -7,7 +7,7 @@ import {t, setLanguage, translatePage} from './i18n.js';
 
 let key = readStorage('beermat-deck'), state = null, busy = false, messageTimer, revealLength = new Map(), stream = null, deadlineTimer = null;
 const STEPS = {reveal: 'Reveal next position', revealFirst: 'Reveal the leader', revealSecond: 'Reveal second place', show: 'Show leaderboard', recap: 'Reveal the secret round',
-  recapAnswer: 'Reveal the next secret answer', recapResults: 'Show the round’s results', finish: 'Finish quiz', round: 'Start next round', question: 'Start next question'};
+  recapAnswer: 'Reveal the next secret answer', recapResults: 'Show the round’s results', finish: 'Finish quiz & reveal leaderboard', round: 'Start next round', question: 'Start next question'};
 
 function say(text, error = false) {
   $('message').textContent = text; $('message').classList.toggle('error', error);
@@ -77,6 +77,8 @@ async function refresh(first = false) {
 
 // ---- what can be done now (as the Qt desk: desk.py canSend, canClose…) ----
 const q = () => state?.question || null;
+// The answer to read: an answer sheet's lines (a music round's artist and title) when it has no single answer.
+const answerText = question => question.answer || (question.items || []).map((item, i) => question.itemAnswers?.[i] ? `${item}: ${question.itemAnswers[i]}` : '').filter(Boolean).join(' · ');
 const can = {
   next: () => !!state?.nextStep && !q()?.live,
   send: () => !!q()?.held && !!q()?.live,
@@ -96,11 +98,11 @@ function render() {
     $('readItOut').hidden = !(question.hideText && !question.revealed);
     const left = question.paused ? question.remaining : Math.max(0, question.deadline - Date.now());
     $('state').textContent = question.held ? t('Waiting to be sent to the phones') : question.paused ? t('Paused') : question.open ? t('Open: {s}s left', {s: Math.ceil(left / 1000)})
-      : question.revealing ? t('Drum roll…') : question.revealed ? t('Answer: {answer}', {answer: question.answer || ''}) : t('Closed');
+      : question.revealing ? t('Drum roll…') : question.revealed ? t('Answer: {answer}', {answer: answerText(question)}) : t('Closed');
     $('state').classList.toggle('open', !!question.open);
     const teams = state.teams.filter(team => team.enabled !== false && !team.waiting);
     $('answered').textContent = t('{n} of {total} teams answered', {n: state.answers.length, total: teams.length});
-    $('answer').textContent = !question.revealed && question.answer ? t('Answer: {answer}', {answer: question.answer}) : '';
+    $('answer').textContent = !question.revealed && answerText(question) ? t('Answer: {answer}', {answer: answerText(question)}) : '';
     const button = (label, onclick, cls = 'subtle') => {const b = element('button', label, cls); b.type = 'button'; b.disabled = busy; b.onclick = onclick; return b;};
     $('controls').replaceChildren(...[
       can.send() && button(t('Send question'), () => act(() => host('send'), t('Question sent to the phones')), ''),

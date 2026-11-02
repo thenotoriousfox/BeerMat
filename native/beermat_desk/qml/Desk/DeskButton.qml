@@ -15,9 +15,13 @@ Button {
     hoverEnabled: true
     focusPolicy: Qt.TabFocus
 
+    // A big button's natural width is its label at full size (the label shrinks only when the button is narrower).
+    implicitWidth: big ? leftPadding + rightPadding + label.implicitWidth + (shortcutHint !== "" ? hintBox.width + 10 : 0)
+                       : Math.max(implicitBackgroundWidth + leftInset + rightInset, implicitContentWidth + leftPadding + rightPadding)
     contentItem: Row {
         spacing: 10
         Text {
+            id: label
             text: control.text
             anchors.verticalCenter: parent.verticalCenter
             // Disabled: readable but clearly off, whatever the kind (dark text on a faded gold vanished).
@@ -25,8 +29,14 @@ Button {
             font.family: control.big ? Theme.display : Theme.ui
             font.pixelSize: control.big ? 22 : 14
             font.weight: Font.Bold
+            // A big button's long label (Finish quiz & reveal leaderboard) shrinks to fit its width.
+            width: control.big ? Math.min(implicitWidth, control.availableWidth - (control.shortcutHint !== "" ? hintBox.width + parent.spacing : 0)) : implicitWidth
+            height: implicitHeight; verticalAlignment: Text.AlignVCenter
+            fontSizeMode: control.big ? Text.HorizontalFit : Text.FixedSize
+            minimumPixelSize: 14
         }
         Rectangle {
+            id: hintBox
             visible: control.shortcutHint !== ""
             anchors.verticalCenter: parent.verticalCenter
             width: hint.implicitWidth + 10; height: Math.max(20, hint.implicitHeight + 4); radius: 5

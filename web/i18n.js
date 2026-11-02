@@ -500,6 +500,7 @@ const T = {
   'Reveal the next secret answer': ['Révéler la réponse secrète suivante', 'Revelar la siguiente respuesta secreta'],
   'Show the round’s results': ['Afficher les résultats de la manche', 'Mostrar los resultados de la ronda'],
   'Finish quiz': ['Terminer le quiz', 'Terminar el quiz'],
+  'Finish quiz & reveal leaderboard': ['Terminer le quiz et révéler le classement', 'Terminar el quiz y revelar la clasificación'],
   'Start next round': ['Commencer la manche suivante', 'Empezar la siguiente ronda'],
   'Start next question': ['Commencer la question suivante', 'Empezar la siguiente pregunta'],
   'Run the night': ['Animer la soirée', 'Dirigir la noche'],

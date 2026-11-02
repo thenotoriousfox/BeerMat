@@ -173,7 +173,8 @@ try {
   await host('close');
   // A one-question quiz for Next to open.
   await host('library/save', {revision: (await host('library')).revision, quiz: {title: 'Deck quiz', rounds: [{id: 'd1', title: 'Round one', questions: [
-    {id: 'dq1', type: 'choice', text: 'Which planet is known as the Red Planet?', options: ['Venus', 'Mars'], answer: 'Mars', seconds: 60, points: 1}]}]}});
+    // An answer sheet (a music round's question): Run the night shows its lines to read out.
+    {id: 'dq1', type: 'sheet', text: 'Name the artist and song in clip 1.', items: ['Artist', 'Title'], itemAnswers: ['Tracy Chapman', 'Fast Car'], partScoring: 'split', seconds: 60, points: 4}]}]}});
   const deckPhone = await context.newPage();
   deckPhone.on('pageerror', e => errors.push(e.message)); deckPhone.on('dialog', d => d.accept());
   await deckPhone.goto(base + '/deck');
@@ -185,10 +186,11 @@ try {
   await deckPhone.waitForFunction(() => !document.getElementById('next').disabled);
   await deckPhone.click('#next');
   await deckPhone.waitForFunction(() => !document.getElementById('questionCard').hidden && document.getElementById('state').textContent.startsWith('Open'));
+  assert.equal(await deckPhone.locator('#answer').textContent(), 'Answer: Artist: Tracy Chapman · Title: Fast Car');
   await deckPhone.click('#controls button:text("Close answers")');
   await deckPhone.waitForFunction(() => document.getElementById('state').textContent === 'Closed');
   await deckPhone.click('#controls button:text("Reveal answer")');
-  await deckPhone.waitForFunction(() => document.getElementById('state').textContent.startsWith('Answer'), null, {timeout: 15000});
+  await deckPhone.waitForFunction(() => document.getElementById('state').textContent === 'Answer: Artist: Tracy Chapman · Title: Fast Car', null, {timeout: 15000});
   assert.equal((await host('state')).question.revealed, true);
   await shot(deckPhone, 'deck');
   await deckPhone.click('#leave');

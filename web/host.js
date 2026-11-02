@@ -428,7 +428,7 @@ function nextStep(s) {
   if (allPlayed(s)) return 'finish';
   return b?.roundOver ? 'round' : 'question';
 }
-const nextLabels = {recap: 'Reveal the secret round', recapAnswer: 'Reveal the next secret answer', recapResults: 'Show the round’s results', reveal: 'Reveal next position', revealFirst: 'Reveal the leader', revealSecond: 'Reveal second place', show: 'Show leaderboard', finish: 'Finish quiz', round: 'Start next round', question: 'Start next question'};
+const nextLabels = {recap: 'Reveal the secret round', recapAnswer: 'Reveal the next secret answer', recapResults: 'Show the round’s results', reveal: 'Reveal next position', revealFirst: 'Reveal the leader', revealSecond: 'Reveal second place', show: 'Show leaderboard', finish: 'Finish quiz & reveal leaderboard', round: 'Start next round', question: 'Start next question'};
 $('next').onclick = () => {
   const step = nextStep(state);
   if (step === 'finish') finishQuiz();

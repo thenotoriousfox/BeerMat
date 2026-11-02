@@ -342,8 +342,15 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
         !q.open -> Text(if (q.revealed) t("Answer revealed") else t("Answers closed"), color = Brand.muted)
         else -> BigButton(t("Lock in answer"), enabled = !ui.busy && ready(q, value)) { vm.submit(value) }
     }
-    if (q.revealed && q.answer != null) Text(t("Answer: {answer}", "answer" to q.answer), color = Brand.good, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(top = 12.dp))
+    if (q.revealed) revealLines(q).forEachIndexed { i, line -> Text(line, color = Brand.good, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(top = if (i == 0) 12.dp else 4.dp)) }
     if (q.revealed && q.answerNote.isNotEmpty()) Text(q.answerNote, color = Brand.muted)
+}
+
+/** The revealed answer as the browser player shows it: an answer sheet line by line ("1. Artist — Tracy Chapman"). */
+internal fun revealLines(q: Question): List<String> = when {
+    q.type == "sheet" && q.items.isNotEmpty() -> q.items.mapIndexed { i, item -> "${i + 1}. $item — ${q.itemAnswers.getOrNull(i)?.ifBlank { null } ?: t("Marked by quizmaster")}" }
+    !q.answer.isNullOrEmpty() -> listOf(t("Answer: {answer}", "answer" to q.answer))
+    else -> emptyList()
 }
 
 /** Scoring feedback: what the server marked, once marking is final. */
