@@ -182,6 +182,12 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
   releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
   `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
+* **Release 0.7.2**: One look for answers: solid colour blocks on the Qt TV and in the Android and iPhone apps, matching
+  the browser. Phones follow the TV's leaderboard reveal, and the apps get a leaderboard between questions. Hidden
+  wording: the TVs ask the room to listen and every desk (and Run the night) says to read it out. The Qt TV's reveal
+  makes room for the whole answer and who scored; music bingo's reaction table sits beside the song; queued buzzers
+  clear when answers close. Run the night shows the answer when the drum roll ends. The buzzer sound label reads 'Chosen
+  for you: tap to pick one'. Test quizzes no longer count on the website.
 * **Release 0.7.1**: 0.7.0's build stopped on a layout check; 0.7.1 is the same release (Run the night on Android and
   iPhone, Pro offers, the TV spotlight fix, website clips) with desk layouts that wrap instead of running past their
   panels.
