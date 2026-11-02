@@ -38,6 +38,9 @@ DATA = ['package.json', 'server', 'web', 'shared', 'desktop/server-host.js', 'de
 # Qt parts the desk doesn't use, left out to keep the download small.
 EXCLUDE = ['PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'PySide6.QtWebEngineQuick', 'PySide6.Qt3DCore', 'PySide6.QtCharts',
            'PySide6.QtDataVisualization', 'PySide6.QtPdf', 'PySide6.QtSql', 'PySide6.QtTest', 'PySide6.QtDesigner', 'tkinter']
+# Linux libraries the desk takes from the computer it runs on, not the build machine: an old libxkbcommon (Ubuntu's)
+# crashes reading a newer system's keyboard layouts (CachyOS: xkeyboard-config 2.48), and every desktop has its own.
+SYSTEM_LIBS = ['libxkbcommon.so*', 'libxkbcommon-x11.so*']
 
 
 def node_runtime():
@@ -80,6 +83,13 @@ def pyinstaller(runtime):
     return OUT / 'pyinstaller' / 'BeerMat-Desk'
 
 
+def use_system_libs(app):
+    for pattern in SYSTEM_LIBS:
+        for lib in (app / '_internal').glob(pattern):
+            print('Left out (the system has its own):', lib.name)
+            lib.unlink()
+
+
 def linux(app):
     stem = f'BeerMat-Desk-{VERSION}-{TARGET}'
     with tarfile.open(OUT / f'{stem}.tar.gz', 'w:gz') as tar:
@@ -115,5 +125,7 @@ def windows(app):
 
 if __name__ == '__main__':
     app = pyinstaller(node_runtime())
+    if not WINDOWS:
+        use_system_libs(app)
     licences.write(app, VERSION)   # LICENCES.txt: the other software in the bundle, each with its licence
     windows(app) if WINDOWS else linux(app)
