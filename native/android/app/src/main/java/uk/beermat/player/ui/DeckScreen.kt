@@ -157,7 +157,11 @@ private fun QuestionCard(vm: DeckViewModel, ui: DeckUi, d: DeckState, q: DeckQue
                     for (i in 0 until q.clips) OutlinedButton({ vm.desk("playClip", i) }, enabled = !busy) { Text(t("Clip {n}", "n" to i + 1)) }
                     OutlinedButton({ vm.desk("stopClips") }, enabled = !busy) { Text(t("Stop")) }
                 }
-                "bingo", "musicbingo" -> OutlinedButton({ vm.desk("callNumber") }, enabled = !busy) { Text(if (q.type == "bingo") t("Call next number") else t("Next song")) }
+                "bingo" -> OutlinedButton({ vm.desk("callNumber") }, enabled = !busy) { Text(t("Call next number")) }
+                "musicbingo" -> {
+                    OutlinedButton({ vm.desk("callNumber") }, enabled = !busy) { Text(t("Next song")) }
+                    OutlinedButton({ vm.desk("replaySong") }, enabled = !busy) { Text(t("Play this song again")) }
+                }
                 "buzzer" -> q.buzzing?.let { name ->
                     Text(t("{team} buzzed", "team" to name), fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterVertically))
                     OutlinedButton({ vm.buzz("correct") }, enabled = !ui.busy) { Text(t("Correct")) }

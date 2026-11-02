@@ -1480,7 +1480,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           run('DELETE FROM host_sessions WHERE hash=?', found[0]); deckSessions.delete(found[0]); notify(); return send(200, {ok: true});
         }
         if (p === '/api/host/deck-command') {
-          requireValue(['callNumber', 'playClips', 'playClip', 'stopClips', 'playAudio', 'pauseAudio'].includes(body.action), 'Unknown command');
+          requireValue(['callNumber', 'replaySong', 'playClips', 'playClip', 'stopClips', 'playAudio', 'pauseAudio'].includes(body.action), 'Unknown command');
           requireValue(deskConnected(), 'The quiz desk isn’t open on the laptop: it plays clips and songs', 409);
           deckCommand = {seq: (deckCommand?.seq || 0) + 1, action: body.action, value: Number.isInteger(body.value) ? body.value : null, at: now(), from: deckSessions.get(hash(auth))?.name || 'Desk'};
           notify();

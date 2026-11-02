@@ -79,6 +79,26 @@ class LiveTools(QObject):
             self.desk.toast.emit(f'Song {played}: {song.get("title")}' + ('' if song.get('media') else ' — play it from your own music player'), False)
         self.api.host('bingo', {'question': q['id']}, lambda r: (called(r), self.desk.refresh()), lambda e: self.desk.toast.emit(e, True))
 
+    @Slot()
+    def replaySong(self):
+        """Music bingo: the song just called, again from its start (it isn't called again or logged), for its time."""
+        q = self._q()
+        current = ((q or {}).get('bingo') or {}).get('current') or {}
+        song = next((s for s in (q or {}).get('songs') or [] if s.get('title') == current.get('title')), None)
+        if not q or q.get('type') != 'musicbingo' or not song:
+            return
+        self._stop_song()
+        start = song.get('start', q.get('startAt')) or 0
+        if song.get('spotify'):
+            self.api.host('spotify/preview', {'link': song['spotify'], 'start': start},
+                          lambda _: (self.desk.toast.emit(f'Playing again: {song.get("title")}', False), self._time_song(dict(q, autoNext=False), song)),
+                          lambda e: self.desk.toast.emit(e, True))
+        elif song.get('media'):
+            self.sound.desk_play(song['media'], position_ms=int(start * 1000))
+            # A replay stops after its time; it doesn't move on to the next song by itself.
+            self._time_song(dict(q, autoNext=False), song)
+            self.desk.toast.emit(f'Playing again: {song.get("title")}', False)
+
     def _time_song(self, q, song):
         """A song plays for its time, then stops; with auto-next the next one is called, unless something happened."""
         seconds = song.get('seconds', q.get('songSeconds'))

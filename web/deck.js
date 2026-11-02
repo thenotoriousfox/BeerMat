@@ -115,6 +115,7 @@ function render() {
     $('roundControls').replaceChildren(...[
       ...(clips.length ? [button(t('Play all clips'), desk('playClips')), ...clips.map((_, i) => button(t('Clip {n}', {n: i + 1}), desk({action: 'playClip', value: i}))), button(t('Stop'), desk('stopClips'))] : []),
       ...(question.type === 'bingo' || question.type === 'musicbingo' ? [button(question.type === 'bingo' ? t('Call next number') : t('Next song'), desk('callNumber'))] : []),
+      ...(question.type === 'musicbingo' && question.bingo?.current ? [button(t('Play this song again'), desk('replaySong'))] : []),
       ...(question.type === 'buzzer' && question.buzz?.active ? [element('p', t('{team} buzzed', {team: question.buzz.active.name}), 'status-line'),
         ...[['correct', 'Correct', 'Marked correct'], ['wrong', 'Wrong', 'Marked wrong'], ['pass', 'Pass', 'Passed to the next buzzer']].map(([action, label, done]) =>
           button(t(label), () => act(() => host('buzz', {question: question.id, action, announced: ''}), t(done))))] : []),

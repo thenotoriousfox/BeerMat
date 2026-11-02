@@ -260,6 +260,39 @@ class SpotifyClipTest(DeskCase):
         self.assertEqual(calls[-1], 'spotify/pause')
 
 
+class ReplaySongTest(DeskCase):
+    def test_music_bingo_plays_the_song_just_called_again(self):
+        """Music bingo: Play this song again plays the song just called from its start on the Spotify player (not calling
+        another), on the desk and from a phone deck."""
+        desk = self.desk
+        desk.start()
+        wait(lambda: desk.connected and desk.view.get('phase'), what='the server')
+        calls, real = [], desk.api.host
+        def host(route, body=None, done=None, failed=None, **kw):
+            if route.startswith('spotify/'):
+                calls.append((route, body))
+                if done:
+                    done({'ok': True})
+                return None
+            return real(route, body, done, failed, **kw)
+        desk.api.host = host
+        port, session = desk.server.info['port'], desk.api.session
+        http(port, 'host/settings', {'waitingRoom': False}, session)
+        songs = [{'title': f'Song {i}', 'spotify': f'spotify:track:{"A" * 21}{chr(65 + i)}', 'start': 30, 'seconds': 20} for i in range(15)]
+        http(port, 'host/open', {'text': 'Music bingo', 'type': 'musicbingo', 'mode': 'line', 'songs': songs, 'seconds': 1800, 'points': 3}, session)
+        http(port, 'host/bingo', {'question': http(port, 'host/state', {}, session)['question']['id']}, session)
+        desk.refresh()
+        wait(lambda: ((desk.view.get('raw') or {}).get('bingo') or {}).get('current'), what='a song called')
+        title = desk.view['raw']['bingo']['current']['title']
+        button = self.window.findChild(QObject, 'replaySong')
+        wait(lambda: button.property('visible'), what='Play this song again')
+        before = len([c for c in calls if c[0] == 'spotify/preview'])
+        desk.liveTools.replaySong()
+        replay = [c for c in calls if c[0] == 'spotify/preview'][before:]
+        self.assertEqual(replay, [('spotify/preview', {'link': next(s['spotify'] for s in songs if s['title'] == title), 'start': 30})])
+        self.assertEqual(http(port, 'host/state', {}, session)['question']['bingo']['played'], 1, 'not another song called')
+
+
 class QuizzesPageTest(DeskCase):
     def test_loading_a_quiz_replaces_the_quizzes_page(self):
         desk, lib = self.desk, self.desk.quizzes
