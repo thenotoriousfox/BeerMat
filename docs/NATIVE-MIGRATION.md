@@ -182,6 +182,10 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
   releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
   `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
+* **Release 0.7.4**: Run the night in a phone's browser: the laptop serves it at /deck (code sign-in, no app needed),
+  with its address and QR code on the desks' Phone deck panel. Send Question now holds the question off the TV as well
+  until Send: the room listens while it's read out, then the TV and phones show it together. Manage subscription from
+  the desk's Settings → Plan.
 * **Release 0.7.3**: Picture reveals over the first seconds (revealSeconds): the picture uncovers itself over its first
   N seconds and then stays whole, with the speed bonus earned only while it uncovers (3, 2, 1 with a bonus of 3). Every
   screen and both editors; the quiz maker guide explains it and when hideText is for.
