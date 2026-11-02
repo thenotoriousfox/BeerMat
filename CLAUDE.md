@@ -103,9 +103,10 @@ changing it, run `node scripts/export-i18n.mjs`: the Android and iOS apps' tests
   Release workflow, or by hand with Actions → iPhone app. Keep SwiftUI view bodies in small typed parts, or Xcode gives
   up type-checking them.
 - GitHub Actions minutes come from the Free plan's monthly allowance (2,000; Linux ×1, Windows ×2, macOS ×10; 0.5 GB
-  of build files), shared by the user's repos. Nothing runs on pushes or pull requests: run every suite here before a
-  merge (pull requests have no checks to wait for). The Release workflow runs the tests once (Node, Python, Qt,
-  BeerMatKit, Android) before it builds; Offline quiz tests and iPhone app run only by hand. Don't start test builds
+  of build files), shared by the user's repos. Nothing runs on pushes or pull requests (they have no checks to wait
+  for). Before a merge, run only the tests for what the change touches (the full suites take 15–20 minutes, too long
+  for every change); run every suite here before a release. The Release workflow runs the tests once (Node, Python,
+  Qt, BeerMatKit, Android) before it builds; Offline quiz tests and iPhone app run only by hand. Don't start test builds
   of Release without a reason; check usage with `gh api users/DTJW92/settings/billing/usage`.
 
 ## Releasing
