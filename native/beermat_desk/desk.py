@@ -324,6 +324,7 @@ class Desk(QObject):
             self._state['_receivedAt'] = time.time() * 1000
             self.tvSound.screens = len(state.get('tvScreens') or [])
             self._follow_deck(state.get('deckCommand'))
+            self.liveTools.followSpotifyClip(state.get('question'))
             if state.get('libraryRevision') != (self._library or {}).get('revision'):
                 self.load_library()
             self._rebuild()

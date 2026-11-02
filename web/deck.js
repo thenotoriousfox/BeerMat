@@ -118,7 +118,7 @@ function render() {
       ...(question.type === 'buzzer' && question.buzz?.active ? [element('p', t('{team} buzzed', {team: question.buzz.active.name}), 'status-line'),
         ...[['correct', 'Correct', 'Marked correct'], ['wrong', 'Wrong', 'Marked wrong'], ['pass', 'Pass', 'Passed to the next buzzer']].map(([action, label, done]) =>
           button(t(label), () => act(() => host('buzz', {question: question.id, action, announced: ''}), t(done))))] : []),
-      ...(/\.(mp3|ogg|wav)$/i.test(question.media || '') ? [button(t('Play the sound again'), desk('playAudio')), button(t('Pause or carry on'), desk('pauseAudio'))] : []),
+      ...(/\.(mp3|ogg|wav)$/i.test(question.media || '') || question.clip?.spotify ? [button(t('Play the sound again'), desk('playAudio')), button(t('Pause or carry on'), desk('pauseAudio'))] : []),
     ]);
     $('roundControls').querySelectorAll('button').forEach(b => {b.disabled = busy || !state.deskConnected;});
   }

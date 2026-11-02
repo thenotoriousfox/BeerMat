@@ -14,7 +14,9 @@ ColumnLayout {
     readonly property var buzz: q.buzz || null
     readonly property var bingo: q.bingo || null
     readonly property var pendingShouts: bingo ? (bingo.shouts || []).filter(x => x.status === "pending") : []
-    readonly property bool isAudio: /\.(mp3|ogg|wav)$/i.test(q.media || "")
+    // A sound to play: an uploaded file (through the TV's sound) or a Spotify clip (on the Spotify player).
+    readonly property bool spotifyClip: !!(q.clip && q.clip.spotify)
+    readonly property bool isAudio: /\.(mp3|ogg|wav)$/i.test(q.media || "") || spotifyClip
     visible: !!q.id && (type === "buzzer" || type === "bingo" || type === "musicbingo" || type === "clips" || isAudio)
     spacing: 8
 
@@ -138,11 +140,12 @@ ColumnLayout {
         visible: controls.isAudio && controls.type !== "clips"
         Layout.fillWidth: true; spacing: 10
         DeskButton { objectName: "playAudio"; text: "▶  Play again from the start"; onClicked: desk.live.playAudio() }
-        DeskButton { objectName: "pauseAudio"; text: "❚❚  Pause / carry on"; onClicked: desk.live.pauseAudio() }
+        DeskButton { objectName: "pauseAudio"; text: controls.spotifyClip ? "■  Stop / play again" : "❚❚  Pause / carry on"; onClicked: desk.live.pauseAudio() }
     }
     Text {
         visible: controls.isAudio && controls.type !== "clips"
-        text: (controls.view.tvScreens || []).length ? `It plays by itself on ${controls.view.tvScreens[0]} as the question opens; these play it there.`
+        text: controls.spotifyClip ? "It plays on Spotify as the question opens, for its set time (Settings → Spotify chooses the player); these play it again or stop it."
+            : (controls.view.tvScreens || []).length ? `It plays by itself on ${controls.view.tvScreens[0]} as the question opens; these play it there.`
                                                      : "It plays by itself on the TV as the question opens (Settings → Screens chooses the TV's sound)."
         color: Theme.faint; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap
     }

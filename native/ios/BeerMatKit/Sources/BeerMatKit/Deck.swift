@@ -36,7 +36,7 @@ public struct DeckState: Equatable {
             var q = DeckQuestion(id: o.int("id"), text: o.str("text"), type: o.str("type"), round: o.str("round"),
                                 open: o.bool("open"), live: o.bool("live"), held: o.bool("held"), paused: o.bool("paused"), revealed: o.bool("revealed"), revealing: o.bool("revealing"),
                                 remaining: o.num("remaining") ?? 0, answer: o.str("answer"), clips: (o["clips"] as? [Any])?.count ?? 0,
-                                audio: [".mp3", ".ogg", ".wav"].contains { media.lowercased().hasSuffix($0) },
+                                audio: [".mp3", ".ogg", ".wav"].contains { media.lowercased().hasSuffix($0) } || !((o["clip"] as? [String: Any])?.str("spotify") ?? "").isEmpty,
                                 buzzing: ((o["buzz"] as? [String: Any])?["active"] as? [String: Any])?.str("name"))
             q.hideText = o.bool("hideText")
             return q
