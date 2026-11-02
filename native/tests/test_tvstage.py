@@ -510,6 +510,23 @@ class TvStageTest(unittest.TestCase):
         self.show(state(q={**q, 'open': False, 'live': False, 'buzz': {**buzz, 'active': None}}))
         self.assertNotIn('Bears', texts())
 
+    def test_hidden_wording_tells_the_room_to_listen(self):
+        """A question whose wording is hidden (hideText: the server sends no text before the reveal) asks the room to
+        listen to the quizmaster rather than leaving a blank; with wording, the wording."""
+        def heading():
+            def walk(item):
+                for c in item.childItems():
+                    if c.objectName() == 'questionText':
+                        return c
+                    found = walk(c)
+                    if found:
+                        return found
+            return walk(self.stage).property('text')
+        self.show(state(q=question(text='')), 'hidden-wording')
+        self.assertIn('Listen to the quizmaster', heading())
+        self.show(state(q=question()))
+        self.assertEqual(heading(), 'Which planet is red?')
+
     def test_wheel_spins_once_for_a_spin_seen_happening(self):
         spin = self.stage.findChild(QObject, 'wheelSpin')
         self.show(state('join'))

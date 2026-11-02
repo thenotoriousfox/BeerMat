@@ -55,6 +55,22 @@ final class DeckTests: XCTestCase {
         d = DeckState.parse(try await server.host(key, "state"))
         XCTAssertTrue(d.question?.revealed == true); XCTAssertTrue(d.canNext); XCTAssertNotNil(d.back)
 
+        // Read it out first: with Send Question on, Next opens the question held; Send starts it.
+        try await server.host(key, "settings", ["sendQuestion": true])
+        try await server.host(key, "next", ["expectedQuestion": q.id])
+        d = DeckState.parse(try await server.host(key, "state"))
+        XCTAssertTrue(d.question?.held == true); XCTAssertTrue(d.canSend); XCTAssertFalse(d.canPause, "no Pause before Send"); XCTAssertFalse(d.canNext)
+        try await server.host(key, "send")
+        d = DeckState.parse(try await server.host(key, "state"))
+        XCTAssertTrue(d.question?.held == false && d.question?.open == true); XCTAssertFalse(d.canSend); XCTAssertTrue(d.canPause)
+        try await server.host(key, "close", ["expectedQuestion": d.question?.id ?? 0])
+        try await server.host(key, "settings", ["sendQuestion": false])
+        // Wording only the desk shows (hideText): the phone has it, and knows to say read it out.
+        try await server.host(key, "open", ["text": "Which word is spelt S-E-C-R-E-T?", "type": "text", "answer": "secret", "hideText": true, "seconds": 30, "points": 1])
+        d = DeckState.parse(try await server.host(key, "state"))
+        XCTAssertTrue(d.question?.hideText == true); XCTAssertEqual(d.question?.text, "Which word is spelt S-E-C-R-E-T?")
+        try await server.host(key, "close", ["expectedQuestion": d.question?.id ?? 0])
+
         // Clips and songs play from the laptop: with no desk open, the phone is told so.
         do { try await server.host(key, "deck-command", ["action": "playClips"]); XCTFail("no desk") } catch let e as QuizError { XCTAssertEqual(e.status, 409) }
 

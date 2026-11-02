@@ -262,8 +262,12 @@ Item {
                     Text { text: questionView.q ? (questionView.q.round || "").toUpperCase() : ""; color: root.pal.gold; font.pixelSize: 30; font.weight: Font.Bold; font.letterSpacing: 4 }
                     Text {
                         Layout.fillWidth: true
-                        text: questionView.q ? questionView.q.text : root.t("Waiting for the quizmaster")
-                        color: root.pal.text; font.family: Theme.display; font.weight: Font.Bold; wrapMode: Text.WordWrap
+                        // Wording that would give the answer away (hideText) comes to no screen but the desk until the
+                        // reveal: the room listens to the quizmaster instead, as the phones say.
+                        readonly property bool hidden: !!questionView.q && !questionView.q.text
+                        objectName: "questionText"
+                        text: !questionView.q ? root.t("Waiting for the quizmaster") : hidden ? "🎙  " + root.t("Listen to the quizmaster") : questionView.q.text
+                        color: hidden ? root.pal.goldHi : root.pal.text; font.family: Theme.display; font.weight: Font.Bold; wrapMode: Text.WordWrap
                         // As big as the web TV's when answers or a short line follow; a round with a lot under the question
                         // (a board, a picture, a list, a grid) keeps it smaller so all of it fits.
                         readonly property bool roomy: !questionView.q || ["choice", "vote", "multi", "text", "letter", "number", "nearest", "buzzer"].includes(questionView.q.type) && !questionView.isImage

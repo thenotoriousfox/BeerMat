@@ -389,7 +389,8 @@ class Desk(QObject):
                 'points': q.get('points', 0), 'seconds': q.get('seconds', 0), 'open': bool(q.get('open')), 'paused': bool(q.get('paused')),
                 'revealed': bool(q.get('revealed')), 'deadline': (q['deadline'] + skew) if q.get('deadline') and q.get('open') and not q.get('paused') else 0,
                 'remaining': q.get('remaining') or 0, 'tally': q.get('tally') or {}, 'correct': q.get('correctCount', 0),
-                'held': bool(q.get('held')), 'onTheFly': bool(q.get('onTheFly')), 'reactionTable': q.get('reactionTable') or None},
+                'held': bool(q.get('held')), 'onTheFly': bool(q.get('onTheFly')), 'reactionTable': q.get('reactionTable') or None,
+                'hideText': bool(q.get('hideText'))},
             'answers': len(answered), 'teams': [{'id': t['id'], 'name': t['name'], 'score': t.get('score', 0), 'rank': t.get('rank', 0), 'connected': bool(t.get('connected')),
                                                   'answered': t['id'] in answered, 'group': t.get('grp') or '', 'table': t.get('table_no') or 0, 'rtt': t.get('rtt')}
                                                  for t in sorted(teams, key=lambda t: (t.get('rank') or 999, t['name'].lower()))],

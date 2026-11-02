@@ -602,6 +602,8 @@ body[data-role=display] #message { flex: none; min-height: 0; margin: 0; }
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08); backdrop-filter: none; }
 body[data-role=display] .winner { min-height: 0; }
 body[data-role=display] #question { font-size: clamp(2rem, 5vw, 4rem); font-weight: 900; line-height: 1.12; text-shadow: 0 0 40px color-mix(in srgb, var(--violet) 45%, transparent); }
+/* Hidden wording (hideText): the room listens to the quizmaster. */
+body[data-role=display] #question.listen { color: var(--gold-hi); }
 body[data-role=display] #projectQuestion .eyebrow { font-size: 1rem; }
 body[data-role=display] .timer { font-size: 2.5rem; }
 /* At the reveal the answer is the star: the question, timer, picture and options step back. */

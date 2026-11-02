@@ -127,6 +127,8 @@ private fun QuestionCard(vm: DeckViewModel, ui: DeckUi, d: DeckState, q: DeckQue
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Brand.panel).padding(16.dp)) {
         if (q.round.isNotBlank()) Text(q.round, color = Brand.faint, fontSize = 13.sp)
         Text(q.text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 6.dp).testTag("deckQuestion"))
+        if (q.hideText && !q.revealed) Text(t("Read it out: the TV and phones don’t show the wording until the answer is revealed."),
+            color = Brand.goldHi, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp).testTag("deckReadItOut"))
         val status = when {
             q.held -> t("Waiting to be sent to the phones")
             q.paused -> t("Paused")
