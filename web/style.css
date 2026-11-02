@@ -353,9 +353,9 @@ button.buzzer.clip { font-size: 1.8rem; background: radial-gradient(circle at 35
 .first-place.show { animation: pop .5s cubic-bezier(.2,.9,.3,1.3); }
 .first-place .eyebrow { font-size: clamp(1.2rem, 2.6vw, 2.2rem); letter-spacing: .25em; color: var(--gold); margin: 0 0 2vh; }
 .first-photo { display: flex; justify-content: center; gap: 3vw; }
-.first-photo .avatar:not(:only-child) { width: min(30vh, 260px); height: min(30vh, 260px); }
-.first-photo .avatar { width: min(42vh, 380px); height: min(42vh, 380px); margin: 0; border: 8px solid var(--gold); box-shadow: var(--glow-gold); }
-.first-initial { display: inline-grid; place-items: center; font-size: min(24vh, 210px); font-weight: 900; color: var(--on-accent); background: linear-gradient(160deg, var(--gold-hi), var(--gold-2)); }
+.first-photo .avatar:not(:only-child) { width: min(40vh, 26vw); height: min(40vh, 26vw); }
+.first-photo .avatar { width: min(52vh, 80vw); height: min(52vh, 80vw); margin: 0; border: 10px solid var(--gold); box-shadow: var(--glow-gold); }
+.first-initial { display: inline-grid; place-items: center; font-size: min(30vh, 46vw); font-weight: 900; color: var(--on-accent); background: linear-gradient(160deg, var(--gold-hi), var(--gold-2)); }
 .first-place .winner-name { margin: 2vh 0 1vh; }
 /* What each team answered, on the board after a closest-wins reveal. */
 .leaderboard li:has(.board-answer) .team-name { flex: 1; }

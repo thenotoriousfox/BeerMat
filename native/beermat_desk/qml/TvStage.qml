@@ -1026,9 +1026,11 @@ Item {
                         model: spotlight.shown ? (spotlight.shown.photos.length ? spotlight.shown.photos : spotlight.shown.initials) : []
                         delegate: Rectangle {
                             required property string modelData
-                            width: 260; height: 260; radius: 130; color: root.pal.violet; border.color: root.pal.gold; border.width: 8; clip: true
+                            // Big: the team's moment (one photo half the screen's height; joint leaders share the width).
+                            readonly property int size: spotlight.shown && spotlight.shown.initials.length > 2 ? 340 : spotlight.shown && spotlight.shown.initials.length > 1 ? 440 : 540
+                            width: size; height: size; radius: size / 2; color: root.pal.violet; border.color: root.pal.gold; border.width: 10; clip: true
                             Image { anchors.fill: parent; anchors.margins: 8; visible: modelData.length > 1; source: visible ? root.serverUrl + modelData : ""; fillMode: Image.PreserveAspectCrop }
-                            Text { anchors.centerIn: parent; visible: modelData.length === 1; text: modelData; color: root.pal.text; font.family: Theme.display; font.pixelSize: 140; font.weight: Font.Bold }
+                            Text { anchors.centerIn: parent; visible: modelData.length === 1; text: modelData; color: root.pal.text; font.family: Theme.display; font.pixelSize: parent.size * 0.55; font.weight: Font.Bold }
                         }
                     }
                 }
