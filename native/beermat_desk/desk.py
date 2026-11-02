@@ -23,7 +23,7 @@ from .prefs import Prefs
 from .updates import Updates
 
 # What a phone deck asked the desk to do, for its toast.
-DECK_LABELS = {'callNumber': 'next call', 'playClips': 'play all clips', 'playClip': 'play a clip', 'stopClips': 'stop the clips',
+DECK_LABELS = {'callNumber': 'next call', 'replaySong': 'play the song again', 'playClips': 'play all clips', 'playClip': 'play a clip', 'stopClips': 'stop the clips',
                'playAudio': 'play the sound again', 'pauseAudio': 'pause or carry on the sound'}
 STEP_LABELS = {'reveal': 'Reveal next position', 'revealFirst': 'Reveal the leader', 'revealSecond': 'Reveal second place', 'show': 'Show leaderboard',
                'recap': 'Reveal the secret round', 'recapAnswer': 'Reveal the next secret answer', 'recapResults': 'Show the round’s results',
@@ -811,7 +811,7 @@ class Desk(QObject):
         self.roleRequested.emit('tv')
 
     # ---- the phone deck ----
-    DECK_COMMANDS = {'callNumber': 'callNumber', 'playClips': 'playClips', 'stopClips': 'stopClips', 'playAudio': 'playAudio', 'pauseAudio': 'pauseAudio'}
+    DECK_COMMANDS = {'callNumber': 'callNumber', 'replaySong': 'replaySong', 'playClips': 'playClips', 'stopClips': 'stopClips', 'playAudio': 'playAudio', 'pauseAudio': 'pauseAudio'}
 
     def _follow_deck(self, command):
         """A phone hosting asked the desk to play something (only the desk plays clips and songs). Each once, when

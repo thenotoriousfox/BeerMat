@@ -70,6 +70,8 @@ ColumnLayout {
                 spacing: 10
                 DeskButton { text: controls.type === "musicbingo" ? "Play the next song" : "Call the next number"; shortcutHint: "B"; kind: "primary"
                              enabled: !!controls.q.live && !desk.busy && !(controls.bingo && controls.bingo.over); onClicked: desk.live.callNumber() }
+                DeskButton { objectName: "replaySong"; visible: controls.type === "musicbingo" && !!controls.bingo && !!controls.bingo.current
+                             text: "↺  Play this song again"; enabled: !!controls.q.live && !desk.busy; onClicked: desk.live.replaySong() }
                 Text {
                     text: !controls.bingo ? "" : controls.type === "musicbingo" ? `${controls.bingo.played || 0} of ${(controls.q.songs || []).length} songs played`
                           : `${controls.bingo.count || 0} called${controls.bingo.last ? " · last " + controls.bingo.last : ""}`

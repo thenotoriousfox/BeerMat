@@ -176,6 +176,7 @@ struct DeckRoundControls: View {
         VStack(alignment: .leading) {
             if q.type == "clips" && q.live { clips }
             if q.type == "bingo" || q.type == "musicbingo" { Button(q.type == "bingo" ? t("Call next number") : t("Next song")) { deck.desk("callNumber") }.disabled(!d.deskOpen) }
+            if q.type == "musicbingo" { Button(t("Play this song again")) { deck.desk("replaySong") }.disabled(!d.deskOpen) }
             if q.type == "buzzer", let name = q.buzzing { buzzer(name) }
             if q.audio {
                 HStack {

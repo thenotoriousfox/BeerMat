@@ -1775,6 +1775,10 @@
   "La requête a échoué",
   "La petición ha fallado"
  ],
+ "Play this song again": [
+  "Rejouer cette chanson",
+  "Volver a poner esta canción"
+ ],
  "Read it out: the TV and phones don’t show the wording until the answer is revealed.": [
   "Lisez-la à voix haute : l’écran et les téléphones n’affichent pas l’énoncé avant la révélation de la réponse.",
   "Léela en voz alta: la tele y los teléfonos no muestran el enunciado hasta que se revela la respuesta."
