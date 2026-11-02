@@ -249,7 +249,7 @@ Item {
                 readonly property bool isImage: !!q && !!q.media && !/\.(mp3|ogg|wav)$/i.test(q.media)
                 readonly property bool isAudio: !!q && !!q.media && /\.(mp3|ogg|wav)$/i.test(q.media)
                 // A picture with nothing beside it (no options or list) takes the whole width.
-                readonly property bool pictureAlone: isImage && items.length === 0 && !(q.type === "sequence")
+                readonly property bool pictureAlone: !!q && isImage && items.length === 0 && q.type !== "sequence"
 
                 ColumnLayout {
                     id: questionColumn
@@ -312,9 +312,21 @@ Item {
                             readonly property real shownShare: !revealMode || !questionView.q.live || questionView.q.revealed ? 1 : questionView.q.held ? 0
                                 // Over the first revealSeconds when set (then whole for the rest of the time), else the whole time.
                                 : Math.min(1, Math.max(0, (questionView.q.seconds * 1000 - questionView.msLeft) / ((questionView.q.revealSeconds || questionView.q.seconds) * 1000)))
-                            // Blur: the picture loaded tiny and stretched (soft), sharper step by step; 0 is its own size.
-                            sourceSize.width: revealMode === "blur" && shownShare < 1 ? [6, 8, 12, 16, 24, 32, 48, 72, 112, 176][Math.floor(shownShare * 10)] : 0
+                            // Blur: the picture loaded tiny and stretched (soft), sharper as it goes: twenty sizes from 6 to 240
+                            // pixels wide, the next one fading in over this one so it sharpens smoothly rather than in jumps
+                            // (no shader, so it works on any graphics). 0 is its own size.
+                            readonly property real blurLevel: revealMode === "blur" && shownShare < 1 ? shownShare * 20 : -1
+                            readonly property var blurWidths: [...Array(21).keys()].map(k => Math.round(6 * Math.pow(40, k / 20)))
+                            sourceSize.width: blurLevel >= 0 ? blurWidths[Math.floor(blurLevel)] : 0
                             retainWhileLoading: true
+                            Image {
+                                objectName: "blurNext"
+                                anchors.fill: parent; fillMode: parent.fillMode; asynchronous: true; smooth: true; retainWhileLoading: true
+                                visible: parent.blurLevel >= 0
+                                source: visible ? parent.source : ""
+                                sourceSize.width: visible ? parent.blurWidths[Math.min(20, Math.floor(parent.blurLevel) + 1)] : 1
+                                opacity: visible ? parent.blurLevel - Math.floor(parent.blurLevel) : 0
+                            }
                             Grid {
                                 id: revealTiles
                                 visible: parent.revealMode === "tiles" && parent.status === Image.Ready
@@ -324,12 +336,15 @@ Item {
                                 Repeater {
                                     model: 12
                                     delegate: Rectangle {
+                                        id: revealTile
                                         required property int index
                                         objectName: "revealTile"
                                         width: (revealTiles.width - 12) / 4; height: (revealTiles.height - 8) / 3; radius: 8
                                         color: root.pal.violet; border.color: root.pal.lineStrong
                                         opacity: revealTiles.order[index] < Math.floor(revealTiles.parent.shownShare * 12) ? 0 : 1
-                                        Behavior on opacity { NumberAnimation { duration: 500 } }
+                                        // A tile fades as it comes off, but goes back on at once: a new picture starts covered,
+                                        // not showing through tiles still fading in from the last one.
+                                        Behavior on opacity { enabled: revealTile.opacity > 0.5; NumberAnimation { duration: 500 } }
                                     }
                                 }
                             }

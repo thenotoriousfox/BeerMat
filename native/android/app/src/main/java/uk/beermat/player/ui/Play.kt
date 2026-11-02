@@ -472,13 +472,20 @@ private fun Media(server: String, q: Question, offset: Long) {
         value = withContext(Dispatchers.IO) { try { URL(url).openStream().use { BitmapFactory.decodeStream(it) } } catch (_: Exception) { null } }
     }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(q.id, q.open, q.paused, q.reveal) { while (q.reveal.isNotEmpty() && q.open && !q.paused) { now = System.currentTimeMillis(); delay(200) } }
+    LaunchedEffect(q.id, q.open, q.paused, q.reveal) { while (q.reveal.isNotEmpty() && q.open && !q.paused) { now = System.currentTimeMillis(); delay(100) } }
     val shown = revealShare(q, now, offset)
     bitmap?.let { full ->
-        val step = if (q.reveal == "blur" && shown < 1f) intArrayOf(6, 8, 12, 16, 24, 32, 48, 72, 112, 176)[(shown * 10).toInt().coerceIn(0, 9)] else 0
-        val picture = remember(full, step) { if (step == 0) full else android.graphics.Bitmap.createScaledBitmap(full, step, maxOf(1, step * full.height / full.width), true) }
+        // Blur: the picture shrunk and stretched (soft), sharper as it goes: twenty sizes from 6 to 240 pixels wide, the
+        // next one fading in over this one so it sharpens smoothly rather than in jumps (as the Qt TV).
+        val level = if (q.reveal == "blur" && shown < 1f) shown * 20f else -1f
+        fun width(k: Int) = Math.round(6 * Math.pow(40.0, k / 20.0)).toInt()
+        fun scaled(w: Int) = android.graphics.Bitmap.createScaledBitmap(full, w, maxOf(1, w * full.height / full.width), true)
+        val step = if (level >= 0f) level.toInt() else -1
+        val picture = remember(full, step) { if (step < 0) full else scaled(width(step)) }
+        val sharper = remember(full, step) { if (step < 0) null else scaled(width(minOf(20, step + 1))) }
         Box(Modifier.fillMaxWidth().aspectRatio(full.width.toFloat() / full.height).padding(vertical = 8.dp).clip(RoundedCornerShape(14.dp))) {
             Image(picture.asImageBitmap(), t("Quiz picture"), contentScale = ContentScale.FillBounds, filterQuality = androidx.compose.ui.graphics.FilterQuality.High, modifier = Modifier.fillMaxSize())
+            sharper?.let { Image(it.asImageBitmap(), null, contentScale = ContentScale.FillBounds, filterQuality = androidx.compose.ui.graphics.FilterQuality.High, alpha = level - step, modifier = Modifier.fillMaxSize()) }
             if (q.reveal == "tiles") {
                 val order = remember(q.id) { seededOrder(12, "tiles:${q.id}") }
                 val gone = (shown * 12).toInt()

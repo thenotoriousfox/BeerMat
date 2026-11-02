@@ -548,6 +548,48 @@ class TvStageTest(unittest.TestCase):
                 app.processEvents(); time.sleep(0.02)
             self.assertEqual(tiles_on(), expected, f'revealed over {over or 30}s')
 
+    def test_a_new_tiled_picture_starts_covered(self):
+        """After a picture shown whole (its tiles all off), the next tiled picture is covered from its first frame: the
+        tiles don't fade back in over the picture."""
+        def tiles_on():
+            out = []
+            def walk(item):
+                for c in item.childItems():
+                    if c.objectName() == 'revealTile' and c.property('opacity') > 0.95:
+                        out.append(c)
+                    walk(c)
+            walk(self.stage)
+            return len(out)
+        self.show(state(q=question(type='picture', options=[], media=PICTURE, reveal='tiles', open=False, live=False, revealed=True)))
+        for _ in range(40):
+            app.processEvents(); time.sleep(0.02)
+        self.assertEqual(tiles_on(), 0, 'the last picture whole')
+        self.stage.setProperty('tv', state(q=question(type='picture', options=[], media=PICTURE, reveal='tiles', deadline=time.time() * 1000 + 30000, remaining=30000)))
+        for _ in range(3):
+            app.processEvents(); time.sleep(0.01)
+        self.assertEqual(tiles_on(), 12, 'covered from the first frames')
+
+    def test_the_blur_sharpens_smoothly(self):
+        """Halfway between two blur sizes, the next one is half faded in over the last: no jumps between steps."""
+        now = time.time() * 1000
+        # 30 s question, 14.25 s gone: 47.5% shown, blur level 9.5 of 20.
+        self.show(state(q=question(type='picture', options=[], media=PICTURE, reveal='blur', seconds=30, deadline=now + 15750, remaining=15750)))
+        def find(item, name):
+            for c in item.childItems():
+                if c.objectName() == name:
+                    return c
+                found = find(c, name)
+                if found:
+                    return found
+        nxt = find(self.stage, 'blurNext')
+        base = nxt.parentItem()
+        level = base.property('blurLevel')     # about 9.5: a little more, as time passes while the screen settles
+        self.assertTrue(9.3 < level < 10.5, level)
+        widths = [round(6 * 40 ** (k / 20)) for k in range(21)]
+        self.assertEqual(base.property('sourceSize').width(), widths[int(level)])
+        self.assertEqual(nxt.property('sourceSize').width(), widths[int(level) + 1])
+        self.assertAlmostEqual(nxt.property('opacity'), level - int(level), delta=0.05, msg='the next size fades in by how far between them')
+
     def test_wheel_spins_once_for_a_spin_seen_happening(self):
         spin = self.stage.findChild(QObject, 'wheelSpin')
         self.show(state('join'))
