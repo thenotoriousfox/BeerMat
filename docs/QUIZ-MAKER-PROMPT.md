@@ -57,7 +57,7 @@ Optional on most types:
 - `multi`: tick every correct option. `options` as above, plus `correct`: 1 or more of the options, written exactly as in `options`. Score = right ticks minus wrong ticks, as a share of `points`.
   - Optional `wipeout: true`: a single wrong tick scores nothing for the question.
 - `letter`: teams tap the first letter of the answer. `answer` is one letter A–Z. Put the full answer in `answerNote`.
-- `number`: `answer` is a plain number such as `"6"`, `"1066"` or `"3.14"`. Use no commas, units or words. Marked as an exact match.
+- `number`: `answer` is a plain number such as `"6"`, `"1066"` or `"3.14"`. Use no commas, units or words. Marked as an exact match, unless `tolerance` (a number above 0) is set: answers within ± that much also count; with `tolerancePercent: true` the tolerance is a percentage of the answer (`"tolerance": 5, "tolerancePercent": true` accepts 5% either side). The reveal shows it, for example `1969 (± 2)`.
 - `sequence`: put items in order. `items`: 2–8 distinct strings, **written in the correct order** (BeerMat shuffles them). Don't give an `answer`.
 - `vote`: an opinion poll with `options` (2–8) and no answer. Votes score nothing.
 
@@ -82,6 +82,7 @@ Optional on most types:
 
 **Puzzles:**
 - `nearest`: closest number wins. `answer` is a plain number. `places` (1–20, default 1) is how many teams score, on a sliding scale: for example 3 places of 9 points gives 9, 6 and 3. Ties go to the earlier answer. At the reveal the closest team fills the TV, and the leaderboard shows what every team answered.
+  - `notOver: true` makes it closest without going over: answers above `answer` score nothing (phones say so).
   - `tieBreaker: true` makes it a tie-breaker: it scores nothing (`points` is ignored) and only orders teams that are level on points, closest first and then the quicker answer. The reveal lists every team's answer, closest first, and the winner fills the TV.
 - `wordsnake`: teams trace the answer through a letter grid. `answer` is one word of 3–20 letters (A–Z only; spaces and punctuation are dropped).
   - Optional **hint** (the field is still called `goWide`): `goWide: true` plus `goWidePoints` (0–100). Teams can hide the decoy letters, scoring `goWidePoints` instead of `points`.

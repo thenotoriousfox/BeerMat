@@ -287,7 +287,7 @@ private struct QuestionView: View {
                             .padding(12).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12)).disabled(locked)
                     }
                 default:
-                    TextField(q.type == "nearest" ? t("Your number (closest wins)") : q.type == "number" ? t("Your number") : t("Your answer"), text: $text)
+                    TextField(q.type == "nearest" ? (q.notOver ? t("Your number (closest without going over)") : t("Your number (closest wins)")) : q.type == "number" ? t("Your number") : t("Your answer"), text: $text)
                         .keyboardType(q.type == "number" || q.type == "nearest" ? .numbersAndPunctuation : .default)
                         .padding(14).background(Brand.panel, in: RoundedRectangle(cornerRadius: 14)).disabled(locked)
                         .onChange(of: text) { text = String($0.prefix(300)) }
@@ -522,7 +522,7 @@ func revealLines(_ q: Question) -> [String] {
             return "\(i + 1). \(item) — \(answer)"
         }
     }
-    if let answer = q.answer, !answer.isEmpty { return [t("Answer: {answer}", ["answer": answer])] }
+    if let answer = q.answer, !answer.isEmpty { return [t("Answer: {answer}", ["answer": withTolerance(answer, q.tolerance, percent: q.tolerancePercent)])] }
     return []
 }
 

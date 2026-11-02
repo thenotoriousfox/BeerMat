@@ -751,6 +751,10 @@
   "Le score ne change pas",
   "El marcador no cambia"
  ],
+ "Your number (closest without going over)": [
+  "Votre nombre (le plus proche sans dépasser)",
+  "Vuestro número (el más cercano sin pasarse)"
+ ],
  "Trace the word first": [
   "Tracez d’abord le mot",
   "Trazad antes la palabra"

@@ -330,7 +330,7 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
         }
         else -> OutlinedTextField(
             value as String, { value = it.take(300) }, enabled = !locked, singleLine = true,
-            label = { Text(when (q.type) { "nearest" -> t("Your number (closest wins)"); "number" -> t("Your number"); else -> t("Your answer") }) },
+            label = { Text(when (q.type) { "nearest" -> if (q.notOver) t("Your number (closest without going over)") else t("Your number (closest wins)"); "number" -> t("Your number"); else -> t("Your answer") }) },
             keyboardOptions = KeyboardOptions(keyboardType = if (q.type == "number" || q.type == "nearest") KeyboardType.Decimal else KeyboardType.Text),
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("answer"),
         )
@@ -348,9 +348,17 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
 }
 
 /** The revealed answer as the browser player shows it: an answer sheet line by line ("1. Artist — Tracy Chapman"). */
+/** A Number answer with the margin that also counted: "1969 (± 2)". */
+internal fun withTolerance(q: Question): String {
+    val answer = q.answer ?: return ""
+    if (q.tolerance <= 0.0) return answer
+    val n = if (q.tolerance % 1.0 == 0.0) q.tolerance.toLong().toString() else q.tolerance.toString()
+    return "$answer (± $n${if (q.tolerancePercent) "%" else ""})"
+}
+
 internal fun revealLines(q: Question): List<String> = when {
     q.type == "sheet" && q.items.isNotEmpty() -> q.items.mapIndexed { i, item -> "${i + 1}. $item — ${q.itemAnswers.getOrNull(i)?.ifBlank { null } ?: t("Marked by quizmaster")}" }
-    !q.answer.isNullOrEmpty() -> listOf(t("Answer: {answer}", "answer" to q.answer))
+    !q.answer.isNullOrEmpty() -> listOf(t("Answer: {answer}", "answer" to withTolerance(q)))
     else -> emptyList()
 }
 

@@ -79,7 +79,7 @@ async function refresh(first = false) {
 // ---- what can be done now (as the Qt desk: desk.py canSend, canClose…) ----
 const q = () => state?.question || null;
 // The answer to read: an answer sheet's lines (a music round's artist and title) when it has no single answer.
-const answerText = question => question.answer || (question.items || []).map((item, i) => question.itemAnswers?.[i] ? `${item}: ${question.itemAnswers[i]}` : '').filter(Boolean).join(' · ');
+const answerText = question => (question.answer && question.tolerance ? `${question.answer} (± ${question.tolerance}${question.tolerancePercent ? '%' : ''})` : question.answer) || (question.items || []).map((item, i) => question.itemAnswers?.[i] ? `${item}: ${question.itemAnswers[i]}` : '').filter(Boolean).join(' · ');
 const can = {
   next: () => !!state?.nextStep && !q()?.live,
   send: () => !!q()?.held && !!q()?.live,

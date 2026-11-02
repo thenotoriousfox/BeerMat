@@ -201,6 +201,8 @@ const T = {
   'OVERTURNED': ['DÉCISION ANNULÉE', 'DECISIÓN REVOCADA'],
   'DECISION STANDS': ['DÉCISION MAINTENUE', 'SE MANTIENE LA DECISIÓN'],
   'No change to the score': ['Le score ne change pas', 'El marcador no cambia'],
+  // Nearest wins, closest without going over (notOver).
+  'Your number (closest without going over)': ['Votre nombre (le plus proche sans dépasser)', 'Vuestro número (el más cercano sin pasarse)'],
   'Trace the word first': ['Tracez d’abord le mot', 'Trazad antes la palabra'],
   'Place the tiles first': ['Placez d’abord les tuiles', 'Colocad antes las fichas'],
   'Your answer': ['Votre réponse', 'Vuestra respuesta'],
