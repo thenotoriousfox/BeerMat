@@ -847,6 +847,13 @@ async function shrinkPhoto(file) {
   } finally {URL.revokeObjectURL(url);}
 }
 if (role === 'player') {
+  // The on-screen keyboard: a browser that slides the page up to keep the typing box in view (rather than shrinking
+  // it: interactive-widget in player.html) carries the sticky top bar, Send answer and all, off the top. While the
+  // visible part is moved down the page, the bar follows it.
+  if (window.visualViewport) {
+    const bar = document.querySelector('.topbar'), follow = () => {const shift = visualViewport.offsetTop; bar.style.transform = shift > 1 ? `translateY(${Math.round(shift)}px)` : '';};
+    visualViewport.addEventListener('resize', follow); visualViewport.addEventListener('scroll', follow);
+  }
   // Phones use their own language unless the team picks one.
   const chosen = readStorage('beermat-lang'), browser = navigator.language.slice(0, 2);
   setLanguage(chosen || (languages[browser] ? browser : 'en')); translatePage();

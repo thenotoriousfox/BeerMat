@@ -93,6 +93,27 @@ try {
   await host('close');
   log('a picture revealed over its first seconds is whole after them');
 
+  // The on-screen keyboard (Galaxy Fold feedback, 2 Nov): a browser that slides the page to keep the typing box in view
+  // carried the top bar, Send answer and all, off the top. Asked to shrink the page instead; failing that, the bar
+  // follows the visible part. visualViewport stands in for the keyboard here.
+  const typistContext = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});
+  const typist = await typistContext.newPage(); typist.on('pageerror', e => errors.push(e.message));
+  await typist.addInitScript(() => {
+    const fake = new EventTarget(); fake.offsetTop = 0; fake.height = innerHeight;
+    Object.defineProperty(window, 'visualViewport', {value: fake, configurable: true});
+  });
+  await typist.goto(base + '/');
+  assert.match(await typist.locator('meta[name=viewport]').getAttribute('content'), /interactive-widget=resizes-content/);
+  await typist.fill('#name', 'Typists'); await typist.fill('#table', '3'); await typist.click('#joinButton');
+  await typist.locator('#game').waitFor({state: 'visible'});
+  const barTop = () => typist.evaluate(() => Math.round(document.querySelector('.topbar').getBoundingClientRect().top));
+  const top = await barTop();
+  await typist.evaluate(() => {visualViewport.offsetTop = 320; visualViewport.height = 300; visualViewport.dispatchEvent(new Event('resize'));});
+  assert.equal(await barTop(), top + 320, 'the bar moves down with the visible part');
+  await typist.evaluate(() => {visualViewport.offsetTop = 0; visualViewport.height = innerHeight; visualViewport.dispatchEvent(new Event('resize'));});
+  assert.equal(await barTop(), top, 'and back when the keyboard closes');
+  await typistContext.close();
+  log('with the keyboard open, Send answer stays at the top of what the phone shows');
   // Blur sharpens on the TV's curve (TvStage.qml): three-quarters of the way it's nearly sharp on the phone too
   // (a straight-line blur still had 7 px of 28 there, far blurrier than the TV).
   await host('open', {text: 'Blurry one', type: 'picture', media: '/media/red.png', answer: 'Mars', reveal: 'blur', revealSeconds: 4, seconds: 30, points: 1});
