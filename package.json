@@ -14,7 +14,7 @@
     "test:rehearsal": "node tests/rehearsal.browser.mjs",
     "test:desktop": "node tests/desktop.e2e.mjs",
     "test:handover": "node tests/handover.browser.mjs",
-    "test:features": "node tests/features.browser.mjs",
+    "test:features": "node tests/features.browser.mjs && node tests/account.browser.mjs",
     "dist:linux": "electron-builder --linux",
     "dist:win": "electron-builder --win",
     "online": "node online/service.js"

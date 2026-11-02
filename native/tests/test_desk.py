@@ -206,6 +206,30 @@ class HiddenWordingTest(DeskCase):
         wait(lambda: not banner.property('visible'), what='the reminder gone at the reveal')
 
 
+class PlanButtonsTest(DeskCase):
+    def test_settings_plan_offers_the_subscription_and_the_account_online(self):
+        """Settings → Plan: Get BeerMat Pro and the account on the website on Free; once the desk's venue pays by card,
+        Manage subscription (Stripe's page, as on the Venue page) instead of Get BeerMat Pro."""
+        desk = self.desk
+        desk.start()
+        wait(lambda: desk.connected and desk.view.get('phase'), what='the server')
+        self.window.setProperty('workspace', [w['name'] for w in self.window.property('workspaces').toVariant()].index('Settings'))
+        app.processEvents()
+        find = lambda name: self.window.findChild(QObject, name)
+        wait(lambda: find('getPro') is not None, what='the Plan panel')
+        self.assertTrue(find('getPro').property('visible'))
+        self.assertTrue(find('accountOnline').property('visible'))
+        self.assertFalse(find('manageSubscription').property('visible'))
+        opened = []
+        desk.onlineVenue._call = lambda method, path, body=None, done=None: opened.append((method, path))
+        desk.onlineVenue._venue = {'id': 'red-lion', 'name': 'The Red Lion', 'billing': True, 'plan': 'pro', 'keys': []}
+        desk.onlineVenue.changed.emit()
+        wait(lambda: find('manageSubscription').property('visible'), what='Manage subscription')
+        self.assertFalse(find('getPro').property('visible'))
+        desk.onlineVenue.billing()
+        self.assertEqual(opened, [('POST', '/v1/venues/red-lion/billing')])
+
+
 class QuizzesPageTest(DeskCase):
     def test_loading_a_quiz_replaces_the_quizzes_page(self):
         desk, lib = self.desk, self.desk.quizzes

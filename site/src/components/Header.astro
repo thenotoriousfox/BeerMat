@@ -10,7 +10,8 @@ const path = Astro.url.pathname;
 		{host.map(([href, label]) => <a href={href} class="nav-link">{label}</a>)}
 		<span class="mx-2 h-6 w-px bg-white/15" aria-hidden="true"></span>
 		<a href="/players" class="nav-link" aria-current={path.startsWith('/players') ? 'page' : undefined}>For players</a>
-		<a href="/download" class="btn btn-primary ml-3 !min-h-11 !py-2">Get BeerMat</a>
+		<a href="/account" class="nav-link" aria-current={path.startsWith('/account') ? 'page' : undefined}>Sign in</a>
+		<a href="/download" class="btn btn-primary ml-3 !min-h-11 whitespace-nowrap !py-2">Get BeerMat</a>
 	</nav>
 	<details class="menu relative lg:hidden">
 		<summary class="btn btn-ghost !min-h-11 cursor-pointer list-none !py-2" aria-label="Menu">
@@ -21,6 +22,7 @@ const path = Astro.url.pathname;
 			{host.map(([href, label]) => <a href={href} class="menu-link">{label}</a>)}
 			<a href="/players" class="menu-link">For players</a>
 			<a href="/find" class="menu-link">Find a quiz</a>
+			<a href="/account" class="menu-link">Sign in: your venue</a>
 			<a href="/download" class="btn btn-primary mt-2">Get BeerMat</a>
 		</nav>
 	</details>

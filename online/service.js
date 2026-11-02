@@ -1025,7 +1025,9 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
 
       // ---- Venues and events (venue operators) ----
       const myVenue = venueId => {const v = one('SELECT * FROM venues WHERE id=?', venueId); check(v, 'Venue not found', 404); check(v.owner === me().id || me().admin, 'Only the venue’s operator can change it', 403); return v;};
-      if (method === 'GET' && p === '/v1/me/venues') return send(200, {venues: rows('SELECT * FROM venues WHERE owner=? ORDER BY name', me().id).map(v => ({...venueOut(v), plan: planOf(v), planUntil: v.plan_until, approved: !!v.approved, billing: !!v.stripe_customer, keys: rows('SELECT key_id FROM venue_keys WHERE venue=?', v.id).map(k => k.key_id)}))});
+      if (method === 'GET' && p === '/v1/me/venues') return send(200, {venues: rows('SELECT * FROM venues WHERE owner=? ORDER BY name', me().id).map(v => ({...venueOut(v), plan: planOf(v), planUntil: v.plan_until, approved: !!v.approved, billing: !!v.stripe_customer, keys: rows('SELECT key_id FROM venue_keys WHERE venue=?', v.id).map(k => k.key_id),
+        // For the account page on the website: a trial's end, the founding price, and when each laptop was registered.
+        trialUntil: v.trial_until || null, founding: !!v.founding, laptops: rows('SELECT key_id id, added FROM venue_keys WHERE venue=? ORDER BY added', v.id)}))});
       // Every venue, for the map: public details and its next quiz night.
       if (method === 'GET' && p === '/v1/venues') {
         const next = v => {const e = one('SELECT * FROM events WHERE venue=? AND starts>? AND cancelled=0 ORDER BY starts LIMIT 1', v.id, now() - 6 * 3600000); return e ? {id: e.id, title: e.title, startsAt: e.starts} : null;};
