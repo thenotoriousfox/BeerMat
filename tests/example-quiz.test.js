@@ -12,7 +12,8 @@ test('the example quiz that ships with BeerMat loads as the desk loads it, and e
   const example = JSON.parse(readFileSync(path.join(root, 'examples', 'example-quiz.json'), 'utf8'));
   const questions = example.rounds.flatMap(r => r.questions);
   assert.deepEqual([...new Set(questions.map(q => q.type))].sort(), [...types].sort(), 'one question in every format');
-  assert.equal(questions.length, types.length);
+  assert.equal(questions.filter(q => !q.pair).length, types.length, 'one in each format, and a two-button Multiple choice');
+  assert.ok(questions.some(q => q.pair), 'true or false shown too');
 
   const dir = mkdtempSync(path.join(os.tmpdir(), 'quiz-example-'));
   const quiz = createQuiz({plan: 'pro', hostKey, database: path.join(dir, 'quiz.sqlite'), mediaDir: path.join(dir, 'media')});

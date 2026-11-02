@@ -32,6 +32,8 @@ MARKED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint',
 # Each format's options (server/model.js validateQuestion): key, label, kind, for numbers their range, for choices
 # their values, and when it's offered (the format and the question's other options: a buzzer's pass penalty only for
 # an advanced buzzer, say). The server checks them again when the quiz is saved.
+# Two-button Multiple choice (model.js PAIRS): its two choices, set for it.
+PAIRS = {'trueFalse': ['True', 'False'], 'beforeAfter': ['Before', 'After']}
 OPTIONS = [
     ('evil', 'Risk It: a wrong answer loses the points', 'bool', None, lambda t, q: t in MARKED),
     ('fastestFingers', 'Fastest fingers first (speed bonus)', 'bool', None, lambda t, q: t in SPEED),
@@ -48,7 +50,8 @@ OPTIONS = [
     ('goWidePoints', 'Points with the hint', 'int', (0, 100), lambda t, q: t == 'wordsnake' and q.get('goWide')),
     ('goWide', 'Second guess: a second tap scores if the first misses', 'bool', None, lambda t, q: t == 'pinpoint'),
     ('goWidePoints', 'Points for a second guess', 'int', (0, 100), lambda t, q: t == 'pinpoint' and q.get('goWide')),
-    ('fiftyFifty', '50/50: teams can take away half the wrong choices, for fewer points', 'bool', None, lambda t, q: t == 'choice'),
+    ('pair', 'Buttons', 'choice', [('', 'Your own choices'), ('trueFalse', 'True or false: two big buttons'), ('beforeAfter', 'Before or after: two big buttons')], lambda t, q: t == 'choice'),
+    ('fiftyFifty', '50/50: teams can take away half the wrong choices, for fewer points', 'bool', None, lambda t, q: t == 'choice' and not q.get('pair')),
     ('fiftyPoints', 'Points after a 50/50', 'int', (0, 100), lambda t, q: t == 'choice' and q.get('fiftyFifty')),
     ('variation', 'Buzzer game', 'choice', [('classic', 'Classic'), ('advanced', 'Advanced (pass and agree)')], lambda t, q: t == 'buzzer'),
     ('penalty', 'Points lost for a wrong answer', 'int', (0, 100), lambda t, q: t == 'buzzer'),
@@ -208,6 +211,13 @@ class Library(QObject):
         except ValueError:
             self.toast.emit(f'{spec[1]}: give whole numbers', True)
             return
+        # Two big buttons: their two choices, and the right one kept if it is one of them; back to your own, none.
+        if key == 'pair':
+            if value in PAIRS:
+                q['options'] = list(PAIRS[value]); q.pop('fiftyFifty', None)
+                q['answer'] = next((o for o in PAIRS[value] if o.lower() == str(q.get('answer', '')).lower()), '')
+            else:
+                q.pop('pair', None)
         # 0 is "over the whole time"; with no reveal there's no reveal time either.
         if key == 'revealSeconds' and not q[key] or key == 'reveal' and not value:
             q.pop('revealSeconds', None)

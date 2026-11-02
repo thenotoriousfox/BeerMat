@@ -89,7 +89,7 @@ Questions and rounds are saved to SQLite immediately after **Save**. If another 
 
 | Format | Phones show | Scoring |
 |---|---|---|
-| Multiple choice | Lettered buttons A–H | Points (+ optional speed bonus) for the right option. With a **50/50**, a team can take away half the wrong choices (different ones for each team) and scores the 50/50 points instead, without a speed bonus |
+| Multiple choice | Lettered buttons A–H | Points (+ optional speed bonus) for the right option. With a **50/50**, a team can take away half the wrong choices (different ones for each team) and scores the 50/50 points instead, without a speed bonus **Buttons → True or false** or **Before or after** makes it two big buttons, labelled in the quiz's language. |
 | Multi-tap | Lettered tick buttons | Each right tick earns a share of the points, each wrong tick removes a share (never below zero); the speed bonus needs every right tick and no wrong ones |
 | Letters | A–Z keypad | First letter of the answer, e.g. “H” for Hedgehog. Put the full answer in the reveal note |
 | Numbers | Number box | Exact numeric match (13 and 13.0 are equal), or within a margin you set (± a number, or ± a percentage of the answer); the reveal shows it, e.g. 1969 (± 2) |

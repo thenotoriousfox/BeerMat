@@ -85,6 +85,20 @@
       "Cheese & onion",
       "Prawn cocktail"
      ]
+    },
+    {
+     "id": "example-q6b",
+     "type": "choice",
+     "pair": "trueFalse",
+     "text": "True or false: the Great Wall of China can be seen from the Moon with the naked eye.",
+     "seconds": 15,
+     "points": 1,
+     "options": [
+      "True",
+      "False"
+     ],
+     "answer": "False",
+     "answerNote": "It is far too narrow: astronauts say even low orbit is hard."
     }
    ]
   },

@@ -755,6 +755,22 @@
   "Votre nombre (le plus proche sans dépasser)",
   "Vuestro número (el más cercano sin pasarse)"
  ],
+ "True": [
+  "Vrai",
+  "Verdadero"
+ ],
+ "False": [
+  "Faux",
+  "Falso"
+ ],
+ "Before": [
+  "Avant",
+  "Antes"
+ ],
+ "After": [
+  "Après",
+  "Después"
+ ],
  "Trace the word first": [
   "Tracez d’abord le mot",
   "Trazad antes la palabra"

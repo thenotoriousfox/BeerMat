@@ -284,7 +284,10 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
                 val count = if (q.fixedSix) 6 else q.options.size
                 val valueOf: (Int) -> String = { i -> q.options.getOrNull(i) ?: "#${LETTERS[i]}" }
                 Keys(List(count) { it }.filter { removed == null || valueOf(it) !in removed }.map { it to LETTERS[it].toString() }, colours = true, picked = { valueOf(it) == value }, enabled = !locked) { value = valueOf(it) }
-            } else Keys(order(q.options.size).filter { removed == null || q.options[it] !in removed }.map { it to "${LETTERS[it]}. ${q.options[it]}" }, colours = true, picked = { q.options[it] == value }, enabled = !locked) { value = q.options[it] }
+            } else if (q.raw.optString("pair").isNotEmpty())
+                // True or false, before or after: two big buttons, in the quiz's language, always in the same order.
+                Keys(listOf(0, 1).map { it to t(q.options[it]) }, colours = true, picked = { q.options[it] == value }, enabled = !locked) { value = q.options[it] }
+            else Keys(order(q.options.size).filter { removed == null || q.options[it] !in removed }.map { it to "${LETTERS[it]}. ${q.options[it]}" }, colours = true, picked = { q.options[it] == value }, enabled = !locked) { value = q.options[it] }
             if (!locked && q.raw.optBoolean("fiftyFifty") && removed == null)
                 ConfirmButton(t("50/50 (scores {n})", "n" to q.raw.optInt("fiftyPoints")),
                     t("50/50? Half the wrong answers disappear, but a right answer scores {fifty} instead of {full}.", "fifty" to q.raw.optInt("fiftyPoints"), "full" to q.raw.optInt("points"))) { vm.fifty() }
@@ -358,7 +361,7 @@ internal fun withTolerance(q: Question): String {
 
 internal fun revealLines(q: Question): List<String> = when {
     q.type == "sheet" && q.items.isNotEmpty() -> q.items.mapIndexed { i, item -> "${i + 1}. $item — ${q.itemAnswers.getOrNull(i)?.ifBlank { null } ?: t("Marked by quizmaster")}" }
-    !q.answer.isNullOrEmpty() -> listOf(t("Answer: {answer}", "answer" to withTolerance(q)))
+    !q.answer.isNullOrEmpty() -> listOf(t("Answer: {answer}", "answer" to if (q.raw.optString("pair").isNotEmpty()) t(q.answer) else withTolerance(q)))
     else -> emptyList()
 }
 

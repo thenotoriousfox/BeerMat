@@ -203,6 +203,8 @@ const T = {
   'No change to the score': ['Le score ne change pas', 'El marcador no cambia'],
   // Nearest wins, closest without going over (notOver).
   'Your number (closest without going over)': ['Votre nombre (le plus proche sans dépasser)', 'Vuestro número (el más cercano sin pasarse)'],
+  // Two-button Multiple choice (pair): the buttons' labels.
+  'True': ['Vrai', 'Verdadero'], 'False': ['Faux', 'Falso'], 'Before': ['Avant', 'Antes'], 'After': ['Après', 'Después'],
   'Trace the word first': ['Tracez d’abord le mot', 'Trazad antes la palabra'],
   'Place the tiles first': ['Placez d’abord les tuiles', 'Colocad antes las fichas'],
   'Your answer': ['Votre réponse', 'Vuestra respuesta'],

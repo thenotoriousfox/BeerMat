@@ -122,7 +122,7 @@ function editorChanged() {dirty = true; $('editorStatus').textContent = 'Unsaved
 function formTypes() {
   const type = $('qType').value, show = (id, on) => {$(id).hidden = !on;};
   show('choiceFields', ['choice', 'vote', 'multi'].includes(type)); show('multiFields', type === 'multi'); show('sheetFields', type === 'sheet'); show('sequenceFields', type === 'sequence');
-  show('nearestFields', type === 'nearest'); show('numberFields', type === 'number'); show('buzzerFields', type === 'buzzer'); show('pinpointFields', type === 'pinpoint'); show('goWideFields', type === 'pinpoint' || type === 'wordsnake');
+  show('nearestFields', type === 'nearest'); show('pairFields', type === 'choice'); show('numberFields', type === 'number'); show('buzzerFields', type === 'buzzer'); show('pinpointFields', type === 'pinpoint'); show('goWideFields', type === 'pinpoint' || type === 'wordsnake');
   show('fiftyFields', type === 'choice'); $('goWidePointsText').textContent = type === 'wordsnake' ? 'Points with the hint' : 'Points for a second guess';
   $('goWideText').textContent = type === 'wordsnake' ? 'Hint: teams can hide the decoy letters, for fewer points' : 'Second guess: a second tap scores if the first misses'; show('bingoFields', type === 'bingo' || type === 'musicbingo'); show('stagePointsFields', (type === 'bingo' || type === 'musicbingo') && $('qMode').value === 'progressive');
   const songs = $('qSongs').value.split('\n').filter(l => l.trim()).length; $('songCount').textContent = `${songs} songs${songs < 30 ? ' — add at least 30 so each team gets a different mix (a ticket holds 15)' : ''}`; show('musicFields', type === 'musicbingo'); show('clipsFields', type === 'clips');
@@ -225,7 +225,7 @@ function fillQuestion(q = null) {
   editingId = q?.id || null;
   $('qText').value = q?.text || ''; $('qType').value = q?.type || 'text'; $('qSeconds').value = q?.seconds ?? 30; $('qPoints').value = q?.points ?? 1; $('qSpeed').value = q?.speedBonus || 0;
   $('qAnswer').value = q?.answer || ''; $('qAliases').value = (q?.aliases || []).join('\n'); $('qOptions').value = (q?.options || []).join('\n'); $('qMedia').value = q?.media || '';
-  $('qNote').value = q?.answerNote || ''; $('qItems').value = q?.type === 'sequence' ? q.items.join('\n') : ''; $('qPlaces').value = q?.places ?? 1; $('qNotOver').checked = !!q?.notOver; $('qTolerance').value = q?.tolerance ?? 0; $('qTolerancePercent').checked = !!q?.tolerancePercent; $('qPartScoring').value = q?.partScoring || 'each'; $('qTieBreaker').checked = !!q?.tieBreaker;
+  $('qNote').value = q?.answerNote || ''; $('qItems').value = q?.type === 'sequence' ? q.items.join('\n') : ''; $('qPlaces').value = q?.places ?? 1; $('qPair').value = q?.pair || ''; $('qNotOver').checked = !!q?.notOver; $('qTolerance').value = q?.tolerance ?? 0; $('qTolerancePercent').checked = !!q?.tolerancePercent; $('qPartScoring').value = q?.partScoring || 'each'; $('qTieBreaker').checked = !!q?.tieBreaker;
   $('qClipLink').value = q?.clip?.spotify || ''; $('qClipStart').value = q?.clip?.start ?? 0; $('qClipPlay').value = q?.clip?.seconds ?? 30;
   $('qCorrect').value = (q?.correct || []).join('\n'); pinTarget = q?.target || null; $('qRadius').value = Math.round((q?.target?.r ?? 0.08) * 100);
   $('qSongs').value = (q?.songs || []).map(s => s.media || s.spotify ? `${s.title} | ${s.media || s.spotify}${s.start !== undefined || s.seconds !== undefined ? ` | ${s.start ?? ''} | ${s.seconds ?? ''}` : ''}` : s.title).join('\n'); $('qStartAt').value = q?.startAt ?? 0; $('qSongSeconds').value = q?.songSeconds ?? 0; $('qAutoNext').checked = !!q?.autoNext; $('qClipSeconds').value = q?.clipSeconds ?? 15; $('qRevealNow').checked = !!q?.revealNow;
@@ -284,6 +284,8 @@ function readQuestion() {
     speedBonus: speedTypes.includes(type) ? Number($('qSpeed').value) : 0, fastestFingers: speedTypes.includes(type) && $('qFastest').checked, answer: $('qAnswer').value.trim(), answerNote: $('qNote').value.trim(), aliases: lines('qAliases'), media: $('qMedia').value};
   if (markedTypes.includes(type)) Object.assign(q, {evil: $('qEvil').checked, bonusMode: $('qBonusMode').value, bonusPlaces: Number($('qBonusPlaces').value)});
   if (['choice', 'vote', 'multi'].includes(type)) q.options = lines('qOptions');
+  // Two big buttons: the server sets their choices (True/False, Before/After).
+  if (type === 'choice' && $('qPair').value) Object.assign(q, {pair: $('qPair').value, options: {trueFalse: ['True', 'False'], beforeAfter: ['Before', 'After']}[$('qPair').value]});
   if (type === 'multi') Object.assign(q, {correct: lines('qCorrect'), wipeout: $('qWipeout').checked});
   if (!['bingo', 'musicbingo', 'clips'].includes(type) && $('qHideText').checked) q.hideText = true;
   if ($('qReveal').value && type === 'picture') q.reveal = $('qReveal').value;

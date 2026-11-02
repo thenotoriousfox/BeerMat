@@ -46,6 +46,8 @@ public struct Question: Equatable {
     public var itemAnswers: [String] = []
     /// Number: answers within ± this count (tolerancePercent: of the answer). Nearest wins: closest without going over.
     public var tolerance = 0.0, tolerancePercent = false, notOver = false
+    /// Two-button Multiple choice: "trueFalse" or "beforeAfter" (its options are English; the app labels them).
+    public var pair = ""
     /// Multiple choice as letters only: six fixed A–F buttons (fixedSix), or a question asked on the fly.
     public var fixedSix = false, onTheFly = false
     /// The picture shows itself over the question's time: "blur", "tiles" or "".
@@ -142,7 +144,7 @@ extension Question {
                         paused: q.bool("paused"), revealed: q.bool("revealed"), answer: answer, answerNote: q.str("answerNote"), buzz: buzz)
         question.wordLengths = (q["wordLengths"] as? [Any] ?? []).compactMap { number($0).map { Int($0) } }
         question.itemAnswers = q.strings("itemAnswers")
-        question.tolerance = q.num("tolerance") ?? 0; question.tolerancePercent = q.bool("tolerancePercent"); question.notOver = q.bool("notOver")
+        question.tolerance = q.num("tolerance") ?? 0; question.tolerancePercent = q.bool("tolerancePercent"); question.notOver = q.bool("notOver"); question.pair = q.str("pair")
         question.held = q.bool("held"); question.fixedSix = q.bool("fixedSix"); question.onTheFly = q.bool("onTheFly"); question.reveal = q.str("reveal"); question.revealSeconds = q.int("revealSeconds")
         question.raw = q
         return question
