@@ -20,7 +20,7 @@ import {checkQuizFile} from '../shared/quiz-file.js';
 import {fetchDriveQuiz} from './drive.js';
 import {createUpdates} from './updates.js';
 import {createSimulator, cleanOptions, fastSeconds} from './rehearsal.js';
-import {numberPattern, QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern, sheetPoints, spotifyTrack} from './model.js';
+import {numberPattern, QuizError, requireValue, types as questionTypes, validateQuestion, validateLibrary, answerValue, isCorrect, basePoints, rankNearest, autoMarked, speedBonusOf, soundSlots, audioPath, hostDriven, isBingo, bingoStages, stagePoints, bingoCard, musicCard, bingoLines, bingoNeeded, snakeGrid, shuffleTiles, mediaPattern, sheetPoints, spotifyTrack, cluePoints} from './model.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..'), web = path.join(root, 'web');
 const token = () => randomBytes(24).toString('hex');
@@ -326,7 +326,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const liveTeams = () => new Set([...streams].map(s => s.team).filter(Boolean));
   const ticker = setInterval(() => {
     // Expiry is time-driven, so announce it as soon as it happens.
-    const q = latest(), state = (q ? `${q.id}:${pending(q)}:${accepting(q)}:${q.agree_deadline > now()}:${revealedNow(q)}` : '') + ':' + tvView();
+    const q = latest(), state = (q ? `${q.id}:${pending(q)}:${accepting(q)}:${q.agree_deadline > now()}:${revealedNow(q)}:${q.held ? '' : dataOf(q).type === 'clues' ? cluesShown(q) : ''}` : '') + ':' + tvView();
     if (state !== lastPending) {lastPending = state; if (q) settle(q); notify();}
     if (++ticks % 60 === 0) for (const stream of streams) stream.ping();
   }, 250);
@@ -416,12 +416,17 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function publicQuestion(q, host = false, teamId = null) {
     if (!q) return null;
     const data = dataOf(q);
-    const {answer, aliases, itemAnswers, itemAliases, answerNote, correct, target, targets, clips, targetClip, songs, snake, tiles, clip, ...safe} = data;
+    const {answer, aliases, itemAnswers, itemAliases, answerNote, correct, target, targets, clues, clips, targetClip, songs, snake, tiles, clip, ...safe} = data;
     // Sequence items are shown shuffled; the stored order is the answer.
     const result = {...safe, id: q.id, deadline: q.deadline, open: accepting(q), live: pending(q), paused: pending(q) && q.paused_ms !== null,
       remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: revealedNow(q) && (host || !secretQuestion(q)), revealing: !!q.revealed && !revealedNow(q) && (host || !secretQuestion(q)), buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId, host), clipGame: clipState(q, data, teamId)};
     // A question playing a Spotify song says so (not which song), so the TV keeps its music and countdown quiet.
     if (clip) result.playsSong = true;
+    // Progressive clues: only those showing so far (all of them for the desk, and once answers close).
+    if (clues) {
+      const shown = host || !pending(q) ? clues.length : cluesShown(q, data);
+      Object.assign(result, {clues: clues.slice(0, shown), clueCount: clues.length, cluesShown: shown, cluePoints: cluePoints(data, Math.min(shown, clues.length))});
+    }
     // Several places to find: how many, not where, until the reveal.
     if (targets) result.targetCount = targets.length;
     if (data.type === 'sequence') result.order = shuffleOrder(data.items.length, q.id);
@@ -437,7 +442,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (!host) {
       // Waiting for Send: the TV and phones get nothing to read ahead while the quizmaster reads it out; it all appears,
       // and its clock starts, on Send.
-      if (q.held) Object.assign(result, {text: '', options: [], items: [], order: [], media: null, pieces: [], wordLengths: [], grid: undefined, reveal: undefined});
+      if (q.held) Object.assign(result, {clues: [], text: '', options: [], items: [], order: [], media: null, pieces: [], wordLengths: [], grid: undefined, reveal: undefined});
       // Wording that would give the answer away stays off every screen but the desk until the answer is revealed.
       if (data.hideText && !revealedNow(q)) result.text = '';
     }
@@ -989,6 +994,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       groups: groupScores(board), slides: slides(), fastTrack: fastTrackShown(), varCheck: varShown()};
   }
   // The Fast Track moment on the TV: a team jumping to first place fills the screen for a few seconds.
+  // Progressive clues showing now: one at the start, one more every clueSeconds of answering time (a pause holds them).
+  function cluesShown(q, data = dataOf(q)) {
+    const left = q.paused_ms ?? Math.max(0, q.deadline - now());
+    return Math.min(data.clues.length, 1 + Math.floor(Math.max(0, data.seconds * 1000 - left) / (data.clueSeconds * 1000)));
+  }
   const fastTrackShown = () => {const f = getMeta('fastTrack', null); return f && now() - f.at < 8000 ? f : null;};
 
   // ---- VAR Check: a team appeals its marking after a reveal; the quizmaster rules, and the TV shows the decision ----
@@ -1158,6 +1168,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (fifty && base) return {points: base, marks: null};
     // Risk It: an answer that scores nothing loses the question's points.
     if (data.evil && base === 0 && autoMarked(data)) return {points: -data.points, marks: null};
+    // Progressive clues: fewer points the more clues were showing.
+    if (data.type === 'clues') return {points: base ? cluePoints(data, cluesShown(q, data)) : 0, marks: null};
     // Only a fully right answer earns the speed bonus (every right tick for multi-tap, the first tap for pinpoint).
     // A fixed bonus is handed out when the question settles.
     if (base !== data.points || !isCorrect(value, data) || data.bonusMode === 'fixed') return {points: base, marks: null};
@@ -2318,7 +2330,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (q && pending(q) && !q.held) run('INSERT OR IGNORE INTO deliveries VALUES(?,?,?)', team.id, q.id, now());
         const a = q && one('SELECT value,points,marks,submitted,wager FROM answers WHERE team=? AND question=?', team.id, q.id);
         // Points stay hidden until scoring is final.
-        const answer = !a || a.submitted === null && !q.settled && !q.closed ? null : pending(q) || secretQuestion(q) ? {value: a.value, wager: a.wager} : {value: a.value, points: a.points, marks: a.marks, wager: a.wager};
+        const stake = a?.wager === null || a?.wager === undefined ? {} : {wager: a.wager};
+        const answer = !a || a.submitted === null && !q.settled && !q.closed ? null : pending(q) || secretQuestion(q) ? {value: a.value, ...stake} : {value: a.value, points: a.points, marks: a.marks, ...stake};
         return send(200, {...publicState(), question: publicQuestion(q, false, team.id), team: teamInfo, answer, myVar: varForTeam(team.id, q),
           draft: one('SELECT value FROM drafts WHERE team=? AND question=?', team.id, q?.id || 0) || null, ...check});
       }

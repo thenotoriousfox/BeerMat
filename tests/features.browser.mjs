@@ -150,6 +150,13 @@ try {
   await phone.waitForFunction(() => document.getElementById('resultPoints').textContent === '+3 points · Staked 3');
   log('wager: the phone stakes before sending; a right answer wins the stake');
 
+  // Progressive clues: the phone and the TV show the clues so far; a new one appears as time passes.
+  await host('open', {text: 'Who am I?', type: 'clues', seconds: 30, points: 3, clueSeconds: 5, answer: 'Newton', clues: ['Born 1642.', 'Royal Mint.', 'Principia.']});
+  await phone.waitForFunction(() => document.querySelectorAll('#clueList li').length === 1 && document.getElementById('status').textContent.includes('Clue 1 of 3: 3 points now'));
+  await phone.waitForFunction(() => document.querySelectorAll('#clueList li').length === 2, null, {timeout: 9000});
+  await host('close');
+  log('progressive clues: the phone shows the clues so far, a new one every few seconds');
+
   // An older phone (before iOS 16 / Chrome 103): no AbortSignal.timeout (every request used it), Array at,
   // structuredClone or <dialog>. compat.js fills them in: it joins, answers, keeps a draft and opens the team menu.
   const oldContext = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});

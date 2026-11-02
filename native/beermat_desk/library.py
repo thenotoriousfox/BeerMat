@@ -15,20 +15,20 @@ from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
 TYPES = [('text', 'Typed answer'), ('choice', 'Multiple choice'), ('multi', 'Tick all that apply'), ('letter', 'Letter keypad'),
          ('number', 'Number'), ('nearest', 'Nearest wins'), ('sequence', 'Put in order'), ('pinpoint', 'Pinpoint'), ('wordsnake', 'Word trail'),
          ('tiles', 'Letter tiles'), ('vote', 'Vote'), ('buzzer', 'Buzzer'), ('bingo', 'Bingo'), ('musicbingo', 'Music bingo'), ('clips', 'Sound clips'),
-         ('picture', 'Picture'), ('audio', 'Audio'), ('sheet', 'Answer sheet')]
+         ('picture', 'Picture'), ('audio', 'Audio'), ('sheet', 'Answer sheet'), ('clues', 'Progressive clues')]
 # The fields the native editor shows; which ones apply depends on the format.
-LIST_FIELDS = {'options', 'correct', 'items', 'itemAnswers', 'aliases'}
+LIST_FIELDS = {'options', 'correct', 'items', 'itemAnswers', 'aliases', 'clues'}
 FIELDS_BY_TYPE = {
     'choice': ['options', 'answer'], 'vote': ['options'], 'multi': ['options', 'correct'], 'sequence': ['items'],
     'sheet': ['items', 'itemAnswers'], 'picture': ['media', 'answer', 'aliases'], 'audio': ['media', 'answer', 'aliases'],
     'pinpoint': ['media'], 'text': ['answer', 'aliases'], 'letter': ['answer'], 'number': ['answer'], 'nearest': ['answer'], 'tiles': ['answer'],
-    'wordsnake': ['answer'], 'buzzer': ['answer'],
+    'wordsnake': ['answer'], 'buzzer': ['answer'], 'clues': ['clues', 'answer', 'aliases'],
 }
 
 SPEED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'}
 BINGO = {'bingo', 'musicbingo'}
 # Formats with a right answer the server can mark (model.js autoMarked): Risk It and the fixed speed bonus need one.
-MARKED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio'}
+MARKED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'clues'}
 # Each format's options (server/model.js validateQuestion): key, label, kind, for numbers their range, for choices
 # their values, and when it's offered (the format and the question's other options: a buzzer's pass penalty only for
 # an advanced buzzer, say). The server checks them again when the quiz is saved.
@@ -43,6 +43,7 @@ OPTIONS = [
     ('bonusPlaces', 'Fastest answers given the fixed bonus', 'int', (1, 50), lambda t, q: t in SPEED & MARKED and q.get('fastestFingers') and q.get('bonusMode') == 'fixed'),
     ('tolerance', 'Also accept answers within ± (0: exact only)', 'int', (0, 1000000000), lambda t, q: t == 'number'),
     ('tolerancePercent', 'The margin is a percentage of the answer', 'bool', None, lambda t, q: t == 'number' and q.get('tolerance')),
+    ('clueSeconds', 'Seconds between clues', 'int', (5, 120), lambda t, q: t == 'clues'),
     ('places', 'Places scored (closest first)', 'int', (1, 20), lambda t, q: t == 'nearest'),
     ('notOver', 'Closest without going over: answers above the answer score nothing', 'bool', None, lambda t, q: t == 'nearest'),
     ('tieBreaker', 'Tie-breaker (scores nothing, orders teams level on points)', 'bool', None, lambda t, q: t == 'nearest'),

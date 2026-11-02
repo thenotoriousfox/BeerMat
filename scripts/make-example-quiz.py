@@ -176,6 +176,9 @@ def quiz(land_file):
         ('Word games', [
             q(11, type='wordsnake', text='Trace the largest ocean on Earth.', seconds=45, points=2, answer='Pacific', goWide=True, goWidePoints=1),
             q(12, type='tiles', text='Rebuild the answer: who wrote Pride and Prejudice?', seconds=45, points=2, answer='Jane Austen'),
+            q('13b', type='clues', text='Who am I? A point less with each clue.', seconds=60, points=4, clueSeconds=10,
+              clues=['I was born on Christmas Day, 1642.', 'I was a professor at Cambridge and Master of the Royal Mint.', 'I wrote the Principia.',
+                     'An apple is said to have fallen near me.'], answer='Isaac Newton', aliases=['Newton', 'Sir Isaac Newton']),
             q(13, type='nearest', text='How many bones are there in the adult human body?', seconds=30, points=3, answer='206', places=3),
         ]),
         ('On the buzzer', [

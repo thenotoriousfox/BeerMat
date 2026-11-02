@@ -245,6 +245,7 @@ Item {
                 readonly property bool bingo: !!q && (q.type === "bingo" || q.type === "musicbingo")
                 readonly property var items: !q ? [] : ["choice", "vote", "multi"].includes(q.type) ? q.options
                                            : q.type === "sheet" ? (q.items || [])
+                                           : q.type === "clues" ? (q.clues || [])
                                            : q.type === "tiles" ? [(q.wordLengths || []).map(n => "_".repeat(n)).join("  "), (q.pieces || []).join("  ·  ")] : []
                 readonly property bool isImage: !!q && !!q.media && !/\.(mp3|ogg|wav)$/i.test(q.media)
                 readonly property bool isAudio: !!q && !!q.media && /\.(mp3|ogg|wav)$/i.test(q.media)
@@ -287,6 +288,7 @@ Item {
                                 : questionView.q.paused ? root.t("Paused · {n}s remaining", {n: Math.ceil(questionView.q.remaining / 1000)})
                                 : (!questionView.q.open || questionView.msLeft <= 0 ? root.t("Answers closed") : root.t("{n}s remaining", {n: Math.ceil(questionView.msLeft / 1000)}))
                                   + (questionView.q.wager ? "  ·  " + root.t("Wager: up to {n} points", {n: questionView.q.wager}) : "")
+                                  + (questionView.q.type === "clues" && questionView.q.open && questionView.msLeft > 0 && !questionView.q.wager ? "  ·  " + root.t("Clue {n} of {total}: {p} points now", {n: questionView.q.cluesShown, total: questionView.q.clueCount, p: questionView.q.cluePoints}) : "")
                             color: questionView.q && questionView.q.open ? root.pal.gold : root.pal.muted; font.family: Theme.display; font.pixelSize: 60; font.weight: Font.Bold
                         }
                         Rectangle {
@@ -413,7 +415,7 @@ Item {
                                         }
                                         Text {
                                             anchors.fill: parent; anchors.leftMargin: 28; anchors.rightMargin: 28; anchors.bottomMargin: tile.options ? 6 : 0; verticalAlignment: Text.AlignVCenter
-                                            text: tile.options && questionView.q && questionView.q.pair ? root.t(tile.modelData) : `${tile.options ? String.fromCharCode(65 + tile.index) + ".  " : questionView.q && questionView.q.type === "sheet" ? (tile.index + 1) + ".  " : questionView.q && questionView.q.type === "tiles" ? "" : "•  "}${tile.modelData}`
+                                            text: tile.options && questionView.q && questionView.q.pair ? root.t(tile.modelData) : `${tile.options ? String.fromCharCode(65 + tile.index) + ".  " : questionView.q && ["sheet", "clues"].includes(questionView.q.type) ? (tile.index + 1) + ".  " : questionView.q && questionView.q.type === "tiles" ? "" : "•  "}${tile.modelData}`
                                             color: tile.options && tile.index % 8 === 3 ? "#241500" : root.pal.text
                                             style: tile.options && tile.index % 8 !== 3 ? Text.Raised : Text.Normal; styleColor: Qt.rgba(0, 0, 0, 0.35)
                                             font.pixelSize: tile.textSize; font.weight: Font.Black; elide: Text.ElideRight

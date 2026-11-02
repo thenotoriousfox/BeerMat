@@ -26,14 +26,14 @@ const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = 
 
 // Question types. Keypad formats follow common pub-quiz handset conventions:
 // letters (first letter of the answer), numbers, multiple choice and sequence.
-export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet'];
+export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet', 'clues'];
 export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
 // Buzzer questions stay open until the quizmaster rules on them; the timer only limits buzzing.
 // Formats the server marks right or wrong by itself: these can use Risk It and a fixed speed bonus.
 // Two-button Multiple choice (pair): true or false, before or after. The stored values stay English; phones and TVs
 // label the buttons in the quiz's language.
 export const PAIRS = {trueFalse: ['True', 'False'], beforeAfter: ['Before', 'After']};
-export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio'].includes(q.type) && !!q.answer);
+export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio', 'clues'].includes(q.type) && !!q.answer);
 export const speedBonusOf = q => q.fastestFingers ? q.speedBonus || 0 : 0;
 export const hostDriven = type => ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(type);
 export const isBingo = type => type === 'bingo' || type === 'musicbingo';
@@ -68,7 +68,15 @@ export function validateQuestion(q, mediaDir) {
   result.hideText = q.hideText === true;
   // Asked on the fly: the quizmaster reads out a question that isn't saved and sets its answer after answers close.
   if (q.onTheFly === true) result.onTheFly = true;
-  if (['text', 'picture', 'audio'].includes(q.type)) result.aliases = aliases;
+  if (['text', 'picture', 'audio', 'clues'].includes(q.type)) result.aliases = aliases;
+  // Progressive clues: one more every clueSeconds; an answer on the first clue scores the points, each later one less.
+  if (q.type === 'clues') {
+    requireValue(Array.isArray(q.clues) && q.clues.length >= 2 && q.clues.length <= 8 && q.clues.every(c => text(c, 200)), 'Give 2–8 clues');
+    result.clues = q.clues.map(c => c.trim()); result.clueSeconds = q.clueSeconds ?? 10;
+    requireValue(integer(result.clueSeconds, 5, 120), 'Seconds between clues must be 5–120');
+    requireValue(result.answer, 'Progressive clues need the answer');
+    requireValue(result.seconds >= result.clueSeconds * (result.clues.length - 1) + 5, `Give teams at least ${result.clueSeconds * (result.clues.length - 1) + 5} seconds, so every clue shows`);
+  }
   if (q.type === 'choice' && q.pair) {
     requireValue(Object.hasOwn(PAIRS, q.pair), 'Buttons must be true or false, or before or after');
     q = {...q, options: PAIRS[q.pair], fiftyFifty: false}; result.pair = q.pair;
@@ -315,6 +323,10 @@ export function answerValue(value, q, final = true) {
   if (q.type === 'number' || q.type === 'nearest') requireValue(numberPattern.test(value.trim()), 'Enter a number');
   return q.type === 'letter' ? value.trim().toUpperCase() : value.trim();
 }
+
+// Progressive clues: points for a right answer when `shown` clues were showing (all of them on the first, one share
+// less with each clue after it, at least 1).
+export const cluePoints = (q, shown) => Math.max(1, Math.round(q.points * (q.clues.length - shown + 1) / q.clues.length));
 
 // How far from a Number question's answer still counts.
 export const tolerance = q => !q.tolerance ? 0 : q.tolerancePercent ? Math.abs(Number(q.answer)) * q.tolerance / 100 : q.tolerance;

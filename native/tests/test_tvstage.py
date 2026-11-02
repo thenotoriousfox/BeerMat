@@ -86,6 +86,7 @@ CASES = {
     'choice-open': state(q=question()),
     'pinpoint-places': state(q=question(type='pinpoint', text='Tap Paris, Rome and Berlin.', options=[], media=PICTURE, open=False, live=False, revealed=True,
         targets=[{'x': 0.2, 'y': 0.2, 'r': 0.05}, {'x': 0.5, 'y': 0.5, 'r': 0.05}, {'x': 0.8, 'y': 0.3, 'r': 0.05}], scorers=[], correctCount=0)),
+    'clues': state(q=question(type='clues', text='Who am I?', options=[], clues=['Born on Christmas Day, 1642.', 'Master of the Royal Mint.'], clueCount=4, cluesShown=2, cluePoints=3)),
     'true-or-false': state(q=question(text='True or false: the Great Wall can be seen from the Moon.', pair='trueFalse', options=['True', 'False']), settings={**SETTINGS, 'language': 'fr'}),
     'choice-revealed': state(q=question(open=False, live=False, revealed=True, answer='Mars', tally={'Venus': 1, 'Mars': 3},
                                         scorers=[{'name': 'Bears', 'ms': 2100, 'points': 1}], first={'kind': 'fastest', 'name': 'Bears', 'ms': 2100, 'photo': None})),

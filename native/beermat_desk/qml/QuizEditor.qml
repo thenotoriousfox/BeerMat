@@ -143,6 +143,8 @@ RowLayout {
                 Label { text: "Question"; color: Theme.muted }
                 Area { Layout.fillWidth: true; wrapMode: TextEdit.Wrap; text: q.text || ""; font.pixelSize: 17; onEditingFinished: lib.setField("text", text) }
 
+                Label { visible: fields.includes("clues"); text: "Clues, hardest first (one per line, 2–8; one more appears every few seconds)"; color: Theme.muted }
+                Area { visible: fields.includes("clues"); Layout.fillWidth: true; text: q.clues || ""; onEditingFinished: lib.setField("clues", text) }
                 Label { visible: fields.includes("options"); text: "Choices (one per line)"; color: Theme.muted }
                 Area { visible: fields.includes("options"); Layout.fillWidth: true; text: q.options || ""; onEditingFinished: lib.setField("options", text) }
                 Label { visible: fields.includes("correct"); text: "Right choices (one per line, as written above)"; color: Theme.muted }

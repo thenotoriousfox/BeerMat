@@ -83,6 +83,7 @@ Optional on most types:
   `spotify` is the track's link or `spotify:track:<id>`; `start` is the seconds into the track (0–3,600, default 0); `seconds` is how long it plays (3–600, default 30). Teams type their answer as for `text`.
 
 **Puzzles:**
+- `clues`: progressive clues ("Who am I?"). `clues`: 2–8 strings, hardest first; one more appears every `clueSeconds` (5–120, default 10). `answer` and `aliases` as for `text`. A right answer on the first clue scores `points`, each later clue a share less (5 clues for 5 points: 5, 4, 3, 2, 1; never below 1). `seconds` must leave time for every clue (`clueSeconds` × (clues − 1) + 5 at least).
 - `nearest`: closest number wins. `answer` is a plain number. `places` (1–20, default 1) is how many teams score, on a sliding scale: for example 3 places of 9 points gives 9, 6 and 3. Ties go to the earlier answer. At the reveal the closest team fills the TV, and the leaderboard shows what every team answered.
   - `notOver: true` makes it closest without going over: answers above `answer` score nothing (phones say so).
   - `tieBreaker: true` makes it a tie-breaker: it scores nothing (`points` is ignored) and only orders teams that are level on points, closest first and then the quicker answer. The reveal lists every team's answer, closest first, and the winner fills the TV.
