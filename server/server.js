@@ -1131,7 +1131,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     // A rehearsal with fast timers gives each question a third of its time; the server's clock and checks are unchanged.
     if (!liveNow() && rehearsalOptions()?.speed === 'fast' && q.type !== 'buzzer') q.seconds = fastSeconds(q.seconds);
     // Six fixed buttons on phones (A–F) for a multiple-choice question of up to six options.
-    if (settings().fixedSix && q.type === 'choice' && q.options.length <= 6) q.fixedSix = true;
+    if (settings().fixedSix && q.type === 'choice' && !q.pair && q.options.length <= 6) q.fixedSix = true;
     // With Send Question on, the question waits (paused, its full time left) until the quizmaster sends it to phones.
     const held = settings().sendQuestion && !hostDriven(q.type) ? 1 : 0;
     const result = run('INSERT INTO questions(data,opened,deadline,held,paused_ms) VALUES(?,?,?,?,?)', JSON.stringify(q), now(), now() + q.seconds * 1000, held, held ? q.seconds * 1000 : null);

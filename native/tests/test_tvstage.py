@@ -84,6 +84,7 @@ def safe_name(o):
 CASES = {
     'join': state('join'),
     'choice-open': state(q=question()),
+    'true-or-false': state(q=question(text='True or false: the Great Wall can be seen from the Moon.', pair='trueFalse', options=['True', 'False']), settings={**SETTINGS, 'language': 'fr'}),
     'choice-revealed': state(q=question(open=False, live=False, revealed=True, answer='Mars', tally={'Venus': 1, 'Mars': 3},
                                         scorers=[{'name': 'Bears', 'ms': 2100, 'points': 1}], first={'kind': 'fastest', 'name': 'Bears', 'ms': 2100, 'photo': None})),
     'sequence': state(q=question(type='sequence', options=[], items=['One', 'Two', 'Three'], order=[2, 0, 1])),

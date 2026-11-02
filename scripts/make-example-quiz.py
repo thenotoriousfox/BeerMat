@@ -158,6 +158,8 @@ def quiz(land_file):
               items=['Elizabeth I', 'Charles II', 'Victoria', 'George VI']),
             q(6, type='vote', text='Vote: the best crisp flavour?', seconds=20, points=0,
               options=['Ready salted', 'Salt & vinegar', 'Cheese & onion', 'Prawn cocktail']),
+            q('6b', type='choice', pair='trueFalse', text='True or false: the Great Wall of China can be seen from the Moon with the naked eye.',
+              seconds=15, points=1, options=['True', 'False'], answer='False', answerNote='It is far too narrow: astronauts say even low orbit is hard.'),
         ]),
         ('Eyes and ears', [
             q(7, type='picture', text='Which country\'s flag is this?', seconds=30, points=1, media=png(jamaica()), reveal='tiles',

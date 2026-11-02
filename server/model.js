@@ -30,6 +30,9 @@ export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 
 export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
 // Buzzer questions stay open until the quizmaster rules on them; the timer only limits buzzing.
 // Formats the server marks right or wrong by itself: these can use Risk It and a fixed speed bonus.
+// Two-button Multiple choice (pair): true or false, before or after. The stored values stay English; phones and TVs
+// label the buttons in the quiz's language.
+export const PAIRS = {trueFalse: ['True', 'False'], beforeAfter: ['Before', 'After']};
 export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio'].includes(q.type) && !!q.answer);
 export const speedBonusOf = q => q.fastestFingers ? q.speedBonus || 0 : 0;
 export const hostDriven = type => ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(type);
@@ -64,6 +67,11 @@ export function validateQuestion(q, mediaDir) {
   // Asked on the fly: the quizmaster reads out a question that isn't saved and sets its answer after answers close.
   if (q.onTheFly === true) result.onTheFly = true;
   if (['text', 'picture', 'audio'].includes(q.type)) result.aliases = aliases;
+  if (q.type === 'choice' && q.pair) {
+    requireValue(Object.hasOwn(PAIRS, q.pair), 'Buttons must be true or false, or before or after');
+    q = {...q, options: PAIRS[q.pair], fiftyFifty: false}; result.pair = q.pair;
+    if (result.answer) result.answer = PAIRS[q.pair].find(o => o.toLowerCase() === result.answer.toLowerCase()) ?? result.answer;
+  }
   if (q.type === 'choice' || q.type === 'vote' || q.type === 'multi') {
     requireValue(Array.isArray(q.options) && q.options.length >= 2 && q.options.length <= 8 && q.options.every(o => text(o, 200)) && new Set(q.options).size === q.options.length, 'Supply 2–8 distinct choices');
     result.options = q.options.map(o => o.trim());

@@ -240,6 +240,9 @@ private struct QuestionView: View {
                     let valueOf = { (i: Int) in i < q.options.count ? q.options[i] : "#" + letters[i] }
                     Keys(keys: (0..<(q.fixedSix ? 6 : q.options.count)).filter { !fiftyRemoved.contains(valueOf($0)) }.map { ($0, letters[$0]) }, colours: true, picked: { valueOf($0) == text }, enabled: !locked) { text = valueOf($0) }
                     FiftyFifty(q: q, locked: locked, text: $text)
+                case "choice" where !q.pair.isEmpty:
+                    // True or false, before or after: two big buttons, in the quiz's language, always in the same order.
+                    Keys(keys: [0, 1].map { ($0, t(q.options[$0])) }, colours: true, picked: { q.options[$0] == text }, enabled: !locked) { text = q.options[$0] }
                 case "choice", "vote":
                     Keys(keys: shuffle(q.options.count).filter { !fiftyRemoved.contains(q.options[$0]) }.map { ($0, "\(letters[$0]). \(q.options[$0])") }, colours: true, picked: { q.options[$0] == text }, enabled: !locked) { text = q.options[$0] }
                     if q.type == "choice" { FiftyFifty(q: q, locked: locked, text: $text) }
@@ -522,7 +525,7 @@ func revealLines(_ q: Question) -> [String] {
             return "\(i + 1). \(item) — \(answer)"
         }
     }
-    if let answer = q.answer, !answer.isEmpty { return [t("Answer: {answer}", ["answer": withTolerance(answer, q.tolerance, percent: q.tolerancePercent)])] }
+    if let answer = q.answer, !answer.isEmpty { return [t("Answer: {answer}", ["answer": q.pair.isEmpty ? withTolerance(answer, q.tolerance, percent: q.tolerancePercent) : t(answer)])] }
     return []
 }
 

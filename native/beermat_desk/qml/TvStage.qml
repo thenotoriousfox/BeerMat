@@ -407,7 +407,7 @@ Item {
                                         }
                                         Text {
                                             anchors.fill: parent; anchors.leftMargin: 28; anchors.rightMargin: 28; anchors.bottomMargin: tile.options ? 6 : 0; verticalAlignment: Text.AlignVCenter
-                                            text: `${tile.options ? String.fromCharCode(65 + tile.index) + ".  " : questionView.q && questionView.q.type === "sheet" ? (tile.index + 1) + ".  " : questionView.q && questionView.q.type === "tiles" ? "" : "•  "}${tile.modelData}`
+                                            text: tile.options && questionView.q && questionView.q.pair ? root.t(tile.modelData) : `${tile.options ? String.fromCharCode(65 + tile.index) + ".  " : questionView.q && questionView.q.type === "sheet" ? (tile.index + 1) + ".  " : questionView.q && questionView.q.type === "tiles" ? "" : "•  "}${tile.modelData}`
                                             color: tile.options && tile.index % 8 === 3 ? "#241500" : root.pal.text
                                             style: tile.options && tile.index % 8 !== 3 ? Text.Raised : Text.Normal; styleColor: Qt.rgba(0, 0, 0, 0.35)
                                             font.pixelSize: tile.textSize; font.weight: Font.Black; elide: Text.ElideRight

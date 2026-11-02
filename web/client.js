@@ -1,7 +1,7 @@
 import './compat.js';
 import {qrMatrix} from './qr.js';
 import {t, setLanguage, language, languages, translatePage} from './i18n.js';
-import {$, element, api, message, readStorage, writeStorage, renderMedia, revealPicture, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, soundLength, isAudio, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, renderMedia, revealPicture, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, soundLength, isAudio, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord, optionLabel} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('beermat-team'), current = null, renderedQuestion = 'unset', offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
 // The native apps hand their team to this page, for a round format they don't draw themselves, as #team=<code>: the
@@ -189,7 +189,11 @@ function buildInputs(q) {
       pad.append(...letters.slice(0, q.fixedSix ? 6 : q.options.length).split('').map((letter, i) => {
         const value = i < q.options.length ? q.options[i] : '#' + letter, b = element('button', letter); b.type = 'button'; b.dataset.value = value; b.className = `opt o${i}`; b.onclick = () => pick(value); return b;
       }));
-    } else pad.append(...order(q.options.length).map(i => {const option = q.options[i], b = element('button', `${letters[i]}. ${option}`); b.type = 'button'; b.dataset.value = option; b.className = `opt o${i}`; b.onclick = () => pick(option); return b;}));
+    } else {
+      // True or false, before or after: two big buttons, always in the same order.
+      if (q.pair) pad.classList.add('pair');
+      pad.append(...(q.pair ? [0, 1] : order(q.options.length)).map(i => {const option = q.options[i], b = element('button', optionLabel(q, i)); b.type = 'button'; b.dataset.value = option; b.className = `opt o${i}`; b.onclick = () => pick(option); return b;}));
+    }
     box.append(pad);
     // 50/50: half the wrong choices go, for fewer points.
     if (q.type === 'choice' && q.fiftyFifty) {
@@ -394,7 +398,7 @@ function displayState(s) {
   renderFirst(q);
   if (q?.id !== renderedQuestion) {
     renderedQuestion = q?.id;
-    const items = q?.type === 'choice' || q?.type === 'vote' || q?.type === 'multi' ? q.options.map((o, i) => `${letters[i]}. ${o}`) : q?.type === 'sequence' ? q.order.map(i => q.items[i]) : q?.type === 'sheet' ? q.items : q?.type === 'tiles' ? [tileWord('', q.wordLengths), q.pieces.join('  ·  ')] : [];
+    const items = q?.type === 'choice' || q?.type === 'vote' || q?.type === 'multi' ? q.options.map((o, i) => optionLabel(q, i)) : q?.type === 'sequence' ? q.order.map(i => q.items[i]) : q?.type === 'sheet' ? q.items : q?.type === 'tiles' ? [tileWord('', q.wordLengths), q.pieces.join('  ·  ')] : [];
     $('projectItems').replaceChildren(...items.map((text, i) => {const li = element('li', text); if (q.type === 'sequence') li.dataset.item = q.order[i]; return li;}));
     delete $('projectItems').dataset.sorted;
     // Answer options show as coloured tiles matching the phone keypad.

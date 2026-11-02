@@ -52,6 +52,7 @@ Optional on most types:
 
 **Keypad (answered with taps):**
 - `choice`: multiple choice. `options`: 2–8 distinct strings (up to 200 characters each). `answer` must be **exactly** one of the options. The options show as A, B, C, D…
+  - `pair: "trueFalse"` or `pair: "beforeAfter"` makes it two big buttons, True/False or Before/After, labelled in the quiz's language on phones and the TV. Then `options` can be left out (the loader sets them) and `answer` is `"True"` or `"False"` (`"Before"` or `"After"`). Use it for true-or-false statements and "did X happen before or after Y?" questions.
   - Optional 50/50: `fiftyFifty: true` plus `fiftyPoints` (0–100). A team can take away half the wrong options; a right
     answer after that scores `fiftyPoints` instead of `points`. It needs 3 or more options and the `answer` set.
 - `multi`: tick every correct option. `options` as above, plus `correct`: 1 or more of the options, written exactly as in `options`. Score = right ticks minus wrong ticks, as a share of `points`.
