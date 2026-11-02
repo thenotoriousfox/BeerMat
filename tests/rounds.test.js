@@ -400,6 +400,12 @@ test('joined phones get "online" answers to OS checks, can continue in another b
   const as = ip => ({'X-Test-Ip': ip});
   const post = (route, body, ip, key = '') => fetch(url() + '/api/' + route, {method: 'POST', headers: {...as(ip), Authorization: 'Bearer ' + key}, body: JSON.stringify(body)}).then(async r => ({status: r.status, ...await r.json()}));
   let r = await fetch(url() + '/generate_204', {headers: as('10.42.0.50')}); assert.equal(r.status, 200, 'unknown phone sees the sign-in page');
+  // The sign-in sheet only says how to stay on the Wi-Fi: teams join in the browser, which keeps their page.
+  for (const sheet of ['/generate_204', '/hotspot-detect.html', '/connecttest.txt', '/redirect', '/canonical.html']) {
+    const page = await (await fetch(url() + sheet, {headers: as('10.42.0.50')})).text();
+    assert.match(page, /wifi\.js/, sheet); assert.doesNotMatch(page, /joinButton/, sheet);
+  }
+  assert.match(await (await fetch(url() + '/', {headers: as('10.42.0.50')})).text(), /joinButton/, 'the quiz address still joins');
   const team = await post('join', {name: 'Phone team'}, '10.42.0.50');
   r = await fetch(url() + '/generate_204', {headers: as('10.42.0.50')}); assert.equal(r.status, 204);
   r = await fetch(url() + '/hotspot-detect.html', {headers: as('10.42.0.50')}); assert.match(await r.text(), /<TITLE>Success<\/TITLE>/);
