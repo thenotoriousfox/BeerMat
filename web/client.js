@@ -1,3 +1,4 @@
+import './compat.js';
 import {qrMatrix} from './qr.js';
 import {t, setLanguage, language, languages, translatePage} from './i18n.js';
 import {$, element, api, message, readStorage, writeStorage, renderMedia, revealPicture, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, soundLength, isAudio, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord} from './app.js';
