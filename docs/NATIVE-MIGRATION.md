@@ -182,6 +182,11 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
   releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
   `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
+* **Release 0.7.5**: Spotify clips and songs play on the Spotify app on this laptop, told directly, even when Spotify's
+  own link to the app stops answering; a player that has closed no longer stops them. The Qt desk plays a question's own
+  Spotify clip as it opens, with Play again (also after the question closes) and Stop on the desk and in Run the night.
+  Music bingo: Play this song again, on the desk and phones. Picture reveals: tiles cover a new picture from its first
+  frame, and the blur sharpens smoothly (Qt TV and Android).
 * **Release 0.7.4**: Run the night in a phone's browser: the laptop serves it at /deck (code sign-in, no app needed),
   with its address and QR code on the desks' Phone deck panel. Send Question now holds the question off the TV as well
   until Send: the room listens while it's read out, then the TV and phones show it together. Manage subscription from
