@@ -457,6 +457,7 @@ const T = {
   'Cannot reach quiz server': ['Serveur du quiz injoignable', 'No se puede contactar con el servidor del quiz'],
   'Request failed': ['La requête a échoué', 'La petición ha fallado'],
   // The phone deck (Run the night, native/android deck/)
+  'Read it out: the TV and phones don’t show the wording until the answer is revealed.': ['Lisez-la à voix haute : l’écran et les téléphones n’affichent pas l’énoncé avant la révélation de la réponse.', 'Léela en voz alta: la tele y los teléfonos no muestran el enunciado hasta que se revela la respuesta.'],
   '{name}’s phone': ['Téléphone de {name}', 'Teléfono de {name}'],
   'No quiz found. Join the quiz Wi-Fi (or the venue’s, with the laptop on it) and try again, or type the laptop’s address.': ['Aucun quiz trouvé. Rejoignez le Wi-Fi du quiz (ou celui de l’établissement, où se trouve aussi l’ordinateur) et réessayez, ou tapez l’adresse de l’ordinateur.', 'No se encontró ningún quiz. Conéctate al wifi del quiz (o al del local, con el portátil conectado) y vuelve a intentarlo, o escribe la dirección del portátil.'],
   'The desk has taken this phone off. Sign in again to host.': ['Le pupitre a retiré ce téléphone. Reconnectez-vous pour animer.', 'La mesa ha desconectado este teléfono. Vuelve a entrar para presentar.'],

@@ -375,7 +375,7 @@ function displayState(s) {
   }
   $('joinHint').textContent = !joining ? '' : online ? t('Join: {url}', {url: address}) : t('Join: Wi-Fi “{ssid}” → {url}', {ssid: joinSsid, url: address});
   $('boardSection').hidden = s.view !== 'leaderboard'; $('projectQuestion').hidden = s.view !== 'question';
-  const q = s.question; $('question').textContent = q?.text || t('Waiting for the quizmaster'); $('round').textContent = q?.round || ''; $('status').textContent = timeText(q, offset);
+  const q = s.question; $('question').textContent = !q ? t('Waiting for the quizmaster') : q.text || '🎙 ' + t('Listen to the quizmaster'); $('question').classList.toggle('listen', !!q && !q.text); $('round').textContent = q?.round || ''; $('status').textContent = timeText(q, offset);
   if (q?.type === 'pinpoint') renderPinpoint($('media'), q); else {renderMedia($('media'), q); revealPicture($('media'), q, offset);}
   renderSolution($('solution'), q, {onScreen: true}); $('projectQuestion').classList.toggle('revealed', !!q?.revealed);
   renderFirst(q);

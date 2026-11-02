@@ -123,6 +123,9 @@ struct DeckQuestionCard: View {
         VStack(alignment: .leading, spacing: 6) {
             if !q.round.isEmpty { Text(q.round).font(.footnote).foregroundStyle(Brand.faint) }
             Text(q.text).font(Brand.display(22, .title2))
+            if q.hideText && !q.revealed {
+                Text(t("Read it out: the TV and phones don’t show the wording until the answer is revealed.")).fontWeight(.semibold).foregroundStyle(Brand.goldHi)
+            }
             DeckStatus(d: d, q: q).id("\(q.id)-\(q.remaining)-\(q.paused)")
             DeckControls(d: d, q: q)
             DeckRoundControls(d: d, q: q)

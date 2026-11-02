@@ -7,6 +7,8 @@ data class DeckQuestion(
     val id: Long, val text: String, val type: String, val round: String,
     val open: Boolean, val live: Boolean, val held: Boolean, val paused: Boolean, val revealed: Boolean, val revealing: Boolean,
     val remaining: Long, val answer: String, val clips: Int, val audio: Boolean, val buzzing: String?,
+    /** Wording only the desk shows until the reveal (hideText): the quizmaster reads it out. */
+    val hideText: Boolean = false,
 )
 
 data class DeckTeam(val name: String, val score: Double, val rank: Int, val connected: Boolean)
@@ -35,7 +37,7 @@ data class DeckState(
                     o.optBoolean("open"), o.optBoolean("live"), o.optBoolean("held"), o.optBoolean("paused"), o.optBoolean("revealed"), o.optBoolean("revealing"),
                     o.optLong("remaining"), o.optString("answer").takeIf { !o.isNull("answer") } ?: "", o.optJSONArray("clips")?.length() ?: 0,
                     Regex("""\.(mp3|ogg|wav)$""", RegexOption.IGNORE_CASE).containsMatchIn(media),
-                    o.optJSONObject("buzz")?.optJSONObject("active")?.optString("name"))
+                    o.optJSONObject("buzz")?.optJSONObject("active")?.optString("name"), o.optBoolean("hideText"))
             }
             val teams = s.optJSONArray("teams")?.let { a -> List(a.length()) { a.getJSONObject(it) } }.orEmpty()
                 .filter { it.optBoolean("enabled", true) && !it.optBoolean("waiting") }

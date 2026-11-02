@@ -61,6 +61,22 @@ class DeckIntegrationTest {
         assertEquals("question", d.nextStep); assertTrue(d.canNext)
         assertTrue("Back is offered", d.back != null)
 
+        // Read it out first: with Send Question on, Next opens the question held; Send starts it.
+        server.host(key, "settings", JSONObject().put("sendQuestion", true))
+        server.host(key, "next", JSONObject().put("expectedQuestion", q.id))
+        d = DeckState.parse(server.host(key, "state"))
+        assertTrue("held", d.question!!.held); assertTrue(d.canSend); assertFalse("no Pause before Send", d.canPause); assertFalse(d.canNext)
+        server.host(key, "send")
+        d = DeckState.parse(server.host(key, "state"))
+        assertFalse(d.question!!.held); assertTrue(d.question!!.open); assertFalse(d.canSend); assertTrue(d.canPause)
+        server.host(key, "close", JSONObject().put("expectedQuestion", d.question!!.id))
+        server.host(key, "settings", JSONObject().put("sendQuestion", false))
+        // Wording only the desk shows (hideText): the phone has it, and knows to say read it out.
+        server.host(key, "open", JSONObject().put("text", "Which word is spelt S-E-C-R-E-T?").put("type", "text").put("answer", "secret").put("hideText", true).put("seconds", 30).put("points", 1))
+        d = DeckState.parse(server.host(key, "state"))
+        assertTrue(d.question!!.hideText); assertEquals("Which word is spelt S-E-C-R-E-T?", d.question!!.text)
+        server.host(key, "close", JSONObject().put("expectedQuestion", d.question!!.id))
+
         // Clips and songs play from the laptop: with no desk open, the phone is told so.
         try { server.host(key, "deck-command", JSONObject().put("action", "playClips")); fail("no desk") } catch (e: QuizError) { assertEquals(409, e.status) }
 

@@ -135,6 +135,16 @@ try {
   await tv.waitForFunction(() => /Jackpot won|rolls over/.test(document.querySelector('#wheelNote').textContent), null, {timeout: 12000});
   log('desk and TV: Fast Track spotlight, a saved rollover jackpot spun with its note');
 
+  // Wording that gives the answer away (hideText): the TV asks the room to listen, until the reveal shows it.
+  await host('settings', {displayMode: 'auto'});
+  await host('open', {text: 'Which word is spelt S-E-C-R-E-T?', type: 'text', answer: 'secret', hideText: true, seconds: 30, points: 1});
+  await tv.waitForFunction(() => document.querySelector('#question').textContent.includes('Listen to the quizmaster'));
+  await desk.waitForFunction(() => document.querySelector('#liveKey').textContent.includes('Read it out: the TV and phones'));
+  assert.ok(await tv.evaluate(() => document.querySelector('#question').classList.contains('listen')));
+  await host('close'); await host('reveal', {question: (await host('state')).question.id, revealed: true, delay: 0});
+  await tv.waitForFunction(() => document.querySelector('#question').textContent === 'Which word is spelt S-E-C-R-E-T?');
+  log('hidden wording: the TV asks the room to listen and the desk says to read it out, until the reveal');
+
   await host('settings', {groupBoard: true, displayMode: 'leaderboard'});
   await host('team', {id: (await host('state')).teams[0].id, action: 'group', group: 'Sales'});
   await tv.waitForFunction(() => !document.querySelector('#groupBoard').hidden && document.querySelector('#groupBoard').textContent.includes('Sales'));

@@ -59,7 +59,7 @@ OPTIONS = [
     ('autoNext', 'Play the next song by itself', 'bool', None, lambda t, q: t == 'musicbingo'),
     ('revealNow', 'Show each song title as it plays', 'bool', None, lambda t, q: t == 'musicbingo'),
     ('clipSeconds', 'Each clip plays for (seconds)', 'int', (3, 60), lambda t, q: t == 'clips'),
-    ('hideText', "Phones don't show the wording (you read it out): for wording that gives the answer away", 'bool', None, lambda t, q: t not in BINGO | {'clips'}),
+    ('hideText', "The TV and phones don't show the wording until the reveal (you read it out): for wording that gives the answer away", 'bool', None, lambda t, q: t not in BINGO | {'clips'}),
     ('reveal', 'Picture reveal', 'choice', [('', 'Shown straight away'), ('blur', 'Starts blurred, sharpens over the time'), ('tiles', 'Under twelve tiles that go one by one')],
      lambda t, q: t == 'picture'),
     ('wipeout', 'Wipeout: any wrong tick scores nothing', 'bool', None, lambda t, q: t == 'multi'),

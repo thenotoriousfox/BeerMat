@@ -8,6 +8,8 @@ public struct DeckQuestion: Equatable {
     public let id: Int, text: String, type: String, round: String
     public let open: Bool, live: Bool, held: Bool, paused: Bool, revealed: Bool, revealing: Bool
     public let remaining: Double, answer: String, clips: Int, audio: Bool, buzzing: String?
+    /// Wording only the desk shows until the reveal (hideText): the quizmaster reads it out.
+    public var hideText = false
 }
 
 public struct DeckTeam: Equatable {
@@ -31,11 +33,13 @@ public struct DeckState: Equatable {
     public static func parse(_ s: [String: Any]) -> DeckState {
         let q = (s["question"] as? [String: Any]).map { o -> DeckQuestion in
             let media = o.str("media")
-            return DeckQuestion(id: o.int("id"), text: o.str("text"), type: o.str("type"), round: o.str("round"),
+            var q = DeckQuestion(id: o.int("id"), text: o.str("text"), type: o.str("type"), round: o.str("round"),
                                 open: o.bool("open"), live: o.bool("live"), held: o.bool("held"), paused: o.bool("paused"), revealed: o.bool("revealed"), revealing: o.bool("revealing"),
                                 remaining: o.num("remaining") ?? 0, answer: o.str("answer"), clips: (o["clips"] as? [Any])?.count ?? 0,
                                 audio: [".mp3", ".ogg", ".wav"].contains { media.lowercased().hasSuffix($0) },
                                 buzzing: ((o["buzz"] as? [String: Any])?["active"] as? [String: Any])?.str("name"))
+            q.hideText = o.bool("hideText")
+            return q
         }
         let teams = (s["teams"] as? [[String: Any]] ?? []).filter { $0.bool("enabled", true) && !$0.bool("waiting") }
             .map { DeckTeam(name: $0.str("name"), score: $0.num("score") ?? 0, rank: $0.int("rank"), connected: $0.bool("connected")) }

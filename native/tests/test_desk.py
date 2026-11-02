@@ -186,6 +186,26 @@ class NewToolsTest(DeskCase):
             qInstallMessageHandler(previous)
 
 
+class HiddenWordingTest(DeskCase):
+    def test_the_desk_reminds_you_to_read_hidden_wording_out(self):
+        """A question whose wording the TV and phones don't show until the reveal (hideText): the desk shows it, with a
+        reminder to read it out, until the answer is revealed."""
+        desk = self.desk
+        desk.start()
+        wait(lambda: desk.connected and desk.view.get('phase'), what='the server')
+        port, session = desk.server.info['port'], desk.api.session
+        http(port, 'host/settings', {'waitingRoom': False}, session)
+        http(port, 'host/open', {'text': 'Which word is spelt S-E-C-R-E-T?', 'type': 'text', 'answer': 'secret', 'hideText': True, 'seconds': 30, 'points': 1}, session)
+        wait(lambda: (desk.view.get('question') or {}).get('hideText'), what='the hidden-wording question')
+        banner = self.window.findChild(QObject, 'readItOut')
+        wait(lambda: banner.property('visible'), what='the reminder')
+        self.assertEqual(desk.view['question']['text'], 'Which word is spelt S-E-C-R-E-T?', 'the desk shows the wording')
+        question = http(port, 'host/state', {}, session)['question']['id']
+        http(port, 'host/close', {'expectedQuestion': question}, session)
+        http(port, 'host/reveal', {'question': question, 'revealed': True, 'delay': 0}, session)
+        wait(lambda: not banner.property('visible'), what='the reminder gone at the reveal')
+
+
 class QuizzesPageTest(DeskCase):
     def test_loading_a_quiz_replaces_the_quizzes_page(self):
         desk, lib = self.desk, self.desk.quizzes
