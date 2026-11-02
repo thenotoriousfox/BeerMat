@@ -213,7 +213,7 @@ try:
 
     # 3. The leaderboard, revealed a place at a time.
     post('host/board', {'action': 'show'}, host)
-    pump(0.3)
+    pump(1.5)     # the board's places fade out before the clip starts, so it doesn't give the order away
     def board_next():
         if desk.view.get('next', {}).get('step') in ('reveal', 'revealFirst', 'revealSecond'):
             post('host/board', {'action': 'next'}, host)
@@ -227,9 +227,12 @@ try:
     picture = next(q for q in saved if q['type'] == 'picture')
     current_id = current()['id']
     post('host/close', {'expectedQuestion': current_id}, host)
-    shots = record({'tv-reveal-tiles': tv}, 13, [(0.5, lambda: post('host/open', {'text': 'What shape is under the tiles?', 'type': 'picture', 'media': picture['media'],
-                                                                              'answer': picture['answer'], 'round': 'Pictures', 'seconds': 12, 'points': 1, 'reveal': 'tiles'}, host))])
-    poster(shots['tv-reveal-tiles'], 7.5, 'tv-reveal-tiles')
+    # Opened (and settled on the TV) before the clip starts, so it doesn't open on the last clip's screen.
+    post('host/open', {'text': 'What shape is under the tiles?', 'type': 'picture', 'media': picture['media'],
+                       'answer': picture['answer'], 'round': 'Pictures', 'seconds': 13, 'points': 1, 'reveal': 'tiles'}, host)
+    pump(0.8)
+    shots = record({'tv-reveal-tiles': tv}, 12)
+    poster(shots['tv-reveal-tiles'], 7, 'tv-reveal-tiles')
 
     # 5. Buzzers: the first team in takes the TV; a wrong answer passes it to the next.
     post('host/close', {'expectedQuestion': current()['id']}, host)
@@ -237,12 +240,12 @@ try:
         return lambda: post('buzz', {'question': current()['id']}, team['secret'])
     def verdict(action):
         return lambda: post('host/buzz', {'question': current()['id'], 'action': action}, host)
-    shots = record({'tv-buzzer': tv}, 13, [(0.5, lambda: post('host/open', {'text': 'Fingers on buzzers: what is the capital of Australia?', 'type': 'buzzer',
-                                                                          'answer': 'Canberra', 'round': 'Buzzer round', 'seconds': 60, 'points': 2}, host)),
-                                           (2.6, buzz(teams[3])), (2.9, buzz(teams[0])), (3.3, buzz(teams[4])),
-                                           (6.0, verdict('wrong')), (8.6, verdict('correct')),
-                                           (9.0, lambda: post('host/reveal', {'question': current()['id'], 'revealed': True, 'delay': 0}, host))])
-    poster(shots['tv-buzzer'], 4.5, 'tv-buzzer')
+    post('host/open', {'text': 'Fingers on buzzers: what is the capital of Australia?', 'type': 'buzzer', 'answer': 'Canberra', 'round': 'Buzzer round', 'seconds': 60, 'points': 2}, host)
+    pump(0.8)
+    shots = record({'tv-buzzer': tv}, 12, [(1.8, buzz(teams[3])), (2.1, buzz(teams[0])), (2.5, buzz(teams[4])),
+                                           (5.2, verdict('wrong')), (7.8, verdict('correct')),
+                                           (8.2, lambda: post('host/reveal', {'question': current()['id'], 'revealed': True, 'delay': 0}, host))])
+    poster(shots['tv-buzzer'], 3.7, 'tv-buzzer')
 finally:
     server.terminate()
 print('Clips saved in', OUT)
