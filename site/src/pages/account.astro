@@ -1,0 +1,225 @@
+---
+import Page from '../layouts/Page.astro';
+import {ONLINE, CONTACT} from '../consts';
+// A venue's account on the website: sign in with the BeerMat account that runs the venue (the same one as on the
+// desk's Venue page), then the plan and subscription (Stripe's own page), the venue's details and quiz nights, one-off
+// quiz nights, and the laptops registered to it. Everything goes through BeerMat Online's API, as the desk does.
+---
+<Page title="Your account" description="Sign in to manage your venue's BeerMat Pro subscription, details and quiz nights.">
+	<section class="wrap max-w-3xl py-10">
+		<p class="eyebrow">Your account</p>
+		<h1 class="text-4xl sm:text-5xl">Manage your venue</h1>
+
+		<form id="signIn" class="card mt-8 max-w-md space-y-4" hidden>
+			<p class="mb-0 text-muted">Sign in with your venue’s BeerMat account: the same email and password as on the quiz desk’s Venue page.</p>
+			<label class="block font-semibold">Email<input name="email" type="email" required autocomplete="email" class="field" /></label>
+			<label class="block font-semibold">Password<input name="password" type="password" required autocomplete="current-password" class="field" /></label>
+			<button class="btn btn-primary w-full">Sign in</button>
+			<p class="mb-0 text-sm text-muted"><a id="resetLink" href={`${ONLINE}/reset`}>Forgotten your password?</a> · No account yet? Your venue’s account is set up when you <a href="/pro">get BeerMat Pro</a>.</p>
+		</form>
+
+		<div id="signedIn" class="mt-8" hidden>
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<p id="who" class="mb-0 text-muted"></p>
+				<button id="signOut" type="button" class="btn btn-ghost !min-h-10 !py-1">Sign out</button>
+			</div>
+			<div id="venues" class="mt-6 space-y-8"></div>
+		</div>
+
+		<p id="status" class="mt-6 min-h-6 text-sm" role="status"></p>
+		<p class="mt-10 text-sm text-muted">Something you can’t change here? Email <a href={`mailto:${CONTACT}`}>{CONTACT}</a>.</p>
+	</section>
+
+	<template id="venueCard">
+		<article class="card space-y-6">
+			<header class="flex flex-wrap items-start justify-between gap-3">
+				<div><h2 class="mb-1 text-2xl" data-name></h2><p class="mb-0 text-muted" data-where></p></div>
+				<span class="chip" data-plan></span>
+			</header>
+
+			<section>
+				<h3 class="text-lg">Plan and subscription</h3>
+				<p class="text-muted" data-plan-text></p>
+				<div class="flex flex-wrap gap-3">
+					<button type="button" class="btn btn-primary" data-billing hidden>Manage subscription</button>
+					<a href="/pro" class="btn btn-primary" data-get-pro hidden>Get BeerMat Pro</a>
+				</div>
+				<p class="mt-2 text-sm text-muted" data-billing-note hidden>Change your card, switch between monthly and yearly, see invoices or cancel, on Stripe’s secure page.</p>
+			</section>
+
+			<form data-details class="space-y-4">
+				<h3 class="text-lg">Venue details</h3>
+				<div class="grid gap-4 sm:grid-cols-2">
+					<label class="block font-semibold">Venue name<input name="name" required maxlength="120" class="field" /></label>
+					<label class="block font-semibold">Town<input name="town" required maxlength="80" class="field" /></label>
+					<label class="block font-semibold sm:col-span-2">Street address <span class="font-normal text-muted">(optional)</span><input name="address" maxlength="200" class="field" /></label>
+					<label class="block font-semibold">Postcode<input name="postcode" maxlength="10" class="field uppercase" /></label>
+					<label class="block font-semibold">Website <span class="font-normal text-muted">(optional)</span><input name="website" type="url" maxlength="200" placeholder="https://" class="field" /></label>
+				</div>
+				<fieldset>
+					<legend class="mb-2 font-semibold">Regular quiz nights</legend>
+					<p class="text-sm text-muted">They’re listed on the BeerMat map and in the app, four weeks ahead.</p>
+					<div class="grid gap-2 sm:grid-cols-2" data-nights></div>
+				</fieldset>
+				<button class="btn btn-primary">Save details</button>
+			</form>
+
+			<section>
+				<h3 class="text-lg">Coming up</h3>
+				<ul class="space-y-2" data-events></ul>
+				<details class="mt-3">
+					<summary class="cursor-pointer font-semibold">Add a one-off quiz night</summary>
+					<form data-event class="mt-3 space-y-3">
+						<div class="grid gap-3 sm:grid-cols-2">
+							<label class="block font-semibold sm:col-span-2">Title<input name="title" required maxlength="120" placeholder="Halloween special" class="field" /></label>
+							<label class="block font-semibold">Date<input name="date" type="date" required class="field" /></label>
+							<label class="block font-semibold">Start time<input name="time" type="time" required value="20:00" class="field" /></label>
+							<label class="block font-semibold">Entry <span class="font-normal text-muted">(optional)</span><input name="entry" maxlength="200" placeholder="£2 a head" class="field" /></label>
+							<label class="block font-semibold">Format <span class="font-normal text-muted">(optional)</span><input name="format" maxlength="200" placeholder="Six rounds, teams of up to 6" class="field" /></label>
+						</div>
+						<button class="btn btn-primary">Add quiz night</button>
+					</form>
+				</details>
+			</section>
+
+			<section>
+				<h3 class="text-lg">Quiz laptops</h3>
+				<p class="text-sm text-muted">A laptop registers itself from the desk’s Venue page; its plan and results then go with this venue.</p>
+				<ul class="space-y-2" data-laptops></ul>
+			</section>
+		</article>
+	</template>
+	<script is:inline type="application/json" id="online" set:html={JSON.stringify(ONLINE)}></script>
+</Page>
+
+<script>
+	type Venue = {id: string; name: string; town: string; address: string; postcode: string; website: string; quizNights: {day: string; time: string}[];
+		plan: string; planUntil: number | null; trialUntil: number | null; founding: boolean; billing: boolean; approved: boolean; laptops: {id: string; added: number}[]};
+	type QuizEvent = {id: string; title: string; startsAt: number; entry: string; format: string; regular: boolean};
+	const online = JSON.parse(document.getElementById('online')!.textContent!) as string;
+	const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+	const $ = (id: string) => document.getElementById(id)!;
+	const status = $('status');
+	const say = (text: string, error = false) => {status.textContent = text; status.className = `mt-6 min-h-6 text-sm ${error ? 'text-red-300' : 'text-muted'}`;};
+	// The sign-in is kept on this browser (cleared by Sign out), as the BeerMat app keeps it on a phone.
+	const store = {get: () => {try {return localStorage.getItem('beermat-account') || '';} catch {return '';}},
+		set: (token: string) => {try {token ? localStorage.setItem('beermat-account', token) : localStorage.removeItem('beermat-account');} catch {}}};
+	let token = store.get();
+
+	async function api(method: string, path: string, body?: unknown) {
+		const response = await fetch(online + path, {method, headers: {'Content-Type': 'application/json', ...(token && {Authorization: 'Bearer ' + token})}, ...(body !== undefined && {body: JSON.stringify(body)})});
+		const data = await response.json().catch(() => ({}));
+		if (response.status === 401 && path !== '/v1/sessions') {signOut('Your sign-in has expired: sign in again.'); throw Error('');}
+		if (!response.ok) throw Error(data.error || 'Something went wrong. Try again, or email us.');
+		return data;
+	}
+	const date = (t: number) => new Date(t).toLocaleDateString('en-GB', {day: 'numeric', month: 'long', year: 'numeric'});
+	const when = (t: number) => new Date(t).toLocaleString('en-GB', {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
+	const el = (tag: string, text = '', cls = '') => Object.assign(document.createElement(tag), {textContent: text, className: cls});
+
+	function signOut(message = 'Signed out.') {
+		if (token) api('DELETE', '/v1/sessions').catch(() => {});
+		token = ''; store.set('');
+		$('signedIn').hidden = true; $('signIn').hidden = false; $('venues').replaceChildren();
+		say(message);
+	}
+
+	$('signIn').addEventListener('submit', async e => {
+		e.preventDefault();
+		const form = e.target as HTMLFormElement, data = Object.fromEntries(new FormData(form));
+		say('Signing in…');
+		try {
+			const result = await api('POST', '/v1/sessions', {email: data.email, password: data.password});
+			token = result.token; store.set(token); form.reset(); await load(); say('');
+		} catch (error) {say((error as Error).message, true);}
+	});
+	$('signOut').addEventListener('click', () => signOut());
+
+	async function load() {
+		const [me, {venues}] = await Promise.all([api('GET', '/v1/me'), api('GET', '/v1/me/venues')]);
+		$('who').textContent = `Signed in as ${me.displayName} (${me.email})`;
+		$('signIn').hidden = true; $('signedIn').hidden = false;
+		const list = $('venues');
+		list.replaceChildren(...(venues as Venue[]).map(venueCard));
+		if (!venues.length) list.append(el('p', 'This account doesn’t run a venue yet. A venue’s account is set up when it gets BeerMat Pro; if yours should be linked to this one, email us.', 'card text-muted'));
+	}
+
+	function venueCard(v: Venue) {
+		const card = (document.getElementById('venueCard') as HTMLTemplateElement).content.firstElementChild!.cloneNode(true) as HTMLElement;
+		const q = (sel: string) => card.querySelector(`[data-${sel}]`) as HTMLElement;
+		q('name').textContent = v.name; q('where').textContent = [v.address, v.town, v.postcode].filter(Boolean).join(', ');
+		const pro = v.plan === 'pro';
+		q('plan').textContent = pro ? (v.trialUntil && v.trialUntil > Date.now() ? 'Pro · free trial' : 'BeerMat Pro') : 'BeerMat Free';
+		q('plan-text').textContent = !pro ? 'BeerMat Free: make and rehearse quizzes as much as you like. Hosting live quizzes with real teams, and being on the BeerMat map, is BeerMat Pro.'
+			: v.trialUntil && v.trialUntil > Date.now() ? `Free trial until ${date(v.trialUntil)}. Add a card before then to keep Pro; without one it goes back to Free, with nothing to pay.`
+			: `BeerMat Pro${v.founding ? ' at the founding price, kept for as long as you stay' : ''}${v.planUntil ? `, paid until ${date(v.planUntil)}` : ''}.${v.approved ? ' On the BeerMat map.' : ' On the map once BeerMat has checked the venue.'}`;
+		q('billing').hidden = !v.billing; q('billing-note').hidden = !v.billing; q('get-pro').hidden = pro || v.billing;
+		q('billing').addEventListener('click', async () => {
+			say('Opening Stripe…');
+			try {location.assign((await api('POST', `/v1/venues/${encodeURIComponent(v.id)}/billing`)).url);} catch (error) {say((error as Error).message, true);}
+		});
+
+		// Details and regular nights.
+		const details = q('details') as HTMLFormElement;
+		for (const k of ['name', 'town', 'address', 'postcode', 'website'] as const) (details.elements.namedItem(k) as HTMLInputElement).value = v[k] || '';
+		const nights = new Map(v.quizNights.map(n => [n.day, n.time]));
+		q('nights').replaceChildren(...DAYS.map(day => {
+			const row = el('label', '', 'flex items-center gap-3 rounded-xl border border-white/10 px-3 py-2');
+			const on = Object.assign(document.createElement('input'), {type: 'checkbox', name: `on-${day}`, checked: nights.has(day), className: 'accent-amber'});
+			const time = Object.assign(document.createElement('input'), {type: 'time', name: `time-${day}`, value: nights.get(day) || '20:00', className: 'field !mt-0 !w-auto'});
+			row.append(on, el('span', day[0].toUpperCase() + day.slice(1), 'flex-1'), time);
+			return row;
+		}));
+		details.addEventListener('submit', async e => {
+			e.preventDefault();
+			const f = new FormData(details);
+			const body = {name: f.get('name'), town: f.get('town'), address: f.get('address'), postcode: f.get('postcode'), website: f.get('website'),
+				quizNights: DAYS.filter(d => f.get(`on-${d}`)).map(d => ({day: d, time: String(f.get(`time-${d}`) || '20:00')}))};
+			say('Saving…');
+			try {await api('PATCH', `/v1/venues/${encodeURIComponent(v.id)}`, body); say('Saved: the map and the app show the new details.'); await load();} catch (error) {say((error as Error).message, true);}
+		});
+
+		// Coming up: regular nights and one-offs, each can be cancelled.
+		const events = q('events');
+		api('GET', `/v1/venues/${encodeURIComponent(v.id)}`).then(({events: list}: {events: QuizEvent[]}) => {
+			events.replaceChildren(...(list.length ? list.map(e => {
+				const item = el('li', '', 'flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 px-3 py-2');
+				item.append(el('span', `${when(e.startsAt)} · ${e.title}${e.entry ? ' · ' + e.entry : ''}`));
+				const cancel = el('button', 'Cancel this one', 'btn btn-ghost !min-h-9 !py-1 text-sm') as HTMLButtonElement;
+				cancel.type = 'button';
+				cancel.addEventListener('click', async () => {
+					if (!confirm(`Cancel ${e.title} on ${when(e.startsAt)}? It comes off the map and the app.`)) return;
+					try {await api('DELETE', `/v1/events/${encodeURIComponent(e.id)}`); say('Cancelled.'); await load();} catch (error) {say((error as Error).message, true);}
+				});
+				item.append(cancel);
+				return item;
+			}) : [el('li', 'Nothing coming up yet: add your regular nights above, or a one-off below.', 'text-muted')]));
+		}).catch(() => events.replaceChildren(el('li', 'Couldn’t load the quiz nights.', 'text-muted')));
+		const add = q('event') as HTMLFormElement;
+		add.addEventListener('submit', async e => {
+			e.preventDefault();
+			const f = Object.fromEntries(new FormData(add)) as Record<string, string>;
+			const startsAt = new Date(`${f.date}T${f.time}`).getTime();
+			say('Adding…');
+			try {await api('POST', `/v1/venues/${encodeURIComponent(v.id)}/events`, {title: f.title, startsAt, entry: f.entry, format: f.format, details: ''}); say('Added: it’s on the map and in the app.'); await load();}
+			catch (error) {say((error as Error).message, true);}
+		});
+
+		// Laptops registered to the venue.
+		q('laptops').replaceChildren(...(v.laptops?.length ? v.laptops.map(l => {
+			const item = el('li', '', 'flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 px-3 py-2');
+			item.append(el('span', `Laptop ${l.id.slice(0, 8)} · registered ${date(l.added)}`));
+			const remove = el('button', 'Remove', 'btn btn-ghost !min-h-9 !py-1 text-sm') as HTMLButtonElement;
+			remove.type = 'button';
+			remove.addEventListener('click', async () => {
+				if (!confirm('Remove this laptop from the venue? It goes back to BeerMat Free until it’s registered again.')) return;
+				try {await api('DELETE', `/v1/venues/${encodeURIComponent(v.id)}/keys/${encodeURIComponent(l.id)}`); say('Removed.'); await load();} catch (error) {say((error as Error).message, true);}
+			});
+			item.append(remove);
+			return item;
+		}) : [el('li', 'None yet.', 'text-muted')]));
+		return card;
+	}
+
+	if (token) load().catch(error => {if ((error as Error).message) say((error as Error).message, true); $('signIn').hidden = !!token;}); else $('signIn').hidden = false;
+</script>

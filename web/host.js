@@ -988,7 +988,7 @@ function renderVenue() {
   // managed on Stripe's own page.
   const pro = venue.plan === 'pro';
   $('venuePlan').textContent = pro ? `BeerMat Pro${venue.planUntil ? `, paid until ${longDate(venue.planUntil)}` : ''}${venue.approved ? ' · on the map' : ' · on the map once BeerMat has checked it'}` : 'BeerMat Free: not on the map';
-  $('venueBilling').hidden = !venue.billing; $('venueGetPro').hidden = pro;
+  $('venueBilling').hidden = !venue.billing; $('venueGetPro').hidden = pro; $('planBilling').hidden = !venue.billing; $('planGetPro').hidden = pro || !!venue.billing;
   $('venuePick').replaceChildren(...myVenues.map(v => {const o = element('option', `${v.name}, ${v.town}`); o.value = v.id; o.selected = v.id === venue.id; return o;}));
   for (const [field, key] of [['vName', 'name'], ['vTown', 'town'], ['vPostcode', 'postcode'], ['vAddress', 'address'], ['vWebsite', 'website'], ['vLat', 'lat'], ['vLon', 'lon']]) $(field).value = venue[key] ?? '';
   $('vNights').replaceChildren(...venueDays.map(day => {
@@ -1358,11 +1358,14 @@ function renderPlan(plan) {
   const free = !plan.live;
   $('planNote').hidden = !free;
   if (free) $('planNote').firstChild.textContent = 'BeerMat Free: make and rehearse quizzes as much as you like. Hosting a live quiz with real teams is BeerMat Pro.';
-  $('planBadge').textContent = plan.name; $('planBadge').classList.toggle('pro', !free);
+  $('planBadge').textContent = plan.name; $('planBadge').classList.toggle('pro', !free); $('planGetPro').hidden = !free;
   $('planInfo').textContent = !free ? `${plan.venue ? plan.venue + ' has BeerMat Pro' : 'BeerMat Pro'}${plan.trialUntil ? `, on a free trial until ${longDate(plan.trialUntil)} (add a card in billing to keep it)` : plan.paidUntil ? `, paid until ${longDate(plan.paidUntil)}` : ''}.${plan.expires ? ` This laptop holds it offline until ${longDate(plan.expires)}.` : ''}`
     : `${plan.venue ? plan.venue + ' is' : 'This laptop is'} on BeerMat Free: every format, rehearsals with simulated teams, and real phones joining to test the connection. Hosting live needs Pro.`;
 }
 $('planSee').onclick = () => chooseTab('settings:general');
+$('planBilling').onclick = () => $('venueBilling').click();
+$('planGetPro').onclick = () => window.open('https://beermatquiz.co.uk/pro', '_blank', 'noopener');
+$('planAccount').onclick = () => window.open('https://beermatquiz.co.uk/account', '_blank', 'noopener');
 $('venueBilling').onclick = () => action(async () => {
   const {url} = await onlineCall('POST', `/v1/venues/${encodeURIComponent(venue.id)}/billing`);
   if (!window.open(url, '_blank')) location.assign(url);

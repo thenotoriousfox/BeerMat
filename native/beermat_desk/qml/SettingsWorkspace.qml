@@ -55,7 +55,7 @@ ScrollView {
                 Text {
                     Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
                     text: plan.live && plan.trialUntil
-                        ? `Trying BeerMat Pro${plan.venue ? " for " + plan.venue : ""} until ${new Date(plan.trialUntil).toLocaleDateString()}: host live quizzes with real teams. To keep Pro after that, add a card: Venue & network → BeerMat Online → Manage the subscription. Without one it goes back to Free, with nothing to pay.`
+                        ? `Trying BeerMat Pro${plan.venue ? " for " + plan.venue : ""} until ${new Date(plan.trialUntil).toLocaleDateString()}: host live quizzes with real teams. To keep Pro after that, add a card with Manage subscription. Without one it goes back to Free, with nothing to pay.`
                         : plan.live
                         ? `BeerMat Pro${plan.venue ? " for " + plan.venue : ""}: host live quizzes with real teams.${plan.expires ? " Licence renews by " + new Date(plan.expires).toLocaleDateString() + "." : ""}`
                         : "BeerMat Free: create, edit and rehearse as many quizzes as you like, with simulated teams and real phones testing their connection. Hosting a live quiz with real teams is BeerMat Pro."
@@ -63,7 +63,17 @@ ScrollView {
                 Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 12
                        text: "Once your venue has Pro, register this laptop with it (Venue) and press Check my plan. That needs the internet once; the plan then holds offline." }
                 Item { Layout.fillHeight: true }
-                DeskButton { text: "Check my plan"; onClicked: desk.refreshPlan() }
+                // The subscription itself (card, monthly or yearly, cancelling) is on Stripe's page; the venue's account
+                // is also on the website, for when this laptop isn't to hand.
+                Flow {
+                    objectName: "planButtons"
+                    Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 8
+                    Component.onCompleted: desk.online.load()
+                    DeskButton { text: "Check my plan"; onClicked: desk.refreshPlan() }
+                    DeskButton { objectName: "manageSubscription"; visible: !!desk.online.venue.billing; text: "Manage subscription…"; onClicked: desk.online.billing() }
+                    DeskButton { objectName: "getPro"; visible: !plan.live && !desk.online.venue.billing; text: "Get BeerMat Pro…"; onClicked: Qt.openUrlExternally("https://beermatquiz.co.uk/pro") }
+                    DeskButton { objectName: "accountOnline"; text: "Your account online…"; onClicked: Qt.openUrlExternally("https://beermatquiz.co.uk/account") }
+                }
             }
         }
         Panel {
