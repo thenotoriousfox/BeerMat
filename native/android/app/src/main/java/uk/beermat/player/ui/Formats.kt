@@ -100,7 +100,7 @@ fun WordSnake(vm: PlayerViewModel, q: Question, path: List<Int>, enabled: Boolea
     val wide = q.raw.optJSONArray("wideCells")?.ints()
     val haptics = LocalHapticFeedback.current
     fun adjacent(a: Int, b: Int) = a != b && kotlin.math.abs(a / n - b / n) <= 1 && kotlin.math.abs(a % n - b % n) <= 1
-    Text(t("Trace the answer: each letter touches the last, diagonals too."), color = Brand.muted)
+    Text(t("Tap the answer’s letters in order: each touches the last, diagonals too. Any route that spells it is right."), color = Brand.muted)
     Text(path.joinToString("") { letters[it] }.ifEmpty { t("Tap the first letter") }, fontFamily = Display, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp))
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (row in 0 until n) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

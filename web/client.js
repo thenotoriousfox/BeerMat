@@ -136,7 +136,7 @@ function buildInputs(q) {
     hiddenInput(); const area = element('div'); area.id = 'snakeArea';
     const word = element('p', '', 'tile-word'); word.id = 'snakeWord';
     const clear = element('button', t('Start again'), 'subtle'); clear.type = 'button'; clear.onclick = () => pick('[]');
-    box.append(element('p', t('Trace the answer: each letter touches the last, diagonals too. Tapping a letter that does not touch starts again.'), 'muted'), area, word, clear);
+    box.append(element('p', `${t('Tap the answer’s letters in order: each touches the last, diagonals too. Any route that spells it is right.')} ${t('Tapping a letter that doesn’t touch starts again.')}`, 'muted'), area, word, clear);
     if (q.goWide) {
       const wide = element('button', t('Hint (scores {n})', {n: q.goWidePoints}), 'subtle'); wide.type = 'button'; wide.id = 'goWide';
       wide.onclick = async () => {
