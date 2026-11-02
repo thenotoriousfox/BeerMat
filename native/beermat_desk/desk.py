@@ -27,7 +27,7 @@ DECK_LABELS = {'callNumber': 'next call', 'replaySong': 'play the song again', '
                'playAudio': 'play the sound again', 'pauseAudio': 'pause or carry on the sound'}
 STEP_LABELS = {'reveal': 'Reveal next position', 'revealFirst': 'Reveal the leader', 'revealSecond': 'Reveal second place', 'show': 'Show leaderboard',
                'recap': 'Reveal the secret round', 'recapAnswer': 'Reveal the next secret answer', 'recapResults': 'Show the round’s results',
-               'finish': 'Finish quiz', 'round': 'Start next round', 'question': 'Start next question'}
+               'finish': 'Finish quiz & reveal leaderboard', 'round': 'Start next round', 'question': 'Start next question'}
 # Quiz files carry their pictures and sounds inside them (data: URLs); each is uploaded before the quiz loads, as the
 # web desk does (unpackMedia in web/host.js).
 MEDIA_TYPES = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg',

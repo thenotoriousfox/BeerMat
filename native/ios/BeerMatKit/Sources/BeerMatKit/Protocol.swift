@@ -42,6 +42,8 @@ public struct Question: Equatable {
     public var wordLengths: [Int] = []
     /// Waiting for the quizmaster's Send: nothing to read or answer yet (the clock hasn't started).
     public var held = false
+    /// An answer sheet's answers, line by line, once revealed (a music round's artist and title).
+    public var itemAnswers: [String] = []
     /// Multiple choice as letters only: six fixed A–F buttons (fixedSix), or a question asked on the fly.
     public var fixedSix = false, onTheFly = false
     /// The picture shows itself over the question's time: "blur", "tiles" or "".
@@ -120,6 +122,7 @@ extension Question {
                         deadline: q.num("deadline") ?? 0, remaining: q.num("remaining") ?? 0, open: q.bool("open"), live: q.bool("live"),
                         paused: q.bool("paused"), revealed: q.bool("revealed"), answer: answer, answerNote: q.str("answerNote"), buzz: buzz)
         question.wordLengths = (q["wordLengths"] as? [Any] ?? []).compactMap { number($0).map { Int($0) } }
+        question.itemAnswers = q.strings("itemAnswers")
         question.held = q.bool("held"); question.fixedSix = q.bool("fixedSix"); question.onTheFly = q.bool("onTheFly"); question.reveal = q.str("reveal"); question.revealSeconds = q.int("revealSeconds")
         question.raw = q
         return question

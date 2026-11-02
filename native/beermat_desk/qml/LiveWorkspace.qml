@@ -414,7 +414,8 @@ ColumnLayout {
                 shortcutHint: "N"
                 enabled: !!view.next && view.next.enabled && !desk.busy
                 onClicked: desk.next()
-                Layout.preferredWidth: 340
+                // Wide enough for its label (Finish quiz & reveal leaderboard); a narrow window shrinks the text instead.
+                Layout.preferredWidth: Math.max(340, implicitWidth); Layout.minimumWidth: 200
             }
             DeskButton { visible: !!view.canSend; text: "Send question"; kind: "primary"; shortcutHint: "S"; enabled: !desk.busy; onClicked: desk.send() }
             DeskButton { text: "Close answers"; kind: "danger"; shortcutHint: "C"; enabled: !!view.canClose && !desk.busy; onClicked: desk.closeAnswers() }

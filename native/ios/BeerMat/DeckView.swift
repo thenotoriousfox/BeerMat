@@ -10,7 +10,7 @@ func stepLabel(_ step: String?) -> String {
     case "recap": return t("Reveal the secret round")
     case "recapAnswer": return t("Reveal the next secret answer")
     case "recapResults": return t("Show the round’s results")
-    case "finish": return t("Finish quiz")
+    case "finish": return t("Finish quiz & reveal leaderboard")
     case "round": return t("Start next round")
     case "question": return t("Start next question")
     default: return t("Quiz finished")
@@ -92,7 +92,7 @@ struct DeckRunView: View {
         Text(t("Marking, rounds and settings stay on the laptop’s desk.")).font(.footnote).foregroundStyle(Brand.faint).padding(.top, 8)
         Button(t("Stop hosting from this phone")) { deck.leave() }.buttonStyle(.bordered).disabled(deck.busy)
             .alert(t("Finish quiz"), isPresented: $confirmFinish) {
-                Button(t("Finish quiz")) { deck.next() }; Button(t("Cancel"), role: .cancel) {}
+                Button(t("Finish quiz & reveal leaderboard")) { deck.next() }; Button(t("Cancel"), role: .cancel) {}
             } message: { Text(t("Finish this quiz and close answers and registration? You can resume it later.")) }
             .alert(t("Go back"), isPresented: $confirmBack) {
                 Button(t("Go back"), role: .destructive) { deck.back() }; Button(t("Cancel"), role: .cancel) {}

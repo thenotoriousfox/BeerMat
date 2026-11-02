@@ -297,7 +297,7 @@ private struct QuestionView: View {
             if let submitted { ResultView(points: submitted.points) }
             else if !q.open { Text(q.revealed ? t("Answer revealed") : t("Answers closed")).foregroundStyle(Brand.muted) }
             else { BigButton(title: t("Lock in answer"), enabled: !model.busy && ready) { model.submit(value) } }
-            if q.revealed, let answer = q.answer { Text(t("Answer: {answer}", ["answer": answer])).font(.title3.bold()).foregroundStyle(Brand.good) }
+            if q.revealed { ForEach(revealLines(q), id: \.self) { Text($0).font(.title3.bold()).foregroundStyle(Brand.good) } }
             if q.revealed && !q.answerNote.isEmpty { Text(q.answerNote).foregroundStyle(Brand.muted) }
         }
         Color.clear.frame(height: 0)
@@ -511,4 +511,16 @@ struct FiftyFifty: View {
             Text(t("50/50? Half the wrong answers disappear, but a right answer scores {fifty} instead of {full}.", ["fifty": points, "full": full]))
         }
     }
+}
+
+/// The revealed answer as the browser player shows it: an answer sheet line by line ("1. Artist — Tracy Chapman").
+func revealLines(_ q: Question) -> [String] {
+    if q.type == "sheet" && !q.items.isEmpty {
+        return q.items.enumerated().map { i, item in
+            let answer = i < q.itemAnswers.count && !q.itemAnswers[i].isEmpty ? q.itemAnswers[i] : t("Marked by quizmaster")
+            return "\(i + 1). \(item) — \(answer)"
+        }
+    }
+    if let answer = q.answer, !answer.isEmpty { return [t("Answer: {answer}", ["answer": answer])] }
+    return []
 }

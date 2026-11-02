@@ -30,12 +30,21 @@ data class DeckState(
     val canResume get() = question.let { it != null && it.paused && !it.held }
 
     companion object {
+        /** The answer to read: an answer sheet's lines (a music round's artist and title) when it has no single answer. */
+        private fun answerText(o: JSONObject): String {
+            val answer = o.optString("answer").takeIf { !o.isNull("answer") } ?: ""
+            if (answer.isNotEmpty()) return answer
+            val items = o.optJSONArray("items"); val answers = o.optJSONArray("itemAnswers") ?: return ""
+            return List(answers.length()) { i -> answers.optString(i).takeIf { it.isNotBlank() }?.let { a -> items?.optString(i)?.takeIf { it.isNotBlank() }?.let { "$it: $a" } ?: a } }
+                .filterNotNull().joinToString(" · ")
+        }
+
         fun parse(s: JSONObject): DeckState {
             val q = s.optJSONObject("question")?.let { o ->
                 val media = o.optString("media").takeIf { !o.isNull("media") } ?: ""
                 DeckQuestion(o.getLong("id"), o.optString("text"), o.optString("type"), o.optString("round"),
                     o.optBoolean("open"), o.optBoolean("live"), o.optBoolean("held"), o.optBoolean("paused"), o.optBoolean("revealed"), o.optBoolean("revealing"),
-                    o.optLong("remaining"), o.optString("answer").takeIf { !o.isNull("answer") } ?: "", o.optJSONArray("clips")?.length() ?: 0,
+                    o.optLong("remaining"), answerText(o), o.optJSONArray("clips")?.length() ?: 0,
                     Regex("""\.(mp3|ogg|wav)$""", RegexOption.IGNORE_CASE).containsMatchIn(media) || o.optJSONObject("clip")?.optString("spotify").orEmpty().isNotEmpty(),
                     o.optJSONObject("buzz")?.optJSONObject("active")?.optString("name"), o.optBoolean("hideText"))
             }

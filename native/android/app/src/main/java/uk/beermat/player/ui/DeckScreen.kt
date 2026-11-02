@@ -48,7 +48,7 @@ import uk.beermat.player.deck.DeckViewModel
 fun stepLabel(step: String?): String = when (step) {
     "reveal" -> t("Reveal next position"); "revealFirst" -> t("Reveal the leader"); "revealSecond" -> t("Reveal second place")
     "show" -> t("Show leaderboard"); "recap" -> t("Reveal the secret round"); "recapAnswer" -> t("Reveal the next secret answer")
-    "recapResults" -> t("Show the round’s results"); "finish" -> t("Finish quiz"); "round" -> t("Start next round"); "question" -> t("Start next question")
+    "recapResults" -> t("Show the round’s results"); "finish" -> t("Finish quiz & reveal leaderboard"); "round" -> t("Start next round"); "question" -> t("Start next question")
     else -> t("Quiz finished")
 }
 
@@ -111,7 +111,7 @@ private fun DeckRun(vm: DeckViewModel, ui: DeckUi, d: DeckState) {
 
     when (confirm) {
         "finish" -> AlertDialog({ confirm = null }, title = { Text(t("Finish quiz")) }, text = { Text(t("Finish this quiz and close answers and registration? You can resume it later.")) },
-            confirmButton = { TextButton({ confirm = null; vm.next() }) { Text(t("Finish quiz")) } }, dismissButton = { TextButton({ confirm = null }) { Text(t("Cancel")) } })
+            confirmButton = { TextButton({ confirm = null; vm.next() }) { Text(t("Finish quiz & reveal leaderboard")) } }, dismissButton = { TextButton({ confirm = null }) { Text(t("Cancel")) } })
         "back" -> AlertDialog({ confirm = null }, title = { Text(t("Back: {step}", "step" to (d.back ?: ""))) },
             text = { Text(t("{n} team(s) have answered; those answers are thrown away.", "n" to d.backAnswers)) },
             confirmButton = { TextButton({ confirm = null; vm.back() }) { Text(t("Go back")) } }, dismissButton = { TextButton({ confirm = null }) { Text(t("Cancel")) } })
