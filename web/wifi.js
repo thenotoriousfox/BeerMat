@@ -7,6 +7,8 @@ fetch('/api/leaderboard').then(r => r.json()).then(s => {
   setLanguage(s.settings?.language);
   $('title').textContent = s.settings?.title || 'BeerMat';
   $('heading').textContent = t('You’re on the quiz Wi-Fi');
-  $('stay').textContent = t('If your phone warns about “no internet”, choose “Use network as is” or “Stay connected”.');
-  $('next').textContent = t('Then close this and scan the code on the TV, or open {url} in your browser.', {url: (s.settings?.joinUrl || 'http://10.42.0.1').replace(/^https?:\/\//, '')});
+  $('wait').firstChild.textContent = t('Don’t close this page until you’ve done this, or your phone may leave the quiz Wi-Fi:');
+  $('android').textContent = t('Android: tap ⋮ at the top, then “Use this network as is”.');
+  $('iphone').textContent = t('iPhone: tap “Cancel” at the top, then “Use Without Internet”.');
+  $('next').textContent = t('Then scan the code on the TV, or open {url} in your browser.', {url: (s.settings?.joinUrl || 'http://10.42.0.1').replace(/^https?:\/\//, '')});
 }).catch(() => {});

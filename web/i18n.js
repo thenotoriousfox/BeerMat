@@ -106,7 +106,10 @@ const T = {
   'Scan with your phone camera': ['Scannez avec l’appareil photo', 'Escanea con la cámara del móvil'],
   // The quiz Wi-Fi's sign-in sheet (wifi.html): how to stay on the Wi-Fi, then join in the browser.
   'You’re on the quiz Wi-Fi': ['Vous êtes sur le Wi-Fi du quiz', 'Estás en el wifi del quiz'],
-  'Then close this and scan the code on the TV, or open {url} in your browser.': ['Puis fermez cette page et scannez le code à la télé, ou ouvrez {url} dans votre navigateur.', 'Luego cierra esto y escanea el código de la tele, o abre {url} en tu navegador.'],
+  'Don’t close this page until you’ve done this, or your phone may leave the quiz Wi-Fi:': ['Ne fermez pas cette page avant d’avoir fait ceci, sinon votre téléphone risque de quitter le Wi-Fi du quiz :', 'No cierres esta página hasta hacer esto, o el móvil puede salirse del wifi del quiz:'],
+  'Android: tap ⋮ at the top, then “Use this network as is”.': ['Android : touchez ⋮ en haut, puis « Utiliser ce réseau tel quel ».', 'Android: toca ⋮ arriba y luego «Usar esta red tal cual».'],
+  'iPhone: tap “Cancel” at the top, then “Use Without Internet”.': ['iPhone : touchez « Annuler » en haut, puis « Utiliser sans Internet ».', 'iPhone: toca «Cancelar» arriba y luego «Usar sin Internet».'],
+  'Then scan the code on the TV, or open {url} in your browser.': ['Puis scannez le code à la télé, ou ouvrez {url} dans votre navigateur.', 'Luego escanea el código de la tele, o abre {url} en tu navegador.'],
   'If your phone warns about “no internet”, choose “Use network as is” or “Stay connected”.': ['Si le téléphone signale « pas d’internet », choisissez « Utiliser ce réseau tel quel » ou « Rester connecté ».', 'Si el móvil avisa de «sin internet», elige «Usar la red tal cual» o «Mantener conexión».'],
   'This phone was playing as {name}.': ['Ce téléphone jouait pour {name}.', 'Este móvil jugaba como {name}.'],
   'Continue as {name}': ['Continuer avec {name}', 'Continuar como {name}'],
