@@ -27,11 +27,11 @@ struct PlayView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     if menu { TeamMenu() } else if let game = model.game {
-                        if game.team?.waiting == true { Lobby(title: t("You’re in the waiting room"), text: t("The quizmaster will let you in shortly.")) }
+                        if game.team?.waiting == true { Lobby(title: t("You’re in the waiting room"), text: t("The quizmaster will let you in shortly.")); WaitingSetup() }
                         else if game.settings.ended { Lobby(title: t("That’s the quiz!"), text: t("Thanks for playing. Final scores are on the TV.")); KeepResult() }
                         else if let q = game.question {
                             if nativeTypes.contains(q.type) { QuestionView(q: q).id(q.id) } else { BrowserRound(q: q) }
-                        } else { Lobby(title: t("You’re in!"), text: t("Waiting for the quiz to start. Keep this app open.")); TeamSetup() }
+                        } else { Lobby(title: t("You’re in!"), text: t("Waiting for the quiz to start. Keep this app open.")); WaitingSetup() }
                         // Between questions the leaderboard, as on the browser player and the TV.
                         if let q = game.question, !q.live, !game.settings.ended, game.team?.waiting != true { Leaderboard(game: game) }
                     }
@@ -76,6 +76,15 @@ private struct Lobby: View {
             Text(title).font(Brand.display(30, .largeTitle)).multilineTextAlignment(.center)
             Text(text).foregroundStyle(Brand.muted).multilineTextAlignment(.center)
         }.frame(maxWidth: .infinity).padding(.top, 60)
+    }
+}
+
+/// Until the quiz starts, or while the quizmaster hasn't let the team in yet, as the browser player's waiting screen.
+private struct WaitingSetup: View {
+    var body: some View {
+        Text(t("While you wait: add a team photo and pick your buzzer sound.")).foregroundStyle(Brand.muted)
+            .multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(.top, 14)
+        TeamSetup()
     }
 }
 
