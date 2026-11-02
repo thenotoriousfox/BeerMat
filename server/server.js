@@ -431,8 +431,9 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (q.held) result.held = true;
     if (data.type === 'musicbingo' && data.reactions) result.reactionTable = reactionTable(q);
     if (!host) {
-      // Waiting for Send: phones get nothing to read ahead (the TV shows the question as the quizmaster reads it).
-      if (q.held && teamId) Object.assign(result, {text: '', options: [], items: [], order: [], media: null, pieces: [], wordLengths: [], grid: undefined, reveal: undefined});
+      // Waiting for Send: the TV and phones get nothing to read ahead while the quizmaster reads it out; it all appears,
+      // and its clock starts, on Send.
+      if (q.held) Object.assign(result, {text: '', options: [], items: [], order: [], media: null, pieces: [], wordLengths: [], grid: undefined, reveal: undefined});
       // Wording that would give the answer away stays off every screen but the desk until the answer is revealed.
       if (data.hideText && !revealedNow(q)) result.text = '';
     }

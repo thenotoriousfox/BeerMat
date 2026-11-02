@@ -33,12 +33,14 @@ test('Send Question: phones see nothing until the quizmaster sends it, and the c
   await call('host/open', {...base, text: 'Capital of France?', type: 'choice', options: ['Paris', 'Rome'], answer: 'Paris', fastestFingers: true, speedBonus: 10});
   let s = await call('state', {}, a.secret);
   assert.equal(s.question.held, true); assert.equal(s.question.text, ''); assert.deepEqual(s.question.options, []); assert.equal(s.question.open, false);
-  assert.equal((await tv()).question.text, 'Capital of France?', 'the TV shows it as it is read out');
+  const waiting = (await tv()).question;
+  assert.deepEqual([waiting.held, waiting.text, waiting.options], [true, '', []], 'nor does the TV: the room listens to the quizmaster');
   assert.equal((await call('answer', {question: s.question.id, value: 'Paris'}, a.secret)).status, 409);
   tick(20000);
   assert.equal((await call('host/send')).status, 200);
   s = await call('state', {}, a.secret);
   assert.equal(s.question.held, undefined); assert.equal(s.question.text, 'Capital of France?'); assert.equal(s.question.remaining, 30000, 'the whole time, from the send');
+  assert.deepEqual([(await tv()).question.text, (await tv()).question.options], ['Capital of France?', ['Paris', 'Rome']], 'on the TV at the same moment');
   await call('answer', {question: s.question.id, value: 'Paris'}, a.secret);
   await call('host/close');
   assert.equal((await call('host/state')).teams[0].score, 20, 'answered straight after the send: the full speed bonus');

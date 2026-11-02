@@ -162,14 +162,14 @@ ColumnLayout {
                     Text { id: readItOutText; anchors.fill: parent; anchors.margins: 10; verticalAlignment: Text.AlignVCenter; wrapMode: Text.WordWrap
                            text: "🎙  Read it out: the TV and phones don't show the wording until the answer is revealed."; color: Theme.text; font.pixelSize: 15 }
                 }
-                // Send Question: the question is on the TV for reading out; phones get it, and its clock starts, on Send.
+                // Send Question: you read it out first; the TV and phones show it, and its clock starts, on Send.
                 Rectangle {
                     visible: !!q && q.held
                     Layout.fillWidth: true; implicitHeight: 52; radius: 12
                     color: Qt.rgba(Theme.gold.r, Theme.gold.g, Theme.gold.b, 0.14); border.color: Theme.gold
                     RowLayout {
                         anchors.fill: parent; anchors.margins: 10
-                        Text { text: "Read it out, then send it: phones see it and the clock starts."; color: Theme.text; font.pixelSize: 15; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                        Text { text: "Read it out, then send it: the TV and phones show it and the clock starts."; color: Theme.text; font.pixelSize: 15; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                         DeskButton { text: "Send question"; shortcutHint: "S"; kind: "primary"; implicitHeight: 34; enabled: !!view.canSend && !desk.busy; onClicked: desk.send() }
                     }
                 }
