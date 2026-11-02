@@ -389,6 +389,7 @@ class TvSound(QObject):
             'shouts': {x['id']: x['status'] for x in bingo.get('shouts') or []},
             'buzz': {b['team']: b['status'] for b in ((q or {}).get('buzz') or {}).get('queue') or []},
             'leader': (((q or {}).get('buzz') or {}).get('active') or {}).get('name', ''),
+            'fastTrack': (s.get('fastTrack') or {}).get('id'),
             'view': s.get('view'), 'boardLeader': (s.get('reveal') or {}).get('question') if (s.get('reveal') or {}).get('leader') else None,
             'winner': ' & '.join(t['name'] for t in s.get('teams', []) if t.get('rank') == 1) if s.get('view') == 'winner' else ''}
         self._follow_wheel(s, before is None)
@@ -402,6 +403,13 @@ class TvSound(QObject):
             self.play('endRound')
         if heard['winner'] and heard['winner'] != before['winner']:
             self.fanfare()
+        # The spotlights (TvStage's) play the team's own buzzer, as the browser TV: first place in the leaderboard
+        # reveal (joint leaders one after another), and a Fast Track into first place.
+        if heard['boardLeader'] and heard['boardLeader'] != before['boardLeader']:
+            for i, team in enumerate([t for t in s.get('teams') or [] if t.get('rank') == 1][:4]):
+                QTimer.singleShot(600 + i * 2500, lambda team=team: self.buzz(team.get('name', ''), team.get('sound')))
+        if heard['fastTrack'] is not None and heard['fastTrack'] != before['fastTrack']:
+            self.buzz(s['fastTrack'].get('name', ''), s['fastTrack'].get('sound'))
         jingle = ''
         if q and q.get('id') != before['id'] and q.get('live'):
             if q.get('round') and q['round'] != before['round'] and self.play('startRound'):
@@ -421,6 +429,9 @@ class TvSound(QObject):
             self.play('timeUp')
         if heard['revealing'] and not before['revealing']:
             self.play('reveal')
+        # The fastest (or closest) team's spotlight at the reveal.
+        if heard['revealed'] and not before['revealed'] and q.get('first'):
+            self.buzz(q['first'].get('name', ''), q['first'].get('sound'))
         for team, status in heard['buzz'].items():
             if status != before['buzz'].get(team):
                 if status == 'correct':

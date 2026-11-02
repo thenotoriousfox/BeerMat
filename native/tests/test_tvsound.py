@@ -127,6 +127,24 @@ class TvSoundTest(unittest.TestCase):
         self.assertEqual(self.step(self.state(bingo(1, [{'id': 's', 'status': 'pending'}]))), ['bingo'])
         self.assertEqual(self.step(self.state(bingo(1, [{'id': 's', 'status': 'wrong'}]))), ['wrong'])
 
+    def test_spotlights_play_the_teams_own_buzzer(self):
+        """As the browser TV: the fastest team at a reveal, first place in the leaderboard reveal (joint leaders in turn)
+        and a Fast Track each play the team's buzzer."""
+        first = {'name': 'Bears', 'sound': 2, 'kind': 'fastest', 'ms': 1200}
+        self.step(self.state(question(open=False, revealing=True)))
+        self.assertEqual(self.step(self.state(question(open=False, revealed=True, first=first))), ['buzzer'])
+        self.assertEqual(self.step(self.state(question(open=False, revealed=True, first=first))), [], 'once only')
+        teams = [{'name': 'Bears', 'rank': 1, 'sound': 1}, {'name': 'Owls', 'rank': 1, 'sound': 3}, {'name': 'Cats', 'rank': 3}]
+        self.step(self.state(None, view='leaderboard', teams=teams, reveal={'question': 1, 'leader': False}))
+        self.heard.clear()
+        self.sound.follow(self.state(None, view='leaderboard', teams=teams, reveal={'question': 1, 'leader': True}))
+        deadline = time.time() + 5
+        while self.heard.count('buzzer') < 2 and time.time() < deadline:
+            app.processEvents(); time.sleep(0.02)
+        self.assertEqual(self.heard.count('buzzer'), 2, 'both joint leaders, one after the other')
+        self.assertEqual(self.step(self.state(None, view='leaderboard', teams=teams, fastTrack={'id': 4, 'name': 'Cats', 'sound': 0, 'at': 0})), ['buzzer'])
+        self.assertEqual(self.step(self.state(None, view='leaderboard', teams=teams, fastTrack={'id': 4, 'name': 'Cats', 'sound': 0, 'at': 0})), [])
+
     def test_quiet_questions_have_no_music(self):
         self.assertEqual(self.step(self.state(question(type='audio'))), [])
         self.assertEqual(self.step(self.state(question(media='/media/song.mp3'))), [])
