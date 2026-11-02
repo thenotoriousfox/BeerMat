@@ -35,6 +35,9 @@ class PhoneDeckTest(DeskCase):
         desk.liveTools.playClips = lambda: asked.append('all')
         desk.liveTools.playClip = lambda i: asked.append(i)
 
+        # No app: the panel gives the page's address in a phone's browser.
+        address = self.window.findChild(QObject, 'webDeckAddress')
+        wait(lambda: '/deck' in (address.property('text') or ''), what='the web deck address')
         self.window.findChild(QObject, 'deckCodeButton').clicked.emit()
         wait(lambda: desk.deck.get('code'), what='a code')
         status, phone = post(base, '/api/deck/login', {'code': desk.deck['code'], 'name': 'Dan’s phone'})

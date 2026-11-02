@@ -194,6 +194,9 @@ desk: `deck-command {action: callNumber|playClips|playClip|stopClips|playAudio|p
 open); the Qt desk (its `/api/events?…&desk=1` stream) carries it out. The desk takes a phone off with `deck/disconnect
 {id}`.
 
+The same in a phone's browser, with no app: the laptop serves `/deck` (and `/deck.js`) on the quiz Wi-Fi and the venue's,
+signing in with the desk's code; the desks show its address as a QR code beside the code.
+
 ## Compatibility rules
 
 1. Add fields; don't rename or remove them. Bump `protocol` if you must.

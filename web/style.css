@@ -632,6 +632,21 @@ body.idle { cursor: none; }
 .screen-controls button { transition: opacity .3s; }
 body.idle .screen-controls button { opacity: 0; pointer-events: none; }
 
+.deck-qr { width: 112px; height: 112px; flex: none; background: #fff; border-radius: 10px; padding: 6px; }
+.deck-qr svg { width: 100%; height: 100%; display: block; }
+/* ---------- Run the night in a phone's browser (deck.html) ---------- */
+body[data-role=deck] { max-width: 560px; }
+.deck-question h2 { font-family: var(--display); font-size: 1.35rem; line-height: 1.25; margin: 4px 0 8px; }
+.deck-question .status-line { font-weight: 750; color: var(--gold-hi); margin: 6px 0 2px; }
+.deck-question .status-line.open { color: var(--good, #34d399); }
+.deck-read { color: var(--gold-hi); font-weight: 650; }
+.deck-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.deck-buttons button { margin: 0; }
+.deck-board { list-style: none; padding: 0; }
+.deck-board li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.deck-board li strong { color: var(--gold-hi); }
+.deck-board li.away { color: var(--muted); }
+
 /* ---------- Small screens ---------- */
 @media (max-width: 700px) {
   .sound-slot { grid-template-columns: 1fr auto auto; }

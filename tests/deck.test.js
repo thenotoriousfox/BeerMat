@@ -109,6 +109,10 @@ test('a phone deck reaches the desk from the venue’s Wi-Fi; nothing else of th
     assert.ok(key, 'a phone signs in from the venue Wi-Fi');
     assert.equal((await post('127.0.0.2', '/api/host/state', {}, key)).status, 200, 'and hosts from there');
     assert.equal((await (await fetch(`http://127.0.0.2:${port}/api/deck/hello`)).json()).app, 'BeerMat');
+    // Run the night in a phone's browser: its page and script come from the venue Wi-Fi too; the desk's page doesn't.
+    for (const page of ['/deck', '/deck.js']) assert.equal((await fetch(`http://127.0.0.2:${port}${page}`)).status, 200, page);
+    assert.match(await (await fetch(`http://127.0.0.2:${port}/deck`)).text(), /deck\.js/);
+    assert.equal((await fetch(`http://127.0.0.2:${port}/host`)).status, 403, 'the desk stays on the quiz Wi-Fi');
   } finally {await quiz.close(); rmSync(dir, {recursive: true, force: true});}
 });
 

@@ -1,3 +1,4 @@
+import {qrMatrix} from './qr.js';
 import {$, element, api, message, readStorage, writeStorage, download, renderMedia, renderSolution, timeText, selectOptions, letters, live, enableSound, useSounds, buzzSound, renderPinpoint, bingoCall, avatar} from './app.js';
 import {slotFiles} from './soundnames.js';
 let key = readStorage('beermat-host', true), state = null, library = null, editingId = null, tab = 'live', dirty = false, reviewId = '', reviewSignature = '', busy = false;
@@ -438,8 +439,19 @@ $('next').onclick = () => {
   else if (step) action(() => request('next', {expectedQuestion: state.question?.id || null}), 'Next question opened');
 };
 // Level for first place after the last question: the desk offers the tie-breaker (Next never opens one).
-// Phones hosting this quiz (Run the night in the BeerMat app): each can be taken off.
+// Phones hosting this quiz (Run the night in the BeerMat app): each can be taken off. No app: the same page in the
+// phone's browser, at the address players join + /deck.
 function renderDecks(s) {
+  const address = s.settings.joinUrl ? s.settings.joinUrl.replace(/\/$/, '') + '/deck' : '';
+  $('webDeck').hidden = !address;
+  if (address && $('webDeck').dataset.address !== address) {
+    $('webDeck').dataset.address = address;
+    $('webDeckAddress').textContent = `No app? Scan this, or open ${address} in the phone’s browser, and type the code.`;
+    const m = qrMatrix(address), n = m.length, ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg'), path = document.createElementNS(ns, 'path');
+    svg.setAttribute('viewBox', `-4 -4 ${n + 8} ${n + 8}`); svg.setAttribute('shape-rendering', 'crispEdges'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'QR code: ' + address);
+    path.setAttribute('d', m.flatMap((row, y) => row.map((dark, x) => dark ? `M${x} ${y}h1v1h-1z` : '')).join(''));
+    svg.append(path); $('webDeckQr').replaceChildren(svg);
+  }
   const list = $('deckList'), decks = s.decks || [];
   const signature = JSON.stringify(decks);
   if (list.dataset.signature === signature) return;

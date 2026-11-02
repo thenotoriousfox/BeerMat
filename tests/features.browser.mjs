@@ -165,6 +165,33 @@ try {
   await shot(desk, 'desk-report');
   log('TV group board; the desk’s question report');
 
+  // Run the night in a phone's browser: the desk's code signs it in; it opens, closes and reveals a question.
+  await host('settings', {sendQuestion: false, displayMode: 'auto'});
+  await host('close');
+  // A one-question quiz for Next to open.
+  await host('library/save', {revision: (await host('library')).revision, quiz: {title: 'Deck quiz', rounds: [{id: 'd1', title: 'Round one', questions: [
+    {id: 'dq1', type: 'choice', text: 'Which planet is known as the Red Planet?', options: ['Venus', 'Mars'], answer: 'Mars', seconds: 60, points: 1}]}]}});
+  const deckPhone = await context.newPage();
+  deckPhone.on('pageerror', e => errors.push(e.message)); deckPhone.on('dialog', d => d.accept());
+  await deckPhone.goto(base + '/deck');
+  await deckPhone.locator('#codeForm').waitFor({state: 'visible'});
+  const {code} = await host('deck-code');
+  await deckPhone.fill('#code', code); await deckPhone.click('#codeForm button');
+  await deckPhone.locator('#deck').waitFor({state: 'visible'});
+  assert.equal((await host('state')).decks.at(-1).how, 'code');
+  await deckPhone.waitForFunction(() => !document.getElementById('next').disabled);
+  await deckPhone.click('#next');
+  await deckPhone.waitForFunction(() => !document.getElementById('questionCard').hidden && document.getElementById('state').textContent.startsWith('Open'));
+  await deckPhone.click('#controls button:text("Close answers")');
+  await deckPhone.waitForFunction(() => document.getElementById('state').textContent === 'Closed');
+  await deckPhone.click('#controls button:text("Reveal answer")');
+  await deckPhone.waitForFunction(() => document.getElementById('state').textContent.startsWith('Answer'), null, {timeout: 15000});
+  assert.equal((await host('state')).question.revealed, true);
+  await shot(deckPhone, 'deck');
+  await deckPhone.click('#leave');
+  await deckPhone.locator('#codeForm').waitFor({state: 'visible'});
+  log('Run the night in a phone’s browser: the desk’s code, then a question opened, closed and revealed');
+
   assert.deepEqual(errors, []);
   log('no JavaScript errors on the phone, desk or TV');
 } finally {
