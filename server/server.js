@@ -72,7 +72,7 @@ function loadPack(dir, prefix) {
 // runs their venue from the desk.
 export const onlineDefault = 'https://online.beermatquiz.co.uk';
 
-export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), themesDir = path.join(root, 'themes'), myThemesDir = path.join(path.dirname(path.resolve(database)), 'my-themes'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose, reachProbe = fetchProbe, fetchImpl = globalThis.fetch, plan: fixedPlan = null, licenceKey = licencePublicKey, updatesBase, updateKey} = {}) {
+export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, mediaDir = path.join(root, 'media'), allowedAddresses = null, clientAddress = null, spotifyAccountsUrl, spotifyApiUrl, spotifyLocalApp, packDir = path.join(root, 'soundpack'), soundsDir = path.join(root, 'sounds'), themesDir = path.join(root, 'themes'), myThemesDir = path.join(path.dirname(path.resolve(database)), 'my-themes'), laptop = null, deskTicket = null, onQuit = null, publicPort = 3001, interfaces, networkCheck = diagnose, reachProbe = fetchProbe, fetchImpl = globalThis.fetch, plan: fixedPlan = null, licenceKey = licencePublicKey, updatesBase, updateKey} = {}) {
   if (typeof hostKey !== 'string' || hostKey.length < 12) throw Error('HOST_KEY must contain at least 12 characters');
   const db = new DatabaseSync(database);
   // Updates for BeerMat Desk (server/updates.js), downloaded next to the database.
@@ -287,7 +287,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   // The example quiz BeerMat comes with: a question in every format, its pictures and sounds inside
   // (scripts/make-example-quiz.py).
   const exampleQuizFile = path.join(root, 'examples', 'example-quiz.json');
-  const spotify = createSpotify({getMeta, setMeta, now, accountsUrl: spotifyAccountsUrl, apiUrl: spotifyApiUrl});
+  const spotify = createSpotify({getMeta, setMeta, now, accountsUrl: spotifyAccountsUrl, apiUrl: spotifyApiUrl, ...(spotifyLocalApp !== undefined && {localApp: spotifyLocalApp})});
   // Spotify only accepts loopback redirect addresses written as an IP, so sign-in returns to 127.0.0.1 on this port.
   const spotifyRedirect = () => `http://127.0.0.1:${server.address().port}/spotify/callback`;
   const usesSpotify = data => (data.songs || data.clips || []).some(x => x.spotify);
