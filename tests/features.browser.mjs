@@ -114,6 +114,17 @@ try {
   assert.equal(await barTop(), top, 'and back when the keyboard closes');
   await typistContext.close();
   log('with the keyboard open, Send answer stays at the top of what the phone shows');
+  // Blur sharpens on the TV's curve (TvStage.qml): three-quarters of the way it's nearly sharp on the phone too
+  // (a straight-line blur still had 7 px of 28 there, far blurrier than the TV).
+  await host('open', {text: 'Blurry one', type: 'picture', media: '/media/red.png', answer: 'Mars', reveal: 'blur', revealSeconds: 4, seconds: 30, points: 1});
+  const blurry = String((await host('state')).question.id);
+  await phone.waitForFunction(id => document.querySelector('#media')?.dataset.media && document.querySelector('#media img')?.style.filter.startsWith('blur'), blurry);
+  const blurAt = async () => Number((await phone.locator('#media img').evaluate(img => img.style.filter)).match(/blur\(([\d.]+)px\)/)?.[1] ?? 0);
+  assert.ok(await blurAt() > 15, 'it starts very blurred');
+  await phone.waitForTimeout(3000);
+  assert.ok(await blurAt() < 3, `nearly sharp three-quarters of the way (${await blurAt()} px)`);
+  await host('close');
+  log('a blurred picture sharpens on the phone as on the TV');
 
   const songs = Array.from({length: 15}, (_, i) => ({title: `Song ${i + 1}`}));
   await host('open', {text: 'Music bingo', type: 'musicbingo', mode: 'line', songs, reactions: true, reactionPoints: 1, seconds: 600, points: 3});

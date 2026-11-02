@@ -39,7 +39,9 @@ export function revealPicture(container, question, offset = 0) {
   // Over the first revealSeconds when set (then whole for the rest of the time), else the whole time.
   const shown = !question.live || question.revealed ? 1 : Math.min(1, Math.max(0, (total - left) / ((question.revealSeconds || question.seconds) * 1000)));
   container.classList.add('revealing-picture');
-  if (mode === 'blur') {img.style.filter = shown >= 1 ? '' : `blur(${Math.round((1 - shown) * 28)}px)`; cover?.remove(); return;}
+  // Blur sharpens as the TV's does (TvStage.qml): as if drawn 6 → 240 pixels wide on a log scale, so the picture is
+  // recognisable about halfway, the same moment on every screen (a straight-line blur kept phones far blurrier).
+  if (mode === 'blur') {img.style.filter = shown >= 1 ? '' : `blur(${(0.5 * (img.clientWidth || 360) / (6 * 40 ** shown)).toFixed(1)}px)`; cover?.remove(); return;}
   if (!cover) {
     cover = element('div', undefined, 'reveal-tiles'); cover.dataset.question = String(question.id);
     cover.append(...seededOrder(12, `tiles:${question.id}`).map(order => {const tile = element('span'); tile.dataset.order = order; return tile;}));
