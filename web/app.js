@@ -21,6 +21,9 @@ export function download(name, data) {
 }
 export const isAudio = media => /\.(mp3|ogg|wav)$/i.test(media || '');
 export const isVideo = value => /\.(mp4|webm)$/i.test(value || '');
+// What a wrong answer costs, told before teams answer: Risk It takes the points away, Wipeout scores nothing for a
+// wrong tick. Shown on phones and the TV while the question is up.
+export const riskNote = q => q?.evil ? t('🎲 Risk It: a wrong answer loses the points') : q?.type === 'multi' && q.wipeout ? t('💥 Wipeout: one wrong tick and you score nothing') : '';
 // The question's picture, sound or video. A video plays on the TV only (tv): phones say to watch it there, so the
 // quiz Wi-Fi isn't carrying a video to every phone.
 export function renderMedia(container, question, {tv = false} = {}) {

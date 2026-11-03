@@ -139,6 +139,18 @@ try {
   await phone.waitForFunction(() => document.getElementById('resultPoints').textContent === '+4 points'); void placesQ;
   log('pinpoint with several places: a tap for each, points for each place found');
 
+  // Risk It and Wipeout: the phone says what a wrong answer costs before teams answer.
+  await host('open', {text: 'Capital of Italy?', type: 'choice', options: ['Rome', 'Milan'], answer: 'Rome', seconds: 60, points: 2, evil: true});
+  await phone.waitForFunction(() => document.querySelector('#inputs .risk-note')?.textContent === '🎲 Risk It: a wrong answer loses the points');
+  await host('close');
+  await host('open', {text: 'Which are primes?', type: 'multi', options: ['2', '4', '5'], correct: ['2', '5'], seconds: 60, points: 2, wipeout: true});
+  await phone.waitForFunction(() => document.querySelector('#inputs .risk-note')?.textContent === '💥 Wipeout: one wrong tick and you score nothing' && !document.querySelector('#inputs p.muted'));
+  await host('close');
+  await host('open', {text: 'Which are even?', type: 'multi', options: ['2', '4', '5'], correct: ['2', '4'], seconds: 60, points: 2});
+  await phone.waitForFunction(() => document.getElementById('question').textContent === 'Which are even?' && !document.querySelector('#inputs .risk-note'));
+  await host('close');
+  log('Risk It and Wipeout: the phone says what a wrong answer costs');
+
   // A wager: the phone stakes before sending; a right answer wins the stake.
   await host('open', {text: 'Capital of Spain?', type: 'text', answer: 'Madrid', seconds: 60, wager: 5});
   await phone.waitForFunction(() => document.querySelector('.keypad.stake') && document.getElementById('status').textContent.includes('Wager: up to 5 points'));

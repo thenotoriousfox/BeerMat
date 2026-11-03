@@ -434,6 +434,8 @@ button.buzzer.clip { font-size: 1.8rem; background: radial-gradient(circle at 35
 .clip-row audio { margin: 0; }
 .my-photo { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid var(--gold); }
 .card .avatar { width: 64px; height: 64px; }
+.risk-note { color: var(--pink); font-weight: 800; margin: .25rem 0 .6rem; }
+body[data-role=display] .risk-note { font-size: 2rem; }
 .timer { font-size: 1.4rem; color: var(--gold); font-variant-numeric: tabular-nums; font-weight: 800; }
 .sound-slots { display: grid; gap: 6px; margin: 12px 0; }
 .sound-slot { display: grid; grid-template-columns: minmax(150px, 1.2fr) minmax(120px, 1fr) minmax(160px, 1.4fr) auto auto; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); padding: 6px 0; }

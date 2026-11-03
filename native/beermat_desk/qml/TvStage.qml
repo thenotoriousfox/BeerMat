@@ -310,6 +310,14 @@ Item {
                             }
                         }
                     }
+                    // What a wrong answer costs (Risk It, Wipeout), told while the question is up (as the web TV's riskNote).
+                    Text {
+                        objectName: "riskNote"
+                        readonly property string note: !questionView.q || questionView.q.revealed ? "" : questionView.q.evil ? root.t("🎲 Risk It: a wrong answer loses the points")
+                            : questionView.q.type === "multi" && questionView.q.wipeout ? root.t("💥 Wipeout: one wrong tick and you score nothing") : ""
+                        visible: note !== ""; text: note
+                        color: root.pal.bad; font.family: Theme.display; font.pixelSize: 44; font.weight: Font.Bold
+                    }
                     RowLayout {
                         Layout.fillWidth: true; Layout.fillHeight: true
                         spacing: 40
