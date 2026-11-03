@@ -26,14 +26,14 @@ const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = 
 
 // Question types. Keypad formats follow common pub-quiz handset conventions:
 // letters (first letter of the answer), numbers, multiple choice and sequence.
-export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet', 'clues', 'list', 'pairs', 'sort'];
+export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet', 'clues', 'list', 'pairs', 'sort', 'links'];
 export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
 // Buzzer questions stay open until the quizmaster rules on them; the timer only limits buzzing.
 // Formats the server marks right or wrong by itself: these can use Risk It and a fixed speed bonus.
 // Two-button Multiple choice (pair): true or false, before or after. The stored values stay English; phones and TVs
 // label the buttons in the quiz's language.
 export const PAIRS = {trueFalse: ['True', 'False'], beforeAfter: ['Before', 'After']};
-export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'list', 'pairs', 'sort'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio', 'clues'].includes(q.type) && !!q.answer);
+export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'list', 'pairs', 'sort', 'links'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio', 'clues'].includes(q.type) && !!q.answer);
 export const speedBonusOf = q => q.fastestFingers ? q.speedBonus || 0 : 0;
 export const hostDriven = type => ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(type);
 export const isBingo = type => type === 'bingo' || type === 'musicbingo';
@@ -75,6 +75,19 @@ export function validateQuestion(q, mediaDir) {
     requireValue(Array.isArray(q.accepted) && q.accepted.length >= 2 && q.accepted.length <= 50 && q.accepted.every(a => text(a, 200)), 'Give 2–50 accepted answers');
     result.accepted = q.accepted.map(a => a.trim()); result.slots = q.slots ?? Math.min(result.accepted.length, 10);
     requireValue(integer(result.slots, 1, Math.min(20, result.accepted.length)), `Boxes for teams: 1–${Math.min(20, result.accepted.length)}`);
+  }
+  // Link groups: 2–4 groups of 2–5 items, each with its link (alternatives with |). Teams sort the items, shown
+  // shuffled, into groups and name each link: points for each group found, linkPoints for each link named.
+  if (q.type === 'links') {
+    requireValue(Array.isArray(q.linkGroups) && q.linkGroups.length >= 2 && q.linkGroups.length <= 4, 'Give 2–4 groups');
+    result.linkGroups = q.linkGroups.map(g => {
+      requireValue(g && text(g.link, 120) && Array.isArray(g.items) && g.items.length >= 2 && g.items.length <= 5 && g.items.every(i => text(i, 80)), 'Each group needs a link and 2–5 items');
+      return {link: g.link.trim(), items: g.items.map(i => i.trim())};
+    });
+    const all = result.linkGroups.flatMap(g => g.items.map(i => i.toLowerCase()));
+    requireValue(new Set(all).size === all.length && all.length <= 16, 'Every item must be different (16 at most)');
+    result.linkPoints = q.linkPoints ?? result.points;
+    requireValue(integer(result.linkPoints, 0, 100), 'Points for each link must be 0–100');
   }
   // Sorting into categories: each item belongs to one of 2–5 categories (in the order they first appear); a point for
   // each item put in the right one.
@@ -330,6 +343,14 @@ export function answerValue(value, q, final = true) {
     requireValue(!final || value.length, q.type === 'tiles' ? 'Place the tiles first' : 'Trace the word first');
     return JSON.stringify(value);
   }
+  if (q.type === 'links') {
+    // {items: {item: group number as text, or ''}, links: [what links group 1, 2…]}, kept in the quiz's own item order.
+    const items = q.linkGroups.flatMap(g => g.items), labels = q.linkGroups.map((_, i) => String(i + 1));
+    requireValue(value && typeof value === 'object' && !Array.isArray(value) && value.items && typeof value.items === 'object' && Array.isArray(value.links), 'Sort the items into groups');
+    requireValue(Object.entries(value.items).every(([k, v]) => items.includes(k) && (v === '' || labels.includes(v))), 'Sort the items into groups');
+    requireValue(value.links.length <= labels.length && value.links.every(l => typeof l === 'string' && l.length <= 120), 'Name each link');
+    return JSON.stringify({items: items.map(i => value.items[i] || ''), links: labels.map((_, i) => (value.links[i] || '').trim())});
+  }
   if (q.type === 'sort') {
     requireValue(Array.isArray(value) && value.length === q.sorting.length && value.every(v => v === '' || q.categories.includes(v)), 'Sort each item');
     return JSON.stringify(value);
@@ -373,6 +394,7 @@ export function isCorrect(value, q) {
   if (q.type === 'list') return listFound(JSON.parse(value), q) === q.slots;
   if (q.type === 'pairs') return pairsMatched(JSON.parse(value), q) === q.pairs.length;
   if (q.type === 'sort') return itemsSorted(JSON.parse(value), q) === q.sorting.length;
+  if (q.type === 'links') {const r = linksFound(JSON.parse(value), q); return r.groups === q.linkGroups.length && r.named === q.linkGroups.length;}
   if (q.type === 'pinpoint') return q.targets ? targetsFound(JSON.parse(value), q.targets) === q.targets.length : hits(JSON.parse(value)[0], q.target);
   if (q.type === 'wordsnake') {const {path} = JSON.parse(value); return validSnake(path, q.snake) && path.map(i => q.snake.grid[i]).join('') === q.answer;}
   if (q.type === 'tiles') return JSON.parse(value).map(i => q.pieces[i]).join('') === q.tiles.join('');
@@ -398,12 +420,26 @@ export function basePoints(value, q) {
   if (q.type === 'list') return listFound(JSON.parse(value), q) * q.points;
   if (q.type === 'pairs') return pairsMatched(JSON.parse(value), q) * q.points;
   if (q.type === 'sort') return itemsSorted(JSON.parse(value), q) * q.points;
+  if (q.type === 'links') {const r = linksFound(JSON.parse(value), q); return r.groups * q.points + r.named * q.linkPoints;}
   if (q.type === 'pinpoint' && q.targets) return targetsFound(JSON.parse(value), q.targets) * q.points;
   if (q.type === 'pinpoint') {
     const [first, second] = JSON.parse(value);
     return hits(first, q.target) ? q.points : hits(second, q.target) ? q.goWidePoints : 0;
   }
   return isCorrect(value, q) ? q.points : 0;
+}
+
+// Link groups: how many groups a team put together exactly (no item missing, none extra), and how many of those it
+// named (its link for that group matching the link or an alternative).
+export function linksFound(value, q) {
+  let at = 0, groups = 0, named = 0;
+  for (const g of q.linkGroups) {
+    const mine = value.items.slice(at, at + g.items.length), label = mine[0]; at += g.items.length;
+    if (!label || mine.some(l => l !== label) || value.items.filter(l => l === label).length !== g.items.length) continue;
+    groups++;
+    if (matches(value.links[Number(label) - 1] || '', alternatives(g.link))) named++;
+  }
+  return {groups, named};
 }
 
 // Sorting into categories: how many items went in their own category.

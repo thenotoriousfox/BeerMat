@@ -185,6 +185,9 @@ def quiz(land_file):
               pairs=[['Canberra', 'Australia'], ['Ottawa', 'Canada'], ['Wellington', 'New Zealand'], ['Pretoria', 'South Africa']]),
             q('13e', type='sort', text='Fruit or vegetable? (As a botanist sees it.)', seconds=45, points=1,
               sorting=[['Tomato', 'Fruit'], ['Carrot', 'Vegetable'], ['Cucumber', 'Fruit'], ['Potato', 'Vegetable'], ['Pumpkin', 'Fruit'], ['Celery', 'Vegetable']]),
+            q('13f', type='links', text='Find the three groups of three, and what links each.', seconds=90, points=1, linkPoints=1,
+              linkGroups=[{'link': 'Planets', 'items': ['Mercury', 'Mars', 'Venus']}, {'link': 'Greek letters', 'items': ['Delta', 'Sigma', 'Omega']},
+                          {'link': 'Chess pieces | Chessmen', 'items': ['Bishop', 'Knight', 'Rook']}]),
             q(13, type='nearest', text='How many bones are there in the adult human body?', seconds=30, points=3, answer='206', places=3),
         ]),
         ('On the buzzer', [

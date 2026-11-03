@@ -36,7 +36,7 @@ DATA_URL = re.compile(r'^data:([^;,]+);base64,(.*)$', re.S)
 TYPE_NAMES = {'text': 'Typed answer', 'choice': 'Multiple choice', 'multi': 'Tick all that apply', 'letter': 'Letter keypad',
               'number': 'Number', 'nearest': 'Nearest wins', 'sequence': 'Put in order', 'pinpoint': 'Pinpoint', 'wordsnake': 'Word trail',
               'tiles': 'Letter tiles', 'vote': 'Vote', 'buzzer': 'Buzzer', 'bingo': 'Bingo', 'musicbingo': 'Music bingo', 'clips': 'Sound clips',
-              'picture': 'Picture', 'audio': 'Audio', 'sheet': 'Answer sheet', 'clues': 'Progressive clues', 'list': 'List answers', 'pairs': 'Matching pairs', 'sort': 'Sort into groups'}
+              'picture': 'Picture', 'audio': 'Audio', 'sheet': 'Answer sheet', 'clues': 'Progressive clues', 'list': 'List answers', 'pairs': 'Matching pairs', 'sort': 'Sort into groups', 'links': 'Link groups'}
 
 
 class Desk(QObject):
