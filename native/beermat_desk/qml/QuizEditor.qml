@@ -245,16 +245,17 @@ RowLayout {
 
                 // ---- sound clips ----
                 ColumnLayout {
-                    visible: q.type === "clips"
+                    // A sound clips game, or (optional) a clip for each item of a put in order question: songs by year, say.
+                    visible: q.type === "clips" || q.type === "sequence"
                     Layout.fillWidth: true; spacing: 4
-                    Text { text: "Clips, played in order (tick the one teams tap for)"; color: Theme.text; font.weight: Font.DemiBold }
+                    Text { text: q.type === "sequence" ? "Clips (optional): one for each item, in the same order. The desk plays them in the order phones show the items" : "Clips, played in order (tick the one teams tap for)"; color: Theme.text; font.weight: Font.DemiBold; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                     Repeater {
                         model: q.clipsList || []
                         delegate: RowLayout {
                             required property var modelData
                             required property int index
                             Layout.fillWidth: true; spacing: 6
-                            RadioButton { checked: q.targetClip === index; onClicked: lib.setTargetClip(index) }
+                            RadioButton { visible: q.type === "clips"; checked: q.targetClip === index; onClicked: lib.setTargetClip(index) }
                             Field { text: modelData.label; placeholderText: "Name"; Layout.preferredWidth: 180; onEditingFinished: lib.setItem("clip", index, "label", text) }
                             Text { visible: !!modelData.media; text: modelData.media.split("/").pop(); color: Theme.muted; font.pixelSize: 12; Layout.fillWidth: true; elide: Text.ElideMiddle }
                             Field { visible: !modelData.media; text: modelData.spotify; placeholderText: "Spotify track link"; Layout.fillWidth: true; onEditingFinished: lib.setItem("clip", index, "spotify", text) }

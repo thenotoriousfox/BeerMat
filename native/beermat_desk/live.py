@@ -15,6 +15,17 @@ SWITCHES = {'registrationOpen', 'leaderboardVisible', 'showScores', 'scrambleKey
 DISPLAY_MODES = ['auto', 'join', 'question', 'leaderboard', 'wheel', 'winner', 'slides', 'blank']
 
 
+def clip_order(q):
+    """The order the desk plays a question's clips in: a sound clips game's as listed; ordering audio clips (a put in
+    order question with a clip per item) in the order phones show the items, never the right one."""
+    clips = (q or {}).get('clips') or []
+    if q.get('type') == 'clips':
+        return list(range(len(clips)))
+    if q.get('type') == 'sequence' and clips:
+        return list(q.get('order') or range(len(clips)))
+    return []
+
+
 class LiveTools(QObject):
     clipsChanged = Signal()
 
@@ -142,14 +153,14 @@ class LiveTools(QObject):
     @Slot()
     def playClips(self):
         q = self._q()
-        if q and q.get('type') == 'clips' and q.get('live'):
+        if q and clip_order(q) and q.get('live'):
             self._play_clip(q, 0)
 
     @Slot(int)
     def playClip(self, i):
         """Just one clip (to play it again, or out of order); Play clips plays them all."""
         q = self._q()
-        if q and q.get('type') == 'clips' and q.get('live'):
+        if q and clip_order(q) and q.get('live'):
             self.stopClips()
             self._play_clip(q, i, only=True)
 
@@ -165,11 +176,13 @@ class LiveTools(QObject):
         self.clipsChanged.emit()
 
     def _play_clip(self, q, i, only=False):
+        """The i-th clip in play order (clip_order); the server hears of it by its own number, k."""
         live = self._q()
-        clips = q.get('clips') or []
-        if not live or live.get('id') != q['id'] or not live.get('live') or i >= len(clips):
+        clips, order = q.get('clips') or [], clip_order(q)
+        if not live or live.get('id') != q['id'] or not live.get('live') or i >= len(order):
             return self.stopClips()
-        clip = clips[i]
+        k = order[i]
+        clip = clips[k]
         run = self._clips = {'question': q['id'], 'index': i, 'spotify': bool(clip.get('spotify'))}
         self.clipsChanged.emit()
 
@@ -188,7 +201,7 @@ class LiveTools(QObject):
             def started(_):
                 QTimer.singleShot(int((clip.get('seconds') or q.get('clipSeconds') or 10) * 1000),
                                   lambda: self._clips is run and self.api.host('spotify/pause', {}, lambda _: finished(), lambda _: finished()))
-            self.api.host('spotify/play', {'question': q['id'], 'clip': i}, started, lambda e: (self.desk.toast.emit(e, True), self.stopClips()))
+            self.api.host('spotify/play', {'question': q['id'], 'clip': k}, started, lambda e: (self.desk.toast.emit(e, True), self.stopClips()))
             return
         self._clip_media = clip.get('media')
         player = self.sound.desk_play(clip.get('media'))
@@ -205,7 +218,7 @@ class LiveTools(QObject):
                 return
             if state == QMediaPlayer.MediaStatus.BufferedMedia and not announced['done']:
                 announced['done'] = True
-                self.api.host('clip', {'question': q['id'], 'clip': i}, None, lambda e: self.desk.toast.emit(e, True))
+                self.api.host('clip', {'question': q['id'], 'clip': k}, None, lambda e: self.desk.toast.emit(e, True))
             if state == QMediaPlayer.MediaStatus.EndOfMedia:
                 player.mediaStatusChanged.disconnect(status)
                 finished()

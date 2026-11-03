@@ -17,7 +17,9 @@ ColumnLayout {
     // A sound to play: an uploaded file (through the TV's sound) or a Spotify clip (on the Spotify player).
     readonly property bool spotifyClip: !!(q.clip && q.clip.spotify)
     readonly property bool isAudio: /\.(mp3|ogg|wav)$/i.test(q.media || "") || spotifyClip
-    visible: !!q.id && (type === "buzzer" || type === "bingo" || type === "musicbingo" || type === "clips" || isAudio)
+    // A sound clips game, or ordering audio clips (a put in order question with a clip per item, played in the phones' order).
+    readonly property bool clipsGame: type === "clips" || (type === "sequence" && (q.clips || []).length > 0)
+    visible: !!q.id && (type === "buzzer" || type === "bingo" || type === "musicbingo" || clipsGame || isAudio)
     spacing: 8
 
     Shortcut { sequence: "1"; enabled: controls.visible && controls.pendingShouts.length > 0; onActivated: desk.live.bingoVerdict(controls.pendingShouts[0].id, true) }
@@ -99,7 +101,7 @@ ColumnLayout {
 
     // ---- sound clips ----
     Rectangle {
-        visible: controls.type === "clips"
+        visible: controls.clipsGame
         Layout.fillWidth: true; implicitHeight: clipsColumn.implicitHeight + 24; radius: 12
         color: Qt.rgba(Theme.teal.r, Theme.teal.g, Theme.teal.b, 0.08); border.color: Qt.rgba(Theme.teal.r, Theme.teal.g, Theme.teal.b, 0.4)
         ColumnLayout {
@@ -112,7 +114,7 @@ ColumnLayout {
                 Text {
                     // With a TV screen connected (another computer showing the TV), the clips play there.
                     readonly property string where: (controls.view.tvScreens || []).length ? `on ${controls.view.tvScreens[0]}` : "through the TV's sound"
-                    text: controls.view.clipsRunning >= 0 ? `🎵 Clip ${controls.view.clipsRunning + 1} of ${(controls.q.clips || []).length} playing ${where}` : `${(controls.q.clips || []).length} clips, played in order ${where}`
+                    text: controls.view.clipsRunning >= 0 ? (controls.type === "sequence" ? `🎵 ${controls.q.items[(controls.q.order || [])[controls.view.clipsRunning]] || ""} playing ${where}` : `🎵 Clip ${controls.view.clipsRunning + 1} of ${(controls.q.clips || []).length} playing ${where}`) : `${(controls.q.clips || []).length} clips, played in order ${where}`
                     color: Theme.text; font.pixelSize: 15; Layout.fillWidth: true; wrapMode: Text.WordWrap
                 }
                 Text { text: controls.q.clipGame ? `${controls.q.clipGame.taps || 0} taps` : ""; color: Theme.muted; font.pixelSize: 13 }
@@ -121,14 +123,16 @@ ColumnLayout {
             Flow {
                 Layout.fillWidth: true; spacing: 6
                 Repeater {
-                    model: controls.type === "clips" ? (controls.q.clips || []) : []
+                    // In play order: a clips game's as listed; ordering clips by the phones' order, named by item.
+                    model: controls.type === "clips" ? (controls.q.clips || []) : controls.clipsGame ? (controls.q.order || []) : []
                     delegate: DeskButton {
                         required property var modelData
                         required property int index
                         objectName: "playClip" + index
                         implicitHeight: 32; enabled: !!controls.q.live
                         kind: controls.view.clipsRunning === index ? "primary" : "quiet"
-                        text: `▶ ${index + 1}${modelData.label ? " · " + modelData.label : ""}${index === controls.q.targetClip ? "  ✓" : ""}`
+                        text: controls.type === "sequence" ? `▶ ${controls.q.items[modelData]}`
+                            : `▶ ${index + 1}${modelData.label ? " · " + modelData.label : ""}${index === controls.q.targetClip ? "  ✓" : ""}`
                         onClicked: desk.live.playClip(index)
                     }
                 }

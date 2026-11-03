@@ -125,7 +125,7 @@ function formTypes() {
   show('nearestFields', type === 'nearest'); show('cluesFields', type === 'clues'); show('listFields', type === 'list'); show('pairsFields', type === 'pairs'); show('sortFields', type === 'sort'); show('linksFields', type === 'links'); show('surveyFields', type === 'survey'); show('pairFields', type === 'choice'); show('numberFields', type === 'number'); show('buzzerFields', type === 'buzzer'); show('pinpointFields', type === 'pinpoint'); show('goWideFields', type === 'pinpoint' || type === 'wordsnake');
   show('fiftyFields', type === 'choice'); $('goWidePointsText').textContent = type === 'wordsnake' ? 'Points with the hint' : 'Points for a second guess';
   $('goWideText').textContent = type === 'wordsnake' ? 'Hint: teams can hide the decoy letters, for fewer points' : 'Second guess: a second tap scores if the first misses'; show('bingoFields', type === 'bingo' || type === 'musicbingo'); show('stagePointsFields', (type === 'bingo' || type === 'musicbingo') && $('qMode').value === 'progressive');
-  const songs = $('qSongs').value.split('\n').filter(l => l.trim()).length; $('songCount').textContent = `${songs} songs${songs < 30 ? ' — add at least 30 so each team gets a different mix (a ticket holds 15)' : ''}`; show('musicFields', type === 'musicbingo'); show('clipsFields', type === 'clips');
+  const songs = $('qSongs').value.split('\n').filter(l => l.trim()).length; $('songCount').textContent = `${songs} songs${songs < 30 ? ' — add at least 30 so each team gets a different mix (a ticket holds 15)' : ''}`; show('musicFields', type === 'musicbingo'); show('clipsFields', type === 'clips' || type === 'sequence');
   show('mediaFields', !['bingo', 'musicbingo', 'clips'].includes(type)); show('audioClipFields', type === 'audio' || type === 'sheet'); show('answerFields', !['sheet', 'vote', 'sequence', 'multi', 'pinpoint', 'bingo', 'musicbingo', 'clips', 'list', 'pairs', 'sort', 'links', 'survey'].includes(type)); show('aliasesLabel', ['text', 'picture', 'audio', 'clues'].includes(type)); show('noteLabel', type !== 'sheet');
   // Speed bonus settings only appear once fastest fingers first is ticked.
   const fastest = speedTypes.includes(type) && $('qFastest').checked;
@@ -183,7 +183,7 @@ function renderClipList() {
     const li = element('li', undefined, 'clip-row'), pick = element('input'), name = element('input'), remove = element('button', 'Remove', 'subtle');
     // Uploaded clips get a player; Spotify clips get their start time.
     const play = clip.spotify ? element('label', 'Spotify · start (s)') : element('audio');
-    pick.type = 'radio'; pick.name = 'targetClip'; pick.checked = i === targetClip; pick.title = 'The right clip'; pick.onchange = () => {targetClip = i; editorChanged();};
+    pick.type = 'radio'; pick.name = 'targetClip'; pick.checked = i === targetClip; pick.hidden = $('qType').value === 'sequence'; pick.title = 'The right clip'; pick.onchange = () => {targetClip = i; editorChanged();};
     name.value = clip.label; name.maxLength = 100; name.oninput = () => {clip.label = name.value;}; name.setAttribute('aria-label', `Clip ${i + 1} name`);
     if (clip.spotify) {
       const start = element('input'), listen = element('button', '▶', 'subtle'); start.type = 'number'; start.min = '0'; start.max = '3600'; start.value = clip.start ?? 0; start.oninput = () => {clip.start = Number(start.value);};
@@ -307,6 +307,8 @@ function readQuestion() {
   const stagePoints = $('qMode').value === 'progressive' ? {stagePoints: [Number($('qLinePoints').value), Number($('qTwoLinePoints').value), Number($('qHousePoints').value)]} : {};
   if (type === 'bingo') Object.assign(q, {mode: $('qMode').value, media: '', perCall: Number($('qPerCall').value), speed: $('qSpeedBingo').checked, ...stagePoints});
   if (type === 'musicbingo') Object.assign(q, {...stagePoints, reactions: $('qReactions').checked, reactionPoints: Number($('qReactionPoints').value), mode: $('qMode').value, revealNow: $('qRevealNow').checked, startAt: Number($('qStartAt').value), songSeconds: Number($('qSongSeconds').value), autoNext: $('qAutoNext').checked, media: '', songs: lines('qSongs').map(songLine)});
+  // Ordering audio clips: a clip for each item (optional), played in the order phones show the items.
+  if (type === 'sequence' && clipItems.length) Object.assign(q, {clipSeconds: Number($('qClipSeconds').value), clips: clipItems.map(c => c.spotify ? {spotify: c.spotify, start: c.start ?? 0, ...(c.seconds !== undefined && {seconds: c.seconds}), label: c.label.trim()} : {media: c.media, label: c.label.trim()})});
   if (type === 'clips') Object.assign(q, {clips: clipItems.map(c => c.spotify ? {spotify: c.spotify, start: c.start ?? 0, ...(c.seconds !== undefined && {seconds: c.seconds}), label: c.label.trim()} : {media: c.media, label: c.label.trim()}), targetClip, clipSeconds: Number($('qClipSeconds').value), media: ''});
   if (type === 'sequence') q.items = lines('qItems');
   if (type === 'clues') Object.assign(q, {clues: lines('qClues'), clueSeconds: Number($('qClueSeconds').value)});
@@ -506,24 +508,28 @@ function stopClips() {
   if (clipRun) request('clip', {question: clipRun.question, clip: -1}).catch(() => {});
   clipRun = null; if (state) renderClipsPanel(state.question);
 }
+// The order the desk plays a question's clips in: a sound clips game's as listed; ordering audio clips (a put in order
+// question with a clip per item) in the order phones show the items, never the right one.
+const clipOrder = q => q?.type === 'clips' ? q.clips.map((_, i) => i) : q?.type === 'sequence' && q.clips?.length ? (q.order || q.clips.map((_, i) => i)) : [];
 function playClip(i, only = false) {
-  const q = state.question;
-  if (!q?.live || q.type !== 'clips' || i >= q.clips.length) return stopClips();
+  const q = state.question, order = clipOrder(q);
+  if (!q?.live || i >= order.length) return stopClips();
+  const k = order[i], clip = q.clips[k];
   // A Spotify clip plays on the laptop's Spotify app for the question's clip length; the server logs its start.
-  if (q.clips[i].spotify) {
+  if (clip.spotify) {
     const run = clipRun = {question: q.id, index: i, spotify: true};
-    request('spotify/play', {question: q.id, clip: i}).then(() => setTimeout(async () => {
+    request('spotify/play', {question: q.id, clip: k}).then(() => setTimeout(async () => {
       if (clipRun !== run) return;
       await request('spotify/pause').catch(() => {}); await request('clip', {question: q.id, clip: -1}).catch(() => {});
       if (only) return stopClips();
       setTimeout(() => {if (clipRun === run) playClip(i + 1);}, 1500);
-    }, (q.clips[i].seconds ?? q.clipSeconds) * 1000)).catch(e => {message(e.message, true); if (clipRun === run) stopClips();});
+    }, (clip.seconds ?? q.clipSeconds) * 1000)).catch(e => {message(e.message, true); if (clipRun === run) stopClips();});
     return renderClipsPanel(q);
   }
   const run = clipRun = {question: q.id, index: i}, audio = $('clipAudio'); let started = false, ended = false;
-  audio.src = q.clips[i].media;
+  audio.src = clip.media;
   // An uploaded clip plays for the question's clip length too (or to its end, if that's sooner).
-  audio.onplaying = () => {if (!started && clipRun === run) {started = true; request('clip', {question: q.id, clip: i}).catch(e => message(e.message, true)); setTimeout(() => {if (clipRun === run && !ended) {audio.pause(); audio.onended();}}, (q.clipSeconds ?? 15) * 1000);}};
+  audio.onplaying = () => {if (!started && clipRun === run) {started = true; request('clip', {question: q.id, clip: k}).catch(e => message(e.message, true)); setTimeout(() => {if (clipRun === run && !ended) {audio.pause(); audio.onended();}}, (q.clipSeconds ?? 15) * 1000);}};
   audio.onended = async () => {
     if (clipRun !== run || ended) return;
     ended = true;
@@ -551,16 +557,17 @@ function audioClipCue(q) {
 }
 $('replayClip').onclick = () => action(() => playAudioClip(state.question), 'Playing the clip on Spotify');
 function renderClipsPanel(q) {
-  const c = q?.clipGame; $('clipsPanel').hidden = !c || !q.live;
-  if (!c) return;
-  const i = clipRun?.question === q.id ? clipRun.index : null;
-  $('clipInfo').textContent = i === null ? `${c.count} clips ready · ${c.taps} taps` : `Playing clip ${i + 1}: ${q.clips[i].label || '(unnamed)'}${i === q.targetClip ? ' — ✓ the right clip' : ''} · ${c.taps} taps`;
+  const c = q?.clipGame, ordering = q?.type === 'sequence' && !!q.clips?.length; $('clipsPanel').hidden = !(c || ordering) || !q.live;
+  if (!c && !ordering) return;
+  const i = clipRun?.question === q.id ? clipRun.index : null, order = clipOrder(q);
+  $('clipInfo').textContent = ordering ? (i === null ? `${order.length} clips ready, played in the order phones show the items` : `Playing: ${q.items[order[i]]}`)
+    : i === null ? `${c.count} clips ready · ${c.taps} taps` : `Playing clip ${i + 1}: ${q.clips[i].label || '(unnamed)'}${i === q.targetClip ? ' — ✓ the right clip' : ''} · ${c.taps} taps`;
   $('playClips').disabled = i !== null || busy; $('stopClips').disabled = i === null;
   // Or just one: to play it again, or out of order. ✓ marks the clip teams should tap for.
   if ($('clipOne').dataset.question !== String(q.id)) {
     $('clipOne').dataset.question = q.id;
-    $('clipOne').replaceChildren(...q.clips.map((clip, n) => {
-      const b = element('button', `▶ ${n + 1}${clip.label ? ` · ${clip.label}` : ''}${n === q.targetClip ? ' ✓' : ''}`, 'subtle'); b.type = 'button';
+    $('clipOne').replaceChildren(...order.map((k, n) => {
+      const clip = q.clips[k], b = element('button', ordering ? `▶ ${q.items[k]}` : `▶ ${n + 1}${clip.label ? ` · ${clip.label}` : ''}${n === q.targetClip ? ' ✓' : ''}`, 'subtle'); b.type = 'button';
       b.onclick = () => {enableSound(); if (clipRun) stopClips(); playClip(n, true);};
       return b;
     }));

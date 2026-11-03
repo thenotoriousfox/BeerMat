@@ -38,6 +38,20 @@ export const speedBonusOf = q => q.fastestFingers ? q.speedBonus || 0 : 0;
 export const hostDriven = type => ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(type);
 export const isBingo = type => type === 'bingo' || type === 'musicbingo';
 
+// A clip is an uploaded audio file, or a Spotify track played from a start time (for clipSeconds, or its own seconds).
+function clipList(clips, mediaDir) {
+  return clips.map(c => {
+    requireValue(c && typeof c === 'object', 'Invalid clip');
+    const spotify = c.spotify && spotifyTrack(c.spotify);
+    if (c.spotify) {
+      requireValue(spotify && integer(c.start ?? 0, 0, 3600), 'Spotify clips need a track and a start time of 0–3,600 seconds');
+      requireValue(c.seconds === undefined || integer(c.seconds, 3, 60), 'A clip plays for 3–60 seconds');
+    } else requireValue(typeof c.media === 'string' && mediaPattern.test(c.media) && audioExtensions.includes(path.extname(c.media).toLowerCase()) && existsSync(path.join(mediaDir, path.basename(c.media))), 'Each clip needs an uploaded audio file or a Spotify track');
+    requireValue(c.label === undefined || text(c.label, 100, false), 'Clip names must be up to 100 characters');
+    return c.spotify ? {spotify, start: c.start ?? 0, ...(c.seconds !== undefined && {seconds: c.seconds}), label: c.label?.trim() || ''} : {media: c.media, label: c.label?.trim() || ''};
+  });
+}
+
 export function validateQuestion(q, mediaDir) {
   // A wager's points are its most stake, so they can be left out.
   if (q?.wager && q.points === undefined) q = {...q, points: Math.min(100, Number(q.wager) || 0)};
@@ -170,6 +184,13 @@ export function validateQuestion(q, mediaDir) {
     requireValue(Array.isArray(q.items) && q.items.length >= 2 && q.items.length <= 8 && q.items.every(i => text(i, 200)) && new Set(q.items).size === q.items.length, 'Supply 2–8 distinct items in their correct order');
     result.items = q.items.map(i => i.trim());
     result.answer = '';
+    // Ordering audio clips (songs by release year, say): a clip for each item, in the same order, which the desk plays
+    // in the order phones see the items (never the right one).
+    if (Array.isArray(q.clips) && q.clips.length) {
+      requireValue(q.clips.length === result.items.length, 'Give a clip for each item, in the same order');
+      result.clips = clipList(q.clips, mediaDir); result.clipSeconds = q.clipSeconds ?? 15;
+      requireValue(integer(result.clipSeconds, 3, 60), 'Each clip plays for 3–60 seconds');
+    }
   }
   if (q.type === 'pinpoint') {
     const fraction = v => typeof v === 'number' && v >= 0 && v <= 1, area = t => {
@@ -200,17 +221,7 @@ export function validateQuestion(q, mediaDir) {
   }
   if (q.type === 'clips') {
     requireValue(Array.isArray(q.clips) && q.clips.length >= 2 && q.clips.length <= 30, 'Add 2–30 audio clips');
-    // A clip is an uploaded audio file, or a Spotify track played from a start time for clipSeconds.
-    result.clips = q.clips.map(c => {
-      requireValue(c && typeof c === 'object', 'Invalid clip');
-      const spotify = c.spotify && spotifyTrack(c.spotify);
-      if (c.spotify) {
-        requireValue(spotify && integer(c.start ?? 0, 0, 3600), 'Spotify clips need a track and a start time of 0–3,600 seconds');
-        requireValue(c.seconds === undefined || integer(c.seconds, 3, 60), 'A clip plays for 3–60 seconds');
-      } else requireValue(typeof c.media === 'string' && mediaPattern.test(c.media) && audioExtensions.includes(path.extname(c.media).toLowerCase()) && existsSync(path.join(mediaDir, path.basename(c.media))), 'Each clip needs an uploaded audio file or a Spotify track');
-      requireValue(c.label === undefined || text(c.label, 100, false), 'Clip names must be up to 100 characters');
-      return c.spotify ? {spotify, start: c.start ?? 0, ...(c.seconds !== undefined && {seconds: c.seconds}), label: c.label?.trim() || ''} : {media: c.media, label: c.label?.trim() || ''};
-    });
+    result.clips = clipList(q.clips, mediaDir);
     result.clipSeconds = q.clipSeconds ?? 15;
     requireValue(integer(result.clipSeconds, 3, 60), 'Each clip plays for 3–60 seconds');
     result.targetClip = q.targetClip;

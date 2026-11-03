@@ -119,9 +119,10 @@ function render() {
     ].filter(Boolean));
     // The round's own controls; what plays, plays from the laptop.
     const desk = action => () => act(() => host('deck-command', typeof action === 'string' ? {action} : action), t('Asked the desk'));
-    const clips = question.type === 'clips' && question.live ? (question.clips || []) : [];
+    // A sound clips game, or ordering audio clips (played in the order phones show the items, named by item).
+    const ordering = question.type === 'sequence' && question.clips?.length, clips = (question.type === 'clips' || ordering) && question.live ? (question.clips || []) : [];
     $('roundControls').replaceChildren(...[
-      ...(clips.length ? [button(t('Play all clips'), desk('playClips')), ...clips.map((_, i) => button(t('Clip {n}', {n: i + 1}), desk({action: 'playClip', value: i}))), button(t('Stop'), desk('stopClips'))] : []),
+      ...(clips.length ? [button(t('Play all clips'), desk('playClips')), ...clips.map((_, i) => button(ordering ? '▶ ' + question.items[(question.order || [])[i] ?? i] : t('Clip {n}', {n: i + 1}), desk({action: 'playClip', value: i}))), button(t('Stop'), desk('stopClips'))] : []),
       ...(question.type === 'bingo' || question.type === 'musicbingo' ? [button(question.type === 'bingo' ? t('Call next number') : t('Next song'), desk('callNumber'))] : []),
       ...(question.type === 'musicbingo' && question.bingo?.current ? [button(t('Play this song again'), desk('replaySong'))] : []),
       ...(question.type === 'buzzer' && question.buzz?.active ? [element('p', t('{team} buzzed', {team: question.buzz.active.name}), 'status-line'),

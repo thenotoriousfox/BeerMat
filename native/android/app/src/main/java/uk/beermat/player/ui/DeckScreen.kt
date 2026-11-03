@@ -160,7 +160,7 @@ private fun QuestionCard(vm: DeckViewModel, ui: DeckUi, d: DeckState, q: DeckQue
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val busy = ui.busy || !d.deskOpen
             when (q.type) {
-                "clips" -> if (q.live) {
+                "clips", "sequence" -> if (q.live && q.clips > 0) {
                     OutlinedButton({ vm.desk("playClips") }, enabled = !busy) { Text(t("Play all clips")) }
                     for (i in 0 until q.clips) OutlinedButton({ vm.desk("playClip", i) }, enabled = !busy) { Text(t("Clip {n}", "n" to i + 1)) }
                     OutlinedButton({ vm.desk("stopClips") }, enabled = !busy) { Text(t("Stop")) }

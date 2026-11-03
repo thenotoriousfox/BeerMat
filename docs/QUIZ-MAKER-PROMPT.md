@@ -61,6 +61,7 @@ Optional on most types:
 - `letter`: teams tap the first letter of the answer. `answer` is one letter A–Z. Put the full answer in `answerNote`.
 - `number`: `answer` is a plain number such as `"6"`, `"1066"` or `"3.14"`. Use no commas, units or words. Marked as an exact match, unless `tolerance` (a number above 0) is set: answers within ± that much also count; with `tolerancePercent: true` the tolerance is a percentage of the answer (`"tolerance": 5, "tolerancePercent": true` accepts 5% either side). The reveal shows it, for example `1969 (± 2)`.
 - `sequence`: put items in order. `items`: 2–8 distinct strings, **written in the correct order** (BeerMat shuffles them). Don't give an `answer`.
+  - Ordering audio clips (songs by release year, say): `clips`, a clip for each item in the same order as `items` (each as in `clips` below: `{"media": …}` or `{"spotify": …, "start": …}`), and optional `clipSeconds` (3–60, default 15). The desk plays them in the order phones show the items, and phones and the TV show which item is playing.
 - `vote`: an opinion poll with `options` (2–8) and no answer. Votes score nothing.
 
 **Typed answers:**

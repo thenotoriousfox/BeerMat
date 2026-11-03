@@ -292,6 +292,7 @@ Item {
                                 : questionView.q.paused ? root.t("Paused · {n}s remaining", {n: Math.ceil(questionView.q.remaining / 1000)})
                                 : (!questionView.q.open || questionView.msLeft <= 0 ? root.t("Answers closed") : root.t("{n}s remaining", {n: Math.ceil(questionView.msLeft / 1000)}))
                                   + (questionView.q.wager ? "  ·  " + root.t("Wager: up to {n} points", {n: questionView.q.wager}) : "")
+                                  + (questionView.q.nowPlaying && questionView.q.live ? "  ·  ♪ " + questionView.q.nowPlaying : "")
                                   + (questionView.q.type === "clues" && questionView.q.open && questionView.msLeft > 0 && !questionView.q.wager ? "  ·  " + root.t("Clue {n} of {total}: {p} points now", {n: questionView.q.cluesShown, total: questionView.q.clueCount, p: questionView.q.cluePoints}) : "")
                             color: questionView.q && questionView.q.open ? root.pal.gold : root.pal.muted; font.family: Theme.display; font.pixelSize: 60; font.weight: Font.Bold
                         }
