@@ -35,6 +35,7 @@ const T = {
   // The TV's recap after a secret round.
   'SECRET ROUND': ['MANCHE SECRÈTE', 'RONDA SECRETA'],
   'Question {n} of {count}': ['Question {n} sur {count}', 'Pregunta {n} de {count}'],
+  '💥 Wipeout: one wrong tick and you score nothing': ['💥 Élimination : une seule mauvaise case et vous ne marquez rien', '💥 Eliminación: una sola marca incorrecta y no puntuáis'],
   '🎲 Risk It: a wrong answer loses the points': ['🎲 Quitte ou double : une mauvaise réponse fait perdre les points', '🎲 A todo o nada: una respuesta incorrecta resta los puntos'],
   'No team answered this one.': ['Aucune équipe n’a répondu à celle-ci.', 'Ningún equipo respondió a esta.'],
   'Round results': ['Résultats de la manche', 'Resultados de la ronda'],

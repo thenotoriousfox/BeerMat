@@ -552,6 +552,28 @@ class TvStageTest(unittest.TestCase):
         self.show(state(q=question()))
         self.assertEqual(heading(), 'Which planet is red?')
 
+    def test_risk_it_and_wipeout_are_told_while_the_question_is_up(self):
+        """Risk It and Wipeout say what a wrong answer costs while teams answer; a plain question says nothing, and the
+        reveal takes it away."""
+        def note():
+            def walk(item):
+                for c in item.childItems():
+                    if c.objectName() == 'riskNote':
+                        return c
+                    found = walk(c)
+                    if found:
+                        return found
+            item = walk(self.stage)
+            return item.property('text') if item.property('visible') else ''
+        self.show(state(q=question(evil=True)), 'risk-it')
+        self.assertIn('Risk It', note())
+        self.show(state(q=question(type='multi', wipeout=True)))
+        self.assertIn('Wipeout', note())
+        self.show(state(q=question()))
+        self.assertEqual(note(), '')
+        self.show(state(q=question(evil=True, open=False, revealed=True)))
+        self.assertEqual(note(), '')
+
     def test_a_picture_revealed_over_its_first_seconds_is_whole_after_them(self):
         """revealSeconds: twenty seconds into a 30-second question, a picture revealed over its first 15 has every tile
         off; revealed over the whole time, a third of them are still on."""

@@ -252,6 +252,13 @@ private fun Countdown(q: Question, offset: Long) {
     )
 }
 
+/** Risk It takes the points for a wrong answer; Wipeout scores nothing for a wrong tick. */
+internal fun riskNote(q: Question): String? = when {
+    q.raw.optBoolean("evil") -> t("🎲 Risk It: a wrong answer loses the points")
+    q.type == "multi" && q.raw.optBoolean("wipeout") -> t("💥 Wipeout: one wrong tick and you score nothing")
+    else -> null
+}
+
 @Composable
 private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
     val game = ui.game!!
@@ -272,6 +279,8 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
     LaunchedEffect(value) { if (!locked && value != initial(q, null)) { vm.localDrafts[q.id] = value; delay(500); vm.saveDraft(value) } }
     val teamId = game.team?.id ?: ""
     val order: (Int) -> List<Int> = { n -> if (game.settings.scrambleKeypads) seededOrder(n, "$teamId:${q.id}") else List(n) { it } }
+    // What a wrong answer costs, told before teams answer (as the phone page's riskNote).
+    riskNote(q)?.let { Text(it, color = Brand.bad, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp)) }
 
     when (q.type) {
         // Letters only: six fixed A–F buttons (a letter past the last option is a wrong answer, sent as "#E"), or the
@@ -295,7 +304,7 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
         "vote" -> Keys(order(q.options.size).map { it to "${LETTERS[it]}. ${q.options[it]}" }, colours = true, picked = { q.options[it] == value }, enabled = !locked) { value = q.options[it] }
         "letter" -> LetterPad(order(26), value as? String ?: "", enabled = !locked) { value = it }
         "multi" -> {
-            Text(t("Tick every right answer — wrong ticks cost points"), color = Brand.muted, modifier = Modifier.padding(bottom = 8.dp))
+            if (!q.raw.optBoolean("wipeout")) Text(t("Tick every right answer — wrong ticks cost points"), color = Brand.muted, modifier = Modifier.padding(bottom = 8.dp))
             @Suppress("UNCHECKED_CAST") val picked = value as List<String>
             Keys(order(q.options.size).map { it to "${LETTERS[it]}. ${q.options[it]}" }, colours = true, picked = { q.options[it] in picked }, enabled = !locked) {
                 val o = q.options[it]; value = if (o in picked) picked - o else picked + o

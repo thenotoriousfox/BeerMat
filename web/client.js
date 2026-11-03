@@ -1,7 +1,7 @@
 import './compat.js';
 import {qrMatrix} from './qr.js';
 import {t, setLanguage, language, languages, translatePage} from './i18n.js';
-import {$, element, api, message, readStorage, writeStorage, renderMedia, revealPicture, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, soundLength, isAudio, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord, optionLabel, renderClues, followVideo} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, renderMedia, revealPicture, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, soundLength, isAudio, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord, optionLabel, renderClues, followVideo, riskNote} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('beermat-team'), current = null, renderedQuestion = 'unset', offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
 // The native apps hand their team to this page, for a round format they don't draw themselves, as #team=<code>: the
@@ -139,12 +139,14 @@ function buildInputs(q) {
   const order = length => current.settings.scrambleKeypads ? seededOrder(length, `${current.team.id}:${q.id}`) : Array.from({length}, (_, i) => i);
   if (q.type === 'buzzer' || q.type === 'bingo') return;
   const hiddenInput = () => {const hidden = element('input'); hidden.type = 'hidden'; hidden.name = 'answer-0'; box.append(hidden);};
+  if (riskNote(q)) box.append(element('p', riskNote(q), 'risk-note'));
   if (q.type === 'multi') {
     hiddenInput(); const pad = element('div', undefined, 'keypad');
     pad.append(...order(q.options.length).map(i => {const option = q.options[i], b = element('button', `${letters[i]}. ${option}`); b.type = 'button'; b.dataset.value = option; b.className = `opt o${i}`; b.onclick = () => {
       const picked = inputValue(); pick(JSON.stringify(picked.includes(option) ? picked.filter(p => p !== option) : [...picked, option]));
     }; return b;}));
-    box.append(element('p', t('Tick every right answer — wrong ticks cost points'), 'muted'), pad); return;
+    if (!q.wipeout) box.append(element('p', t('Tick every right answer — wrong ticks cost points'), 'muted'));
+    box.append(pad); return;
   }
   if (q.type === 'wordsnake') {
     hiddenInput(); const area = element('div'); area.id = 'snakeArea';
@@ -450,6 +452,7 @@ function displayState(s) {
   $('joinHint').textContent = !joining ? '' : online ? t('Join: {url}', {url: address}) : t('Join: Wi-Fi “{ssid}” → {url}', {ssid: joinSsid, url: address});
   $('boardSection').hidden = s.view !== 'leaderboard'; $('projectQuestion').hidden = s.view !== 'question';
   const q = s.question; $('question').textContent = !q ? t('Waiting for the quizmaster') : q.text || '🎙 ' + t('Listen to the quizmaster'); $('question').classList.toggle('listen', !!q && !q.text); $('round').textContent = q?.round || ''; $('status').textContent = timeText(q, offset);
+  $('riskNote').textContent = riskNote(q); $('riskNote').hidden = !riskNote(q) || !!q?.revealed;
   if (q?.type === 'pinpoint') renderPinpoint($('media'), q); else {renderMedia($('media'), q, {tv: true}); revealPicture($('media'), q, offset); followVideo($('media'), q);}
   renderSolution($('solution'), q, {onScreen: true}); $('projectQuestion').classList.toggle('revealed', !!q?.revealed);
   renderFirst(q);

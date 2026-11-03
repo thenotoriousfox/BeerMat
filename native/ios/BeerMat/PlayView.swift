@@ -234,6 +234,8 @@ private struct QuestionView: View {
         else if q.type == "bingo" || q.type == "musicbingo" { BingoView(q: q) }
         else if q.type == "clips" { ClipsView(q: q) }
         else {
+            // What a wrong answer costs, told before teams answer (as the phone page's riskNote).
+            if let note = riskNote(q) { Text(note).font(.headline).foregroundStyle(Brand.bad) }
             Group {
                 switch q.type {
                 // Letters only: six fixed A–F buttons (a letter past the last option is a wrong answer, sent as "#E"),
@@ -259,7 +261,7 @@ private struct QuestionView: View {
                         }
                     }
                 case "multi":
-                    Text(t("Tick every right answer — wrong ticks cost points")).foregroundStyle(Brand.muted)
+                    if q.raw["wipeout"] as? Bool != true { Text(t("Tick every right answer — wrong ticks cost points")).foregroundStyle(Brand.muted) }
                     Keys(keys: shuffle(q.options.count).map { ($0, "\(letters[$0]). \(q.options[$0])") }, colours: true, picked: { picks.contains(q.options[$0]) }, enabled: !locked) {
                         let o = q.options[$0]; if let at = picks.firstIndex(of: o) { picks.remove(at: at) } else { picks.append(o) }
                     }
@@ -584,4 +586,11 @@ private struct StakeView: View {
             }
         }.padding(.top, 8)
     }
+}
+
+/// Risk It takes the points for a wrong answer; Wipeout scores nothing for a wrong tick.
+func riskNote(_ q: Question) -> String? {
+    if q.raw["evil"] as? Bool == true { return t("🎲 Risk It: a wrong answer loses the points") }
+    if q.type == "multi" && q.raw["wipeout"] as? Bool == true { return t("💥 Wipeout: one wrong tick and you score nothing") }
+    return nil
 }
