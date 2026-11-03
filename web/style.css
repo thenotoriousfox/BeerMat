@@ -175,6 +175,7 @@ dialog:not([open]) { display: none; }
 .keypad.pair .opt { min-height: 6rem; font-size: 1.6rem; }
 .clue-list { margin: 8px 0 14px; padding-left: 1.6em; font-size: 1.15rem; line-height: 1.4; }
 .clue-list li.new, #projectItems li.new { color: var(--gold); font-weight: 700; }
+.pair-row { display: grid; grid-template-columns: 1fr minmax(8rem, 45%); align-items: center; gap: 8px; }
 .list-box { display: grid; grid-template-columns: 2em 1fr; align-items: center; gap: 6px; }
 /* ---------- Dialogs ---------- */
 dialog { background: var(--surface-solid); color: inherit; border: 1px solid var(--line-strong); border-radius: 20px; max-width: 90vw; padding: 28px; box-shadow: var(--shadow), 0 0 60px color-mix(in srgb, var(--violet) 25%, transparent); }

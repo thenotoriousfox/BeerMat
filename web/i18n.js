@@ -217,6 +217,8 @@ const T = {
   'Clue {n} of {total}: {p} points now': ['Indice {n} sur {total} : {p} points maintenant', 'Pista {n} de {total}: {p} puntos ahora'],
   // List answers.
   'Name up to {n}: a point for each right one, any order': ['Citez-en jusqu’à {n} : un point par bonne réponse, dans n’importe quel ordre', 'Nombrad hasta {n}: un punto por cada acierto, en cualquier orden'],
+  // Matching pairs.
+  'Match each one: a point for each right pair': ['Associez chacun : un point par bonne paire', 'Emparejad cada uno: un punto por pareja correcta'],
   'Trace the word first': ['Tracez d’abord le mot', 'Trazad antes la palabra'],
   'Place the tiles first': ['Placez d’abord les tuiles', 'Colocad antes las fichas'],
   'Your answer': ['Votre réponse', 'Vuestra respuesta'],
