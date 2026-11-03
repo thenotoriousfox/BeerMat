@@ -145,6 +145,8 @@ RowLayout {
 
                 Label { visible: fields.includes("clues"); text: "Clues, hardest first (one per line, 2–8; one more appears every few seconds)"; color: Theme.muted }
                 Area { visible: fields.includes("clues"); Layout.fillWidth: true; text: q.clues || ""; onEditingFinished: lib.setField("clues", text) }
+                Label { visible: fields.includes("pairs"); text: "Pairs, one a line: left = right (2–8; phones get the right-hand side shuffled)"; color: Theme.muted }
+                Area { visible: fields.includes("pairs"); Layout.fillWidth: true; text: q.pairs || ""; onEditingFinished: lib.setField("pairs", text) }
                 Label { visible: fields.includes("accepted"); text: "Accepted answers (one per line, 2–50; alternatives with |, e.g. UK | United Kingdom)"; color: Theme.muted }
                 Area { visible: fields.includes("accepted"); Layout.fillWidth: true; text: q.accepted || ""; onEditingFinished: lib.setField("accepted", text) }
                 Label { visible: fields.includes("options"); text: "Choices (one per line)"; color: Theme.muted }

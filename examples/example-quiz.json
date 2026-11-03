@@ -217,6 +217,31 @@
      ]
     },
     {
+     "id": "example-q13d",
+     "type": "pairs",
+     "text": "Match each capital to its country.",
+     "seconds": 45,
+     "points": 1,
+     "pairs": [
+      [
+       "Canberra",
+       "Australia"
+      ],
+      [
+       "Ottawa",
+       "Canada"
+      ],
+      [
+       "Wellington",
+       "New Zealand"
+      ],
+      [
+       "Pretoria",
+       "South Africa"
+      ]
+     ]
+    },
+    {
      "id": "example-q13",
      "type": "nearest",
      "text": "How many bones are there in the adult human body?",

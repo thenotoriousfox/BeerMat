@@ -246,6 +246,7 @@ Item {
                 readonly property var items: !q ? [] : ["choice", "vote", "multi"].includes(q.type) ? q.options
                                            : q.type === "sheet" ? (q.items || [])
                                            : q.type === "clues" ? (q.clues || [])
+                                           : q.type === "pairs" ? [...(q.left || []).map((l, i) => `${String.fromCharCode(65 + i)}. ${l}`), ...(q.right || []).map((r, i) => `${i + 1}. ${r}`)]
                                            : q.type === "tiles" ? [(q.wordLengths || []).map(n => "_".repeat(n)).join("  "), (q.pieces || []).join("  ·  ")] : []
                 readonly property bool isImage: !!q && !!q.media && !/\.(mp3|ogg|wav)$/i.test(q.media)
                 readonly property bool isAudio: !!q && !!q.media && /\.(mp3|ogg|wav)$/i.test(q.media)
@@ -415,7 +416,7 @@ Item {
                                         }
                                         Text {
                                             anchors.fill: parent; anchors.leftMargin: 28; anchors.rightMargin: 28; anchors.bottomMargin: tile.options ? 6 : 0; verticalAlignment: Text.AlignVCenter
-                                            text: tile.options && questionView.q && questionView.q.pair ? root.t(tile.modelData) : `${tile.options ? String.fromCharCode(65 + tile.index) + ".  " : questionView.q && ["sheet", "clues"].includes(questionView.q.type) ? (tile.index + 1) + ".  " : questionView.q && questionView.q.type === "tiles" ? "" : "•  "}${tile.modelData}`
+                                            text: tile.options && questionView.q && questionView.q.pair ? root.t(tile.modelData) : `${tile.options ? String.fromCharCode(65 + tile.index) + ".  " : questionView.q && ["sheet", "clues"].includes(questionView.q.type) ? (tile.index + 1) + ".  " : questionView.q && questionView.q.type === "pairs" ? "" : questionView.q && questionView.q.type === "tiles" ? "" : "•  "}${tile.modelData}`
                                             color: tile.options && tile.index % 8 === 3 ? "#241500" : root.pal.text
                                             style: tile.options && tile.index % 8 !== 3 ? Text.Raised : Text.Normal; styleColor: Qt.rgba(0, 0, 0, 0.35)
                                             font.pixelSize: tile.textSize; font.weight: Font.Black; elide: Text.ElideRight
@@ -622,6 +623,7 @@ Item {
                     // Choices are marked on their tiles, and a put-in-order list sorts itself: the box then only says who scored.
                     readonly property bool tiles: !!q && ["choice", "vote", "multi", "sequence"].includes(q.type)
                     readonly property string answer: !q ? "" : q.type === "sheet" ? (q.items || []).map((item, i) => `${i + 1}. ${(q.itemAnswers || [])[i] || root.t("Marked by quizmaster")}`).join("   ")
+                        : q.type === "pairs" ? (q.pairs || []).map(p => `${p[0]} — ${p[1]}`).join("   ")
                         : q.type === "list" ? (q.accepted || []).map((a, i) => `${i + 1}. ${a.split("|").map(x => x.trim()).filter(x => x).join(" / ")}`).join("   ")
                         : q.type === "pinpoint" && !q.answer ? root.t("Circled on the picture")
                         : q.answer && q.tolerance ? `${q.answer} (± ${q.tolerance}${q.tolerancePercent ? "%" : ""})` : (q.answer || root.t("Marked by quizmaster"))

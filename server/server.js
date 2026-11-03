@@ -416,7 +416,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function publicQuestion(q, host = false, teamId = null) {
     if (!q) return null;
     const data = dataOf(q);
-    const {answer, aliases, itemAnswers, itemAliases, answerNote, correct, target, targets, clues, accepted, clips, targetClip, songs, snake, tiles, clip, ...safe} = data;
+    const {answer, aliases, itemAnswers, itemAliases, answerNote, correct, target, targets, clues, accepted, pairs, clips, targetClip, songs, snake, tiles, clip, ...safe} = data;
     // Sequence items are shown shuffled; the stored order is the answer.
     const result = {...safe, id: q.id, deadline: q.deadline, open: accepting(q), live: pending(q), paused: pending(q) && q.paused_ms !== null,
       remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: revealedNow(q) && (host || !secretQuestion(q)), revealing: !!q.revealed && !revealedNow(q) && (host || !secretQuestion(q)), buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId, host), clipGame: clipState(q, data, teamId)};
@@ -427,6 +427,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       const shown = host || !pending(q) ? clues.length : cluesShown(q, data);
       Object.assign(result, {clues: clues.slice(0, shown), clueCount: clues.length, cluesShown: shown, cluePoints: cluePoints(data, Math.min(shown, clues.length))});
     }
+    // Matching pairs: the left items in order and the right ones shuffled (the same on every screen), not the pairing.
+    if (pairs) Object.assign(result, {left: pairs.map(p => p[0]), right: shuffleOrder(pairs.length, q.id).map(i => pairs[i][1])});
     // Several places to find: how many, not where, until the reveal.
     if (targets) result.targetCount = targets.length;
     if (data.type === 'sequence') result.order = shuffleOrder(data.items.length, q.id);
@@ -442,11 +444,11 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (!host) {
       // Waiting for Send: the TV and phones get nothing to read ahead while the quizmaster reads it out; it all appears,
       // and its clock starts, on Send.
-      if (q.held) Object.assign(result, {clues: [], text: '', options: [], items: [], order: [], media: null, pieces: [], wordLengths: [], grid: undefined, reveal: undefined});
+      if (q.held) Object.assign(result, {left: [], right: [], clues: [], text: '', options: [], items: [], order: [], media: null, pieces: [], wordLengths: [], grid: undefined, reveal: undefined});
       // Wording that would give the answer away stays off every screen but the desk until the answer is revealed.
       if (data.hideText && !revealedNow(q)) result.text = '';
     }
-    if (host || revealedNow(q) && !secretQuestion(q)) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], itemAliases: itemAliases || [], correct, target, targets, accepted, clips, clip, targetClip, songs, snakePath: snake?.path, tiles, tally: tally(q, data),
+    if (host || revealedNow(q) && !secretQuestion(q)) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], itemAliases: itemAliases || [], correct, target, targets, accepted, pairs, clips, clip, targetClip, songs, snakePath: snake?.path, tiles, tally: tally(q, data),
       correctCount: one('SELECT COUNT(*) n FROM answers WHERE question=? AND points>0', q.id).n, scorers: scorers(q), first: firstPlace(q, data)});
     return result;
   }

@@ -181,6 +181,8 @@ def quiz(land_file):
                      'An apple is said to have fallen near me.'], answer='Isaac Newton', aliases=['Newton', 'Sir Isaac Newton']),
             q('13c', type='list', text='Name the countries of the United Kingdom.', seconds=60, points=1, slots=4,
               accepted=['England', 'Scotland', 'Wales | Cymru', 'Northern Ireland | N Ireland | NI']),
+            q('13d', type='pairs', text='Match each capital to its country.', seconds=45, points=1,
+              pairs=[['Canberra', 'Australia'], ['Ottawa', 'Canada'], ['Wellington', 'New Zealand'], ['Pretoria', 'South Africa']]),
             q(13, type='nearest', text='How many bones are there in the adult human body?', seconds=30, points=3, answer='206', places=3),
         ]),
         ('On the buzzer', [
