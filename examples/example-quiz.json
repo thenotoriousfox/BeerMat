@@ -309,6 +309,34 @@
      ]
     },
     {
+     "id": "example-q13g",
+     "type": "survey",
+     "text": "We asked 100 people: name something you find in a kitchen.",
+     "seconds": 30,
+     "survey": [
+      [
+       "Kettle",
+       4
+      ],
+      [
+       "Fridge | Refrigerator",
+       3
+      ],
+      [
+       "Oven | Cooker",
+       2
+      ],
+      [
+       "Toaster",
+       1
+      ],
+      [
+       "Sink",
+       1
+      ]
+     ]
+    },
+    {
      "id": "example-q13",
      "type": "nearest",
      "text": "How many bones are there in the adult human body?",

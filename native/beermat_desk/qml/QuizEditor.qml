@@ -145,6 +145,8 @@ RowLayout {
 
                 Label { visible: fields.includes("clues"); text: "Clues, hardest first (one per line, 2–8; one more appears every few seconds)"; color: Theme.muted }
                 Area { visible: fields.includes("clues"); Layout.fillWidth: true; text: q.clues || ""; onEditingFinished: lib.setField("clues", text) }
+                Label { visible: fields.includes("survey"); text: "Survey answers, one a line: answer = points (2–12; alternatives with |, e.g. Kettle | Electric kettle = 5)"; color: Theme.muted }
+                Area { visible: fields.includes("survey"); Layout.fillWidth: true; text: q.survey || ""; onEditingFinished: lib.setField("survey", text) }
                 Label { visible: fields.includes("linkGroups"); text: "Groups, one a line: link: item, item, item (2–4 groups of 2–5; alternatives for a link with |, e.g. Planets | Planet names: Mars, Venus)"; color: Theme.muted }
                 Area { visible: fields.includes("linkGroups"); Layout.fillWidth: true; text: q.linkGroups || ""; onEditingFinished: lib.setField("linkGroups", text) }
                 Label { visible: fields.includes("sorting"); text: "Items and their groups, one a line: item = group (2–16 items, 2–5 groups; mix them up, phones show them in this order)"; color: Theme.muted }

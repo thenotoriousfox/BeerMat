@@ -105,7 +105,8 @@ export function renderSolution(container, question, {onScreen = false} = {}) {
   if (!question?.revealed) return;
   container.classList.remove('reveal'); void container.offsetWidth; container.classList.add('reveal');
   container.append(element('h3', t(question.type === 'vote' ? 'Votes' : 'Answer reveal')));
-  if (question.type === 'links') {const list = element('ul', undefined, 'solution'); list.append(...(question.linkGroups || []).map(g => element('li', `${g.link.split('|')[0].trim()}: ${g.items.join(', ')}`))); container.append(list);}
+  if (question.type === 'survey') {const list = element('ol', undefined, 'solution'); list.append(...(question.survey || []).map(([a, p]) => element('li', `${a.split('|')[0].trim()} — ${p === 1 ? t('1 point') : t('{n} points', {n: p})}`))); container.append(list);}
+  else if (question.type === 'links') {const list = element('ul', undefined, 'solution'); list.append(...(question.linkGroups || []).map(g => element('li', `${g.link.split('|')[0].trim()}: ${g.items.join(', ')}`))); container.append(list);}
   else if (question.type === 'sort') {const list = element('ul', undefined, 'solution'); list.append(...(question.categories || []).map(c => element('li', `${c}: ${(question.sorting || []).filter(p => p[1] === c).map(p => p[0]).join(', ')}`))); container.append(list);}
   else if (question.type === 'pairs') {const list = element('ol', undefined, 'solution'); list.append(...(question.pairs || []).map(p => element('li', `${p[0]} — ${p[1]}`))); container.append(list);}
   else if (question.type === 'list') {const list = element('ol', undefined, 'solution'); list.append(...(question.accepted || []).map(a => element('li', a.split('|').map(x => x.trim()).filter(Boolean).join(' / ')))); container.append(list);}

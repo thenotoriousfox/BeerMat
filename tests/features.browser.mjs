@@ -198,6 +198,15 @@ try {
   await phone.waitForFunction(() => document.getElementById('resultPoints').textContent === '+5 points');
   log('link groups: both groups found, one link named (2 + 2 + 1)');
 
+  // Survey: a typed answer scores what its survey answer is worth.
+  await host('open', {text: 'Name something in a kitchen.', type: 'survey', seconds: 60, survey: [['Kettle', 4], ['Fridge | Refrigerator', 3]]});
+  await phone.waitForFunction(() => document.getElementById('question').textContent === 'Name something in a kitchen.' && document.querySelector('#inputs input[name=answer-0]'));
+  await phone.fill('#inputs input[name=answer-0]', 'refrigerator');
+  await phone.click('#submit'); await phone.waitForFunction(() => /final answer/i.test(document.getElementById('draftStatus').textContent + document.getElementById('message').textContent));
+  await host('close');
+  await phone.waitForFunction(() => document.getElementById('resultPoints').textContent === '+3 points');
+  log('survey: a typed answer scores what its survey answer is worth');
+
   // An older phone (before iOS 16 / Chrome 103): no AbortSignal.timeout (every request used it), Array at,
   // structuredClone or <dialog>. compat.js fills them in: it joins, answers, keeps a draft and opens the team menu.
   const oldContext = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});

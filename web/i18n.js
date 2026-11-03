@@ -225,6 +225,8 @@ const T = {
   'Put the items into {n} groups, then say what links each group': ['Répartissez les éléments en {n} groupes, puis dites ce qui relie chaque groupe', 'Repartid los elementos en {n} grupos y decid qué une a cada grupo'],
   'Group {n}': ['Groupe {n}', 'Grupo {n}'],
   'Group {n}: what links them?': ['Groupe {n} : quel est le lien ?', 'Grupo {n}: ¿qué los une?'],
+  // Survey: what each answer scored.
+  '1 point': ['1 point', '1 punto'],
   'Trace the word first': ['Tracez d’abord le mot', 'Trazad antes la palabra'],
   'Place the tiles first': ['Placez d’abord les tuiles', 'Colocad antes las fichas'],
   'Your answer': ['Votre réponse', 'Vuestra respuesta'],
