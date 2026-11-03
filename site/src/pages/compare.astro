@@ -1,6 +1,7 @@
 ---
 import Page from '../layouts/Page.astro';
 import {PRICE, FOUNDING, TRIAL_DAYS} from '../consts';
+import {formatCount} from '../formats';
 // An honest comparison by kind of setup, not by product name: what a pub usually weighs BeerMat against. The rows
 // where something else wins stay in.
 const kinds = ['BeerMat', 'A quiz company', 'Paper and a microphone', 'Cloud quiz apps', 'All-in-one pub screens'];
@@ -11,7 +12,7 @@ const rows: [string, ...(string | boolean)[]][] = [
 	['Teams answer on their phones', true, 'Sometimes', false, true, true],
 	['Marking and scores', 'Automatic, with the host’s final say', 'Done by the host', 'By hand', 'Automatic', 'Automatic'],
 	['The question on every TV', 'Yes: a second screen, a TV stick, or another computer wired to the TVs', 'Sometimes', false, true, true],
-	['Round formats', 'Eighteen: buzzers, bingo, music bingo, pinpoint, word trail, picture reveals and more', 'Whatever the company runs', 'Questions and answer sheets', 'A handful', 'A handful'],
+	['Round formats', `${formatCount}: buzzers, bingo, music bingo, pinpoint, link groups, video and more`, 'Whatever the company runs', 'Questions and answer sheets', 'A handful', 'A handful'],
 	['Questions written for you', 'An example quiz, and quizzes other pubs share', true, false, 'Some include a question bank', 'Some include a question bank'],
 	['A host on the night', 'You (or your quizmaster)', true, 'You', 'You', 'You'],
 	['TVs busy all week: offers, sport', false, false, false, 'Some', true],
