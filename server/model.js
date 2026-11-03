@@ -21,19 +21,19 @@ export const spotifyTrack = value => {
   const match = typeof value === 'string' && /^(?:spotify:track:|https:\/\/open\.spotify\.com\/(?:intl-[a-z-]+\/)?track\/)([A-Za-z0-9]{22})(?:[?#].*)?$/.exec(value.trim());
   return match ? `spotify:track:${match[1]}` : null;
 };
-export const mediaPattern = /^\/media\/[a-zA-Z0-9_-][a-zA-Z0-9_.-]*\.(png|jpg|jpeg|webp|mp3|ogg|wav)$/i;
-const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = ['.mp3', '.ogg', '.wav'];
+export const mediaPattern = /^\/media\/[a-zA-Z0-9_-][a-zA-Z0-9_.-]*\.(png|jpg|jpeg|webp|mp3|ogg|wav|mp4|webm)$/i;
+const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = ['.mp3', '.ogg', '.wav'], videoExtensions = ['.mp4', '.webm'];
 
 // Question types. Keypad formats follow common pub-quiz handset conventions:
 // letters (first letter of the answer), numbers, multiple choice and sequence.
-export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet', 'clues', 'list', 'pairs', 'sort', 'links', 'survey'];
-export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
+export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet', 'clues', 'list', 'pairs', 'sort', 'links', 'survey', 'video'];
+export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'video', 'bingo', 'musicbingo', 'clips'];
 // Buzzer questions stay open until the quizmaster rules on them; the timer only limits buzzing.
 // Formats the server marks right or wrong by itself: these can use Risk It and a fixed speed bonus.
 // Two-button Multiple choice (pair): true or false, before or after. The stored values stay English; phones and TVs
 // label the buttons in the quiz's language.
 export const PAIRS = {trueFalse: ['True', 'False'], beforeAfter: ['Before', 'After']};
-export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'list', 'pairs', 'sort', 'links', 'survey'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio', 'clues'].includes(q.type) && !!q.answer);
+export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'list', 'pairs', 'sort', 'links', 'survey'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio', 'clues', 'video'].includes(q.type) && !!q.answer);
 export const speedBonusOf = q => q.fastestFingers ? q.speedBonus || 0 : 0;
 export const hostDriven = type => ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(type);
 export const isBingo = type => type === 'bingo' || type === 'musicbingo';
@@ -84,7 +84,7 @@ export function validateQuestion(q, mediaDir) {
   result.hideText = q.hideText === true;
   // Asked on the fly: the quizmaster reads out a question that isn't saved and sets its answer after answers close.
   if (q.onTheFly === true) result.onTheFly = true;
-  if (['text', 'picture', 'audio', 'clues'].includes(q.type)) result.aliases = aliases;
+  if (['text', 'picture', 'audio', 'clues', 'video'].includes(q.type)) result.aliases = aliases;
   // List answers: teams fill up to `slots` boxes; each box matching an accepted answer not already used scores the
   // points. An accepted answer may give alternatives: "UK | United Kingdom".
   if (q.type === 'list') {
@@ -279,7 +279,8 @@ export function validateQuestion(q, mediaDir) {
   if (q.media !== undefined && q.media !== null && q.media !== '') {
     requireValue(typeof q.media === 'string' && mediaPattern.test(q.media) && existsSync(path.join(mediaDir, path.basename(q.media))), 'Upload or select an existing media file');
     const extension = path.extname(q.media).toLowerCase();
-    requireValue(q.type === 'picture' ? pictureExtensions.includes(extension) : q.type === 'audio' ? audioExtensions.includes(extension) : true, 'Media format does not match question type');
+    // A video only for a video question (it plays on the TV; phones say to watch it), and only a video there.
+    requireValue(q.type === 'picture' ? pictureExtensions.includes(extension) : q.type === 'audio' ? audioExtensions.includes(extension) : q.type === 'video' ? videoExtensions.includes(extension) : !videoExtensions.includes(extension), 'Media format does not match question type');
     result.media = q.media;
   }
   // An audio question (or a sheet, e.g. "artist" and "title" for one song) can play a Spotify track instead of a
@@ -290,7 +291,7 @@ export function validateQuestion(q, mediaDir) {
     requireValue(!result.media, 'An audio question plays either a file or Spotify, not both');
     result.clip = {spotify, start: c.start ?? 0, seconds: c.seconds ?? 30};
   }
-  requireValue(!['picture', 'audio', 'pinpoint'].includes(q.type) || result.media || result.clip, 'Upload or select an existing media file');
+  requireValue(!['picture', 'audio', 'pinpoint', 'video'].includes(q.type) || result.media || result.clip, 'Upload or select an existing media file');
   // A picture can start hidden and show itself over the question's time: blurred, or under twelve tiles.
   if (q.reveal !== undefined && q.reveal !== null && q.reveal !== '') {
     requireValue(['blur', 'tiles'].includes(q.reveal), 'A picture reveal is blur or tiles');

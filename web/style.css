@@ -177,6 +177,8 @@ dialog:not([open]) { display: none; }
 .clue-list li.new, #projectItems li.new { color: var(--gold); font-weight: 700; }
 .pair-row { display: grid; grid-template-columns: 1fr minmax(8rem, 45%); align-items: center; gap: 8px; }
 .list-box { display: grid; grid-template-columns: 2em 1fr; align-items: center; gap: 6px; }
+#media video { display: block; width: 100%; max-height: 62vh; border-radius: 16px; background: #000; }
+.watch-tv { font-size: 1.4rem; font-weight: 800; color: var(--gold); text-align: center; margin: 12px 0; }
 /* ---------- Dialogs ---------- */
 dialog { background: var(--surface-solid); color: inherit; border: 1px solid var(--line-strong); border-radius: 20px; max-width: 90vw; padding: 28px; box-shadow: var(--shadow), 0 0 60px color-mix(in srgb, var(--violet) 25%, transparent); }
 dialog::backdrop { background: rgba(5, 3, 18, .78); backdrop-filter: blur(3px); }

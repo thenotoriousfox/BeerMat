@@ -238,6 +238,8 @@ class LiveTools(QObject):
     @Slot()
     def playAudio(self):
         """From the start."""
+        if self._video():
+            return self._call('video', {'question': self._q()['id'], 'action': 'play'}, 'The video plays again on the TV')
         if self._spotify_clip():
             return self._play_spotify()
         media = self._audio()
@@ -247,6 +249,8 @@ class LiveTools(QObject):
     @Slot()
     def pauseAudio(self):
         """Pauses it, or carries on from where it paused (a Spotify clip starts again: Spotify has no carry-on here)."""
+        if self._video():
+            return self._call('video', {'question': self._q()['id'], 'action': 'stop'}, 'The video stopped on the TV')
         if self._spotify_clip():
             return self._stop_spotify() if self._spotify_playing else self._play_spotify()
         media = self._audio()
@@ -255,6 +259,11 @@ class LiveTools(QObject):
             self.sound.desk_pause(media)
         elif player and player.playbackState() == QMediaPlayer.PlaybackState.PausedState:
             self.sound.desk_resume(media)
+
+    def _video(self):
+        """A video question: its video plays on the TVs, which follow Play again and Stop."""
+        q = self._q() or {}
+        return q.get('type') == 'video' and str(q.get('media') or '').lower().endswith(('.mp4', '.webm'))
 
     def _audio(self):
         media = (self._q() or {}).get('media') or ''

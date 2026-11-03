@@ -5,9 +5,9 @@ let key = readStorage('beermat-host', true), state = null, library = null, editi
 const uid = () => 'id-' + crypto.getRandomValues(new Uint32Array(4)).join('-');
 const request = (p, body = {}) => api('host/' + p, body, key);
 let offset = 0, selectedRoundId = '', lastBuzz = '', liveQuestion = null, pinTarget = null, clipItems = [], targetClip = 0, clipRun = null;
-const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
+const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'video', 'bingo', 'musicbingo', 'clips'];
 // Formats marked right or wrong automatically (with a correct answer set): Risk It and a fixed bonus apply to these.
-const markedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'clues', 'list', 'pairs', 'sort', 'links', 'survey'];
+const markedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'clues', 'list', 'pairs', 'sort', 'links', 'survey', 'video'];
 const modes = {progressive: 'full game (line, two lines, full house)', line: 'one line', twoLines: 'two lines', fullHouse: 'full house'}, stageNames = {line: 'Line', twoLines: 'Two lines', fullHouse: 'Full house'};
 const isBingoType = type => type === 'bingo' || type === 'musicbingo';
 // The desk's summary of a bingo game: who won the latest prize, and what is being played for now.
@@ -126,7 +126,7 @@ function formTypes() {
   show('fiftyFields', type === 'choice'); $('goWidePointsText').textContent = type === 'wordsnake' ? 'Points with the hint' : 'Points for a second guess';
   $('goWideText').textContent = type === 'wordsnake' ? 'Hint: teams can hide the decoy letters, for fewer points' : 'Second guess: a second tap scores if the first misses'; show('bingoFields', type === 'bingo' || type === 'musicbingo'); show('stagePointsFields', (type === 'bingo' || type === 'musicbingo') && $('qMode').value === 'progressive');
   const songs = $('qSongs').value.split('\n').filter(l => l.trim()).length; $('songCount').textContent = `${songs} songs${songs < 30 ? ' — add at least 30 so each team gets a different mix (a ticket holds 15)' : ''}`; show('musicFields', type === 'musicbingo'); show('clipsFields', type === 'clips' || type === 'sequence');
-  show('mediaFields', !['bingo', 'musicbingo', 'clips'].includes(type)); show('audioClipFields', type === 'audio' || type === 'sheet'); show('answerFields', !['sheet', 'vote', 'sequence', 'multi', 'pinpoint', 'bingo', 'musicbingo', 'clips', 'list', 'pairs', 'sort', 'links', 'survey'].includes(type)); show('aliasesLabel', ['text', 'picture', 'audio', 'clues'].includes(type)); show('noteLabel', type !== 'sheet');
+  show('mediaFields', !['bingo', 'musicbingo', 'clips'].includes(type)); show('audioClipFields', type === 'audio' || type === 'sheet'); show('answerFields', !['sheet', 'vote', 'sequence', 'multi', 'pinpoint', 'bingo', 'musicbingo', 'clips', 'list', 'pairs', 'sort', 'links', 'survey'].includes(type)); show('aliasesLabel', ['text', 'picture', 'audio', 'clues', 'video'].includes(type)); show('noteLabel', type !== 'sheet');
   // Speed bonus settings only appear once fastest fingers first is ticked.
   const fastest = speedTypes.includes(type) && $('qFastest').checked;
   show('pointsLabel', (type !== 'sheet' || $('qPartScoring').value !== 'each') && !(isBingoType(type) && $('qMode').value === 'progressive')); show('fastestLabel', speedTypes.includes(type)); show('speedLabel', fastest);
@@ -136,11 +136,11 @@ function formTypes() {
   $('answerLabel').textContent = {choice: 'Correct choice (copy one line from above; blank for manual marking)', letter: 'Correct letter (A–Z)', wordsnake: 'Answer word (letters only, 3–20; spaces are removed)', tiles: 'Answer (4–40 letters; spaces mark separate words)', number: 'Correct number', nearest: 'Correct number', buzzer: 'Expected answer (shown only to you)'}[type] || 'Correct answer (blank for manual marking)';
   $('pointsText').textContent = {nearest: 'Points for the closest team', buzzer: 'Points for a correct buzz', vote: 'Points (votes score nothing)', multi: 'Points for every right tick', pinpoint: 'Points for a first-tap hit', bingo: 'Points for a valid bingo', musicbingo: 'Points for a valid bingo', clips: 'Points for tapping the right clip'}[type] || 'Correct answer points';
   $('speedText').textContent = type === 'bingo' || type === 'musicbingo' ? 'Bonus for the first claim' : 'Maximum speed bonus';
-  $('mediaLabel').textContent = type === 'picture' || type === 'pinpoint' ? 'Picture file (required)' : type === 'audio' ? 'Audio file (required)' : 'Optional picture or audio clip';
+  $('mediaLabel').textContent = type === 'picture' || type === 'pinpoint' ? 'Picture file (required)' : type === 'audio' ? 'Audio file (required)' : type === 'video' ? 'Video file (required): MP4 or WebM, up to 100 MB; it plays on the TV' : 'Optional picture or audio clip';
   renderPinTarget();
   document.querySelectorAll('.advanced-only').forEach(el => {el.hidden = $('qVariation').value !== 'advanced';});
   $('sheetItems').querySelectorAll('input').forEach(input => input.disabled = type !== 'sheet');
-  $('mediaUpload').accept = type === 'picture' || type === 'pinpoint' ? 'image/png,image/jpeg,image/webp' : type === 'audio' ? 'audio/mpeg,audio/ogg,audio/wav' : 'image/png,image/jpeg,image/webp,audio/mpeg,audio/ogg,audio/wav';
+  $('mediaUpload').accept = type === 'picture' || type === 'pinpoint' ? 'image/png,image/jpeg,image/webp' : type === 'audio' ? 'audio/mpeg,audio/ogg,audio/wav' : type === 'video' ? 'video/mp4,video/webm' : 'image/png,image/jpeg,image/webp,audio/mpeg,audio/ogg,audio/wav';
 }
 // "Title | /media/file.mp3" plays an uploaded file; "Title | spotify:track:…" (or a Spotify song link) plays on
 // Spotify. "| start | seconds" after it gives that song its own start point and play time.
@@ -556,6 +556,9 @@ function audioClipCue(q) {
   if (q.seconds * 1000 - q.remaining < 5000) playAudioClip(q).catch(e => message(e.message, true));
 }
 $('replayClip').onclick = () => action(() => playAudioClip(state.question), 'Playing the clip on Spotify');
+// A video question: it plays on the TVs, which follow these.
+$('videoPlay').onclick = () => action(() => request('video', {question: state.question.id, action: 'play'}), 'The video plays again on the TV');
+$('videoStop').onclick = () => action(() => request('video', {question: state.question.id, action: 'stop'}), 'The video stopped on the TV');
 function renderClipsPanel(q) {
   const c = q?.clipGame, ordering = q?.type === 'sequence' && !!q.clips?.length; $('clipsPanel').hidden = !(c || ordering) || !q.live;
   if (!c && !ordering) return;
@@ -1344,7 +1347,7 @@ function renderState(s) {
   $('liveKey').textContent = q ? (q.hideText && !q.revealed ? '🎙 Read it out: the TV and phones don’t show the wording until the answer is revealed. · ' : '')
     + (q.held ? 'Read it out, then Send question (S): the TV and phones show it and the clock starts. · ' : '') + answerKey(q) : '';
   if (q?.id !== liveQuestion) {liveQuestion = q?.id; $('announced').value = '';}
-  renderBuzzPanel(q); renderBingoPanel(q); audioClipCue(q); showDeskPlayer(); renderSounds(s); useSounds(s.sounds); renderLooks(s); renderTie(s); renderDecks(s);
+  renderBuzzPanel(q); renderBingoPanel(q); audioClipCue(q); $('videoPlay').hidden = $('videoStop').hidden = !(q?.type === 'video' && q.live); showDeskPlayer(); renderSounds(s); useSounds(s.sounds); renderLooks(s); renderTie(s); renderDecks(s);
   if (clipRun && (q?.id !== clipRun.question || !q.live)) stopClips(); else renderClipsPanel(q);
   $('liveCount').textContent = q ? `${s.answers.length} answers received · ${s.teams.filter(t => t.enabled && !t.waiting).length} active teams` : 'Add rounds in Quizzes, then start your first question.';
   renderMedia($('liveMedia'), q); renderSolution($('liveSolution'), q);

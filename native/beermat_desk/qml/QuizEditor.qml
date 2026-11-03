@@ -21,7 +21,7 @@ RowLayout {
 
     Shortcut { sequences: [StandardKey.Save]; enabled: quizzes.visible; onActivated: lib.save() }
     FileDialog { id: mediaFile; property string target: "media"; title: "Choose a picture or sound"
-                 nameFilters: ["Pictures and sounds (*.png *.jpg *.jpeg *.webp *.mp3 *.ogg *.wav)"]
+                 nameFilters: ["Pictures, sounds and videos (*.png *.jpg *.jpeg *.webp *.mp3 *.ogg *.wav *.mp4 *.webm)"]
                  onAccepted: { lib.uploadMedia(target, selectedFile); target = "media" } }
     FileDialog { id: sheetsFile; title: "Save the answer sheets (PDF), then print them"; fileMode: FileDialog.SaveFile; defaultSuffix: "pdf"
                  nameFilters: ["PDF (*.pdf)"]; onAccepted: lib.printSheets(selectedFile) }

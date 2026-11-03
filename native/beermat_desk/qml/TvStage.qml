@@ -4,6 +4,7 @@
 // fit, so the desk's preview is exactly what the room sees.
 import QtQuick
 import QtQuick.Layouts
+import QtMultimedia
 import Desk
 import "i18n.mjs" as I18n
 
@@ -12,6 +13,8 @@ Item {
     property var tv: ({})
     property string serverUrl: ""
     property bool blanked: false
+    // A preview of the TV (the desk's, a theme's): a video question's video plays without its sound.
+    property bool silent: false
     // The question's look (themes/<id>/look.css): its colours over BeerMat's own. Keyed on the look's id, a string, so the
     // TV's many updates leave the look alone and its background, lettering and scenery aren't redrawn or restarted.
     readonly property string lookId: tv.look || "stage"
@@ -251,7 +254,8 @@ Item {
                                            : q.type === "sort" ? [(q.categories || []).join("  ·  "), ...(q.sortItems || [])]
                                            : q.type === "pairs" ? [...(q.left || []).map((l, i) => `${String.fromCharCode(65 + i)}. ${l}`), ...(q.right || []).map((r, i) => `${i + 1}. ${r}`)]
                                            : q.type === "tiles" ? [(q.wordLengths || []).map(n => "_".repeat(n)).join("  "), (q.pieces || []).join("  ·  ")] : []
-                readonly property bool isImage: !!q && !!q.media && !/\.(mp3|ogg|wav)$/i.test(q.media)
+                readonly property bool isImage: !!q && !!q.media && !/\.(mp3|ogg|wav|mp4|webm)$/i.test(q.media)
+                readonly property bool isVideo: !!q && !!q.media && /\.(mp4|webm)$/i.test(q.media)
                 readonly property bool isAudio: !!q && !!q.media && /\.(mp3|ogg|wav)$/i.test(q.media)
                 // A picture with nothing beside it (no options or list) takes the whole width.
                 readonly property bool pictureAlone: !!q && isImage && items.length === 0 && q.type !== "sequence"
@@ -309,6 +313,31 @@ Item {
                     RowLayout {
                         Layout.fillWidth: true; Layout.fillHeight: true
                         spacing: 40
+                        // A video question's video: plays as it opens (once sent), and again or stops when the desk says.
+                        Video {
+                            id: tvVideo
+                            objectName: "tvVideo"
+                            visible: questionView.isVideo
+                            source: visible ? root.serverUrl + questionView.q.media : ""
+                            Layout.fillHeight: true; Layout.fillWidth: true
+                            fillMode: VideoOutput.PreserveAspectFit
+                            muted: root.silent
+                            property string cueKey: ""
+                            function follow() {
+                                const q = questionView.q, cue = q && q.videoCue
+                                if (!visible || !cue) return
+                                const key = `${q.id}:${cue.seq}:${cue.action}:${q.live && !q.held}`
+                                if (key === cueKey) return
+                                const was = cueKey
+                                cueKey = key
+                                if (cue.action === "stop") return pause()
+                                if (!q.live || q.held) return
+                                // A cue newer than the one this TV saw, or the question just sent: from the start.
+                                if (was !== "" || cue.seq === 0) { seek(0); play() }
+                            }
+                            onSourceChanged: { cueKey = ""; Qt.callLater(follow) }
+                            Connections { target: root; function onTvChanged() { tvVideo.follow() } }
+                        }
                         // Picture (or a sound playing on the desk)
                         Image {
                             visible: questionView.isImage

@@ -9,7 +9,7 @@ import path from 'node:path';
 import {validateLibrary} from '../server/model.js';
 
 export const QUIZ_LIMITS = {bytes: 25 * 1024 * 1024, media: 8 * 1024 * 1024, description: 300};
-const TYPES = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg', 'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/wave': '.wav'};
+const TYPES = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg', 'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/wave': '.wav', 'video/mp4': '.mp4', 'video/webm': '.webm'};
 const DATA_URL = /^data:([a-z/-]+);base64,([A-Za-z0-9+/]*={0,2})$/;
 const FORMAT_NAMES = {text: 'Typed answer', choice: 'Multiple choice', multi: 'Tick all that apply', letter: 'Letter keypad', number: 'Number',
   nearest: 'Nearest wins', sequence: 'Put in order', pinpoint: 'Pinpoint', wordsnake: 'Word trail', tiles: 'Letter tiles', vote: 'Vote',
@@ -23,6 +23,8 @@ function looksLike(type, b) {
   if (type === 'image/webp') return ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP';
   if (type === 'audio/mpeg') return ascii(0, 3) === 'ID3' || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0);
   if (type === 'audio/ogg') return ascii(0, 4) === 'OggS';
+  if (type === 'video/mp4') return ascii(4, 8) === 'ftyp';
+  if (type === 'video/webm') return b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3;
   return ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WAVE';
 }
 

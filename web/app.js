@@ -20,11 +20,18 @@ export function download(name, data) {
   const link = element('a'); link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 export const isAudio = media => /\.(mp3|ogg|wav)$/i.test(media || '');
-export function renderMedia(container, question) {
+export const isVideo = value => /\.(mp4|webm)$/i.test(value || '');
+// The question's picture, sound or video. A video plays on the TV only (tv): phones say to watch it there, so the
+// quiz Wi-Fi isn't carrying a video to every phone.
+export function renderMedia(container, question, {tv = false} = {}) {
   const value = question?.media || '';
   if (container.dataset.media === value) return;
-  delete container.dataset.pinpoint; container.dataset.media = value; container.replaceChildren();
+  delete container.dataset.pinpoint; delete container.dataset.video; container.dataset.media = value; container.replaceChildren();
   if (!value) return;
+  if (isVideo(value)) {
+    if (!tv) return container.append(element('p', t('📺 Watch the TV'), 'watch-tv'));
+    const video = element('video'); video.src = value; video.preload = 'auto'; video.playsInline = true; container.append(video); return;
+  }
   const media = element(isAudio(value) ? 'audio' : 'img'); media.src = value;
   if (isAudio(value)) {media.controls = true; media.preload = 'metadata';} else media.alt = 'Quiz picture';
   container.append(media);
@@ -50,6 +57,18 @@ export function revealPicture(container, question, offset = 0) {
   }
   const gone = Math.floor(shown * 12);
   for (const tile of cover.children) tile.classList.toggle('gone', Number(tile.dataset.order) < gone);
+}
+// A video question on the TV: plays as it opens (once sent), and again from the start or stops when the desk says.
+export function followVideo(container, question) {
+  const video = container.querySelector('video'), cue = question?.videoCue;
+  if (!video || !cue) return;
+  const key = `${question.id}:${cue.seq}:${cue.action}:${question.live && !question.held}`;
+  if (container.dataset.video === key) return;
+  const was = container.dataset.video; container.dataset.video = key;
+  if (cue.action === 'stop') return video.pause();
+  if (!question.live || question.held) return;
+  // A cue newer than the one this page saw, or the question just sent: from the start.
+  if (was !== undefined || cue.seq === 0) {video.currentTime = 0; video.play().catch(() => {});}
 }
 export function avatar(src) {const img = element('img', undefined, 'avatar'); img.src = src; img.alt = ''; return img;}
 // Leaderboard rows slide from their old position to the new one when the order changes.

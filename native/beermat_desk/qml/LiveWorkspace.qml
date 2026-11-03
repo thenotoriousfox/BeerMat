@@ -324,7 +324,7 @@ ColumnLayout {
                     Rectangle {
                         Layout.fillWidth: true; Layout.fillHeight: true; radius: 8; color: "black"; clip: true
                         border.color: screens.open && !screens.blanked ? Qt.rgba(Theme.good.r, Theme.good.g, Theme.good.b, 0.6) : Theme.line
-                        TvStage { anchors.fill: parent; anchors.margins: 2; tv: desk.tv; serverUrl: desk.serverUrl; blanked: screens.blanked }
+                        TvStage { anchors.fill: parent; anchors.margins: 2; tv: desk.tv; serverUrl: desk.serverUrl; blanked: screens.blanked; silent: true }
                     }
                     // Wraps when the panel is narrow (the desk's side column), rather than running off its edge.
                     Flow {

@@ -1,7 +1,7 @@
 import './compat.js';
 import {qrMatrix} from './qr.js';
 import {t, setLanguage, language, languages, translatePage} from './i18n.js';
-import {$, element, api, message, readStorage, writeStorage, renderMedia, revealPicture, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, soundLength, isAudio, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord, optionLabel, renderClues} from './app.js';
+import {$, element, api, message, readStorage, writeStorage, renderMedia, revealPicture, renderBoard, renderSolution, timeText, letters, live, enableSound, buzzSound, useSounds, playSound, playClip, playEnding, stopSound, soundLength, isAudio, wheelTicks, stopWheelTicks, buzzerNames, renderPinpoint, selectOptions, bingoCall, seededOrder, fanfare, avatar, adjacent, renderSnake, tileWord, optionLabel, renderClues, followVideo} from './app.js';
 const role = document.body.dataset.role;
 let secret = readStorage('beermat-team'), current = null, renderedQuestion = 'unset', offset = 0, online = false, submitting = false, draftTimer, draftGeneration = 0;
 // The native apps hand their team to this page, for a round format they don't draw themselves, as #team=<code>: the
@@ -450,7 +450,7 @@ function displayState(s) {
   $('joinHint').textContent = !joining ? '' : online ? t('Join: {url}', {url: address}) : t('Join: Wi-Fi “{ssid}” → {url}', {ssid: joinSsid, url: address});
   $('boardSection').hidden = s.view !== 'leaderboard'; $('projectQuestion').hidden = s.view !== 'question';
   const q = s.question; $('question').textContent = !q ? t('Waiting for the quizmaster') : q.text || '🎙 ' + t('Listen to the quizmaster'); $('question').classList.toggle('listen', !!q && !q.text); $('round').textContent = q?.round || ''; $('status').textContent = timeText(q, offset);
-  if (q?.type === 'pinpoint') renderPinpoint($('media'), q); else {renderMedia($('media'), q); revealPicture($('media'), q, offset);}
+  if (q?.type === 'pinpoint') renderPinpoint($('media'), q); else {renderMedia($('media'), q, {tv: true}); revealPicture($('media'), q, offset); followVideo($('media'), q);}
   renderSolution($('solution'), q, {onScreen: true}); $('projectQuestion').classList.toggle('revealed', !!q?.revealed);
   renderFirst(q);
   if (q?.id !== renderedQuestion) {
@@ -660,7 +660,7 @@ function countdownCue() {
   if (!timed) {if (countdownFor !== null) {if (!q || q.paused || left > 300) stopSound('countdown'); countdownFor = null;} return;}
   if (countdownFor !== q.id && left > 300 && playEnding('countdown', left)) {countdownFor = q.id; stopSound('timerMusic'); musicOn = false;}
 }
-const silentTypes = ['audio', 'clips', 'musicbingo', 'buzzer', 'bingo'];
+const silentTypes = ['audio', 'clips', 'musicbingo', 'buzzer', 'bingo', 'video'];
 // Questions with their own sound (a file or a Spotify song) get no answering music or countdown over it.
 const quiet = q => silentTypes.includes(q.type) || q.playsSong || /\.(mp3|ogg|wav)$/i.test(q.media || '');
 function soundCues(s) {

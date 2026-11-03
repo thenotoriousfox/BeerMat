@@ -41,6 +41,16 @@ def mp3(path):
     return data_url('audio/mpeg', Path(path).read_bytes())
 
 
+def colours_video():
+    """A video question's video, made here: red, then green, then blue, a second and a half each (H.264, no sound)."""
+    with tempfile.TemporaryDirectory() as folder:
+        out = Path(folder) / 'colours.mp4'
+        parts = ''.join(f'color=c={c}:s=640x360:r=25:d=1.5[v{i}];' for i, c in enumerate(['red', 'green', 'blue']))
+        subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'anullsrc', '-filter_complex', parts + '[v0][v1][v2]concat=n=3:v=1:a=0[v]',
+                        '-map', '[v]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-profile:v', 'baseline', '-movflags', '+faststart', str(out)], check=True)
+        return data_url('video/mp4', out.read_bytes())
+
+
 # ---- pictures ------------------------------------------------------------------------------------------------------
 def jamaica(width=900):
     """Jamaica's flag (1:2): a gold saltire, green above and below, black at the hoist and fly. Drawn at 2x, then halved."""
@@ -170,6 +180,7 @@ def quiz(land_file):
             q(9, type='pinpoint', text='Tap where Mount Everest is.', seconds=30, points=2, media=png(world_map(land_file)),
               target={'x': round(everest[0], 4), 'y': round(everest[1], 4), 'r': 0.03, 'aspect': round(MAP_HEIGHT / MAP_WIDTH, 4)},
               goWide=True, goWidePoints=1, answerNote='On the border of Nepal and China.'),
+            q('9b', type='video', text='Watch the TV: which colour came second?', seconds=30, points=1, media=colours_video(), answer='Green'),
             q(10, type='text', text='Which element has the chemical symbol Fe?', seconds=30, points=2, answer='Iron', evil=True,
               answerNote='Risk It: a wrong answer loses 2 points. Fe is from ferrum.'),
         ]),
