@@ -219,6 +219,8 @@ const T = {
   'Name up to {n}: a point for each right one, any order': ['Citez-en jusqu’à {n} : un point par bonne réponse, dans n’importe quel ordre', 'Nombrad hasta {n}: un punto por cada acierto, en cualquier orden'],
   // Matching pairs.
   'Match each one: a point for each right pair': ['Associez chacun : un point par bonne paire', 'Emparejad cada uno: un punto por pareja correcta'],
+  // Sort into groups.
+  'Put each one in its group: a point for each right one': ['Placez chacun dans son groupe : un point par bonne réponse', 'Poned cada uno en su grupo: un punto por cada acierto'],
   'Trace the word first': ['Tracez d’abord le mot', 'Trazad antes la palabra'],
   'Place the tiles first': ['Placez d’abord les tuiles', 'Colocad antes las fichas'],
   'Your answer': ['Votre réponse', 'Vuestra respuesta'],

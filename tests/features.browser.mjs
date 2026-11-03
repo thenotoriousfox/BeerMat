@@ -177,6 +177,16 @@ try {
   await phone.waitForFunction(() => document.getElementById('resultPoints').textContent === '+1 point');
   log('matching pairs: a choice for each item, a point for each right pair');
 
+  // Sort into groups: a group for each item; each right one scores.
+  await host('open', {text: 'Fruit or vegetable?', type: 'sort', seconds: 60, points: 1, sorting: [['Tomato', 'Fruit'], ['Carrot', 'Vegetable'], ['Pumpkin', 'Fruit']]});
+  await phone.waitForFunction(() => document.querySelectorAll('#inputs .pair-row select').length === 3 && document.querySelector('#inputs .pair-row').textContent.startsWith('Tomato'));
+  const groups = phone.locator('#inputs .pair-row select');
+  await groups.nth(0).selectOption('Fruit'); await groups.nth(1).selectOption('Vegetable'); await groups.nth(2).selectOption('Vegetable');
+  await phone.click('#submit'); await phone.waitForFunction(() => /final answer/i.test(document.getElementById('draftStatus').textContent + document.getElementById('message').textContent));
+  await host('close');
+  await phone.waitForFunction(() => document.getElementById('resultPoints').textContent === '+2 points');
+  log('sort into groups: a group for each item, a point for each right one');
+
   // An older phone (before iOS 16 / Chrome 103): no AbortSignal.timeout (every request used it), Array at,
   // structuredClone or <dialog>. compat.js fills them in: it joins, answers, keeps a draft and opens the team menu.
   const oldContext = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});

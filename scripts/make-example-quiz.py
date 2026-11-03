@@ -183,6 +183,8 @@ def quiz(land_file):
               accepted=['England', 'Scotland', 'Wales | Cymru', 'Northern Ireland | N Ireland | NI']),
             q('13d', type='pairs', text='Match each capital to its country.', seconds=45, points=1,
               pairs=[['Canberra', 'Australia'], ['Ottawa', 'Canada'], ['Wellington', 'New Zealand'], ['Pretoria', 'South Africa']]),
+            q('13e', type='sort', text='Fruit or vegetable? (As a botanist sees it.)', seconds=45, points=1,
+              sorting=[['Tomato', 'Fruit'], ['Carrot', 'Vegetable'], ['Cucumber', 'Fruit'], ['Potato', 'Vegetable'], ['Pumpkin', 'Fruit'], ['Celery', 'Vegetable']]),
             q(13, type='nearest', text='How many bones are there in the adult human body?', seconds=30, points=3, answer='206', places=3),
         ]),
         ('On the buzzer', [
