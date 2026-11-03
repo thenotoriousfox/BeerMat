@@ -3,6 +3,7 @@ import Page from '../layouts/Page.astro';
 import Shot from '../components/Shot.astro';
 import Clip from '../components/Clip.astro';
 import {ONLINE, PRICE, TRIAL_DAYS, FOUNDING, SETUP_PRICE} from '../consts';
+import {formatGroups, formatCount} from '../formats';
 
 // Screenshots are of the real app running a demo quiz (scripts/site-screenshots.mjs makes them again).
 const TV = {width: 1600, height: 900}, DESK = {width: 1600, height: 1000}, PHONE = {width: 780, height: 1688};
@@ -22,10 +23,10 @@ const formatShots = [
 	['phone-buzzer', 'Buzz-in', 'First to buzz answers out loud'],
 	['phone-bingo', 'Bingo', 'A ticket on every phone; shout BINGO!'],
 ];
-const formats = ['Multiple choice', 'Tick all that apply', 'Letter keypad', 'Numbers', 'Nearest wins', 'Typed answers', 'Picture rounds', 'Audio rounds',
-	'Votes', 'Sequence', 'Pinpoint', 'Word trail', 'Letter tiles', 'Buzz-in', 'Number bingo', 'Music bingo', 'Sound clips', 'Answer sheets'];
+// Every format (src/formats.ts, which the Round formats page describes), each a link to its part of that page.
+const formats = formatGroups.flatMap(g => g.formats);
 // Ways to play any round: options a question or the night can have, beyond its format.
-const extras = ['Picture reveals', 'Send Question', 'Six fixed buttons', 'Questions on the fly', 'Reaction table', 'Fast Track', 'Rollover jackpots',
+const extras = ['Picture reveals', 'Wagers', 'VAR Check', 'Send Question', 'Six fixed buttons', 'Questions on the fly', 'Reaction table', 'Fast Track', 'Rollover jackpots',
 	'Team groups', 'Slides between rounds', 'Speed bingo', 'Wipeout', 'Risk It', 'Secret rounds', 'Tie-breakers'];
 // Some of them on the TV and on a phone.
 // Some of them on the TV and on a phone; a clip where it moves (scripts/site-videos-native.py).
@@ -159,10 +160,11 @@ const reasons = [
 					</li>
 				))}
 			</ul>
-			<h3 class="mt-12 text-lg">All {formats.length} formats</h3>
+			<h3 class="mt-12 text-lg">All {formatCount} formats</h3>
 			<ul class="mt-3 flex flex-wrap gap-2">
-				{formats.map(f => <li class="chip list-none">{f}</li>)}
+				{formats.map(f => <li class="list-none"><a href={`/formats#${f.id}`} class="chip no-underline hover:border-amber">{f.name}</a></li>)}
 			</ul>
+			<p class="mt-4"><a href="/formats" class="btn btn-ghost">See every format, and how it plays</a></p>
 			<h3 class="mt-10 text-lg">Ways to play them</h3>
 			<ul class="mt-3 flex flex-wrap gap-2">
 				{extras.map(f => <li class="chip list-none">{f}</li>)}
