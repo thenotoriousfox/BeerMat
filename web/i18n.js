@@ -221,6 +221,10 @@ const T = {
   'Match each one: a point for each right pair': ['Associez chacun : un point par bonne paire', 'Emparejad cada uno: un punto por pareja correcta'],
   // Sort into groups.
   'Put each one in its group: a point for each right one': ['Placez chacun dans son groupe : un point par bonne réponse', 'Poned cada uno en su grupo: un punto por cada acierto'],
+  // Link groups.
+  'Put the items into {n} groups, then say what links each group': ['Répartissez les éléments en {n} groupes, puis dites ce qui relie chaque groupe', 'Repartid los elementos en {n} grupos y decid qué une a cada grupo'],
+  'Group {n}': ['Groupe {n}', 'Grupo {n}'],
+  'Group {n}: what links them?': ['Groupe {n} : quel est le lien ?', 'Grupo {n}: ¿qué los une?'],
   'Trace the word first': ['Tracez d’abord le mot', 'Trazad antes la palabra'],
   'Place the tiles first': ['Placez d’abord les tuiles', 'Colocad antes las fichas'],
   'Your answer': ['Votre réponse', 'Vuestra respuesta'],

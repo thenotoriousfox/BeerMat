@@ -275,6 +275,40 @@
      ]
     },
     {
+     "id": "example-q13f",
+     "type": "links",
+     "text": "Find the three groups of three, and what links each.",
+     "seconds": 90,
+     "points": 1,
+     "linkPoints": 1,
+     "linkGroups": [
+      {
+       "link": "Planets",
+       "items": [
+        "Mercury",
+        "Mars",
+        "Venus"
+       ]
+      },
+      {
+       "link": "Greek letters",
+       "items": [
+        "Delta",
+        "Sigma",
+        "Omega"
+       ]
+      },
+      {
+       "link": "Chess pieces | Chessmen",
+       "items": [
+        "Bishop",
+        "Knight",
+        "Rook"
+       ]
+      }
+     ]
+    },
+    {
      "id": "example-q13",
      "type": "nearest",
      "text": "How many bones are there in the adult human body?",

@@ -187,6 +187,17 @@ try {
   await phone.waitForFunction(() => document.getElementById('resultPoints').textContent === '+2 points');
   log('sort into groups: a group for each item, a point for each right one');
 
+  // Link groups: a group for each item, then the links.
+  await host('open', {text: 'Find the groups.', type: 'links', seconds: 90, points: 2, linkPoints: 1, linkGroups: [{link: 'Planets', items: ['Mercury', 'Mars']}, {link: 'Metals', items: ['Iron', 'Tin']}]});
+  await phone.waitForFunction(() => document.querySelectorAll('#inputs .pair-row select').length === 4 && document.querySelector('#inputs input[name=link-1]'));
+  const rows = phone.locator('#inputs .pair-row');
+  for (let i = 0; i < 4; i++) {const item = (await rows.nth(i).textContent()).replace(/—|Group \d/g, '').trim(); await rows.nth(i).locator('select').selectOption(['Mercury', 'Mars'].includes(item) ? '1' : '2');}
+  await phone.fill('#inputs input[name=link-0]', 'Planets'); await phone.fill('#inputs input[name=link-1]', 'Elements');
+  await phone.click('#submit'); await phone.waitForFunction(() => /final answer/i.test(document.getElementById('draftStatus').textContent + document.getElementById('message').textContent));
+  await host('close');
+  await phone.waitForFunction(() => document.getElementById('resultPoints').textContent === '+5 points');
+  log('link groups: both groups found, one link named (2 + 2 + 1)');
+
   // An older phone (before iOS 16 / Chrome 103): no AbortSignal.timeout (every request used it), Array at,
   // structuredClone or <dialog>. compat.js fills them in: it joins, answers, keeps a draft and opens the team menu.
   const oldContext = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});

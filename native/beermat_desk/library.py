@@ -15,20 +15,20 @@ from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
 TYPES = [('text', 'Typed answer'), ('choice', 'Multiple choice'), ('multi', 'Tick all that apply'), ('letter', 'Letter keypad'),
          ('number', 'Number'), ('nearest', 'Nearest wins'), ('sequence', 'Put in order'), ('pinpoint', 'Pinpoint'), ('wordsnake', 'Word trail'),
          ('tiles', 'Letter tiles'), ('vote', 'Vote'), ('buzzer', 'Buzzer'), ('bingo', 'Bingo'), ('musicbingo', 'Music bingo'), ('clips', 'Sound clips'),
-         ('picture', 'Picture'), ('audio', 'Audio'), ('sheet', 'Answer sheet'), ('clues', 'Progressive clues'), ('list', 'List answers'), ('pairs', 'Matching pairs'), ('sort', 'Sort into groups')]
+         ('picture', 'Picture'), ('audio', 'Audio'), ('sheet', 'Answer sheet'), ('clues', 'Progressive clues'), ('list', 'List answers'), ('pairs', 'Matching pairs'), ('sort', 'Sort into groups'), ('links', 'Link groups')]
 # The fields the native editor shows; which ones apply depends on the format.
 LIST_FIELDS = {'options', 'correct', 'items', 'itemAnswers', 'aliases', 'clues', 'accepted'}
 FIELDS_BY_TYPE = {
     'choice': ['options', 'answer'], 'vote': ['options'], 'multi': ['options', 'correct'], 'sequence': ['items'],
     'sheet': ['items', 'itemAnswers'], 'picture': ['media', 'answer', 'aliases'], 'audio': ['media', 'answer', 'aliases'],
     'pinpoint': ['media'], 'text': ['answer', 'aliases'], 'letter': ['answer'], 'number': ['answer'], 'nearest': ['answer'], 'tiles': ['answer'],
-    'wordsnake': ['answer'], 'buzzer': ['answer'], 'clues': ['clues', 'answer', 'aliases'], 'list': ['accepted'], 'pairs': ['pairs'], 'sort': ['sorting'],
+    'wordsnake': ['answer'], 'buzzer': ['answer'], 'clues': ['clues', 'answer', 'aliases'], 'list': ['accepted'], 'pairs': ['pairs'], 'sort': ['sorting'], 'links': ['linkGroups'],
 }
 
 SPEED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'}
 BINGO = {'bingo', 'musicbingo'}
 # Formats with a right answer the server can mark (model.js autoMarked): Risk It and the fixed speed bonus need one.
-MARKED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'clues', 'list', 'pairs', 'sort'}
+MARKED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'clues', 'list', 'pairs', 'sort', 'links'}
 # Each format's options (server/model.js validateQuestion): key, label, kind, for numbers their range, for choices
 # their values, and when it's offered (the format and the question's other options: a buzzer's pass penalty only for
 # an advanced buzzer, say). The server checks them again when the quiz is saved.
@@ -44,6 +44,7 @@ OPTIONS = [
     ('tolerance', 'Also accept answers within ± (0: exact only)', 'int', (0, 1000000000), lambda t, q: t == 'number'),
     ('tolerancePercent', 'The margin is a percentage of the answer', 'bool', None, lambda t, q: t == 'number' and q.get('tolerance')),
     ('clueSeconds', 'Seconds between clues', 'int', (5, 120), lambda t, q: t == 'clues'),
+    ('linkPoints', 'Points for each link named', 'int', (0, 100), lambda t, q: t == 'links'),
     ('slots', 'Boxes each team fills (up to 20, and no more than the answers)', 'int', (1, 20), lambda t, q: t == 'list'),
     ('places', 'Places scored (closest first)', 'int', (1, 20), lambda t, q: t == 'nearest'),
     ('notOver', 'Closest without going over: answers above the answer score nothing', 'bool', None, lambda t, q: t == 'nearest'),
@@ -157,6 +158,7 @@ class Library(QObject):
         shown['target'] = q.get('target') or {}
         shown['spotifyClip'] = q.get('clip') or {}
         shown['pairs'] = '\n'.join(f'{p[0]} = {p[1]}' for p in q.get('pairs') or [])
+        shown['linkGroups'] = '\n'.join(f"{g['link']}: {', '.join(g['items'])}" for g in q.get('linkGroups') or [])
         shown['sorting'] = '\n'.join(f'{p[0]} = {p[1]}' for p in q.get('sorting') or [])
         shown['itemAliases'] = '\n'.join(' | '.join(a) for a in q.get('itemAliases') or [])
         return shown
@@ -189,7 +191,11 @@ class Library(QObject):
         q = self._current()
         if q is None:
             return
-        if field in ('pairs', 'sorting'):
+        if field == 'linkGroups':
+            # Link groups, one a line: "link: item, item, item".
+            value = [{'link': line.split(':', 1)[0].strip(), 'items': [i.strip() for i in line.split(':', 1)[1].split(',') if i.strip()]}
+                     for line in str(value).split('\n') if ':' in line]
+        elif field in ('pairs', 'sorting'):
             # Matching pairs ("left = right") or sorting ("item = group"), one a line.
             value = [[side.strip() for side in line.split('=', 1)] for line in str(value).split('\n') if '=' in line]
         elif field in LIST_FIELDS:

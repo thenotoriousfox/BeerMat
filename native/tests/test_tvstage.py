@@ -90,6 +90,7 @@ CASES = {
     'list-revealed': state(q=question(type='list', text='Name the countries of the UK.', options=[], slots=4, open=False, live=False, revealed=True, accepted=['England', 'Scotland', 'Wales | Cymru', 'Northern Ireland'], scorers=[], correctCount=0)),
     'pairs': state(q=question(type='pairs', text='Match each capital to its country.', options=[], left=['Canberra', 'Ottawa', 'Wellington'], right=['New Zealand', 'Australia', 'Canada'])),
     'sort-revealed': state(q=question(type='sort', text='Fruit or vegetable?', options=[], categories=['Fruit', 'Vegetable'], sortItems=['Tomato', 'Carrot', 'Pumpkin'], open=False, live=False, revealed=True, sorting=[['Tomato', 'Fruit'], ['Carrot', 'Vegetable'], ['Pumpkin', 'Fruit']], scorers=[], correctCount=0)),
+    'links': state(q=question(type='links', text='Find the three groups, and what links each.', options=[], groupCount=3, linkItems=['Rook', 'Mercury', 'Delta', 'Bishop', 'Venus', 'Sigma', 'Mars', 'Omega', 'Knight'])),
     'true-or-false': state(q=question(text='True or false: the Great Wall can be seen from the Moon.', pair='trueFalse', options=['True', 'False']), settings={**SETTINGS, 'language': 'fr'}),
     'choice-revealed': state(q=question(open=False, live=False, revealed=True, answer='Mars', tally={'Venus': 1, 'Mars': 3},
                                         scorers=[{'name': 'Bears', 'ms': 2100, 'points': 1}], first={'kind': 'fastest', 'name': 'Bears', 'ms': 2100, 'photo': None})),
