@@ -133,7 +133,8 @@ Watch the run to the end (`gh run watch`), then check what it made: the GitHub r
 - Website: `cd site && npm run deploy` (Cloudflare). Screenshots: `QT_QPA_PLATFORM=offscreen python3
   scripts/site-screenshots-native.py` (desk, TV, Library), `QT_QPA_PLATFORM=offscreen python3 scripts/site-videos-native.py` (the TV's and desk's looping
   clips, AV1 and H.264), `node scripts/site-videos-android.mjs` (phone clips, on the emulator), `node scripts/site-videos-web.mjs`
-  (a team joining in a phone's browser) and `node scripts/site-screenshots-android.mjs` (phones, on the emulator). Lossless WebP: lossy WebP puts bands back into the dark gradients.
+  (a team joining in a phone's browser) `node scripts/site-screenshots-android.mjs` (phones, on the emulator) and `node scripts/site-screenshots-formats.mjs` (the Round
+  formats page's phones: every format of the example quiz, on the emulator). Lossless WebP: lossy WebP puts bands back into the dark gradients.
 - Cloudflare: the token in the user's fish config (`CLOUDFLARE_API_TOKEN`) can deploy the website and use R2 but can't
   edit DNS or make tokens: the user adds DNS records by hand. GitHub has its own narrower token (the
   `CLOUDFLARE_API_TOKEN` secret and `CLOUDFLARE_ACCOUNT_ID` variable); **Actions → Check Cloudflare** tests it.

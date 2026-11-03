@@ -209,6 +209,82 @@ try:
     post('host/fasttrack', {'team': teams[3]['id'], 'action': 'first'}, host)
     pump(1.5)
     shot(tv, 'tv-fasttrack')
+    # Ways to play on the Round formats page (site/src/formats.ts): Send Question, a question on the fly, VAR Check,
+    # a tie-breaker, team groups, slides between rounds and a secret round.
+    post('host/settings', {'displayMode': 'auto', 'sendQuestion': True}, host)
+    post('host/open', {'text': 'Which planet has the most moons?', 'type': 'choice', 'options': ['Jupiter', 'Saturn', 'Uranus', 'Neptune'], 'answer': 'Saturn',
+                       'round': 'General knowledge', 'seconds': 30, 'points': 1}, host)
+    pump(2)
+    shot(tv, 'tv-sendquestion')
+    post('host/close', {}, host)
+    post('host/settings', {'sendQuestion': False}, host)
+    post('host/fly', {'type': 'number', 'text': 'How many pints were pulled at the bar in the last round?', 'seconds': 30, 'points': 1}, host)
+    fly = post('host/state', {}, host)['question']
+    for i, value in enumerate(['42', '37', '50', '45']):
+        post('answer', {'question': fly['id'], 'value': value}, teams[i]['secret'])
+    post('host/close', {}, host)
+    pump(2.5)
+    shot(window, 'desk-fly')
+    post('host/fly/answer', {'question': fly['id'], 'answer': '44'}, host)
+    # VAR Check: a team's answer marked wrong, its appeal, and the decision on the TV.
+    post('host/open', {'text': 'Who painted the Mona Lisa?', 'type': 'text', 'answer': 'Leonardo da Vinci', 'round': 'Art', 'seconds': 30, 'points': 1}, host)
+    var_q = post('host/state', {}, host)['question']
+    post('answer', {'question': var_q['id'], 'value': 'Da Vinci'}, teams[2]['secret'])
+    post('answer', {'question': var_q['id'], 'value': 'Leonardo da Vinci'}, teams[0]['secret'])
+    post('host/close', {}, host)
+    post('host/reveal', {'question': var_q['id'], 'revealed': True, 'delay': 0}, host)
+    pump(1)
+    post('team/var', {'question': var_q['id']}, teams[2]['secret'])
+    appeal = post('host/state', {}, host)['varChecks'][0]
+    post('host/var', {'id': appeal['id'], 'decision': 'overturned'}, host)
+    pump(4.5)     # past the drum roll, to the decision
+    shot(tv, 'tv-var')
+    # A tie-breaker's reveal: the closest team fills the TV.
+    post('host/open', {'text': 'Tie-breaker: how tall is the Eiffel Tower, in metres?', 'type': 'nearest', 'answer': '330', 'tieBreaker': True, 'round': 'Tie-breaker', 'seconds': 30, 'points': 0}, host)
+    tie = post('host/state', {}, host)['question']
+    for i, value in ((1, '300'), (4, '324'), (5, '350')):
+        post('answer', {'question': tie['id'], 'value': value}, teams[i]['secret'])
+        pump(0.3)
+    post('host/close', {}, host)
+    post('host/reveal', {'question': tie['id'], 'revealed': True, 'delay': 0}, host)
+    pump(2.5)
+    shot(tv, 'tv-tiebreaker')
+    # Team groups: each group's average above the leaderboard.
+    for i, team in enumerate(teams):
+        post('host/team', {'id': team['id'], 'action': 'group', 'group': ['Sales', 'Accounts', 'Warehouse'][i % 3]}, host)
+    post('host/settings', {'groupBoard': True, 'displayMode': 'leaderboard'}, host)
+    pump(2.5)
+    shot(tv, 'tv-groups')
+    post('host/settings', {'groupBoard': False}, host)
+    # Slides between rounds: a venue's own picture (drawn here).
+    slide = Image.new('RGB', (1600, 900), (38, 20, 76))
+    from PIL import ImageDraw, ImageFont
+    draw = ImageDraw.Draw(slide)
+    big, small = ImageFont.truetype(str(ROOT / 'brand' / 'fredoka-bold.ttf'), 120), ImageFont.truetype(str(ROOT / 'brand' / 'fredoka-medium.ttf'), 64)
+    draw.text((800, 330), 'Pie & a pint £12', font=big, fill=(255, 196, 61), anchor='mm')
+    draw.text((800, 520), 'Every Tuesday, quiz night', font=small, fill=(255, 243, 214), anchor='mm')
+    draw.text((800, 620), 'Ask at the bar', font=small, fill=(255, 243, 214), anchor='mm')
+    slide.save(folder / 'slide.png')
+    upload = urllib.request.Request(f'{base}/api/host/media?name=slide.png', (folder / 'slide.png').read_bytes(), {'Authorization': f'Bearer {host}'})
+    with urllib.request.urlopen(upload, timeout=10) as reply:
+        media = json.loads(reply.read())['media']
+    post('host/slides', {'slides': [{'media': media, 'seconds': 30}]}, host)
+    post('host/settings', {'displayMode': 'slides'}, host)
+    pump(2.5)
+    shot(tv, 'tv-slides')
+    # A secret round: the reveal shows nothing until the quiz ends.
+    post('host/settings', {'displayMode': 'auto'}, host)
+    revision = post('host/library', {}, host)['revision']
+    post('host/library/save', {'revision': revision, 'quiz': {'title': 'Tuesday Quiz Night', 'rounds': [{'id': 'r-final', 'title': 'The Final', 'secret': True, 'questions': [
+        {'id': 'secret-1', 'type': 'text', 'text': 'Which river flows through Paris?', 'answer': 'Seine', 'seconds': 30, 'points': 2}]}]}}, host)
+    post('host/start', {'id': 'secret-1', 'expectedQuestion': post('host/state', {}, host)['question']['id']}, host)
+    secret = post('host/state', {}, host)['question']
+    for i in range(4):
+        post('answer', {'question': secret['id'], 'value': ['Seine', 'Thames', 'Seine', 'Loire'][i]}, teams[i]['secret'])
+    post('host/close', {}, host)
+    post('host/reveal', {'question': secret['id'], 'revealed': True, 'delay': 0}, host)
+    pump(2.5)
+    shot(tv, 'tv-secret')
     # Library → Quizzes, with example quizzes as the library shows them (the shot doesn't depend on what's in the real
     # library today).
     desk.prefs.searchQuizzes = desk.prefs.searchLibrary = desk.prefs.searchThemes = lambda q: None
