@@ -175,7 +175,7 @@ struct DeckRoundControls: View {
     let d: DeckState, q: DeckQuestion
     var body: some View {
         VStack(alignment: .leading) {
-            if q.type == "clips" && q.live { clips }
+            if (q.type == "clips" || q.type == "sequence") && q.clips > 0 && q.live { clips }
             if q.type == "bingo" || q.type == "musicbingo" { Button(q.type == "bingo" ? t("Call next number") : t("Next song")) { deck.desk("callNumber") }.disabled(!d.deskOpen) }
             if q.type == "musicbingo" { Button(t("Play this song again")) { deck.desk("replaySong") }.disabled(!d.deskOpen) }
             if q.type == "buzzer", let name = q.buzzing { buzzer(name) }

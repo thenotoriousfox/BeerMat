@@ -68,7 +68,7 @@ OPTIONS = [
     ('songSeconds', 'Play each song for (seconds, 0: whole song)', 'int', (0, 600), lambda t, q: t == 'musicbingo'),
     ('autoNext', 'Play the next song by itself', 'bool', None, lambda t, q: t == 'musicbingo'),
     ('revealNow', 'Show each song title as it plays', 'bool', None, lambda t, q: t == 'musicbingo'),
-    ('clipSeconds', 'Each clip plays for (seconds)', 'int', (3, 60), lambda t, q: t == 'clips'),
+    ('clipSeconds', 'Each clip plays for (seconds)', 'int', (3, 60), lambda t, q: t == 'clips' or (t == 'sequence' and q.get('clips'))),
     ('hideText', "The TV and phones don't show the wording until the reveal (you read it out): for wording that gives the answer away", 'bool', None, lambda t, q: t not in BINGO | {'clips'}),
     ('reveal', 'Picture reveal', 'choice', [('', 'Shown straight away'), ('blur', 'Starts blurred, sharpens over the time'), ('tiles', 'Under twelve tiles that go one by one')],
      lambda t, q: t == 'picture'),

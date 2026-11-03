@@ -431,6 +431,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (linkGroups) {const all = linkGroups.flatMap(g => g.items); Object.assign(result, {linkItems: shuffleOrder(all.length, q.id).map(i => all[i]), groupCount: linkGroups.length});}
     // Sorting into categories: the items and the categories, not which goes where.
     if (sorting) result.sortItems = sorting.map(p => p[0]);
+    // Ordering audio clips: which item's clip is playing (its clips stay with the desk until the reveal).
+    if (data.type === 'sequence' && clips) {const np = nowPlaying(q); result.hasClips = true; if (np && np.clip >= 0 && pending(q)) result.nowPlaying = data.items[np.clip];}
     // Matching pairs: the left items in order and the right ones shuffled (the same on every screen), not the pairing.
     if (pairs) Object.assign(result, {left: pairs.map(p => p[0]), right: shuffleOrder(pairs.length, q.id).map(i => pairs[i][1])});
     // Several places to find: how many, not where, until the reveal.
@@ -2040,7 +2042,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           return send(200, {number, numbers});
         }
         if (p === '/api/host/clip') {
-          const q = questionById(body.question); requireValue(q && pending(q) && dataOf(q).type === 'clips', 'No live sound clips game', 409);
+          const q = questionById(body.question); requireValue(q && pending(q) && dataOf(q).clips && ['clips', 'sequence'].includes(dataOf(q).type), 'No live sound clips game', 409);
           requireValue(Number.isInteger(body.clip) && body.clip >= -1 && body.clip < dataOf(q).clips.length, 'Unknown clip');
           run('INSERT INTO clip_plays VALUES(?,?,?,?)', q.id, (nowPlaying(q)?.seq || 0) + 1, body.clip, now()); return send(200, {ok: true});
         }
@@ -2085,7 +2087,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const q = questionById(body.question), data = q && dataOf(q);
           // An audio question's Spotify clip, played when it opens (and again on request).
           if (data?.clip) {requireValue(pending(q), 'No live Spotify audio question', 409); await spotify.play(data.clip.spotify, data.clip.start); return send(200, {ok: true, seconds: data.clip.seconds});}
-          requireValue(q && pending(q) && data.type === 'clips', 'No live sound clips game', 409);
+          requireValue(q && pending(q) && data.clips && ['clips', 'sequence'].includes(data.type), 'No live sound clips game', 409);
           const clip = dataOf(q).clips[body.clip]; requireValue(Number.isInteger(body.clip) && clip?.spotify, 'Not a Spotify clip');
           await spotify.play(clip.spotify, clip.start);
           run('INSERT INTO clip_plays VALUES(?,?,?,?)', q.id, (nowPlaying(q)?.seq || 0) + 1, body.clip, now()); return send(200, {ok: true});
