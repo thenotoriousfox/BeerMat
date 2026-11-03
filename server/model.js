@@ -26,14 +26,14 @@ const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = 
 
 // Question types. Keypad formats follow common pub-quiz handset conventions:
 // letters (first letter of the answer), numbers, multiple choice and sequence.
-export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet', 'clues', 'list', 'pairs', 'sort', 'links'];
+export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet', 'clues', 'list', 'pairs', 'sort', 'links', 'survey'];
 export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
 // Buzzer questions stay open until the quizmaster rules on them; the timer only limits buzzing.
 // Formats the server marks right or wrong by itself: these can use Risk It and a fixed speed bonus.
 // Two-button Multiple choice (pair): true or false, before or after. The stored values stay English; phones and TVs
 // label the buttons in the quiz's language.
 export const PAIRS = {trueFalse: ['True', 'False'], beforeAfter: ['Before', 'After']};
-export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'list', 'pairs', 'sort', 'links'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio', 'clues'].includes(q.type) && !!q.answer);
+export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'list', 'pairs', 'sort', 'links', 'survey'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio', 'clues'].includes(q.type) && !!q.answer);
 export const speedBonusOf = q => q.fastestFingers ? q.speedBonus || 0 : 0;
 export const hostDriven = type => ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(type);
 export const isBingo = type => type === 'bingo' || type === 'musicbingo';
@@ -41,6 +41,8 @@ export const isBingo = type => type === 'bingo' || type === 'musicbingo';
 export function validateQuestion(q, mediaDir) {
   // A wager's points are its most stake, so they can be left out.
   if (q?.wager && q.points === undefined) q = {...q, points: Math.min(100, Number(q.wager) || 0)};
+  // A survey's points are its top answer's, so they can be left out.
+  if (q?.type === 'survey' && q.points === undefined && Array.isArray(q.survey)) q = {...q, points: Math.min(100, Math.max(0, ...q.survey.map(s => Number(s?.[1]) || 0)))};
   requireValue(q && typeof q === 'object', 'Question required');
   requireValue(text(q.text, 1000), 'Question text must be 1–1,000 characters');
   requireValue(types.includes(q.type), 'Unknown question type');
@@ -75,6 +77,14 @@ export function validateQuestion(q, mediaDir) {
     requireValue(Array.isArray(q.accepted) && q.accepted.length >= 2 && q.accepted.length <= 50 && q.accepted.every(a => text(a, 200)), 'Give 2–50 accepted answers');
     result.accepted = q.accepted.map(a => a.trim()); result.slots = q.slots ?? Math.min(result.accepted.length, 10);
     requireValue(integer(result.slots, 1, Math.min(20, result.accepted.length)), `Boxes for teams: 1–${Math.min(20, result.accepted.length)}`);
+  }
+  // Survey: the answers people gave, each worth its points (alternatives with |); a team's answer scores the points of
+  // the one it matches. The question's points are the most any answer scores.
+  if (q.type === 'survey') {
+    requireValue(Array.isArray(q.survey) && q.survey.length >= 2 && q.survey.length <= 12 && q.survey.every(s => Array.isArray(s) && s.length === 2 && text(s[0], 120) && integer(s[1], 0, 100)), 'Give 2–12 survey answers, each with its points (0–100)');
+    result.survey = q.survey.map(([a, p]) => [a.trim(), p]).sort((a, b) => b[1] - a[1]);
+    result.points = result.survey[0][1];
+    requireValue(result.points > 0, 'The top survey answer needs some points');
   }
   // Link groups: 2–4 groups of 2–5 items, each with its link (alternatives with |). Teams sort the items, shown
   // shuffled, into groups and name each link: points for each group found, linkPoints for each link named.
@@ -394,6 +404,7 @@ export function isCorrect(value, q) {
   if (q.type === 'list') return listFound(JSON.parse(value), q) === q.slots;
   if (q.type === 'pairs') return pairsMatched(JSON.parse(value), q) === q.pairs.length;
   if (q.type === 'sort') return itemsSorted(JSON.parse(value), q) === q.sorting.length;
+  if (q.type === 'survey') return surveyPoints(value, q) > 0;
   if (q.type === 'links') {const r = linksFound(JSON.parse(value), q); return r.groups === q.linkGroups.length && r.named === q.linkGroups.length;}
   if (q.type === 'pinpoint') return q.targets ? targetsFound(JSON.parse(value), q.targets) === q.targets.length : hits(JSON.parse(value)[0], q.target);
   if (q.type === 'wordsnake') {const {path} = JSON.parse(value); return validSnake(path, q.snake) && path.map(i => q.snake.grid[i]).join('') === q.answer;}
@@ -420,6 +431,7 @@ export function basePoints(value, q) {
   if (q.type === 'list') return listFound(JSON.parse(value), q) * q.points;
   if (q.type === 'pairs') return pairsMatched(JSON.parse(value), q) * q.points;
   if (q.type === 'sort') return itemsSorted(JSON.parse(value), q) * q.points;
+  if (q.type === 'survey') return surveyPoints(value, q);
   if (q.type === 'links') {const r = linksFound(JSON.parse(value), q); return r.groups * q.points + r.named * q.linkPoints;}
   if (q.type === 'pinpoint' && q.targets) return targetsFound(JSON.parse(value), q.targets) * q.points;
   if (q.type === 'pinpoint') {
@@ -428,6 +440,9 @@ export function basePoints(value, q) {
   }
   return isCorrect(value, q) ? q.points : 0;
 }
+
+// Survey: the points of the survey answer a team's answer matches (0 if none).
+export const surveyPoints = (value, q) => q.survey.find(([a]) => matches(value, alternatives(a)))?.[1] ?? 0;
 
 // Link groups: how many groups a team put together exactly (no item missing, none extra), and how many of those it
 // named (its link for that group matching the link or an alternative).

@@ -416,7 +416,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function publicQuestion(q, host = false, teamId = null) {
     if (!q) return null;
     const data = dataOf(q);
-    const {answer, aliases, itemAnswers, itemAliases, answerNote, correct, target, targets, clues, accepted, pairs, sorting, linkGroups, clips, targetClip, songs, snake, tiles, clip, ...safe} = data;
+    const {answer, aliases, itemAnswers, itemAliases, answerNote, correct, target, targets, clues, accepted, pairs, sorting, linkGroups, survey, clips, targetClip, songs, snake, tiles, clip, ...safe} = data;
     // Sequence items are shown shuffled; the stored order is the answer.
     const result = {...safe, id: q.id, deadline: q.deadline, open: accepting(q), live: pending(q), paused: pending(q) && q.paused_ms !== null,
       remaining: q.paused_ms ?? Math.max(0, q.deadline - now()), revealed: revealedNow(q) && (host || !secretQuestion(q)), revealing: !!q.revealed && !revealedNow(q) && (host || !secretQuestion(q)), buzz: buzzState(q, data, teamId), bingo: bingoState(q, data, teamId, host), clipGame: clipState(q, data, teamId)};
@@ -452,7 +452,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       // Wording that would give the answer away stays off every screen but the desk until the answer is revealed.
       if (data.hideText && !revealedNow(q)) result.text = '';
     }
-    if (host || revealedNow(q) && !secretQuestion(q)) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], itemAliases: itemAliases || [], correct, target, targets, accepted, pairs, sorting, linkGroups, clips, clip, targetClip, songs, snakePath: snake?.path, tiles, tally: tally(q, data),
+    if (host || revealedNow(q) && !secretQuestion(q)) Object.assign(result, {answer, answerNote: answerNote || '', aliases: aliases || [], itemAnswers: itemAnswers || [], itemAliases: itemAliases || [], correct, target, targets, accepted, pairs, sorting, linkGroups, survey, clips, clip, targetClip, songs, snakePath: snake?.path, tiles, tally: tally(q, data),
       correctCount: one('SELECT COUNT(*) n FROM answers WHERE question=? AND points>0', q.id).n, scorers: scorers(q), first: firstPlace(q, data)});
     return result;
   }

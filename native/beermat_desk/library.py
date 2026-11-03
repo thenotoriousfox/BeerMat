@@ -15,20 +15,20 @@ from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
 TYPES = [('text', 'Typed answer'), ('choice', 'Multiple choice'), ('multi', 'Tick all that apply'), ('letter', 'Letter keypad'),
          ('number', 'Number'), ('nearest', 'Nearest wins'), ('sequence', 'Put in order'), ('pinpoint', 'Pinpoint'), ('wordsnake', 'Word trail'),
          ('tiles', 'Letter tiles'), ('vote', 'Vote'), ('buzzer', 'Buzzer'), ('bingo', 'Bingo'), ('musicbingo', 'Music bingo'), ('clips', 'Sound clips'),
-         ('picture', 'Picture'), ('audio', 'Audio'), ('sheet', 'Answer sheet'), ('clues', 'Progressive clues'), ('list', 'List answers'), ('pairs', 'Matching pairs'), ('sort', 'Sort into groups'), ('links', 'Link groups')]
+         ('picture', 'Picture'), ('audio', 'Audio'), ('sheet', 'Answer sheet'), ('clues', 'Progressive clues'), ('list', 'List answers'), ('pairs', 'Matching pairs'), ('sort', 'Sort into groups'), ('links', 'Link groups'), ('survey', 'Survey')]
 # The fields the native editor shows; which ones apply depends on the format.
 LIST_FIELDS = {'options', 'correct', 'items', 'itemAnswers', 'aliases', 'clues', 'accepted'}
 FIELDS_BY_TYPE = {
     'choice': ['options', 'answer'], 'vote': ['options'], 'multi': ['options', 'correct'], 'sequence': ['items'],
     'sheet': ['items', 'itemAnswers'], 'picture': ['media', 'answer', 'aliases'], 'audio': ['media', 'answer', 'aliases'],
     'pinpoint': ['media'], 'text': ['answer', 'aliases'], 'letter': ['answer'], 'number': ['answer'], 'nearest': ['answer'], 'tiles': ['answer'],
-    'wordsnake': ['answer'], 'buzzer': ['answer'], 'clues': ['clues', 'answer', 'aliases'], 'list': ['accepted'], 'pairs': ['pairs'], 'sort': ['sorting'], 'links': ['linkGroups'],
+    'wordsnake': ['answer'], 'buzzer': ['answer'], 'clues': ['clues', 'answer', 'aliases'], 'list': ['accepted'], 'pairs': ['pairs'], 'sort': ['sorting'], 'links': ['linkGroups'], 'survey': ['survey'],
 }
 
 SPEED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'}
 BINGO = {'bingo', 'musicbingo'}
 # Formats with a right answer the server can mark (model.js autoMarked): Risk It and the fixed speed bonus need one.
-MARKED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'clues', 'list', 'pairs', 'sort', 'links'}
+MARKED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'clues', 'list', 'pairs', 'sort', 'links', 'survey'}
 # Each format's options (server/model.js validateQuestion): key, label, kind, for numbers their range, for choices
 # their values, and when it's offered (the format and the question's other options: a buzzer's pass penalty only for
 # an advanced buzzer, say). The server checks them again when the quiz is saved.
@@ -159,6 +159,7 @@ class Library(QObject):
         shown['spotifyClip'] = q.get('clip') or {}
         shown['pairs'] = '\n'.join(f'{p[0]} = {p[1]}' for p in q.get('pairs') or [])
         shown['linkGroups'] = '\n'.join(f"{g['link']}: {', '.join(g['items'])}" for g in q.get('linkGroups') or [])
+        shown['survey'] = '\n'.join(f'{s[0]} = {s[1]}' for s in q.get('survey') or [])
         shown['sorting'] = '\n'.join(f'{p[0]} = {p[1]}' for p in q.get('sorting') or [])
         shown['itemAliases'] = '\n'.join(' | '.join(a) for a in q.get('itemAliases') or [])
         return shown
@@ -195,6 +196,10 @@ class Library(QObject):
             # Link groups, one a line: "link: item, item, item".
             value = [{'link': line.split(':', 1)[0].strip(), 'items': [i.strip() for i in line.split(':', 1)[1].split(',') if i.strip()]}
                      for line in str(value).split('\n') if ':' in line]
+        elif field == 'survey':
+            # Survey answers, one a line: "answer = points".
+            value = [[line.rsplit('=', 1)[0].strip(), int(line.rsplit('=', 1)[1].strip())] for line in str(value).split('\n')
+                     if '=' in line and line.rsplit('=', 1)[1].strip().isdigit()]
         elif field in ('pairs', 'sorting'):
             # Matching pairs ("left = right") or sorting ("item = group"), one a line.
             value = [[side.strip() for side in line.split('=', 1)] for line in str(value).split('\n') if '=' in line]

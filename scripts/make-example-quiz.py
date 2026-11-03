@@ -188,6 +188,8 @@ def quiz(land_file):
             q('13f', type='links', text='Find the three groups of three, and what links each.', seconds=90, points=1, linkPoints=1,
               linkGroups=[{'link': 'Planets', 'items': ['Mercury', 'Mars', 'Venus']}, {'link': 'Greek letters', 'items': ['Delta', 'Sigma', 'Omega']},
                           {'link': 'Chess pieces | Chessmen', 'items': ['Bishop', 'Knight', 'Rook']}]),
+            q('13g', type='survey', text='We asked 100 people: name something you find in a kitchen.', seconds=30,
+              survey=[['Kettle', 4], ['Fridge | Refrigerator', 3], ['Oven | Cooker', 2], ['Toaster', 1], ['Sink', 1]]),
             q(13, type='nearest', text='How many bones are there in the adult human body?', seconds=30, points=3, answer='206', places=3),
         ]),
         ('On the buzzer', [

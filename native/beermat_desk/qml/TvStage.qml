@@ -626,6 +626,7 @@ Item {
                     // Choices are marked on their tiles, and a put-in-order list sorts itself: the box then only says who scored.
                     readonly property bool tiles: !!q && ["choice", "vote", "multi", "sequence"].includes(q.type)
                     readonly property string answer: !q ? "" : q.type === "sheet" ? (q.items || []).map((item, i) => `${i + 1}. ${(q.itemAnswers || [])[i] || root.t("Marked by quizmaster")}`).join("   ")
+                        : q.type === "survey" ? (q.survey || []).map((s, i) => `${i + 1}. ${s[0].split("|")[0].trim()} (${s[1]})`).join("   ")
                         : q.type === "links" ? (q.linkGroups || []).map(g => `${g.link.split("|")[0].trim()}: ${g.items.join(", ")}`).join("   ")
                         : q.type === "sort" ? (q.categories || []).map(c => `${c}: ${(q.sorting || []).filter(p => p[1] === c).map(p => p[0]).join(", ")}`).join("   ")
                         : q.type === "pairs" ? (q.pairs || []).map(p => `${p[0]} — ${p[1]}`).join("   ")
