@@ -92,6 +92,7 @@ CASES = {
     'sort-revealed': state(q=question(type='sort', text='Fruit or vegetable?', options=[], categories=['Fruit', 'Vegetable'], sortItems=['Tomato', 'Carrot', 'Pumpkin'], open=False, live=False, revealed=True, sorting=[['Tomato', 'Fruit'], ['Carrot', 'Vegetable'], ['Pumpkin', 'Fruit']], scorers=[], correctCount=0)),
     'links': state(q=question(type='links', text='Find the three groups, and what links each.', options=[], groupCount=3, linkItems=['Rook', 'Mercury', 'Delta', 'Bishop', 'Venus', 'Sigma', 'Mars', 'Omega', 'Knight'])),
     'survey-revealed': state(q=question(type='survey', text='Name something you find in a kitchen.', options=[], open=False, live=False, revealed=True, survey=[['Kettle', 4], ['Fridge | Refrigerator', 3], ['Toaster', 1]], scorers=[], correctCount=0)),
+    'video': state(q=question(type='video', text='Which colour came second?', options=[], media='/media/missing.mp4', videoCue={'seq': 0, 'action': 'play'})),
     'true-or-false': state(q=question(text='True or false: the Great Wall can be seen from the Moon.', pair='trueFalse', options=['True', 'False']), settings={**SETTINGS, 'language': 'fr'}),
     'choice-revealed': state(q=question(open=False, live=False, revealed=True, answer='Mars', tally={'Venus': 1, 'Mars': 3},
                                         scorers=[{'name': 'Bears', 'ms': 2100, 'points': 1}], first={'kind': 'fastest', 'name': 'Bears', 'ms': 2100, 'photo': None})),

@@ -27,7 +27,7 @@ const token = () => randomBytes(24).toString('hex');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const equal = (a, b) => typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 const brandFiles = new Set(['mark.svg', 'logo.svg', 'logo-stacked.svg', 'wordmark.svg', 'mark-print.svg', 'logo-print.svg', 'fredoka.woff2']);
-const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.json': 'application/json; charset=utf-8'};
+const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.mp4': 'video/mp4', '.webm': 'video/webm', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.json': 'application/json; charset=utf-8'};
 const security = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; media-src 'self'; img-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"};
 // Only the quiz desk may load Spotify's Web Playback SDK (its script, its hidden player frame and the audio it streams).
 // Phones and the TV keep the strict, local-only policy.
@@ -431,6 +431,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (linkGroups) {const all = linkGroups.flatMap(g => g.items); Object.assign(result, {linkItems: shuffleOrder(all.length, q.id).map(i => all[i]), groupCount: linkGroups.length});}
     // Sorting into categories: the items and the categories, not which goes where.
     if (sorting) result.sortItems = sorting.map(p => p[0]);
+    // A video question: the TVs play it as it opens, and again or stop when the desk says (seq counts each cue).
+    if (data.type === 'video') {const cue = getMeta('video', null); result.videoCue = cue?.question === q.id ? {seq: cue.seq, action: cue.action} : {seq: 0, action: 'play'};}
     // Ordering audio clips: which item's clip is playing (its clips stay with the desk until the reveal).
     if (data.type === 'sequence' && clips) {const np = nowPlaying(q); result.hasClips = true; if (np && np.clip >= 0 && pending(q)) result.nowPlaying = data.items[np.clip];}
     // Matching pairs: the left items in order and the right ones shuffled (the same on every screen), not the pairing.
@@ -1468,13 +1470,16 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       if (p === '/api/host/media') {
         requireValue(isHost(auth), 'Host login required', 403);
         const ext = path.extname(url.searchParams.get('name') || '').toLowerCase();
-        requireValue(['.png', '.jpg', '.jpeg', '.webp', '.mp3', '.ogg', '.wav'].includes(ext), 'Use PNG, JPEG, WebP, MP3, Ogg or WAV');
-        const data = await readBody(req, 20 * 1024 * 1024);
+        requireValue(['.png', '.jpg', '.jpeg', '.webp', '.mp3', '.ogg', '.wav', '.mp4', '.webm'].includes(ext), 'Use PNG, JPEG, WebP, MP3, Ogg, WAV, MP4 or WebM');
+        // A video (for a video question, played on the TV) may be up to 100 MB; pictures and sounds 20 MB.
+        const data = await readBody(req, (['.mp4', '.webm'].includes(ext) ? 100 : 20) * 1024 * 1024);
         const signature = ext === '.png' ? data.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))
           : ['.jpg', '.jpeg'].includes(ext) ? data[0] === 255 && data[1] === 216
           : ext === '.webp' ? data.toString('ascii', 0, 4) === 'RIFF' && data.toString('ascii', 8, 12) === 'WEBP'
           : ext === '.wav' ? data.toString('ascii', 0, 4) === 'RIFF' && data.toString('ascii', 8, 12) === 'WAVE'
           : ext === '.ogg' ? data.toString('ascii', 0, 4) === 'OggS'
+          : ext === '.mp4' ? data.toString('ascii', 4, 8) === 'ftyp'
+          : ext === '.webm' ? data.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
           : data.toString('ascii', 0, 3) === 'ID3' || (data[0] === 255 && (data[1] & 224) === 224);
         requireValue(data.length > 0 && signature, 'File content does not match its extension');
         mkdirSync(mediaDir, {recursive: true});
@@ -1767,7 +1772,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
             const description = typeof body.description === 'string' ? body.description.trim().slice(0, 300) : '';
             // The quiz on this desk, its pictures and sounds put inside it, as Download quiz does.
             const quiz = structuredClone(library()); delete quiz.revision;
-            const kinds = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav'};
+            const kinds = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.mp4': 'video/mp4', '.webm': 'video/webm'};
             const questions = quiz.rounds.flatMap(r => r.questions);
             for (const holder of [...questions, ...questions.flatMap(q => [...(q.clips || []), ...(q.songs || [])])]) {
               if (typeof holder.media !== 'string' || !holder.media.startsWith('/media/')) continue;
@@ -2045,6 +2050,13 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const q = questionById(body.question); requireValue(q && pending(q) && dataOf(q).clips && ['clips', 'sequence'].includes(dataOf(q).type), 'No live sound clips game', 409);
           requireValue(Number.isInteger(body.clip) && body.clip >= -1 && body.clip < dataOf(q).clips.length, 'Unknown clip');
           run('INSERT INTO clip_plays VALUES(?,?,?,?)', q.id, (nowPlaying(q)?.seq || 0) + 1, body.clip, now()); return send(200, {ok: true});
+        }
+        // A video question's video: play it again from the start, or stop it, on every TV.
+        if (p === '/api/host/video') {
+          const q = latest(); requireValue(q && dataOf(q).type === 'video' && body.question === q.id, 'No video question open', 409);
+          requireValue(['play', 'stop'].includes(body.action), 'Play or stop');
+          const cue = getMeta('video', null);
+          setMeta('video', {question: q.id, seq: (cue?.question === q.id ? cue.seq : 0) + 1, action: body.action}); return send(200, {ok: true});
         }
         if (p === '/api/host/wheel') return send(200, spinWheel(body));
         // Saved wheels: named lists, random numbers and rollover prize wheels, kept on this laptop between quizzes.

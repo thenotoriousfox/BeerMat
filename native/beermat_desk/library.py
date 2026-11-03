@@ -15,20 +15,20 @@ from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
 TYPES = [('text', 'Typed answer'), ('choice', 'Multiple choice'), ('multi', 'Tick all that apply'), ('letter', 'Letter keypad'),
          ('number', 'Number'), ('nearest', 'Nearest wins'), ('sequence', 'Put in order'), ('pinpoint', 'Pinpoint'), ('wordsnake', 'Word trail'),
          ('tiles', 'Letter tiles'), ('vote', 'Vote'), ('buzzer', 'Buzzer'), ('bingo', 'Bingo'), ('musicbingo', 'Music bingo'), ('clips', 'Sound clips'),
-         ('picture', 'Picture'), ('audio', 'Audio'), ('sheet', 'Answer sheet'), ('clues', 'Progressive clues'), ('list', 'List answers'), ('pairs', 'Matching pairs'), ('sort', 'Sort into groups'), ('links', 'Link groups'), ('survey', 'Survey')]
+         ('picture', 'Picture'), ('audio', 'Audio'), ('sheet', 'Answer sheet'), ('clues', 'Progressive clues'), ('list', 'List answers'), ('pairs', 'Matching pairs'), ('sort', 'Sort into groups'), ('links', 'Link groups'), ('survey', 'Survey'), ('video', 'Video')]
 # The fields the native editor shows; which ones apply depends on the format.
 LIST_FIELDS = {'options', 'correct', 'items', 'itemAnswers', 'aliases', 'clues', 'accepted'}
 FIELDS_BY_TYPE = {
     'choice': ['options', 'answer'], 'vote': ['options'], 'multi': ['options', 'correct'], 'sequence': ['items'],
     'sheet': ['items', 'itemAnswers'], 'picture': ['media', 'answer', 'aliases'], 'audio': ['media', 'answer', 'aliases'],
     'pinpoint': ['media'], 'text': ['answer', 'aliases'], 'letter': ['answer'], 'number': ['answer'], 'nearest': ['answer'], 'tiles': ['answer'],
-    'wordsnake': ['answer'], 'buzzer': ['answer'], 'clues': ['clues', 'answer', 'aliases'], 'list': ['accepted'], 'pairs': ['pairs'], 'sort': ['sorting'], 'links': ['linkGroups'], 'survey': ['survey'],
+    'wordsnake': ['answer'], 'buzzer': ['answer'], 'clues': ['clues', 'answer', 'aliases'], 'list': ['accepted'], 'pairs': ['pairs'], 'sort': ['sorting'], 'links': ['linkGroups'], 'survey': ['survey'], 'video': ['media', 'answer', 'aliases'],
 }
 
-SPEED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'}
+SPEED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips', 'video'}
 BINGO = {'bingo', 'musicbingo'}
 # Formats with a right answer the server can mark (model.js autoMarked): Risk It and the fixed speed bonus need one.
-MARKED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'clues', 'list', 'pairs', 'sort', 'links', 'survey'}
+MARKED = {'text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'clues', 'list', 'pairs', 'sort', 'links', 'survey', 'video'}
 # Each format's options (server/model.js validateQuestion): key, label, kind, for numbers their range, for choices
 # their values, and when it's offered (the format and the question's other options: a buzzer's pass penalty only for
 # an advanced buzzer, say). The server checks them again when the quiz is saved.
@@ -82,7 +82,7 @@ OPTIONS = [
     ('partScoring', 'Sheet scoring', 'choice', [('each', 'A point for each part'), ('split', "The question's points shared"), ('all', 'Points only when every part is right')], lambda t, q: t == 'sheet'),
 ]
 DEFAULTS = {'reveal': '', 'perCall': 1, 'bonusMode': 'sliding', 'bonusPlaces': 1, 'places': 1, 'variation': 'classic', 'agreeSeconds': 10, 'mode': 'line', 'clipSeconds': 15, 'partScoring': 'each'}
-PICTURE, SOUND = ('.png', '.jpg', '.jpeg', '.webp'), ('.mp3', '.ogg', '.wav')
+PICTURE, SOUND, VIDEO = ('.png', '.jpg', '.jpeg', '.webp'), ('.mp3', '.ogg', '.wav'), ('.mp4', '.webm')
 
 
 class Library(QObject):
@@ -246,8 +246,10 @@ class Library(QObject):
     def uploadMedia(self, field, url):
         """A picture or sound for the question, uploaded to the quiz server's media (as the web editor's upload)."""
         path = Path(url.toLocalFile() if isinstance(url, QUrl) else str(url))
-        if path.suffix.lower() not in PICTURE + SOUND:
-            return self.toast.emit('Choose a PNG, JPEG or WebP picture, or an MP3, Ogg or WAV sound', True)
+        if path.suffix.lower() not in PICTURE + SOUND + VIDEO:
+            return self.toast.emit('Choose a PNG, JPEG or WebP picture, an MP3, Ogg or WAV sound, or an MP4 or WebM video', True)
+        if path.suffix.lower() in VIDEO and path.stat().st_size > 100 * 1024 * 1024:
+            return self.toast.emit('Videos can be up to 100 MB: shorten it, or make it smaller (720p is plenty for a TV)', True)
         try:
             data = path.read_bytes()
         except OSError as e:

@@ -227,6 +227,8 @@ const T = {
   'Group {n}: what links them?': ['Groupe {n} : quel est le lien ?', 'Grupo {n}: ¿qué los une?'],
   // Survey: what each answer scored.
   '1 point': ['1 point', '1 punto'],
+  // Video questions: phones say to watch the TV.
+  '📺 Watch the TV': ['📺 Regardez la télé', '📺 Mirad la tele'],
   'Trace the word first': ['Tracez d’abord le mot', 'Trazad antes la palabra'],
   'Place the tiles first': ['Placez d’abord les tuiles', 'Colocad antes las fichas'],
   'Your answer': ['Votre réponse', 'Vuestra respuesta'],

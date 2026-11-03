@@ -22,7 +22,7 @@ SYNTH = [('Classic buzz', 'square', [330, 495]), ('Doorbell', 'sine', [660, 523]
 FANFARE = [(523, 0), (659, 0.15), (784, 0.3), (1047, 0.45), (784, 0.7), (1047, 0.85)]
 # The wheel (web/client.js): six seconds on this cubic-bezier, which the native TV's spin uses too.
 WHEEL_MS, WHEEL_EASING = 6000, (0.12, 0.6, 0.15, 1)
-QUIET_TYPES = {'audio', 'clips', 'musicbingo', 'buzzer', 'bingo'}
+QUIET_TYPES = {'audio', 'clips', 'musicbingo', 'buzzer', 'bingo', 'video'}
 AUDIO_FILE = ('.mp3', '.ogg', '.wav')
 # BEERMAT_MUTE=1 (the tests): everything plays as usual, silently.
 MUTED = os.environ.get('BEERMAT_MUTE') == '1'

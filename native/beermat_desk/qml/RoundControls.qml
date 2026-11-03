@@ -16,7 +16,7 @@ ColumnLayout {
     readonly property var pendingShouts: bingo ? (bingo.shouts || []).filter(x => x.status === "pending") : []
     // A sound to play: an uploaded file (through the TV's sound) or a Spotify clip (on the Spotify player).
     readonly property bool spotifyClip: !!(q.clip && q.clip.spotify)
-    readonly property bool isAudio: /\.(mp3|ogg|wav)$/i.test(q.media || "") || spotifyClip
+    readonly property bool isAudio: /\.(mp3|ogg|wav)$/i.test(q.media || "") || spotifyClip || type === "video"
     // A sound clips game, or ordering audio clips (a put in order question with a clip per item, played in the phones' order).
     readonly property bool clipsGame: type === "clips" || (type === "sequence" && (q.clips || []).length > 0)
     visible: !!q.id && (type === "buzzer" || type === "bingo" || type === "musicbingo" || clipsGame || isAudio)

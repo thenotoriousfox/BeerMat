@@ -207,6 +207,14 @@ try {
   await phone.waitForFunction(() => document.getElementById('resultPoints').textContent === '+3 points');
   log('survey: a typed answer scores what its survey answer is worth');
 
+  // A video question: phones say to watch the TV, which has the video.
+  const video = await (await fetch(`${base}/api/host/media?name=c.mp4`, {method: 'POST', headers: {Authorization: 'Bearer ' + key}, body: Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from('ftypisom'), Buffer.alloc(16)])})).json();
+  assert.ok(video.media, JSON.stringify(video));
+  await host('open', {text: 'Which colour came second?', type: 'video', seconds: 60, points: 1, media: video.media, answer: 'Green'});
+  await phone.waitForFunction(() => document.querySelector('#media .watch-tv')?.textContent === '📺 Watch the TV' && !document.querySelector('#media video'));
+  await host('close');
+  log('video: phones say to watch the TV (the video plays there)');
+
   // An older phone (before iOS 16 / Chrome 103): no AbortSignal.timeout (every request used it), Array at,
   // structuredClone or <dialog>. compat.js fills them in: it joins, answers, keeps a draft and opens the team menu.
   const oldContext = await browser.newContext({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});

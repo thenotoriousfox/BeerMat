@@ -51,7 +51,7 @@ data class DeckState(
                 DeckQuestion(o.getLong("id"), o.optString("text"), o.optString("type"), o.optString("round"),
                     o.optBoolean("open"), o.optBoolean("live"), o.optBoolean("held"), o.optBoolean("paused"), o.optBoolean("revealed"), o.optBoolean("revealing"),
                     o.optLong("remaining"), answerText(o), o.optJSONArray("clips")?.length() ?: 0,
-                    Regex("""\.(mp3|ogg|wav)$""", RegexOption.IGNORE_CASE).containsMatchIn(media) || o.optJSONObject("clip")?.optString("spotify").orEmpty().isNotEmpty(),
+                    Regex("""\.(mp3|ogg|wav|mp4|webm)$""", RegexOption.IGNORE_CASE).containsMatchIn(media) || o.optJSONObject("clip")?.optString("spotify").orEmpty().isNotEmpty(),
                     o.optJSONObject("buzz")?.optJSONObject("active")?.optString("name"), o.optBoolean("hideText"))
             }
             val teams = s.optJSONArray("teams")?.let { a -> List(a.length()) { a.getJSONObject(it) } }.orEmpty()

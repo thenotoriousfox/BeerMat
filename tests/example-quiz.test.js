@@ -28,7 +28,7 @@ test('the example quiz that ships with BeerMat loads as the desk loads it, and e
     assert.equal(listed.path, path.join(root, 'examples', 'example-quiz.json'));
     assert.equal((await host('example-quiz')).quiz.title, example.title);
     // The pictures and sounds inside the file are uploaded first (as desk.py's loadQuizConfirmed and host.js's unpackMedia do).
-    const extensions = {'image/png': '.png', 'audio/mpeg': '.mp3'};
+    const extensions = {'image/png': '.png', 'audio/mpeg': '.mp3', 'video/mp4': '.mp4'};
     for (const holder of questions.flatMap(q => [q, ...(q.clips || []), ...(q.songs || [])])) {
       const match = /^data:([^;]+);base64,(.*)$/s.exec(holder.media || '');
       if (!match) continue;
