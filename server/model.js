@@ -26,14 +26,14 @@ const pictureExtensions = ['.png', '.jpg', '.jpeg', '.webp'], audioExtensions = 
 
 // Question types. Keypad formats follow common pub-quiz handset conventions:
 // letters (first letter of the answer), numbers, multiple choice and sequence.
-export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet', 'clues', 'list', 'pairs'];
+export const types = ['text', 'choice', 'multi', 'letter', 'number', 'nearest', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'vote', 'buzzer', 'bingo', 'musicbingo', 'clips', 'picture', 'audio', 'sheet', 'clues', 'list', 'pairs', 'sort'];
 export const speedTypes = ['text', 'choice', 'multi', 'letter', 'number', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'picture', 'audio', 'bingo', 'musicbingo', 'clips'];
 // Buzzer questions stay open until the quizmaster rules on them; the timer only limits buzzing.
 // Formats the server marks right or wrong by itself: these can use Risk It and a fixed speed bonus.
 // Two-button Multiple choice (pair): true or false, before or after. The stored values stay English; phones and TVs
 // label the buttons in the quiz's language.
 export const PAIRS = {trueFalse: ['True', 'False'], beforeAfter: ['Before', 'After']};
-export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'list', 'pairs'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio', 'clues'].includes(q.type) && !!q.answer);
+export const autoMarked = q => ['multi', 'sequence', 'pinpoint', 'wordsnake', 'tiles', 'list', 'pairs', 'sort'].includes(q.type) || (['text', 'choice', 'letter', 'number', 'picture', 'audio', 'clues'].includes(q.type) && !!q.answer);
 export const speedBonusOf = q => q.fastestFingers ? q.speedBonus || 0 : 0;
 export const hostDriven = type => ['buzzer', 'bingo', 'musicbingo', 'clips'].includes(type);
 export const isBingo = type => type === 'bingo' || type === 'musicbingo';
@@ -75,6 +75,15 @@ export function validateQuestion(q, mediaDir) {
     requireValue(Array.isArray(q.accepted) && q.accepted.length >= 2 && q.accepted.length <= 50 && q.accepted.every(a => text(a, 200)), 'Give 2–50 accepted answers');
     result.accepted = q.accepted.map(a => a.trim()); result.slots = q.slots ?? Math.min(result.accepted.length, 10);
     requireValue(integer(result.slots, 1, Math.min(20, result.accepted.length)), `Boxes for teams: 1–${Math.min(20, result.accepted.length)}`);
+  }
+  // Sorting into categories: each item belongs to one of 2–5 categories (in the order they first appear); a point for
+  // each item put in the right one.
+  if (q.type === 'sort') {
+    requireValue(Array.isArray(q.sorting) && q.sorting.length >= 2 && q.sorting.length <= 16 && q.sorting.every(p => Array.isArray(p) && p.length === 2 && p.every(v => text(v, 120))), 'Give 2–16 items, each with its category');
+    result.sorting = q.sorting.map(p => p.map(v => v.trim()));
+    result.categories = [...new Set(result.sorting.map(p => p[1]))];
+    requireValue(result.categories.length >= 2 && result.categories.length <= 5, 'Sort into 2–5 groups');
+    requireValue(new Set(result.sorting.map(p => p[0].toLowerCase())).size === result.sorting.length, 'Each item must be different');
   }
   // Matching pairs: each left item has one right item; teams match them (the right ones shuffled), a point a pair.
   if (q.type === 'pairs') {
@@ -321,6 +330,10 @@ export function answerValue(value, q, final = true) {
     requireValue(!final || value.length, q.type === 'tiles' ? 'Place the tiles first' : 'Trace the word first');
     return JSON.stringify(value);
   }
+  if (q.type === 'sort') {
+    requireValue(Array.isArray(value) && value.length === q.sorting.length && value.every(v => v === '' || q.categories.includes(v)), 'Sort each item');
+    return JSON.stringify(value);
+  }
   if (q.type === 'pairs') {
     const rights = q.pairs.map(p => p[1]);
     requireValue(Array.isArray(value) && value.length === q.pairs.length && value.every(v => v === '' || rights.includes(v)), 'Match each item');
@@ -359,6 +372,7 @@ export function isCorrect(value, q) {
   if (q.type === 'multi') return JSON.parse(value).join('\n') === q.correct.join('\n');
   if (q.type === 'list') return listFound(JSON.parse(value), q) === q.slots;
   if (q.type === 'pairs') return pairsMatched(JSON.parse(value), q) === q.pairs.length;
+  if (q.type === 'sort') return itemsSorted(JSON.parse(value), q) === q.sorting.length;
   if (q.type === 'pinpoint') return q.targets ? targetsFound(JSON.parse(value), q.targets) === q.targets.length : hits(JSON.parse(value)[0], q.target);
   if (q.type === 'wordsnake') {const {path} = JSON.parse(value); return validSnake(path, q.snake) && path.map(i => q.snake.grid[i]).join('') === q.answer;}
   if (q.type === 'tiles') return JSON.parse(value).map(i => q.pieces[i]).join('') === q.tiles.join('');
@@ -383,6 +397,7 @@ export function basePoints(value, q) {
   if (q.type === 'wordsnake') return isCorrect(value, q) ? JSON.parse(value).wide ? q.goWidePoints : q.points : 0;
   if (q.type === 'list') return listFound(JSON.parse(value), q) * q.points;
   if (q.type === 'pairs') return pairsMatched(JSON.parse(value), q) * q.points;
+  if (q.type === 'sort') return itemsSorted(JSON.parse(value), q) * q.points;
   if (q.type === 'pinpoint' && q.targets) return targetsFound(JSON.parse(value), q.targets) * q.points;
   if (q.type === 'pinpoint') {
     const [first, second] = JSON.parse(value);
@@ -390,6 +405,9 @@ export function basePoints(value, q) {
   }
   return isCorrect(value, q) ? q.points : 0;
 }
+
+// Sorting into categories: how many items went in their own category.
+export const itemsSorted = (values, q) => q.sorting.filter((p, i) => values[i] === p[1]).length;
 
 // Matching pairs: how many left items were given their own right one.
 export const pairsMatched = (values, q) => q.pairs.filter((p, i) => values[i] === p[1]).length;

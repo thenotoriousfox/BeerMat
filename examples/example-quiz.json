@@ -242,6 +242,39 @@
      ]
     },
     {
+     "id": "example-q13e",
+     "type": "sort",
+     "text": "Fruit or vegetable? (As a botanist sees it.)",
+     "seconds": 45,
+     "points": 1,
+     "sorting": [
+      [
+       "Tomato",
+       "Fruit"
+      ],
+      [
+       "Carrot",
+       "Vegetable"
+      ],
+      [
+       "Cucumber",
+       "Fruit"
+      ],
+      [
+       "Potato",
+       "Vegetable"
+      ],
+      [
+       "Pumpkin",
+       "Fruit"
+      ],
+      [
+       "Celery",
+       "Vegetable"
+      ]
+     ]
+    },
+    {
      "id": "example-q13",
      "type": "nearest",
      "text": "How many bones are there in the adult human body?",

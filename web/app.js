@@ -105,7 +105,8 @@ export function renderSolution(container, question, {onScreen = false} = {}) {
   if (!question?.revealed) return;
   container.classList.remove('reveal'); void container.offsetWidth; container.classList.add('reveal');
   container.append(element('h3', t(question.type === 'vote' ? 'Votes' : 'Answer reveal')));
-  if (question.type === 'pairs') {const list = element('ol', undefined, 'solution'); list.append(...(question.pairs || []).map(p => element('li', `${p[0]} — ${p[1]}`))); container.append(list);}
+  if (question.type === 'sort') {const list = element('ul', undefined, 'solution'); list.append(...(question.categories || []).map(c => element('li', `${c}: ${(question.sorting || []).filter(p => p[1] === c).map(p => p[0]).join(', ')}`))); container.append(list);}
+  else if (question.type === 'pairs') {const list = element('ol', undefined, 'solution'); list.append(...(question.pairs || []).map(p => element('li', `${p[0]} — ${p[1]}`))); container.append(list);}
   else if (question.type === 'list') {const list = element('ol', undefined, 'solution'); list.append(...(question.accepted || []).map(a => element('li', a.split('|').map(x => x.trim()).filter(Boolean).join(' / ')))); container.append(list);}
   else if (question.type === 'sheet') container.append(...question.items.map((item, i) => element('p', `${i + 1}. ${item} — ${question.itemAnswers?.[i] || t('Marked by quizmaster')}`, 'solution')));
   else if (question.type === 'sequence' && onScreen) {}

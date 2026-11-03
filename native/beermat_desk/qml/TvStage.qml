@@ -246,6 +246,7 @@ Item {
                 readonly property var items: !q ? [] : ["choice", "vote", "multi"].includes(q.type) ? q.options
                                            : q.type === "sheet" ? (q.items || [])
                                            : q.type === "clues" ? (q.clues || [])
+                                           : q.type === "sort" ? [(q.categories || []).join("  ·  "), ...(q.sortItems || [])]
                                            : q.type === "pairs" ? [...(q.left || []).map((l, i) => `${String.fromCharCode(65 + i)}. ${l}`), ...(q.right || []).map((r, i) => `${i + 1}. ${r}`)]
                                            : q.type === "tiles" ? [(q.wordLengths || []).map(n => "_".repeat(n)).join("  "), (q.pieces || []).join("  ·  ")] : []
                 readonly property bool isImage: !!q && !!q.media && !/\.(mp3|ogg|wav)$/i.test(q.media)
@@ -623,6 +624,7 @@ Item {
                     // Choices are marked on their tiles, and a put-in-order list sorts itself: the box then only says who scored.
                     readonly property bool tiles: !!q && ["choice", "vote", "multi", "sequence"].includes(q.type)
                     readonly property string answer: !q ? "" : q.type === "sheet" ? (q.items || []).map((item, i) => `${i + 1}. ${(q.itemAnswers || [])[i] || root.t("Marked by quizmaster")}`).join("   ")
+                        : q.type === "sort" ? (q.categories || []).map(c => `${c}: ${(q.sorting || []).filter(p => p[1] === c).map(p => p[0]).join(", ")}`).join("   ")
                         : q.type === "pairs" ? (q.pairs || []).map(p => `${p[0]} — ${p[1]}`).join("   ")
                         : q.type === "list" ? (q.accepted || []).map((a, i) => `${i + 1}. ${a.split("|").map(x => x.trim()).filter(x => x).join(" / ")}`).join("   ")
                         : q.type === "pinpoint" && !q.answer ? root.t("Circled on the picture")

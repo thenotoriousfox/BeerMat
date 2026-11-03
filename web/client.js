@@ -36,7 +36,7 @@ function saveIdentity(code) {
 }
 function inputValue() {
   const q = current.question, values = inputs().map(i => i.value);
-  if (['sheet', 'list', 'pairs'].includes(q.type)) return values;
+  if (['sheet', 'list', 'pairs', 'sort'].includes(q.type)) return values;
   if (listValue(q.type)) {try {return JSON.parse(values[0] || '[]');} catch {return [];}}
   return values[0];
 }
@@ -110,13 +110,13 @@ function pick(value) {
 function writeInputs(value) {
   const q = current.question;
   if (listValue(q.type)) {$('inputs').querySelector('input[type=hidden]').value = JSON.stringify(value || []); return syncPicks();}
-  const values = ['sheet', 'list', 'pairs'].includes(q.type) ? value : [value];
+  const values = ['sheet', 'list', 'pairs', 'sort'].includes(q.type) ? value : [value];
   inputs().forEach((input, i) => input.value = values?.[i] ?? '');
   syncPicks();
 }
 function parseSaved(value) {
   try {
-    const parsed = ['sheet', 'list', 'pairs'].includes(current.question.type) || listValue(current.question.type) ? JSON.parse(value) : value;
+    const parsed = ['sheet', 'list', 'pairs', 'sort'].includes(current.question.type) || listValue(current.question.type) ? JSON.parse(value) : value;
     return current.question.type === 'wordsnake' && parsed?.path ? parsed.path : parsed; // stored final answers carry {path, wide}
   } catch {return null;}
 }
@@ -172,6 +172,16 @@ function buildInputs(q) {
     hiddenInput(); const area = element('div'); area.id = 'pinArea';
     const undo = element('button', t('Undo tap'), 'subtle'); undo.type = 'button'; undo.onclick = () => pick(JSON.stringify(inputValue().slice(0, -1)));
     box.append(element('p', q.targetCount ? t('Tap the picture once for each place: {n} to find', {n: q.targetCount}) : q.goWide ? t('Tap the picture. Second guess: a second tap scores {n} if your first misses.', {n: q.goWidePoints}) : t('Tap the picture to place your answer'), 'muted'), area, undo); return;
+  }
+  if (q.type === 'sort') {
+    // Sorting into categories: a category for each item.
+    box.append(element('p', t('Put each one in its group: a point for each right one'), 'muted'));
+    q.sortItems.forEach((item, i) => {
+      const label = element('label', item, 'pair-row'), select = element('select'); select.name = `answer-${i}`;
+      select.append(element('option', '—'), ...q.categories.map(c => {const o = element('option', c); o.value = c; return o;})); select.firstChild.value = '';
+      label.append(select); box.append(label);
+    });
+    return;
   }
   if (q.type === 'pairs') {
     // Matching pairs: each item on the left gets one from the right (shuffled the same way on every phone).
@@ -427,7 +437,7 @@ function displayState(s) {
   renderFirst(q);
   if (q?.id !== renderedQuestion) {
     renderedQuestion = q?.id;
-    const items = q?.type === 'choice' || q?.type === 'vote' || q?.type === 'multi' ? q.options.map((o, i) => optionLabel(q, i)) : q?.type === 'sequence' ? q.order.map(i => q.items[i]) : q?.type === 'sheet' ? q.items : q?.type === 'pairs' ? [...q.left.map((l, i) => `${letters[i]}. ${l}`), ...q.right.map((r, i) => `${i + 1}. ${r}`)] : q?.type === 'tiles' ? [tileWord('', q.wordLengths), q.pieces.join('  ·  ')] : [];
+    const items = q?.type === 'choice' || q?.type === 'vote' || q?.type === 'multi' ? q.options.map((o, i) => optionLabel(q, i)) : q?.type === 'sequence' ? q.order.map(i => q.items[i]) : q?.type === 'sheet' ? q.items : q?.type === 'pairs' ? [...q.left.map((l, i) => `${letters[i]}. ${l}`), ...q.right.map((r, i) => `${i + 1}. ${r}`)] : q?.type === 'sort' ? [q.categories.join('  ·  '), ...q.sortItems] : q?.type === 'tiles' ? [tileWord('', q.wordLengths), q.pieces.join('  ·  ')] : [];
     $('projectItems').replaceChildren(...items.map((text, i) => {const li = element('li', text); if (q.type === 'sequence') li.dataset.item = q.order[i]; return li;}));
     delete $('projectItems').dataset.sorted;
     // Answer options show as coloured tiles matching the phone keypad.
@@ -887,7 +897,7 @@ if (role === 'player') {
     e.preventDefault(); if ($('submit').disabled) return;
     const value = inputValue(), q = current.question;
     if (q.type === 'sheet' && value.some(v => !v.trim()) && !confirm(t('Some sheet answers are blank. Submit this as your final sheet?'))) return;
-    if ((q.type === 'sequence' && value.length !== q.items.length) || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length) || (q.type === 'list' && !value.some(v => v.trim())) || (q.type === 'pairs' && !value.some(Boolean))) {
+    if ((q.type === 'sequence' && value.length !== q.items.length) || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length) || (q.type === 'list' && !value.some(v => v.trim())) || (['pairs', 'sort'].includes(q.type) && !value.some(Boolean))) {
       return message(q.type === 'sequence' ? t('Place every item in order first') : q.type === 'pinpoint' ? t('Tap the picture first') : q.type === 'wordsnake' ? t('Trace the word first') : q.type === 'tiles' ? t('Place the tiles first') : keypad(q.type) || q.type === 'multi' ? t('Choose an answer first') : t('Type an answer first'), true);
     }
     if (q.wager && stake === null) return message(t('Choose your stake first'), true);
