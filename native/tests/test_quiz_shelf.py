@@ -154,10 +154,17 @@ class QuizShelfTest(DeskCase):
         pump(5)
         press(shelf, 'exampleQuiz')
         wait(lambda: desk.view.get('title') == 'BeerMat Example Quiz', what='the example quiz loaded', log=self.toasts)
-        self.assertEqual(desk.view.get('questions'), 18)
+        example = json.loads((Path(__file__).resolve().parents[2] / 'examples' / 'example-quiz.json').read_text(encoding='utf-8'))
+        self.assertEqual(desk.view.get('questions'), sum(len(r['questions']) for r in example['rounds']))
         media = list((Path(self.dir.name) / 'data' / 'media').iterdir())
-        self.assertEqual(len(media), 1 + 1 + 1 + 4 + 15, 'flag, speech, map, four clips and fifteen tunes')
+        self.assertEqual(len(media), 1 + 1 + 1 + 1 + 4 + 15, 'flag, speech, map, video, four clips and fifteen tunes')
         self.assertFalse([e for e in self.toasts if e[1]], self.toasts)
+        # Saved as a quiz file with its media, the video goes inside it too.
+        wait(lambda: (desk.library._server or {}).get('title') == 'BeerMat Example Quiz', what='the quiz in the editor')
+        packed = Path(self.dir.name) / 'packed.json'
+        desk.library.export(QUrl.fromLocalFile(str(packed)), True)
+        saved = [q for r in json.loads(packed.read_text(encoding='utf-8'))['rounds'] for q in r['questions']]
+        self.assertTrue(next(q for q in saved if q['type'] == 'video')['media'].startswith('data:video/mp4;base64,'))
 
     def test_a_theme_picture_opens_large(self):
         desk, w = self.desk, self.window
