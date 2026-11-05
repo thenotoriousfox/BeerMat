@@ -31,7 +31,7 @@ STEP_LABELS = {'reveal': 'Reveal next position', 'revealFirst': 'Reveal the lead
 # Quiz files carry their pictures and sounds inside them (data: URLs); each is uploaded before the quiz loads, as the
 # web desk does (unpackMedia in web/host.js).
 MEDIA_TYPES = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg',
-               'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/wave': '.wav'}
+               'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/wave': '.wav', 'video/mp4': '.mp4', 'video/webm': '.webm'}
 DATA_URL = re.compile(r'^data:([^;,]+);base64,(.*)$', re.S)
 TYPE_NAMES = {'text': 'Typed answer', 'choice': 'Multiple choice', 'multi': 'Tick all that apply', 'letter': 'Letter keypad',
               'number': 'Number', 'nearest': 'Nearest wins', 'sequence': 'Put in order', 'pinpoint': 'Pinpoint', 'wordsnake': 'Word trail',

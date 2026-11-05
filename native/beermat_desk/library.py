@@ -547,12 +547,13 @@ class Library(QObject):
 
     @Slot(QUrl, bool)
     def export(self, url, with_media=True):
-        """The quiz as a BeerMat quiz file, as the web desk's Download quiz. With its media, every picture and sound is
-        put inside the file (as data: URLs), so it loads on another laptop; Load quiz file unpacks them again."""
+        """The quiz as a BeerMat quiz file, as the web desk's Download quiz. With its media, every picture, sound and video
+        is put inside the file (as data: URLs), so it loads on another laptop; Load quiz file unpacks them again."""
         path = Path(url.toLocalFile() if isinstance(url, QUrl) else str(url))
         quiz = copy.deepcopy({k: v for k, v in (self._server or {}).items() if k != 'revision'})
         if with_media and self.media_dir:
-            kinds = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav'}
+            kinds = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav',
+                     '.mp4': 'video/mp4', '.webm': 'video/webm'}
             holders = [q for r in quiz.get('rounds', []) for q in r.get('questions', [])]
             holders += [item for q in list(holders) for item in [*(q.get('clips') or []), *(q.get('songs') or [])]]
             for holder in holders:
