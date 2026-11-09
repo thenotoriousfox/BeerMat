@@ -392,6 +392,36 @@ class TvStageTest(unittest.TestCase):
         self.show(state('leaderboard', teams=teams, reveal={'question': 1, 'shown': 4, 'rest': 2, 'leader': True, 'done': True, 'hidden': []}))
         self.assertEqual(shown(), ['Bears', 'Owls', 'Foxes', 'Cats'], 'then the full board')
 
+    def test_a_team_photo_in_the_spotlight_is_round(self):
+        # A plain red photo: inside the ring it shows; at its square's corners (outside the circle) it mustn't.
+        import tempfile
+        from PySide6.QtGui import QImage, QColor
+        folder = tempfile.mkdtemp()
+        photo = QImage(800, 600, QImage.Format_RGB32); photo.fill(QColor('#ff0000')); photo.save(folder + '/red.png')
+        self.stage.setProperty('serverUrl', QUrl.fromLocalFile(folder).toString())
+        try:
+            teams = [{'name': 'Bears', 'rank': 1, 'score': 12, 'photo': '/red.png'}, {'name': 'Owls', 'rank': 2, 'score': 9}]
+            self.show(state('leaderboard', teams=teams, reveal={'question': 77, 'shown': 1, 'rest': 0, 'leader': False, 'done': False, 'hidden': ['Bears']}))
+            self.show(state('leaderboard', teams=teams, reveal={'question': 77, 'shown': 2, 'rest': 0, 'leader': True, 'done': True, 'hidden': []}), 'spotlight-photo')
+            for _ in range(60):
+                app.processEvents(); time.sleep(0.02)
+            discs = [o for o in items(self.stage) if o.objectName() == 'spotlightDisc' and o.isVisible()]
+            self.assertEqual(len(discs), 1, 'the leader in the spotlight')
+            disc = discs[0]
+            size = disc.property('width')
+            frame = self.window.grabWindow()
+            def colour(x, y):
+                point = disc.mapToItem(None, x, y)
+                return frame.pixelColor(int(point.x()), int(point.y()))
+            red = lambda c: c.red() > 200 and c.green() < 60 and c.blue() < 60
+            self.assertTrue(red(colour(size / 2, size / 2)), 'the photo shows in the ring')
+            self.assertTrue(red(colour(size / 2, 0.06 * size)), 'filling it to the top (cropped from its middle)')
+            for x, y in ((0.1, 0.1), (0.9, 0.1), (0.1, 0.9), (0.9, 0.9)):
+                self.assertFalse(red(colour(x * size, y * size)), f'no photo outside the circle at {x}, {y}')
+        finally:
+            self.stage.setProperty('serverUrl', '')
+            self.stage.findChild(QObject, 'spotlight').setProperty('shown', None)
+
     def test_joint_leaders_names_stay_on_the_screen(self):
         teams = [{'name': n, 'rank': 1, 'score': 6} for n in ['Agatha Quiztie', 'Les Quizerables', 'Tequila Mockingbird']] + [{'name': 'Owls', 'rank': 4, 'score': 2}]
         self.show(state('leaderboard', teams=teams, reveal={'question': 99, 'shown': 1, 'rest': 0, 'leader': False, 'done': False, 'hidden': [t['name'] for t in teams[:3]]}))
