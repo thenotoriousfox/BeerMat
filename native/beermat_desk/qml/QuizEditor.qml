@@ -44,11 +44,20 @@ RowLayout {
                 onEditingFinished: lib.setTitle(text)
             }
             ListView {
-                id: outline
+                id: outline; objectName: "outline"
                 Layout.fillWidth: true; Layout.fillHeight: true
                 clip: true; spacing: 2
                 ScrollBar.vertical: ScrollBar {}
-                model: lib.outline
+                // Picking or editing a question hands over a new list, and a new model scrolls back to the top: hand it
+                // over here instead of binding it, and go back to where the list was once it's laid out.
+                property var rows: lib.outline
+                onRowsChanged: {
+                    const y = contentY
+                    model = rows
+                    forceLayout()
+                    contentY = Math.max(originY, Math.min(y, originY + contentHeight - height))
+                }
+                Component.onCompleted: model = rows
                 delegate: Rectangle {
                     id: row
                     required property var modelData
