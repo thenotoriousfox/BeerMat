@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {readFileSync, mkdtempSync, rmSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {validateLibrary} from '../server/model.js';
+import {validateLibrary, types, speedTypes, autoMarked} from '../server/model.js';
 
 const read = file => readFileSync(new URL('../' + file, import.meta.url), 'utf8');
 const doc = read('docs/QUIZ-MAKER-PROMPT.md');
@@ -26,4 +26,13 @@ test('the prompt’s example quiz loads', () => {
     const quiz = validateLibrary(JSON.parse(json), dir);
     assert.ok(quiz.rounds.flatMap(r => r.questions).length >= 10);
   } finally {rmSync(dir, {recursive: true, force: true});}
+});
+
+// Which formats an option works on: the prompt's lists are the loader's.
+const listed = sentence => sentence.replace(/,? and /g, ', ').split(/,\s*/).map(x => x.trim()).filter(Boolean).sort();
+test('the prompt lists the formats speed bonuses and Risk It work on, as the loader does', () => {
+  assert.deepEqual(listed(doc.match(/`speedBonus` is allowed on: ([^.]+)\./)[1]), [...speedTypes].sort());
+  const [always, withAnswer] = [...doc.matchAll(/only work on questions BeerMat can mark by itself\. Those are:\n- ([^;]+);\n- ([^,]+(?:, [^,]+)*), but only when they have an `answer`/g)][0].slice(1);
+  assert.deepEqual(listed(always), types.filter(t => autoMarked({type: t})).sort());
+  assert.deepEqual(listed(withAnswer), types.filter(t => !autoMarked({type: t}) && autoMarked({type: t, answer: 'x'})).sort());
 });

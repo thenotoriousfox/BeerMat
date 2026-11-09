@@ -31,7 +31,7 @@ Output the quiz as a quiz file for **BeerMat**, an offline pub quiz system: the 
 Optional on most types:
 
 - `answerNote` (up to 300 characters): shown with the answer when it is revealed.
-- `fastestFingers: true` with `speedBonus` (whole number, 0–100): extra points for answering quickly. **Without `fastestFingers: true` there is no speed bonus at all.** `speedBonus` is allowed on: text, choice, multi, letter, number, sequence, pinpoint, wordsnake, tiles, picture, audio, bingo, musicbingo, clips. Leave it out on every other type.
+- `fastestFingers: true` with `speedBonus` (whole number, 0–100): extra points for answering quickly. **Without `fastestFingers: true` there is no speed bonus at all.** `speedBonus` is allowed on: text, choice, multi, letter, number, sequence, pinpoint, wordsnake, tiles, picture, audio, video, bingo, musicbingo, clips. Leave it out on every other type.
   - `bonusMode`: `"sliding"` (default; the bonus fades over the time allowed) or `"fixed"` (only the fastest correct answers get it).
   - `bonusPlaces` (1–50, default 1): how many of the fastest correct answers get a fixed bonus.
   - On fastest-fingers questions the TV shows the fastest correct team large at the reveal.
@@ -45,9 +45,9 @@ Optional on most types:
     setting on the night (not in the file). With it on, each question waits until the quizmaster presses Send, and its
     clock starts then.
 
-`evil` and `"bonusMode": "fixed"` only work on questions BeerMat can mark by itself. Those are:
-- multi, sequence, pinpoint, wordsnake and tiles;
-- text, choice, letter, number, picture and audio, but only when they have an `answer`.
+`evil`, `wager` and `"bonusMode": "fixed"` only work on questions BeerMat can mark by itself. Those are:
+- multi, sequence, pinpoint, wordsnake, tiles, list, pairs, sort, links and survey;
+- text, choice, letter, number, picture, audio, clues and video, but only when they have an `answer`.
 
 ## Question types
 
