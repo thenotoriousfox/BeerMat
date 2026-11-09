@@ -1100,12 +1100,33 @@ Item {
                     Repeater {
                         model: spotlight.shown ? (spotlight.shown.photos.length ? spotlight.shown.photos : spotlight.shown.initials) : []
                         delegate: Rectangle {
+                            id: disc
+                            objectName: "spotlightDisc"
                             required property string modelData
+                            readonly property bool isPhoto: /^(\/|https?:)/.test(modelData)
                             // Big: the team's moment (one photo half the screen's height; joint leaders share the width).
                             readonly property int size: spotlight.shown && spotlight.shown.initials.length > 2 ? 340 : spotlight.shown && spotlight.shown.initials.length > 1 ? 440 : 540
-                            width: size; height: size; radius: size / 2; color: root.pal.violet; border.color: root.pal.gold; border.width: 10; clip: true
-                            Image { anchors.fill: parent; anchors.margins: 8; visible: /^(\/|https?:)/.test(modelData); source: visible ? root.serverUrl + modelData : ""; fillMode: Image.PreserveAspectCrop }
-                            Text { objectName: "spotlightInitial"; anchors.centerIn: parent; visible: !/^(\/|https?:)/.test(modelData); text: modelData; color: root.pal.text; font.family: Theme.display; font.pixelSize: parent.size * 0.55; font.weight: Font.Bold }
+                            width: size; height: size; radius: size / 2; color: root.pal.violet; border.color: root.pal.gold; border.width: 10
+                            // The photo is cut to a circle inside the ring (clip only cuts to the square: its corners covered the
+                            // ring), filled from its middle. A Canvas, not a shader: it draws with software rendering too.
+                            // Its size, for the crop (not drawn itself).
+                            Image { id: discPhoto; visible: false; source: disc.isPhoto ? root.serverUrl + disc.modelData : ""; onStatusChanged: discCircle.requestPaint() }
+                            Canvas {
+                                id: discCircle
+                                anchors.fill: parent; anchors.margins: disc.border.width; visible: disc.isPhoto; antialiasing: true
+                                property string url: discPhoto.source.toString()
+                                onUrlChanged: if (url) loadImage(url)
+                                onImageLoaded: requestPaint()
+                                onPaint: {
+                                    const ctx = getContext("2d"), w = discPhoto.sourceSize.width, h = discPhoto.sourceSize.height
+                                    ctx.reset()
+                                    if (!url || !isImageLoaded(url) || !w || !h) return
+                                    const side = Math.min(w, h)
+                                    ctx.beginPath(); ctx.arc(width / 2, height / 2, width / 2, 0, 2 * Math.PI); ctx.closePath(); ctx.clip()
+                                    ctx.drawImage(url, (w - side) / 2, (h - side) / 2, side, side, 0, 0, width, height)
+                                }
+                            }
+                            Text { objectName: "spotlightInitial"; anchors.centerIn: parent; visible: !disc.isPhoto; text: disc.modelData; color: root.pal.text; font.family: Theme.display; font.pixelSize: disc.size * 0.55; font.weight: Font.Bold }
                         }
                     }
                 }
