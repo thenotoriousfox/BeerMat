@@ -182,6 +182,23 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
   releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
   `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
+* **Release 0.7.7**: Qt TV: team photos in the spotlight are round; Spotify: clips start at their start time, with no
+  blip from 0:00; Qt desk: quiz files with videos load and save; Risk It and Wipeout warnings on phones and TV; Round
+  formats page: a picture for every option; Website: Round formats page; Video questions; Ordering audio clips: put
+  songs in order, with a clip for each; Survey: points for how popular the answer was; Link groups: find the groups
+  among the items and name each link; Sort into groups: put each item in its group, a point for each; Matching pairs:
+  match each item to its partner, a point a pair; List answers: name as many as you can, a point for each; Progressive
+  clues: a new format, fewer points with each clue; Wager questions: teams stake up to N points, won if right, lost if
+  wrong; Pinpoint: several places to find; True or false, before or after: two-button Multiple choice; Number: accept a
+  margin either side; Nearest wins: closest without going over; VAR Check: teams appeal their marking after a reveal;
+  Phones: fallbacks so older phones play (iOS 14 / Chrome 86 on); Phones: Send answer stays at the top while the
+  keyboard is open; Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>; Phones: blur reveal on the TV's curve;
+  clearer Trace instructions; Finish quiz & reveal leaderboard; music round answers on Run the night and in the apps; TV
+  spotlights: much bigger team photos, and the Qt TV plays the team's buzzer; Teams rename themselves from the team
+  menu; Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>; Quiz Wi-Fi sign-in page: keep it open until the phone
+  is told to stay, with the Android and iPhone steps; Apps: photo and buzzer on the waiting screen, as the browser
+  player; Quiz Wi-Fi sign-in sheet: how to stay on the Wi-Fi, not the join form; Linux quiz Wi-Fi: run the hotspot
+  script as root from a copy.
 * **Release 0.7.6**: Linux: BeerMat Desk no longer crashes on newer Linux systems (it uses the computer's own keyboard
   library), and the programs it starts use the computer's libraries, so Spotify plays on the laptop's Spotify app and
   Connect Spotify opens the browser.
