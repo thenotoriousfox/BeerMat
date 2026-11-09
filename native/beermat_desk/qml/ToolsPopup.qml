@@ -45,7 +45,12 @@ Popup {
                     onActivated: desk.live.setDisplayMode(currentValue)
                 }
                 Text { text: "Spin the wheel"; color: Theme.text; font.family: Theme.display; font.pixelSize: 18; font.weight: Font.DemiBold; Layout.topMargin: 10 }
-                Area { id: wheelItems; Layout.fillWidth: true; Layout.preferredHeight: 90; placeholderText: "One item per line (empty: the teams in the room)" }
+                // A long list scrolls in its own box (the Tools window around it took the mouse wheel).
+                ScrollView {
+                    objectName: "wheelItemsBox"
+                    Layout.fillWidth: true; Layout.preferredHeight: 120
+                    Area { id: wheelItems; objectName: "wheelItems"; placeholderText: "One item per line (empty: the teams in the room)" }
+                }
                 RowLayout {
                     spacing: 6
                     DeskButton { text: "Spin on the TV"; kind: "primary"; onClicked: desk.live.spinWheel(wheelItems.text) }
