@@ -15,14 +15,46 @@ const songTitle = track => `${track.name}${track.artists?.length ? ' — ' + tra
 
 // The Spotify app on this laptop, told what to play over D-Bus (MPRIS, Linux). Its Spotify Connect link can stop
 // answering: Spotify then accepts a play and the app does nothing, while D-Bus still reaches it.
-const mpris = (...args) => new Promise((resolve, reject) => execFile('gdbus', ['call', '--session', '--dest', 'org.mpris.MediaPlayer2.spotify', '--object-path', '/org/mpris/MediaPlayer2', '--method', ...args], {timeout: 3000}, e => e ? reject(e) : resolve()));
-export const appOnThisLaptop = process.platform !== 'linux' ? null : {
-  async play(uri, startSeconds) {
-    await mpris('org.mpris.MediaPlayer2.Player.OpenUri', uri);
-    if (startSeconds) {await new Promise(r => setTimeout(r, 600)); await mpris('org.mpris.MediaPlayer2.Player.Seek', String(startSeconds * 1e6));}
-  },
-  pause: () => mpris('org.mpris.MediaPlayer2.Player.Pause')
-};
+const gdbus = (...args) => new Promise((resolve, reject) => execFile('gdbus', ['call', '--session', '--dest', 'org.mpris.MediaPlayer2.spotify', '--object-path', '/org/mpris/MediaPlayer2', '--method', ...args], {timeout: 3000}, (e, out) => e ? reject(e) : resolve(String(out))));
+const PLAYER = 'org.mpris.MediaPlayer2.Player';
+// The app takes a moment to load a song after OpenUri, and Seek moves relative to wherever it is: a seek sent too soon
+// went to the old song (or nowhere) and the clip played from 0. So wait until the app has the song, jump to the start
+// time itself (SetPosition), and check it got there. OpenUri starts the song at 0:00 straight away, so the app is
+// silent (its Volume) until then: no blip of the song's opening before the jump.
+export function mprisApp(call = gdbus, wait = ms => new Promise(r => setTimeout(r, ms))) {
+  const property = name => call('org.freedesktop.DBus.Properties.Get', PLAYER, name).catch(() => '');
+  const track = async () => /'mpris:trackid': <(?:objectpath )?'([^']*)'>/.exec(await property('Metadata'))?.[1] || '';
+  let loudness;
+  // In microseconds; NaN when the app doesn't say.
+  const position = async () => Number(/<(?:int64 )?(\d+)>/.exec(await property('Position'))?.[1] ?? NaN);
+  return {
+    async play(uri, startSeconds) {
+      const id = uri.split(':').pop(), target = startSeconds * 1e6;
+      if (!startSeconds) return call(`${PLAYER}.OpenUri`, uri);
+      const was = Number(/<(?:double )?([\d.]+)>/.exec(await property('Volume'))?.[1]);
+      // A play cut short (the server stopped) can leave the app silent: then the volume from before that one.
+      const volume = was > 0 ? (loudness = was) : loudness;
+      const setVolume = level => call('org.freedesktop.DBus.Properties.Set', PLAYER, 'Volume', `<${level.toFixed(3)}>`).catch(() => {});
+      if (volume !== undefined) await setVolume(0);
+      try {
+        await call(`${PLAYER}.OpenUri`, uri);
+        let current = '';
+        for (let i = 0; i < 25 && !(current = await track()).endsWith(id); i++) await wait(200);
+        for (let i = 0; i < 6; i++) {
+          if (current.endsWith(id) && current.startsWith('/')) await call(`${PLAYER}.SetPosition`, current, String(target));
+          else await call(`${PLAYER}.Seek`, String(Math.round(target - (await position() || 0))));
+          await wait(300);
+          const at = await position();
+          // There (allowing for the time since), or the app doesn't say where it is.
+          if (Number.isNaN(at) || (at >= target - 1e6 && at < target + 3e6)) return;
+          current = await track();
+        }
+      } finally {if (volume !== undefined) await setVolume(volume);}
+    },
+    pause: () => call(`${PLAYER}.Pause`)
+  };
+}
+export const appOnThisLaptop = process.platform !== 'linux' ? null : mprisApp();
 
 export function createSpotify({getMeta, setMeta, now, accountsUrl = 'https://accounts.spotify.com', apiUrl = 'https://api.spotify.com/v1', localApp = apiUrl === 'https://api.spotify.com/v1' ? appOnThisLaptop : null}) {
   const saved = () => getMeta('spotify', {});

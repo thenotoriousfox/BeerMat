@@ -6,7 +6,7 @@ import {mkdtempSync, rmSync} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import {createQuiz} from '../server/server.js';
-import {trackId, playlistId} from '../server/spotify.js';
+import {trackId, playlistId, mprisApp} from '../server/spotify.js';
 
 const hostKey = 'a-secure-quiz-test-key', clientId = '0123456789abcdef0123456789abcdef';
 const id = n => `track${String(n).padStart(17, '0')}`;
@@ -194,3 +194,34 @@ test('only the desk page may load Spotify\'s player; phones and the TV stay loca
   assert.match(await policy('/host'), /script-src 'self' https:\/\/sdk\.scdn\.co/); assert.match(await policy('/host'), /frame-src https:\/\/sdk\.scdn\.co/);
   for (const route of ['/', '/tv']) {const p = await policy(route); assert.doesNotMatch(p, /spotify|scdn/); assert.match(p, /connect-src 'self';/);}
 }));
+
+// The Spotify app over D-Bus: it takes a while to load a song (still saying the old one meanwhile), drops a seek sent
+// before then, and Seek is relative; OpenUri starts the song at 0:00. The clip has to start at its start time however
+// slow the app is, with none of the song's opening heard first, and the volume left as it was.
+test('the Spotify app on this laptop starts a clip at its start time, however long the song takes to load', async () => {
+  for (const loadPolls of [0, 1, 4, 12]) {
+    const app = {track: '/com/spotify/track/' + id(1), at: 80e6, loading: null, polls: 0, volume: 0.8, heard: false};
+    const wait = async ms => {if (app.stuck > 0) app.stuck--; else app.at += ms * 1000; if (app.volume > 0 && app.track.endsWith(id(2)) && app.at < 14e6) app.heard = true;};
+    const call = async (method, ...args) => {
+      if (method.endsWith('.OpenUri')) {app.loading = '/com/spotify/track/' + args[0].split(':').pop(); app.polls = 0; return '()';}
+      if (method.endsWith('Properties.Get')) {
+        if (app.loading && app.polls++ >= loadPolls) {app.track = app.loading; app.loading = null; app.at = 0; app.stuck = 2; if (app.volume > 0) app.heard = true;}
+        if (args[1] === 'Volume') return `(<${app.volume}>,)`;
+        return args[1] === 'Metadata' ? `({'mpris:trackid': <'${app.track}'>, 'xesam:title': <'Song'>},)` : `(<int64 ${app.at}>,)`;
+      }
+      if (method.endsWith('Properties.Set')) {app.volume = Number(/[\d.]+/.exec(args[2])[0]); return '()';}
+      if (method.endsWith('.Seek')) {if (!app.loading) app.at += Number(args[0]); return '()';}
+      if (method.endsWith('.SetPosition')) {if (args[0] === app.track && !app.loading && !app.stuck) app.at = Number(args[1]); return '()';}
+      return '()';
+    };
+    await mprisApp(call, wait).play(`spotify:track:${id(2)}`, 15);
+    assert.equal(app.track, '/com/spotify/track/' + id(2), `loads after ${loadPolls} looks`);
+    assert.ok(app.at >= 15e6 && app.at < 16e6, `at ${app.at / 1e6} s after ${loadPolls} looks, not 15 s`);
+    assert.equal(app.heard, false, `the song's opening heard after ${loadPolls} looks`);
+    assert.equal(app.volume, 0.8, 'volume back as it was');
+  }
+  // No start time: just the song, nothing else asked.
+  const asked = [];
+  await mprisApp(async method => {asked.push(method); return '()';}, async () => {}).play(`spotify:track:${id(2)}`, 0);
+  assert.deepEqual(asked, ['org.mpris.MediaPlayer2.Player.OpenUri']);
+});
