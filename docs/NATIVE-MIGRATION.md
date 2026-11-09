@@ -182,6 +182,7 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
   releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
   `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
+* **Release 0.7.14**: Round intros to read out, full answers on the phone deck, long clues on the TV.
 * **Release 0.7.13**: Tools: the wheel's list of entries scrolls.
 * **Release 0.7.12**: Spotify: clips at full volume, then the set volume back.
 * **Release 0.7.11**: Quiz editor: the question list keeps its place.
