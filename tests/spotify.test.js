@@ -155,7 +155,7 @@ test('a chosen player that has gone (its app closed): BeerMat plays on this lapt
 }));
 
 test('the Spotify app on this laptop is told directly (its Connect link can stop answering); a chosen player isn’t', () => {
-  const told = [], app = {works: true, play: async (uri, start) => {if (!app.works) throw new Error('not open'); told.push(['play', uri, start]);}, pause: async () => {told.push(['pause']);}};
+  const told = [], app = {works: true, full: [], play: async (uri, start, {full} = {}) => {if (!app.works) throw new Error('not open'); app.full.push(full); told.push(['play', uri, start]);}, pause: async () => {told.push(['pause']);}};
   return fixture(async ctx => {
     const {call, fake} = ctx; await connect(ctx);
     const webPlays = () => fake.log.filter(l => l.path.startsWith('/v1/me/player/play')).length;
@@ -164,10 +164,22 @@ test('the Spotify app on this laptop is told directly (its Connect link can stop
     await call('host/spotify/pause');
     assert.deepEqual(told, [['play', `spotify:track:${id(3)}`, 42], ['pause']]);
     assert.equal(webPlays(), 0, 'not through Spotify Connect');
+    // Clips play at the app's full volume unless the quizmaster turns that off.
+    assert.equal((await call('host/spotify/status')).fullVolume, true);
+    await call('host/spotify/full-volume', {on: false});
+    assert.equal((await call('host/spotify/status')).fullVolume, false);
+    await call('host/spotify/play', {question: audio.id});
+    assert.equal((await call('host/spotify/full-volume', {on: 'yes'})).status, 400);
+    await call('host/spotify/full-volume', {on: true});
+    assert.deepEqual(app.full, [true, false]);
+    told.splice(2);
     app.works = false;
     assert.equal((await call('host/spotify/play', {question: audio.id})).status, 200);
     assert.equal(webPlays(), 1, 'the app not open: through Spotify Connect');
     app.works = true;
+    await call('host/spotify/preview', {link: `spotify:track:${id(4)}`});
+    assert.equal(app.full.at(-1), false, 'a preview while building the quiz: Spotify\'s own volume');
+    told.splice(2);
     await call('host/spotify/device', {id: 'tv'});
     await call('host/spotify/preview', {link: `spotify:track:${id(4)}`});
     assert.deepEqual([told.length, fake.log.findLast(l => l.path.startsWith('/v1/me/player/play')).path], [2, '/v1/me/player/play?device_id=tv'], 'the TV chosen: on the TV');
@@ -224,4 +236,35 @@ test('the Spotify app on this laptop starts a clip at its start time, however lo
   const asked = [];
   await mprisApp(async method => {asked.push(method); return '()';}, async () => {}).play(`spotify:track:${id(2)}`, 0);
   assert.deepEqual(asked, ['org.mpris.MediaPlayer2.Player.OpenUri']);
+});
+
+// Full volume: the clip plays with the app at full (still silent until it's at the start time) and the
+// quizmaster's volume comes back when it's paused, even after several clips in a row, or when the next clip isn't full.
+test('a clip can play at the Spotify app\'s full volume, and the quizmaster\'s volume comes back after', async () => {
+  const app = {volume: 0.4, track: '', at: 0, heard: []};
+  const call = async (method, ...args) => {
+    if (method.endsWith('.OpenUri')) {app.track = '/com/spotify/track/' + args[0].split(':').pop(); app.at = 0; app.heard.push(app.volume); return '()';}
+    if (method.endsWith('Properties.Get')) {
+      if (args[1] === 'Volume') return `(<${app.volume}>,)`;
+      return args[1] === 'Metadata' ? `({'mpris:trackid': <'${app.track}'>},)` : `(<int64 ${app.at}>,)`;
+    }
+    if (method.endsWith('Properties.Set')) {app.volume = Number(/[\d.]+/.exec(args[2])[0]); return '()';}
+    if (method.endsWith('.SetPosition')) {app.at = Number(args[1]); return '()';}
+    return '()';
+  };
+  const spotifyApp = mprisApp(call, async () => {});
+  await spotifyApp.play(`spotify:track:${id(2)}`, 15, {full: true});
+  assert.deepEqual([app.volume, app.heard], [1, [0]], 'full, and silent while it jumps');
+  await spotifyApp.play(`spotify:track:${id(3)}`, 20, {full: true});
+  assert.equal(app.volume, 1);
+  await spotifyApp.pause();
+  assert.equal(app.volume, 0.4, 'the quizmaster\'s volume back, not the full one');
+  await spotifyApp.play(`spotify:track:${id(2)}`, 0, {full: true});
+  assert.equal(app.volume, 1, 'no start time: full too');
+  await spotifyApp.play(`spotify:track:${id(3)}`, 0);
+  assert.equal(app.volume, 0.4, 'a clip not at full: the quizmaster\'s volume');
+  await spotifyApp.play(`spotify:track:${id(2)}`, 15);
+  assert.equal(app.volume, 0.4);
+  await spotifyApp.pause();
+  assert.equal(app.volume, 0.4);
 });

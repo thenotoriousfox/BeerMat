@@ -401,3 +401,8 @@ class Prefs(QObject):
     @Slot(str)
     def chooseSpotifyDevice(self, device):
         self.api.host('spotify/device', {'id': device}, lambda _: self.loadSpotify(), self._fail)
+
+    @Slot(bool)
+    def setSpotifyFullVolume(self, on):
+        """Clips played by the Spotify app on this laptop go to its full volume, and the set volume comes back after."""
+        self.api.host('spotify/full-volume', {'on': bool(on)}, lambda _: self.loadSpotify(), self._fail)

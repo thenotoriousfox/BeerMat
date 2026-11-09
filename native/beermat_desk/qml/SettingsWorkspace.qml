@@ -296,6 +296,15 @@ ScrollView {
                            text: "To play Spotify on the TV screen, open Spotify there (the same account), then Refresh players and choose it." }
                 }
             }
+            CheckBox {
+                objectName: "spotifyFullVolume"
+                visible: !settings.spotify.locked && !!settings.spotify.connected
+                Layout.fillWidth: true
+                text: "Play clips at full Spotify volume (the Spotify app on this laptop; its own volume comes back when the clip stops)"
+                checked: settings.spotify.fullVolume !== false; palette.windowText: Theme.text
+                contentItem: Text { text: parent.text; color: Theme.text; font.pixelSize: 13; wrapMode: Text.WordWrap; leftPadding: parent.indicator.width + parent.spacing; verticalAlignment: Text.AlignVCenter }
+                onToggled: desk.prefs.setSpotifyFullVolume(checked)
+            }
             RowLayout {
                 visible: !!settings.spotify.error
                 Text { text: settings.spotify.error || ""; color: Theme.bad; font.pixelSize: 13; wrapMode: Text.WordWrap; Layout.fillWidth: true }

@@ -2085,6 +2085,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/spotify/token') return send(200, await spotify.accessToken());
         if (p === '/api/host/spotify/disconnect') {spotify.disconnect(); return send(200, {ok: true});}
         if (p === '/api/host/spotify/device') {spotify.device(body.id); return send(200, {ok: true});}
+        if (p === '/api/host/spotify/full-volume') {spotify.fullVolume(body.on); return send(200, {ok: true});}
         if (p === '/api/host/drive') return send(200, {quiz: await fetchDriveQuiz(body.url, fetchImpl)});
         if (p === '/api/host/spotify/import') return send(200, {songs: await spotify.tracks(body.links)});
         if (p === '/api/host/spotify/pause') {await spotify.pause(); return send(200, {ok: true});}
@@ -2092,7 +2093,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/spotify/preview') {
           const uri = spotifyTrack(body.link), start = body.start ?? 0;
           requireValue(uri, 'Not a Spotify song link'); requireValue(Number.isInteger(start) && start >= 0 && start <= 3600, 'Start must be 0–3,600 seconds');
-          await spotify.play(uri, start); return send(200, {ok: true});
+          // A preview while building the quiz plays at Spotify's own volume, not a clip's full volume.
+          await spotify.play(uri, start, {preview: true}); return send(200, {ok: true});
         }
         // A Spotify sound clip: start it, then log it as playing so taps count against it.
         if (p === '/api/host/spotify/play') {
