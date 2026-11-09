@@ -25,6 +25,9 @@ test('the prompt’s example quiz loads', () => {
   try {
     const quiz = validateLibrary(JSON.parse(json), dir);
     assert.ok(quiz.rounds.flatMap(r => r.questions).length >= 10);
+    // A round's intro (read out before it starts) is described and kept.
+    assert.match(doc, /`intro`/);
+    assert.ok(quiz.rounds.some(r => r.intro));
   } finally {rmSync(dir, {recursive: true, force: true});}
 });
 

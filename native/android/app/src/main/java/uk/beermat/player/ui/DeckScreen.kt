@@ -95,6 +95,13 @@ private fun DeckRun(vm: DeckViewModel, ui: DeckUi, d: DeckState) {
     Text(d.title + if (d.rehearsal) " · " + t("Rehearsal") else "", color = Brand.muted, modifier = Modifier.padding(bottom = 12.dp))
     d.question?.let { QuestionCard(vm, ui, d, it) }
     Spacer(Modifier.height(12.dp))
+    // The next round's intro, to read out before starting it (the TV doesn't show it).
+    d.nextRound?.let { r ->
+        Column(Modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(14.dp)).background(Brand.panel).padding(14.dp).testTag("deckRoundIntro")) {
+            Text(t("Read out before {round}", "round" to r.title), color = Brand.goldHi, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(r.intro, modifier = Modifier.padding(top = 4.dp))
+        }
+    }
     BigButton(stepLabel(d.nextStep), enabled = d.canNext && !ui.busy, modifier = Modifier.testTag("deckNext")) { if (d.nextStep == "finish") confirm = "finish" else vm.next() }
     if (d.back != null) TextButton({ if (d.backAnswers > 0) confirm = "back" else vm.back() }, enabled = !ui.busy) { Text(t("Back: {step}", "step" to d.back.replaceFirstChar { it.lowercase() })) }
     if (!d.deskOpen) Text(t("The desk isn’t open on the laptop: clips, songs and sounds need it."), color = Brand.goldHi, fontSize = 13.sp)

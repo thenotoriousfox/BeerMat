@@ -578,7 +578,10 @@ export function validateLibrary(input, mediaDir) {
       requireValue(++count <= 1000, 'Maximum 1,000 questions per quiz');
       return {...validateQuestion(q, mediaDir), id: id(q.id)};
     });
-    return {id: roundId, title: round.title.trim(), questions, ...round.secret === true && {secret: true}};
+    // How the round works, for the quizmaster to read out before it starts (the desks show it; the TV doesn't).
+    requireValue(round.intro === undefined || round.intro === null || text(round.intro, 1000, false), 'A round\'s intro is up to 1,000 characters');
+    const intro = typeof round.intro === 'string' ? round.intro.trim() : '';
+    return {id: roundId, title: round.title.trim(), questions, ...round.secret === true && {secret: true}, ...intro && {intro}};
   });
   return {title: input.title.trim(), rounds};
 }

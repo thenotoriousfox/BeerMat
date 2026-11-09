@@ -420,6 +420,8 @@ class Desk(QObject):
             'canSend': bool(q and q.get('held') and q.get('live')),
             'wheels': s.get('wheels') or [], 'slides': s.get('slides') or [], 'lastWheel': s.get('wheel') or {},
             'next': {'step': step or '', 'label': STEP_LABELS.get(step, 'Quiz finished'), 'enabled': bool(step) and not (q and q.get('live'))},
+            # The next round's intro, read out before it starts (server.js nextRound).
+            'nextRound': s.get('nextRound') or None,
             # Back undoes the last step Next took; the server says which (backStep in server.js).
             'back': s.get('back') or None,
             'canClose': bool(q and (q.get('open') or q.get('live')) and not q.get('revealed')),

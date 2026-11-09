@@ -146,6 +146,7 @@ class Library(QObject):
         shown['fields'] = FIELDS_BY_TYPE.get(q.get('type'), [])
         shown['round'], shown['index'] = self._selected
         shown['roundTitle'] = self._draft['rounds'][self._selected[0]].get('title', '')
+        shown['roundIntro'] = self._draft['rounds'][self._selected[0]].get('intro', '')
         shown['answer'] = '' if q.get('answer') is None else str(q.get('answer'))
         kind = q.get('type')
         shown['options_'] = [{'key': k, 'label': label, 'kind': kind_, 'range': list(rng) if kind_ in ('int', 'ints') else [],
@@ -469,6 +470,18 @@ class Library(QObject):
     def renameRound(self, r, title):
         if title.strip() and self._draft['rounds'][r].get('title') != title:
             self._draft['rounds'][r]['title'] = title.strip()
+            self._touch()
+
+    @Slot(int, str)
+    def setRoundIntro(self, r, intro):
+        """How the round works, for the quizmaster to read out before it starts (the desks show it, not the TV)."""
+        rnd = self._draft['rounds'][r]
+        intro = intro.strip()[:1000]
+        if intro != rnd.get('intro', ''):
+            if intro:
+                rnd['intro'] = intro
+            else:
+                rnd.pop('intro', None)
             self._touch()
 
     @Slot(int)

@@ -18,5 +18,14 @@ class SheetRevealTest {
         fun deck(q: String) = uk.beermat.player.deck.DeckState.parse(JSONObject("""{"question": $q}""")).question!!.answer
         assertEquals("Artist: Tracy Chapman · Title: Fast Car", deck("""{"id": 7, "type": "sheet", "items": ["Artist", "Title"], "itemAnswers": ["Tracy Chapman", "Fast Car"], "answer": ""}"""))
         assertEquals("Cardiff", deck("""{"id": 8, "type": "text", "answer": "Cardiff"}"""))
+        // A first letter's whole answer, from its note.
+        assertEquals("S · Scoville", deck("""{"id": 9, "type": "letter", "answer": "S", "answerNote": "Scoville"}"""))
+    }
+
+    /** The next round's intro reaches the phone deck, to read out; none when the round has no intro. */
+    @Test fun runTheNightShowsTheNextRoundsIntro() {
+        val d = uk.beermat.player.deck.DeckState.parse(JSONObject("""{"nextRound": {"id": "r2", "title": "Round 2", "intro": "Wrong answers lose points."}}"""))
+        assertEquals(uk.beermat.player.deck.DeckRound("Round 2", "Wrong answers lose points."), d.nextRound)
+        assertEquals(null, uk.beermat.player.deck.DeckState.parse(JSONObject("""{"nextRound": null}""")).nextRound)
     }
 }

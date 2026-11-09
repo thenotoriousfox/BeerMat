@@ -87,6 +87,23 @@ ColumnLayout {
         }
     }
 
+    // ---- the next round's intro, for the quizmaster to read out before starting it (not shown on the TV) ----
+    Rectangle {
+        objectName: "nextRoundIntro"
+        visible: !!view.nextRound
+        Layout.fillWidth: true; implicitHeight: introColumn.implicitHeight + 24; radius: Theme.radius
+        color: Qt.rgba(Theme.violet.r, Theme.violet.g, Theme.violet.b, 0.16); border.color: Qt.rgba(Theme.violet.r, Theme.violet.g, Theme.violet.b, 0.6)
+        ColumnLayout {
+            id: introColumn
+            anchors.left: parent.left; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+            anchors.leftMargin: 18; anchors.rightMargin: 18; spacing: 4
+            Text { Layout.fillWidth: true; elide: Text.ElideRight; color: Theme.gold; font.pixelSize: 12; font.weight: Font.Bold
+                   text: view.nextRound ? `Read out before ${view.nextRound.title}` : "" }
+            Text { objectName: "nextRoundIntroText"; Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.text; font.pixelSize: 16
+                   text: view.nextRound ? view.nextRound.intro : "" }
+        }
+    }
+
     // ---- VAR Check: teams' appeals waiting for a ruling (overturned gives the question's points; the TV shows it) ----
     Repeater {
         objectName: "varChecks"

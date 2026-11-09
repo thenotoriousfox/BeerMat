@@ -462,6 +462,24 @@ class TvStageTest(unittest.TestCase):
         self.assertTrue(red.red() > 200 and red.green() < 140 and red.blue() < 140, f'A is solid red: {red.name()}')
         self.assertTrue(blue.blue() > 200 and blue.red() < 120, f'B is solid blue: {blue.name()}')
 
+    def test_a_long_clue_is_shown_whole(self):
+        """A progressive clue longer than its tile is wide wraps and shrinks to fit, not cut off with "…" (a clue in
+        a live quiz lost its end on the TV)."""
+        clues = ['Its patriarch is named Logan.', 'Its central family is the Roy family.', 'The family controls a media and entertainment empire.',
+                 'Its final season ended with a vote in a boardroom over a takeover by a Swedish streaming company.']
+        self.show(state(q=question(type='clues', text='Name the TV drama from the clues as they appear.', options=[], clues=clues, clueCount=4, cluesShown=4, cluePoints=1)))
+        for _ in range(30):
+            app.processEvents(); time.sleep(0.02)
+        def items(item):
+            yield item
+            for child in item.childItems():
+                yield from items(child)
+        texts = [t for t in items(self.stage) if t.objectName() == 'optionText' and t.property('visible')]
+        self.assertEqual(len(texts), 4)
+        for t in texts:
+            self.assertFalse(t.property('truncated'), f'cut off: {t.property("text")}')
+        self.show(state(q=question(type='clues', text='Name the TV drama from the clues as they appear.', options=[], clues=clues, clueCount=4, cluesShown=4, cluePoints=1)), 'long-clues')
+
     def test_music_bingo_with_a_long_question_doesnt_overlap(self):
         """A two-line question over music bingo's song, its last title and the reaction table: each line below the
         other, none drawn over another, all on the screen (as on the website's screenshot)."""

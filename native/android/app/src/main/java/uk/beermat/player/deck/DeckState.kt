@@ -11,6 +11,9 @@ data class DeckQuestion(
     val hideText: Boolean = false,
 )
 
+/** A round about to start and how it works, as the quizmaster wrote it. */
+data class DeckRound(val title: String, val intro: String)
+
 data class DeckTeam(val name: String, val score: Double, val rank: Int, val connected: Boolean)
 
 /** A team's VAR Check waiting for a ruling: its answer and the question's full points (what Overturn gives). */
@@ -25,6 +28,8 @@ data class DeckState(
     val title: String, val nextStep: String?, val question: DeckQuestion?, val teams: List<DeckTeam>, val answered: Int,
     val back: String?, val backAnswers: Int, val deskOpen: Boolean, val revealSound: String?, val fastRehearsal: Boolean, val rehearsal: Boolean,
     val varChecks: List<DeckVar> = emptyList(),
+    /** The next round's intro, for the quizmaster to read out before starting it (server.js nextRound). */
+    val nextRound: DeckRound? = null,
 ) {
     val canNext get() = nextStep != null && question?.live != true
     val canSend get() = question.let { it != null && it.held && it.live }
@@ -34,8 +39,14 @@ data class DeckState(
     val canResume get() = question.let { it != null && it.paused && !it.held }
 
     companion object {
-        /** The answer to read: an answer sheet's lines (a music round's artist and title) when it has no single answer. */
+        /** The answer to read, and its note after it (a first letter's whole answer: "S · Scoville"). */
         private fun answerText(o: JSONObject): String {
+            val note = o.optString("answerNote").takeIf { !o.isNull("answerNote") }.orEmpty()
+            return listOf(mainAnswer(o), note).filter { it.isNotBlank() }.joinToString(" · ")
+        }
+
+        /** The answer itself: an answer sheet's lines (a music round's artist and title) when it has no single answer. */
+        private fun mainAnswer(o: JSONObject): String {
             val answer = o.optString("answer").takeIf { !o.isNull("answer") } ?: ""
             val margin = o.optDouble("tolerance", 0.0).takeUnless { it.isNaN() } ?: 0.0
             if (answer.isNotEmpty() && margin > 0) return "$answer (± ${if (margin % 1.0 == 0.0) margin.toLong().toString() else margin.toString()}${if (o.optBoolean("tolerancePercent")) "%" else ""})"
@@ -69,6 +80,7 @@ data class DeckState(
                 revealSound = s.optJSONObject("sounds")?.optJSONObject("slots")?.optString("reveal")?.takeIf { it.isNotBlank() },
                 fastRehearsal = s.optJSONObject("rehearsal")?.optJSONObject("options")?.optString("speed") == "fast",
                 rehearsal = s.optJSONObject("rehearsal")?.optJSONObject("options") != null,
+                nextRound = s.optJSONObject("nextRound")?.let { DeckRound(it.optString("title"), it.optString("intro")) }?.takeIf { it.intro.isNotBlank() },
             )
         }
     }

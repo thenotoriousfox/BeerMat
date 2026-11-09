@@ -1300,6 +1300,13 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const decks = () => [...deckSessions].filter(([h]) => one('SELECT 1 FROM host_sessions WHERE hash=?', h)).map(([, d]) => d);
   // A phone deck: its sign-in, its page in a browser (/deck), and anything with a deck's key.
   const deckAllowed = (req, url) => url.pathname.startsWith('/api/deck/') || ((req.method === 'GET' || req.method === 'HEAD') && (url.pathname === '/deck' || url.pathname === '/deck.js')) || deckSessions.has(hash(req.headers.authorization?.replace(/^Bearer /, '') || url.searchParams.get('key') || ''));
+  // The round the next question starts, when none of it has been played and it has an intro: the desks and phone deck
+  // show the intro for the quizmaster to read out before starting it.
+  function nextRound() {
+    const played = new Set(rows('SELECT data FROM questions').map(q => dataOf(q).sourceId).filter(Boolean));
+    const round = library().rounds.find(r => r.questions.some(q => !played.has(q.id) && !q.tieBreaker));
+    return round?.intro && !round.questions.some(q => played.has(q.id)) ? {id: round.id, title: round.title, intro: round.intro} : null;
+  }
   // The desk's big button, as nextStep() in web/host.js and desk.py's _next_step, worked out here for the phone deck.
   function nextStep(board, recap) {
     if (board.active && !board.done) return board.shown === board.rest ? 'revealFirst' : board.second ? 'revealSecond' : 'reveal';
@@ -1555,7 +1562,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/plan/refresh') return send(200, await refreshLicence());
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats(), board = boardStep(), recap = {...recapState(), active: !!recapState(), available: !recapState() && !!recapOffer()};
-          return send(200, {protocol: PROTOCOL, serverTime: now(), varChecks: varChecks(), varCheck: varShown(), tvScreens: tvScreens(), decks: decks(), deskConnected: deskConnected(), deckCommand, nextStep: nextStep(board, recap), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board, recap, back: backStep(), timer: getMeta('timer', null), wheels: getMeta('wheels', []), slides: slides(), wheel: getMeta('wheel', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {protocol: PROTOCOL, serverTime: now(), varChecks: varChecks(), varCheck: varShown(), tvScreens: tvScreens(), decks: decks(), deskConnected: deskConnected(), deckCommand, nextStep: nextStep(board, recap), nextRound: nextRound(), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board, recap, back: backStep(), timer: getMeta('timer', null), wheels: getMeta('wheels', []), slides: slides(), wheel: getMeta('wheel', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }

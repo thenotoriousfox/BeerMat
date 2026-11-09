@@ -79,7 +79,8 @@ async function refresh(first = false) {
 // ---- what can be done now (as the Qt desk: desk.py canSend, canClose…) ----
 const q = () => state?.question || null;
 // The answer to read: an answer sheet's lines (a music round's artist and title) when it has no single answer.
-const answerText = question => (question.answer && question.tolerance ? `${question.answer} (± ${question.tolerance}${question.tolerancePercent ? '%' : ''})` : question.answer) || (question.items || []).map((item, i) => question.itemAnswers?.[i] ? `${item}: ${question.itemAnswers[i]}` : '').filter(Boolean).join(' · ');
+// A note with it (a first letter's whole answer: "S · Scoville") as the desk shows it.
+const answerText = question => [(question.answer && question.tolerance ? `${question.answer} (± ${question.tolerance}${question.tolerancePercent ? '%' : ''})` : question.answer) || (question.items || []).map((item, i) => question.itemAnswers?.[i] ? `${item}: ${question.itemAnswers[i]}` : '').filter(Boolean).join(' · '), question.answerNote].filter(Boolean).join(' · ');
 const can = {
   next: () => !!state?.nextStep && !q()?.live,
   send: () => !!q()?.held && !!q()?.live,
@@ -137,9 +138,11 @@ function render() {
   $('back').hidden = !state.back; $('back').textContent = state.back ? t('Back: {step}', {step: state.back.label.charAt(0).toLowerCase() + state.back.label.slice(1)}) : '';
   $('back').disabled = busy;
   $('deskClosed').hidden = !!state.deskConnected;
+  // The next round's intro, to read out before starting it (the TV doesn't show it).
+  $('nextRoundIntro').hidden = !state.nextRound; $('nextRoundTitle').textContent = state.nextRound ? t('Read out before {round}', {round: state.nextRound.title}) : ''; $('nextRoundText').textContent = state.nextRound?.intro || '';
   const board = [...state.teams].filter(team => team.enabled !== false && !team.waiting).sort((a, b) => (a.rank || 999) - (b.rank || 999) || a.name.localeCompare(b.name));
   $('board').replaceChildren(...(board.length ? board.map(team => {
-    const li = element('li'); li.append(element('span', `${team.rank || '–'}  ${team.name}`), element('strong', String(team.score ?? ''))); li.classList.toggle('away', !team.connected); return li;
+    const li = element('li'); li.append(element('span', String(team.rank || '–'), 'rank'), element('span', team.name, 'team-name'), element('strong', String(team.score ?? ''))); li.classList.toggle('away', !team.connected); return li;
   }) : [element('li', t('No teams yet'), 'hint')]));
 }
 // The countdown ticks between the server's updates.

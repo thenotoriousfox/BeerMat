@@ -15,5 +15,13 @@ final class SheetRevealTests: XCTestCase {
         let sheet: [String: Any] = ["id": 7, "type": "sheet", "items": ["Artist", "Title"], "itemAnswers": ["Tracy Chapman", "Fast Car"], "answer": ""]
         XCTAssertEqual(DeckState.parse(["question": sheet]).question?.answer, "Artist: Tracy Chapman · Title: Fast Car")
         XCTAssertEqual(DeckState.parse(["question": ["id": 8, "type": "text", "answer": "Cardiff"]]).question?.answer, "Cardiff")
+        // A first letter's whole answer, from its note.
+        XCTAssertEqual(DeckState.parse(["question": ["id": 9, "type": "letter", "answer": "S", "answerNote": "Scoville"]]).question?.answer, "S · Scoville")
+    }
+
+    /// The next round's intro reaches the phone deck, to read out; none when the round has no intro.
+    func testRunTheNightShowsTheNextRoundsIntro() {
+        XCTAssertEqual(DeckState.parse(["nextRound": ["id": "r2", "title": "Round 2", "intro": "Wrong answers lose points."]]).nextRound, DeckRound(title: "Round 2", intro: "Wrong answers lose points."))
+        XCTAssertNil(DeckState.parse(["nextRound": NSNull()]).nextRound)
     }
 }

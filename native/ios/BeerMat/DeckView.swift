@@ -75,6 +75,17 @@ struct DeckCodeView: View {
     }
 }
 
+/// The next round's intro, to read out before starting it (the TV doesn't show it).
+struct DeckRoundIntro: View {
+    let round: DeckRound
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(t("Read out before {round}", ["round": round.title])).font(.footnote.bold()).foregroundStyle(Brand.goldHi)
+            Text(round.intro)
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(14).background(Brand.panel, in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
 struct DeckRunView: View {
     @EnvironmentObject var deck: DeckModel
     let d: DeckState
@@ -83,6 +94,7 @@ struct DeckRunView: View {
     var body: some View {
         Text(d.title + (d.rehearsal ? " · " + t("Rehearsal") : "")).foregroundStyle(Brand.muted)
         if let q = d.question { DeckQuestionCard(d: d, q: q) }
+        if let r = d.nextRound { DeckRoundIntro(round: r) }
         BigButton(title: stepLabel(d.nextStep), enabled: d.canNext && !deck.busy) { if d.nextStep == "finish" { confirmFinish = true } else { deck.next() } }
         if let back = d.back {
             Button(t("Back: {step}", ["step": back.prefix(1).lowercased() + back.dropFirst()])) { if d.backAnswers > 0 { confirmBack = true } else { deck.back() } }.disabled(deck.busy)

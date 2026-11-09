@@ -17,6 +17,7 @@ Output the quiz as a quiz file for **BeerMat**, an offline pub quiz system: the 
 - Up to 1,000 questions in total.
 - The TV shows the leaderboard automatically after the last question of each round.
 - A round may add `"secret": true` (usually the final round): teams don't see their marks or the answers for its questions, and the leaderboard stays hidden, until the quizmaster ends the quiz. For example: `{"id": "r6", "title": "Final round", "secret": true, "questions": [ … ]}`. Leave it out for normal rounds.
+- A round may add an `intro` (up to 1,000 characters): how the round works, in a sentence or two, for the quizmaster to read out before starting it. The quizmaster's desk and phone show it as the round comes up; the TV and teams don't. For example: `{"id": "r2", "title": "Round 2 · Risk It", "intro": "Five questions, 4 points each. A wrong answer loses 4 points, but leaving it blank loses nothing.", "questions": [ … ]}`. Write one for any round that plays differently from the one before it.
 
 ## Fields every question has
 
@@ -168,7 +169,7 @@ Spotify links must be real tracks: BeerMat plays whatever track the id points to
       {"id": "r1-q3", "type": "letter", "text": "Tap the first letter of the capital of Italy", "seconds": 15, "points": 1, "answer": "R", "answerNote": "Rome"},
       {"id": "r1-q4", "type": "sequence", "text": "Put these in order, nearest the Sun first", "seconds": 30, "points": 2, "items": ["Mercury", "Venus", "Earth", "Mars"]}
     ]},
-    {"id": "r2", "title": "Round 2 · Brain teasers", "questions": [
+    {"id": "r2", "title": "Round 2 · Brain teasers", "intro": "Six questions in different styles. The fastest right answer to question 3 gets 3 bonus points, and a wrong answer to question 4 loses 2 points.", "questions": [
       {"id": "r2-q1", "type": "text", "text": "Which band released the album Abbey Road?", "seconds": 30, "points": 1, "answer": "The Beatles", "aliases": ["Beatles"]},
       {"id": "r2-q2", "type": "nearest", "text": "In what year did the Titanic sink?", "seconds": 30, "points": 3, "answer": "1912", "places": 3},
       {"id": "r2-q3", "type": "choice", "text": "FASTEST FINGERS: Which is the largest ocean?", "seconds": 20, "points": 1, "options": ["Atlantic", "Indian", "Pacific", "Arctic"], "answer": "Pacific", "fastestFingers": true, "speedBonus": 3},

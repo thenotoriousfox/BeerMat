@@ -129,3 +129,28 @@ test('the desk plays what a phone asks: only with the desk open', async () => {
     assert.deepEqual([deckCommand.seq, deckCommand.action, deckCommand.value], [1, 'playClip', 2]);
   } finally {stream?.destroy(); await done();}
 });
+
+// A round's intro is for the quizmaster to read out before starting it: the host state (the desks and the phone deck)
+// carries the next round's while none of it has been played, and no round's once it has started.
+test('the next round’s intro reaches the desks and phone deck until the round starts', async () => {
+  const {host, done} = await setup({plan: 'pro'});
+  try {
+    const q = (id, text) => ({id, type: 'text', text, answer: 'x', seconds: 30, points: 1});
+    const saved = await host('library/save', {revision: 0, quiz: {title: 'Intro quiz', rounds: [
+      {id: 'r1', title: 'Round 1', intro: '  Two quick ones.  ', questions: [q('a', 'One'), q('b', 'Two')]},
+      {id: 'r2', title: 'Round 2', questions: [q('c', 'Three')]},
+      {id: 'r3', title: 'Round 3 · Risk It', intro: 'A wrong answer loses its points.', questions: [q('d', 'Four')]},
+    ]}});
+    assert.equal(saved.status, 200, saved.error);
+    assert.equal((await host('library')).rounds[0].intro, 'Two quick ones.', 'kept, trimmed');
+    assert.deepEqual((await host('state')).nextRound, {id: 'r1', title: 'Round 1', intro: 'Two quick ones.'});
+    const next = async () => {const s = await host('state'); const opened = await host('next', {expectedQuestion: s.question?.id || null}); assert.equal(opened.status, 200, opened.error); await host('close', {expectedQuestion: opened.id});};
+    await next();
+    assert.equal((await host('state')).nextRound, null, 'round 1 under way');
+    await next();
+    assert.equal((await host('state')).nextRound, null, 'round 2 has no intro');
+    await next();
+    assert.deepEqual((await host('state')).nextRound, {id: 'r3', title: 'Round 3 · Risk It', intro: 'A wrong answer loses its points.'});
+    assert.equal((await host('library/save', {revision: (await host('library')).revision, quiz: {title: 'Too long', rounds: [{id: 'r1', title: 'R', intro: 'x'.repeat(1001), questions: [q('a', 'One')]}]}})).status, 400);
+  } finally {await done();}
+});
