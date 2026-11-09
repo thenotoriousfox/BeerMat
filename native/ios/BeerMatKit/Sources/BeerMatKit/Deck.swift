@@ -24,10 +24,17 @@ public struct DeckVar: Equatable {
 /// The quiz as the phone deck (Run the night) shows it, from /api/host/state: what the big button does next (the
 /// server's nextStep, as the Qt desk's Next), the question and what can be done with it (desk.py's canSend, canClose…),
 /// and the teams. As DeckState.kt in the Android app.
+/// A round about to start and how it works, as the quizmaster wrote it.
+public struct DeckRound: Equatable {
+    public let title: String, intro: String
+}
+
 public struct DeckState: Equatable {
     public let title: String, nextStep: String?, question: DeckQuestion?, teams: [DeckTeam], answered: Int
     public let back: String?, backAnswers: Int, deskOpen: Bool, revealSound: String?, fastRehearsal: Bool, rehearsal: Bool
     public var varChecks: [DeckVar] = []
+    /// The next round's intro, for the quizmaster to read out before starting it (server.js nextRound).
+    public var nextRound: DeckRound?
 
     public var canNext: Bool { nextStep != nil && question?.live != true }
     public var canSend: Bool { question.map { $0.held && $0.live } ?? false }
@@ -36,12 +43,13 @@ public struct DeckState: Equatable {
     public var canPause: Bool { question.map { $0.open && !$0.paused } ?? false }
     public var canResume: Bool { question.map { $0.paused && !$0.held } ?? false }
 
-    /// The answer to read: an answer sheet's lines (a music round's artist and title) when it has no single answer.
+    /// The answer to read: an answer sheet's lines (a music round's artist and title) when it has no single answer, and
+    /// its note after it (a first letter's whole answer: "S · Scoville").
     static func answerText(_ o: [String: Any]) -> String {
-        let answer = o.str("answer")
-        if !answer.isEmpty { return withTolerance(answer, o.num("tolerance") ?? 0, percent: o.bool("tolerancePercent")) }
-        let items = o.strings("items")
-        return o.strings("itemAnswers").enumerated().compactMap { i, a in a.isEmpty ? nil : i < items.count && !items[i].isEmpty ? "\(items[i]): \(a)" : a }.joined(separator: " · ")
+        let answer = o.str("answer"), items = o.strings("items")
+        let main = !answer.isEmpty ? withTolerance(answer, o.num("tolerance") ?? 0, percent: o.bool("tolerancePercent"))
+            : o.strings("itemAnswers").enumerated().compactMap { i, a in a.isEmpty ? nil : i < items.count && !items[i].isEmpty ? "\(items[i]): \(a)" : a }.joined(separator: " · ")
+        return [main, o.str("answerNote")].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     public static func parse(_ s: [String: Any]) -> DeckState {
@@ -66,6 +74,7 @@ public struct DeckState: Equatable {
                          deskOpen: s.bool("deskConnected"), revealSound: (((s["sounds"] as? [String: Any])?["slots"] as? [String: Any])?.str("reveal")).flatMap { $0.isEmpty ? nil : $0 },
                          fastRehearsal: rehearsal?.str("speed") == "fast", rehearsal: rehearsal != nil)
         state.varChecks = (s["varChecks"] as? [[String: Any]] ?? []).map { DeckVar(id: $0.int("id"), team: $0.str("name"), answer: $0.str("answer"), full: number($0["full"]).map { Int($0) } ?? 1) }
+        state.nextRound = (s["nextRound"] as? [String: Any]).map { DeckRound(title: $0.str("title"), intro: $0.str("intro")) }.flatMap { $0.intro.isEmpty ? nil : $0 }
         return state
     }
 }

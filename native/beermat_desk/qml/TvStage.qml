@@ -460,7 +460,11 @@ Item {
                                             text: tile.options && questionView.q && questionView.q.pair ? root.t(tile.modelData) : `${tile.options ? String.fromCharCode(65 + tile.index) + ".  " : questionView.q && ["sheet", "clues"].includes(questionView.q.type) ? (tile.index + 1) + ".  " : questionView.q && questionView.q.type === "pairs" ? "" : questionView.q && questionView.q.type === "tiles" ? "" : "•  "}${tile.modelData}`
                                             color: tile.options && tile.index % 8 === 3 ? "#241500" : root.pal.text
                                             style: tile.options && tile.index % 8 !== 3 ? Text.Raised : Text.Normal; styleColor: Qt.rgba(0, 0, 0, 0.35)
+                                            // A long line (a progressive clue, a sheet's item) wraps and shrinks to fit its tile rather than
+                                            // being cut off; "…" only if it still can't fit.
                                             font.pixelSize: tile.textSize; font.weight: Font.Black; elide: Text.ElideRight
+                                            wrapMode: Text.WordWrap; maximumLineCount: 3; fontSizeMode: Text.Fit; minimumPixelSize: 20; lineHeight: 0.95
+                                            objectName: "optionText"
                                             rightPadding: 90
                                         }
                                         // How many teams picked it, once revealed.

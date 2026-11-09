@@ -2043,6 +2043,10 @@
   "Retour : {step}",
   "Atrás: {step}"
  ],
+ "Read out before {round}": [
+  "À lire avant {round}",
+  "Para leer antes de {round}"
+ ],
  "Question sent to the phones": [
   "Question envoyée aux téléphones",
   "Pregunta enviada a los teléfonos"

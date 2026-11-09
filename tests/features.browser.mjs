@@ -365,6 +365,11 @@ try {
   await deckPhone.fill('#code', code); await deckPhone.click('#codeForm button');
   await deckPhone.locator('#deck').waitFor({state: 'visible'});
   assert.equal((await host('state')).decks.at(-1).how, 'code');
+  // The leaderboard's names and scores sit inside their boxes, clear of the edges.
+  await deckPhone.locator('#board li').first().waitFor();
+  const outside = await deckPhone.evaluate(() => [...document.querySelectorAll('#board li')].flatMap(li => {const box = li.getBoundingClientRect();
+    return [...li.children].filter(c => {const r = c.getBoundingClientRect(); return r.left < box.left + 8 || r.right > box.right - 8;}).map(c => c.textContent);}));
+  assert.deepEqual(outside, [], 'leaderboard text against its box edge');
   await deckPhone.waitForFunction(() => !document.getElementById('next').disabled);
   await deckPhone.click('#next');
   await deckPhone.waitForFunction(() => !document.getElementById('questionCard').hidden && document.getElementById('state').textContent.startsWith('Open'));

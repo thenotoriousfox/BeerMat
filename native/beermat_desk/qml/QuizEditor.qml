@@ -144,6 +144,10 @@ RowLayout {
                     DeskButton { text: "Duplicate"; implicitHeight: 32; onClicked: lib.duplicateQuestion() }
                     DeskButton { text: "Delete"; kind: "danger"; implicitHeight: 32; onClicked: lib.deleteQuestion() }
                 }
+                // The round's intro, shared by its questions: read out before the round starts (the desks show it).
+                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: `How ${q.roundTitle || "this round"} works (optional: the desks and phone deck show it for you to read out before the round starts)`; color: Theme.muted }
+                Area { objectName: "roundIntro"; Layout.fillWidth: true; wrapMode: TextEdit.Wrap; text: q.roundIntro || ""; placeholderText: "e.g. Five questions; tap the first letter of the answer. The fastest right answer gets 2 bonus points."
+                       onEditingFinished: lib.setRoundIntro(q.round, text) }
                 Label { text: "Question"; color: Theme.muted }
                 Area { Layout.fillWidth: true; wrapMode: TextEdit.Wrap; text: q.text || ""; font.pixelSize: 17; onEditingFinished: lib.setField("text", text) }
 

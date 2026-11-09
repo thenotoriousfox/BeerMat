@@ -537,6 +537,7 @@ const T = {
   'Next position revealed': ['Position suivante révélée', 'Siguiente puesto revelado'],
   'Next question opened': ['Question suivante ouverte', 'Siguiente pregunta abierta'],
   'Back: {step}': ['Retour : {step}', 'Atrás: {step}'],
+  'Read out before {round}': ['À lire avant {round}', 'Para leer antes de {round}'],
   'Question sent to the phones': ['Question envoyée aux téléphones', 'Pregunta enviada a los teléfonos'],
   'Timer paused': ['Minuteur en pause', 'Temporizador en pausa'],
   'Timer resumed': ['Minuteur relancé', 'Temporizador reanudado'],
