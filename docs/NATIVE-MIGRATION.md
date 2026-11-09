@@ -182,6 +182,7 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
   releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
   `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
+* **Release 0.7.11**: Quiz editor: the question list keeps its place.
 * **Release 0.7.10**: Quiz files with a picture or sound labelled as the wrong kind (e.g. a WebP picture marked JPEG, as
   in a Google Drive quiz) load instead of failing.
 * **Release 0.7.9**: Spotify clips start at their start time with no blip from 0:00; team photos in the TV spotlight are
