@@ -88,7 +88,7 @@ class SettingsLayoutTest(DeskCase):
         desk.start()
         wait(lambda: desk.connected and desk.view.get('phase'), what='the server')
         desk.prefs.loadQuizFile(str(Path(__file__).resolve().parents[2] / 'examples' / 'example-quiz.json'))
-        wait(lambda: desk.view.get('questions') == 18, what='the example quiz', log=self.toasts)
+        wait(lambda: desk.view.get('title') == 'BeerMat Example Quiz' and desk.view.get('questions'), what='the example quiz', log=self.toasts)
         w.setProperty('workspace', 2)
         w.findChild(QObject, 'quizzes').setProperty('editing', True)
         desk.quizzes.select(1, 0)     # Round 2's picture question
@@ -132,7 +132,7 @@ class SettingsLayoutTest(DeskCase):
         desk.start()
         wait(lambda: desk.connected and desk.view.get('phase'), what='the server')
         desk.prefs.loadQuizFile(str(Path(__file__).resolve().parents[2] / 'examples' / 'example-quiz.json'))
-        wait(lambda: desk.view.get('questions') == 18, what='the example quiz', log=self.toasts)
+        wait(lambda: desk.view.get('title') == 'BeerMat Example Quiz' and desk.view.get('questions'), what='the example quiz', log=self.toasts)
         found = set()
         look = lambda where: found.update((where, *f) for f in past_the_edge(w))
         w.setProperty('width', 1000); w.setProperty('height', 760)

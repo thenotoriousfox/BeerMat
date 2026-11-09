@@ -138,23 +138,23 @@ RowLayout {
                 Label { text: "Question"; color: Theme.muted }
                 Area { Layout.fillWidth: true; wrapMode: TextEdit.Wrap; text: q.text || ""; font.pixelSize: 17; onEditingFinished: lib.setField("text", text) }
 
-                Label { visible: fields.includes("clues"); text: "Clues, hardest first (one per line, 2–8; one more appears every few seconds)"; color: Theme.muted }
+                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: fields.includes("clues"); text: "Clues, hardest first (one per line, 2–8; one more appears every few seconds)"; color: Theme.muted }
                 Area { visible: fields.includes("clues"); Layout.fillWidth: true; text: q.clues || ""; onEditingFinished: lib.setField("clues", text) }
-                Label { visible: fields.includes("survey"); text: "Survey answers, one a line: answer = points (2–12; alternatives with |, e.g. Kettle | Electric kettle = 5)"; color: Theme.muted }
+                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: fields.includes("survey"); text: "Survey answers, one a line: answer = points (2–12; alternatives with |, e.g. Kettle | Electric kettle = 5)"; color: Theme.muted }
                 Area { visible: fields.includes("survey"); Layout.fillWidth: true; text: q.survey || ""; onEditingFinished: lib.setField("survey", text) }
-                Label { visible: fields.includes("linkGroups"); text: "Groups, one a line: link: item, item, item (2–4 groups of 2–5; alternatives for a link with |, e.g. Planets | Planet names: Mars, Venus)"; color: Theme.muted }
+                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: fields.includes("linkGroups"); text: "Groups, one a line: link: item, item, item (2–4 groups of 2–5; alternatives for a link with |, e.g. Planets | Planet names: Mars, Venus)"; color: Theme.muted }
                 Area { visible: fields.includes("linkGroups"); Layout.fillWidth: true; text: q.linkGroups || ""; onEditingFinished: lib.setField("linkGroups", text) }
-                Label { visible: fields.includes("sorting"); text: "Items and their groups, one a line: item = group (2–16 items, 2–5 groups; mix them up, phones show them in this order)"; color: Theme.muted }
+                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: fields.includes("sorting"); text: "Items and their groups, one a line: item = group (2–16 items, 2–5 groups; mix them up, phones show them in this order)"; color: Theme.muted }
                 Area { visible: fields.includes("sorting"); Layout.fillWidth: true; text: q.sorting || ""; onEditingFinished: lib.setField("sorting", text) }
-                Label { visible: fields.includes("pairs"); text: "Pairs, one a line: left = right (2–8; phones get the right-hand side shuffled)"; color: Theme.muted }
+                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: fields.includes("pairs"); text: "Pairs, one a line: left = right (2–8; phones get the right-hand side shuffled)"; color: Theme.muted }
                 Area { visible: fields.includes("pairs"); Layout.fillWidth: true; text: q.pairs || ""; onEditingFinished: lib.setField("pairs", text) }
-                Label { visible: fields.includes("accepted"); text: "Accepted answers (one per line, 2–50; alternatives with |, e.g. UK | United Kingdom)"; color: Theme.muted }
+                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: fields.includes("accepted"); text: "Accepted answers (one per line, 2–50; alternatives with |, e.g. UK | United Kingdom)"; color: Theme.muted }
                 Area { visible: fields.includes("accepted"); Layout.fillWidth: true; text: q.accepted || ""; onEditingFinished: lib.setField("accepted", text) }
-                Label { visible: fields.includes("options"); text: "Choices (one per line)"; color: Theme.muted }
+                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: fields.includes("options"); text: "Choices (one per line)"; color: Theme.muted }
                 Area { visible: fields.includes("options"); Layout.fillWidth: true; text: q.options || ""; onEditingFinished: lib.setField("options", text) }
-                Label { visible: fields.includes("correct"); text: "Right choices (one per line, as written above)"; color: Theme.muted }
+                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: fields.includes("correct"); text: "Right choices (one per line, as written above)"; color: Theme.muted }
                 Area { visible: fields.includes("correct"); Layout.fillWidth: true; text: q.correct || ""; onEditingFinished: lib.setField("correct", text) }
-                Label { visible: fields.includes("items"); text: q.type === "sequence" ? "Items in the right order (one per line; phones get them shuffled)" : "Sheet items (one per line)"; color: Theme.muted }
+                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: fields.includes("items"); text: q.type === "sequence" ? "Items in the right order (one per line; phones get them shuffled)" : "Sheet items (one per line)"; color: Theme.muted }
                 Area { visible: fields.includes("items"); Layout.fillWidth: true; text: q.items || ""; onEditingFinished: lib.setField("items", text) }
                 Label { visible: fields.includes("itemAnswers"); text: "Sheet answers (one per line, in the same order)"; color: Theme.muted }
                 Area { visible: fields.includes("itemAnswers"); Layout.fillWidth: true; text: q.itemAnswers || ""; onEditingFinished: lib.setField("itemAnswers", text) }
@@ -178,7 +178,7 @@ RowLayout {
                 // The picture; for a pinpoint question, click it to place the target.
                 Image {
                     id: picture
-                    visible: !!q.media && !/\.(mp3|ogg|wav)$/i.test(q.media)
+                    visible: !!q.media && !/\.(mp3|ogg|wav|mp4|webm)$/i.test(q.media)
                     source: visible ? desk.serverUrl + q.media : ""
                     Layout.preferredWidth: Math.min(560, parent.width); Layout.preferredHeight: 320
                     fillMode: Image.PreserveAspectFit; asynchronous: true
@@ -223,6 +223,10 @@ RowLayout {
                     objectName: "severalTargets"
                     text: "Several places to find: each click adds one, the question's points for each found"
                     checked: !!q.targets; palette.windowText: Theme.text
+                    // Its words wrap in a narrow window rather than run past the editor's edge.
+                    Layout.fillWidth: true
+                    contentItem: Text { text: parent.text; color: Theme.text; font: parent.font; wrapMode: Text.WordWrap; verticalAlignment: Text.AlignVCenter
+                                        leftPadding: parent.indicator.width + parent.spacing }
                     onToggled: lib.setSeveralTargets(checked)
                 }
                 // An audio question (or a sheet) can play a Spotify track instead of a file.
