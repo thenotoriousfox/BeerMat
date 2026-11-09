@@ -166,6 +166,33 @@ class QuizShelfTest(DeskCase):
         saved = [q for r in json.loads(packed.read_text(encoding='utf-8'))['rounds'] for q in r['questions']]
         self.assertTrue(next(q for q in saved if q['type'] == 'video')['media'].startswith('data:video/mp4;base64,'))
 
+    def test_a_google_drive_link_loads_from_the_quizzes_page(self):
+        """The Drive link box is on the Quizzes page (beside Load quiz file), not in the editor; the quiz it fetches loads."""
+        desk, w = self.desk, self.window
+        desk.start()
+        wait(lambda: desk.connected and desk.view.get('phase'), what='the server')
+        shelf, editor = w.findChild(QObject, 'quizShelf'), w.findChild(QObject, 'quizEditor')
+        w.setProperty('workspace', 2)
+        pump(10)
+        self.assertEqual(list(named(editor, 'driveLink')), [], 'not in the editor')
+        field = shelf.findChild(QObject, 'driveLink')
+        self.assertTrue(field.property('visible'))
+        self.assertFalse(shelf.findChild(QObject, 'driveLoad').property('enabled'), 'nothing to load yet')
+        asked, real = [], desk.api.host
+        desk.api.host = lambda route, body, done=None, failed=None, **kw: asked.append((route, body, done)) if route == 'drive' else real(route, body, done, failed, **kw)
+        try:
+            field.setProperty('text', ' https://drive.google.com/file/d/abc/view ')
+            pump(3)
+            press(shelf, 'driveLoad')
+            pump(3)
+            self.assertEqual([(r, b) for r, b, _ in asked], [('drive', {'url': 'https://drive.google.com/file/d/abc/view'})])
+            self.assertEqual(field.property('text'), '')
+            quiz = {'title': 'From Drive', 'rounds': [{'id': 'r1', 'title': 'Round 1', 'questions': [{'id': 'q1', 'type': 'text', 'text': 'Capital of France?', 'seconds': 30, 'points': 1, 'answer': 'Paris'}]}]}
+            asked[0][2]({'quiz': quiz})
+            wait(lambda: desk.view.get('title') == 'From Drive', what='the Drive quiz loaded', log=self.toasts)
+        finally:
+            desk.api.host = real
+
     def test_a_theme_picture_opens_large(self):
         desk, w = self.desk, self.window
         desk.start()

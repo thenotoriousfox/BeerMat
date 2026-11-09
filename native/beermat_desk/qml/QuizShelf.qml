@@ -1,5 +1,5 @@
 // Quizzes: the quizzes on this laptop. The one on the desk (edit it, share it in the quiz library, save it as a file,
-// clear it), a new one, My quizzes (a copy of every quiz this laptop has had, kept by the quiz server whenever one is
+// clear it), a new one, a quiz file or Google Drive link, My quizzes (a copy of every quiz this laptop has had, kept by the quiz server whenever one is
 // saved or replaced) and the quizzes downloaded from the quiz library. Loading one asks first if a quiz is under way.
 import QtQuick
 import QtQuick.Controls.Basic
@@ -51,7 +51,7 @@ ColumnLayout {
                    elide: Text.ElideRight; Layout.fillWidth: true }
             Text { color: Theme.muted; font.pixelSize: 13
                    text: shelf.hasQuiz ? `${shelf.view.rounds} round${shelf.view.rounds === 1 ? "" : "s"} · ${shelf.view.questions} questions` + (desk.quizzes.dirty ? " · unsaved changes" : "")
-                                       : "Create a new quiz, try the example quiz (a question in every format), load one below, or download one from the quiz library." }
+                                       : "Create a new quiz, try the example quiz (a question in every format), load one below or from Google Drive, or download one from the quiz library." }
             Item { Layout.fillHeight: true }
             Flow {
                 Layout.fillWidth: true; spacing: 6
@@ -72,6 +72,14 @@ ColumnLayout {
         DeskButton { text: "Load quiz file…"; implicitHeight: 40; onClicked: shelf.openQuiz() }
         DeskButton { text: "Browse the quiz library"; implicitHeight: 40; onClicked: shelf.browseLibrary() }
         DeskButton { text: "Open My quizzes folder"; implicitHeight: 40; onClicked: desk.prefs.openMyQuizzes() }
+    }
+    // A quiz file shared on Google Drive (anyone with the link can view): loaded onto the desk like a file.
+    RowLayout {
+        Layout.fillWidth: true; Layout.maximumWidth: 640; spacing: 6
+        Field { id: driveLink; objectName: "driveLink"; placeholderText: "Or paste a Google Drive link to a quiz file"; Layout.fillWidth: true
+                onAccepted: if (driveLoad.enabled) driveLoad.clicked() }
+        DeskButton { id: driveLoad; objectName: "driveLoad"; text: "Load from Drive"; implicitHeight: 36; enabled: driveLink.text.trim() !== ""
+                     onClicked: { desk.importDrive(driveLink.text.trim()); driveLink.text = "" } }
     }
 
     // ---- the quizzes on this laptop ----
