@@ -356,6 +356,18 @@ $('reloadLibrary').onclick = () => action(async () => {if (guardEditor()) await 
 // Quiz files can carry their pictures and sounds inside them as data: URLs, so a quiz moves between laptops in one
 // file. Importing uploads each one (once, even if used twice) and swaps in its new /media/ path.
 const mediaTypes = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg', 'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/wave': '.wav'};
+// A picture's or sound's extension from what it is (its first bytes), as the quiz server checks it: a quiz file may
+// label a WebP picture image/jpeg. The declared type when the bytes say nothing known.
+function mediaExtension(b, declared) {
+  const text = (from, to) => String.fromCharCode(...b.subarray(from, to));
+  if ([137, 80, 78, 71, 13, 10, 26, 10].every((x, i) => b[i] === x)) return '.png';
+  if (b[0] === 255 && b[1] === 216) return '.jpg';
+  if (text(0, 4) === 'RIFF' && text(8, 12) === 'WEBP') return '.webp';
+  if (text(0, 4) === 'RIFF' && text(8, 12) === 'WAVE') return '.wav';
+  if (text(0, 4) === 'OggS') return '.ogg';
+  if (text(0, 3) === 'ID3' || (b[0] === 255 && (b[1] & 224) === 224)) return '.mp3';
+  return mediaTypes[declared];
+}
 async function unpackMedia(quiz) {
   const done = new Map();
   const unpack = async value => {
@@ -364,7 +376,7 @@ async function unpackMedia(quiz) {
     if (!done.has(value)) {
       if (!mediaTypes[match[1]]) throw Error(`Embedded ${match[1]} files are not supported`);
       const bytes = Uint8Array.from(atob(match[2]), c => c.charCodeAt(0));
-      done.set(value, await uploadMedia(new File([bytes], `embedded${mediaTypes[match[1]]}`, {type: match[1]})));
+      done.set(value, await uploadMedia(new File([bytes], `embedded${mediaExtension(bytes, match[1])}`, {type: match[1]})));
     }
     return done.get(value);
   };
