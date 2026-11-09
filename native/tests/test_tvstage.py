@@ -14,6 +14,10 @@ from PySide6.QtCore import QObject, Property, QUrl, qInstallMessageHandler, QtMs
 from PySide6.QtGui import QGuiApplication                                             # noqa: E402
 from PySide6.QtQml import QQmlApplicationEngine                                       # noqa: E402
 from PySide6.QtQuick import QQuickWindow                                              # noqa: E402,F401  (window type)
+# The TV page imports QtMultimedia. Loaded here, on this thread: loaded by the QML loader's thread instead, its first
+# warning (e.g. no PipeWire, on GitHub's machines) waits for Python's lock in the message handler below while this
+# thread holds it waiting for the loader, and the tests hang.
+from PySide6 import QtMultimedia                                                      # noqa: E402,F401
 
 from beermat_desk import gradients, looks, svgmotion                                            # noqa: E402
 from beermat_desk.server import ROOT                                                   # noqa: E402
