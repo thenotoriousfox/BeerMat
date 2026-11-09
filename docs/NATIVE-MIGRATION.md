@@ -182,6 +182,10 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
 * **Release 0.5.6** releases only the native apps: the Electron desk and the Capacitor app are no longer built for
   releases (their source stays; releases up to 0.5.5 have them). It brings updates from inside the apps (signed
   `latest.json`, `shared/update.js`), so 0.5.6 is the first version that can update itself to the next.
+* **Release 0.7.9**: Spotify clips start at their start time with no blip from 0:00; team photos in the TV spotlight are
+  round; the Google Drive link is on the Quizzes page; the quiz maker prompt lists every format speed bonuses and Risk
+  It work on; the editor's long labels wrap at a narrow window. (0.7.7 and 0.7.8 failed their test builds and were never
+  published.).
 * **Release 0.7.8**: Spotify clips start at their start time with no blip from 0:00; team photos in the TV spotlight are
   round; the Google Drive link is on the Quizzes page; the quiz maker prompt lists every format speed bonuses and Risk
   It work on; the editor's long labels wrap at a narrow window. (0.7.7's build failed a test and was never published.).
