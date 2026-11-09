@@ -62,7 +62,8 @@ async function loadSpotify() {
   $('spotifyRedirect').textContent = spotify.redirectUri;
   if (document.activeElement !== $('spotifyClientId')) $('spotifyClientId').value = spotify.clientId;
   $('spotifyStatus').textContent = spotify.connected ? `✓ Connected${spotify.user ? ' as ' + spotify.user : ''}${spotify.devices.length ? '' : ' · no player found: open the Spotify app on this laptop and play any song once, then Refresh players'}` : 'Not connected';
-  $('spotifyDisconnect').disabled = !spotify.connected; $('spotifyDevice').disabled = $('spotifyRefresh').disabled = !spotify.connected;
+  $('spotifyDisconnect').disabled = !spotify.connected; $('spotifyDevice').disabled = $('spotifyRefresh').disabled = $('spotifyFullVolume').disabled = !spotify.connected;
+  $('spotifyFullVolume').checked = spotify.fullVolume !== false;
   selectOptions($('spotifyDevice'), [['', 'Whichever Spotify player is active'], ...spotify.devices.map(d => [d.id, `${d.name} (${d.type})${d.active ? ' — active' : ''}`])], spotify.device);
   for (const id of ['spotifySongs', 'spotifyClips']) $(id).disabled = !spotify.connected;
   $('spotifyStartPlayer').disabled = !spotify.deskPlayer; showDeskPlayer();
@@ -102,6 +103,7 @@ function showDeskPlayer() {
 $('spotifyStartPlayer').onclick = $('spotifyStartLive').onclick = startDeskPlayer;
 $('spotifyDisconnect').onclick = () => action(async () => {await request('spotify/disconnect'); await loadSpotify();}, 'Spotify disconnected');
 $('spotifyRefresh').onclick = () => action(loadSpotify, 'Spotify players refreshed');
+$('spotifyFullVolume').onchange = () => action(() => request('spotify/full-volume', {on: $('spotifyFullVolume').checked}).then(loadSpotify), $('spotifyFullVolume').checked ? 'Clips play at full Spotify volume' : 'Clips play at Spotify\'s own volume');
 $('spotifyDevice').onchange = () => {const id = $('spotifyDevice').value; action(() => request('spotify/device', {id}), 'Spotify player chosen');};
 window.addEventListener('focus', () => {if (tab === 'build') loadSpotify();});
 const spotifyLinks = id => $(id).value.split('\n').map(s => s.trim()).filter(Boolean);

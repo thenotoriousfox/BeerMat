@@ -20,24 +20,32 @@ const PLAYER = 'org.mpris.MediaPlayer2.Player';
 // The app takes a moment to load a song after OpenUri, and Seek moves relative to wherever it is: a seek sent too soon
 // went to the old song (or nowhere) and the clip played from 0. So wait until the app has the song, jump to the start
 // time itself (SetPosition), and check it got there. OpenUri starts the song at 0:00 straight away, so the app is
-// silent (its Volume) until then: no blip of the song's opening before the jump.
+// silent (its Volume) until then: no blip of the song's opening before the jump. With `full`, the clip plays at the
+// app's full volume and the quizmaster's own comes back when it's paused (or the next clip plays without `full`).
 export function mprisApp(call = gdbus, wait = ms => new Promise(r => setTimeout(r, ms))) {
   const property = name => call('org.freedesktop.DBus.Properties.Get', PLAYER, name).catch(() => '');
   const track = async () => /'mpris:trackid': <(?:objectpath )?'([^']*)'>/.exec(await property('Metadata'))?.[1] || '';
-  let loudness;
+  const setVolume = level => call('org.freedesktop.DBus.Properties.Set', PLAYER, 'Volume', `<${level.toFixed(3)}>`).catch(() => {});
+  // The quizmaster's volume, from before a clip silenced or raised the app; `raised` while a clip has it at full.
+  let loudness, raised = false;
   // In microseconds; NaN when the app doesn't say.
   const position = async () => Number(/<(?:int64 )?(\d+)>/.exec(await property('Position'))?.[1] ?? NaN);
+  async function settle() {
+    if (raised && loudness !== undefined) await setVolume(loudness);
+    raised = false;
+  }
   return {
-    async play(uri, startSeconds) {
+    async play(uri, startSeconds, {full = false} = {}) {
       const id = uri.split(':').pop(), target = startSeconds * 1e6;
-      if (!startSeconds) return call(`${PLAYER}.OpenUri`, uri);
+      if (!startSeconds && !full) {await settle(); return call(`${PLAYER}.OpenUri`, uri);}
       const was = Number(/<(?:double )?([\d.]+)>/.exec(await property('Volume'))?.[1]);
-      // A play cut short (the server stopped) can leave the app silent: then the volume from before that one.
-      const volume = was > 0 ? (loudness = was) : loudness;
-      const setVolume = level => call('org.freedesktop.DBus.Properties.Set', PLAYER, 'Volume', `<${level.toFixed(3)}>`).catch(() => {});
+      // While a clip has the app at full, or a play cut short (the server stopped) left it silent, the volume it says
+      // is BeerMat's: then the quizmaster's from before.
+      const volume = !raised && was > 0 ? (loudness = was) : loudness;
       if (volume !== undefined) await setVolume(0);
       try {
         await call(`${PLAYER}.OpenUri`, uri);
+        if (!startSeconds) return;
         let current = '';
         for (let i = 0; i < 25 && !(current = await track()).endsWith(id); i++) await wait(200);
         for (let i = 0; i < 6; i++) {
@@ -49,9 +57,15 @@ export function mprisApp(call = gdbus, wait = ms => new Promise(r => setTimeout(
           if (Number.isNaN(at) || (at >= target - 1e6 && at < target + 3e6)) return;
           current = await track();
         }
-      } finally {if (volume !== undefined) await setVolume(volume);}
+      } finally {
+        if (volume !== undefined) await setVolume(full ? 1 : volume);
+        raised = full && volume !== undefined;
+      }
     },
-    pause: () => call(`${PLAYER}.Pause`)
+    async pause() {
+      try {return await call(`${PLAYER}.Pause`);} finally {await settle();}
+    },
+    settle
   };
 }
 export const appOnThisLaptop = process.platform !== 'linux' ? null : mprisApp();
@@ -110,7 +124,7 @@ export function createSpotify({getMeta, setMeta, now, accountsUrl = 'https://acc
     let devices = [];
     if (connected) try {devices = ((await api('GET', '/me/player/devices'))?.devices || []).map(d => ({id: d.id, name: d.name, type: d.type, active: d.is_active}));} catch {}
     // Connections made before the desk player existed lack the streaming permission and must reconnect to use it.
-    return {connected, clientId: s.clientId || '', user: s.user || '', device: s.device || '', devices, deskPlayer: connected && (s.scope || '').split(' ').includes('streaming')};
+    return {connected, clientId: s.clientId || '', user: s.user || '', device: s.device || '', devices, deskPlayer: connected && (s.scope || '').split(' ').includes('streaming'), fullVolume: s.fullVolume !== false};
   }
   // Playlist items: newer apps read /items, older ones /tracks; each entry holds the song as `item` or `track`.
   async function playlist(link) {
@@ -142,13 +156,13 @@ export function createSpotify({getMeta, setMeta, now, accountsUrl = 'https://acc
   // closed, or Spotify gave it a new id), BeerMat picks one itself rather than refuse: the Spotify app on this laptop,
   // else another computer, else any player there is.
   let playedHere = false;
-  async function play(uri, startSeconds = 0) {
+  async function play(uri, startSeconds = 0, {preview = false} = {}) {
     const body = {uris: [uri], position_ms: startSeconds * 1000}, chosen = saved().device, here = os.hostname().toLowerCase();
     playedHere = false;
     const devices = async () => (await api('GET', '/me/player/devices').catch(() => null))?.devices?.filter(d => !d.is_restricted) || [];
     if (localApp && (!chosen || (await devices()).some(d => d.id === chosen && d.name.toLowerCase() === here))) {
       await token();
-      playedHere = await localApp.play(uri, startSeconds).then(() => true, () => false);
+      playedHere = await localApp.play(uri, startSeconds, {full: !preview && saved().fullVolume !== false}).then(() => true, () => false);
       if (playedHere) return null;
     }
     try {return await api('PUT', `/me/player/play${chosen ? '?device_id=' + encodeURIComponent(chosen) : ''}`, body);}
@@ -165,10 +179,13 @@ export function createSpotify({getMeta, setMeta, now, accountsUrl = 'https://acc
   // The chosen player, or (once it has gone) whichever is playing; the app on this laptop when it was told directly.
   async function pause() {
     if (playedHere && await localApp.pause().then(() => true, () => false)) return;
+    // A clip that played here at full volume and then a later one elsewhere: the app's own volume still comes back.
+    await localApp?.settle?.().catch(() => {});
     return api('PUT', `/me/player/pause${saved().device ? '?device_id=' + encodeURIComponent(saved().device) : ''}`)
       .catch(e => e.noPlayer && saved().device ? api('PUT', '/me/player/pause').catch(() => {}) : undefined);
   }
   function device(id) {requireValue(typeof id === 'string' && id.length <= 200, 'Unknown Spotify player'); save({device: id});}
+  function fullVolume(on) {requireValue(typeof on === 'boolean', 'Full volume is on or off'); save({fullVolume: on});}
   function disconnect() {setMeta('spotify', {clientId: saved().clientId || ''});}
-  return {authorizeUrl, callback, status, accessToken, playlist, tracks, play, pause, device, disconnect, connected: () => !!saved().refreshToken};
+  return {authorizeUrl, callback, status, accessToken, playlist, tracks, play, pause, device, fullVolume, disconnect, connected: () => !!saved().refreshToken};
 }
