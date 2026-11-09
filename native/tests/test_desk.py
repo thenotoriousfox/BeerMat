@@ -4,6 +4,7 @@ from open to reveal, the server is killed mid-quiz and comes back with nothing l
 
     cd native && python -m unittest discover -s tests          (BEERMAT_SHOTS=<folder> also saves screenshots)
 """
+import base64
 import json
 import os
 import shutil
@@ -330,6 +331,29 @@ class ReplaySongTest(DeskCase):
 
 
 class QuizzesPageTest(DeskCase):
+    def test_a_quiz_files_picture_labelled_as_the_wrong_kind_still_loads(self):
+        """A quiz file (e.g. one written by an AI, or from Google Drive) can say a WebP picture is image/jpeg: it loads as
+        the WebP it is, rather than the server refusing it for not matching its extension."""
+        from PySide6.QtGui import QImage, QColor
+        from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+        desk = self.desk
+        desk.start()
+        wait(lambda: desk.connected and desk.view.get('phase'), what='the server')
+        image, data = QImage(8, 8, QImage.Format_RGB32), QByteArray()
+        image.fill(QColor('#3366cc'))
+        buffer = QBuffer(data); buffer.open(QIODevice.WriteOnly); image.save(buffer, 'WEBP'); buffer.close()
+        self.assertEqual(bytes(data)[8:12], b'WEBP')
+        quiz = {'title': 'Mislabelled', 'rounds': [{'id': 'r1', 'title': 'Pictures', 'questions': [
+            {'id': 'q1', 'type': 'picture', 'text': 'What colour?', 'seconds': 30, 'points': 1, 'answer': 'Blue',
+             'media': 'data:image/jpeg;base64,' + base64.b64encode(bytes(data)).decode()}]}]}
+        path = Path(self.dir.name) / 'mislabelled.json'
+        path.write_text(json.dumps(quiz))
+        desk.loadQuizConfirmed(str(path))
+        wait(lambda: desk.view.get('title') == 'Mislabelled', timeout=30, what='the quiz to load', log=self.toasts)
+        media = http(desk.server.info['port'], 'host/library', {}, desk.api.session)['rounds'][0]['questions'][0]['media']
+        self.assertRegex(media, r'^/media/.+\.webp$')
+        self.assertFalse([t for t in self.toasts if t[1]], self.toasts)
+
     def test_loading_a_quiz_replaces_the_quizzes_page(self):
         desk, lib = self.desk, self.desk.quizzes
         desk.start()

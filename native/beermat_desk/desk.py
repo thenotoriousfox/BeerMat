@@ -33,6 +33,26 @@ STEP_LABELS = {'reveal': 'Reveal next position', 'revealFirst': 'Reveal the lead
 MEDIA_TYPES = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg',
                'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/wave': '.wav', 'video/mp4': '.mp4', 'video/webm': '.webm'}
 DATA_URL = re.compile(r'^data:([^;,]+);base64,(.*)$', re.S)
+
+
+def media_extension(data, declared):
+    """A picture's or sound's file extension from what it is (its first bytes), as the quiz server checks it: a quiz
+    file may label a WebP picture image/jpeg. The declared type when the bytes say nothing known."""
+    if data[:8] == bytes([137, 80, 78, 71, 13, 10, 26, 10]):
+        return '.png'
+    if data[:2] == bytes([255, 216]):
+        return '.jpg'
+    if data[:4] == b'RIFF' and data[8:12] in (b'WEBP', b'WAVE'):
+        return '.webp' if data[8:12] == b'WEBP' else '.wav'
+    if data[:4] == b'OggS':
+        return '.ogg'
+    if data[4:8] == b'ftyp':
+        return '.mp4'
+    if data[:4] == bytes([0x1a, 0x45, 0xdf, 0xa3]):
+        return '.webm'
+    if data[:3] == b'ID3' or (len(data) > 1 and data[0] == 255 and data[1] & 224 == 224):
+        return '.mp3'
+    return MEDIA_TYPES[declared]
 TYPE_NAMES = {'text': 'Typed answer', 'choice': 'Multiple choice', 'multi': 'Tick all that apply', 'letter': 'Letter keypad',
               'number': 'Number', 'nearest': 'Nearest wins', 'sequence': 'Put in order', 'pinpoint': 'Pinpoint', 'wordsnake': 'Word trail',
               'tiles': 'Letter tiles', 'vote': 'Vote', 'buzzer': 'Buzzer', 'bingo': 'Bingo', 'musicbingo': 'Music bingo', 'clips': 'Sound clips',
@@ -929,6 +949,7 @@ class Desk(QObject):
                 self._busy = False
                 self.statusChanged.emit()
                 self.toast.emit(f'A picture or sound in that quiz couldn\'t be added: {error}', True)
-            self.api.upload(base64.b64decode(match[2]), f'embedded{MEDIA_TYPES[match[1]]}',
+            data = base64.b64decode(match[2])
+            self.api.upload(data, f'embedded{media_extension(data, match[1])}',
                             lambda media: (uploaded.__setitem__(value, media), upload_next()), failed)
         upload_next()
