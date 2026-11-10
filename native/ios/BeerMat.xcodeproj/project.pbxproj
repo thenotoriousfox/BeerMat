@@ -238,7 +238,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 628;
+				CURRENT_PROJECT_VERSION = 629;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BeerMat/Info.plist;
@@ -246,7 +246,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.14;
+				MARKETING_VERSION = 0.7.15;
 				PRODUCT_BUNDLE_IDENTIFIER = uk.beermat.app.next;
 				PRODUCT_NAME = BeerMat;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -275,7 +275,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 628;
+				CURRENT_PROJECT_VERSION = 629;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BeerMat/Info.plist;
@@ -283,7 +283,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.14;
+				MARKETING_VERSION = 0.7.15;
 				PRODUCT_BUNDLE_IDENTIFIER = uk.beermat.app;
 				PRODUCT_NAME = BeerMat;
 				SWIFT_EMIT_LOC_STRINGS = YES;
