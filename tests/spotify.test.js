@@ -12,7 +12,7 @@ const hostKey = 'a-secure-quiz-test-key', clientId = '0123456789abcdef0123456789
 const id = n => `track${String(n).padStart(17, '0')}`;
 // A stand-in for Spotify's accounts service and Web API that records what the quiz asked for.
 function fakeSpotify() {
-  const log = [], state = {challenge: null, device: true, idle: false, tokens: 0};
+  const log = [], state = {challenge: null, device: true, idle: false, tokens: 0, laptop: 'CachyOS laptop'};
   const server = http.createServer(async (req, res) => {
     let body = ''; for await (const chunk of req) body += chunk;
     const url = new URL(req.url, 'http://x'), json = (status, data) => {res.writeHead(status, {'Content-Type': 'application/json'}); res.end(data === undefined ? '' : JSON.stringify(data));};
@@ -27,7 +27,7 @@ function fakeSpotify() {
       return json(200, {access_token: `access-${state.tokens}`, expires_in: 3600, refresh_token: `refresh-${state.tokens}`, scope: 'streaming user-modify-playback-state'});
     }
     if (url.pathname === '/v1/me') return json(200, {display_name: 'Quiz Host'});
-    if (url.pathname === '/v1/me/player/devices') return json(200, {devices: [{id: 'tv', name: 'Living room TV', type: 'TV', is_active: false}, {id: 'laptop', name: 'CachyOS laptop', type: 'Computer', is_active: !state.idle}]});
+    if (url.pathname === '/v1/me/player/devices') return json(200, {devices: [{id: 'tv', name: 'Living room TV', type: 'TV', is_active: false}, {id: 'laptop', name: state.laptop, type: 'Computer', is_active: !state.idle}]});
     // idle: the Spotify app open but not in use, so Spotify plays only when asked for a player by name.
     if (url.pathname.startsWith('/v1/me/player/') && state.idle && !url.searchParams.get('device_id')) return json(404, {error: {status: 404, message: 'Player command failed: No active device found', reason: 'NO_ACTIVE_DEVICE'}});
     // A player that has gone (its app closed): Spotify doesn't know its id any more.
@@ -184,6 +184,59 @@ test('the Spotify app on this laptop is told directly (its Connect link can stop
     await call('host/spotify/preview', {link: `spotify:track:${id(4)}`});
     assert.deepEqual([told.length, fake.log.findLast(l => l.path.startsWith('/v1/me/player/play')).path], [2, '/v1/me/player/play?device_id=tv'], 'the TV chosen: on the TV');
   }, {localApp: app});
+});
+
+// The Electron desk started clips through Spotify Connect, at the start time in one step, and they started in the
+// right place; the D-Bus jump after OpenUri sometimes didn't. So Connect first, checked over D-Bus, and D-Bus only
+// when the app didn't play it.
+test('the Spotify app on this laptop is told through Spotify Connect first, and over D-Bus when that does nothing', () => {
+  const told = [], app = {connectWorks: true, connect: async (send, uri, start, {full}) => {await send(); told.push(['connect', uri, start, full]); return app.connectWorks;}, play: async (uri, start) => {told.push(['play', uri, start]);}, pause: async () => {told.push(['pause']);}};
+  return fixture(async ctx => {
+    const {call, fake} = ctx; await connect(ctx);
+    fake.state.laptop = os.hostname();
+    const audio = await call('host/open', {text: 'Name the artist', type: 'audio', seconds: 30, points: 1, answer: 'Queen', clip: {spotify: `spotify:track:${id(3)}`, start: 42, seconds: 12}});
+    await call('host/spotify/play', {question: audio.id});
+    const sent = fake.log.findLast(l => l.path.startsWith('/v1/me/player/play'));
+    assert.deepEqual([sent.path, JSON.parse(sent.body)], ['/v1/me/player/play?device_id=laptop', {uris: [`spotify:track:${id(3)}`], position_ms: 42000}]);
+    assert.deepEqual(told, [['connect', `spotify:track:${id(3)}`, 42, true]], 'played through Connect: no D-Bus jump');
+    await call('host/spotify/pause');
+    assert.deepEqual(told.at(-1), ['pause'], 'paused on the app');
+    told.length = 0; app.connectWorks = false;
+    await call('host/spotify/play', {question: audio.id});
+    assert.deepEqual(told, [['connect', `spotify:track:${id(3)}`, 42, true], ['play', `spotify:track:${id(3)}`, 42]], 'Connect did nothing: over D-Bus');
+    // No laptop among Spotify's players (its Connect link gone): straight over D-Bus.
+    told.length = 0; fake.state.laptop = 'Another laptop';
+    await call('host/spotify/play', {question: audio.id});
+    assert.deepEqual(told, [['play', `spotify:track:${id(3)}`, 42]]);
+  }, {localApp: app});
+});
+
+test('a clip through Spotify Connect is checked over D-Bus: the song, at its start time, silent until then', async () => {
+  const run = async ({plays, at = 42e6, full = false}) => {
+    const app = {volume: 0.6, track: '/com/spotify/track/' + id(1), at: 5e6, starts: null, heardBefore: false};
+    const call = async (method, ...args) => {
+      if (method.endsWith('Properties.Get')) {
+        if (app.starts !== null && app.starts-- === 0) {app.track = '/com/spotify/track/' + id(2); app.at = at; if (app.volume > 0 && at < 41e6) app.heardBefore = true;}
+        if (args[1] === 'Volume') return `(<${app.volume}>,)`;
+        return args[1] === 'Metadata' ? `({'mpris:trackid': <'${app.track}'>},)` : `(<int64 ${app.at}>,)`;
+      }
+      if (method.endsWith('Properties.Set')) {app.volume = Number(/[\d.]+/.exec(args[2])[0]); return '()';}
+      return '()';
+    };
+    const spotifyApp = mprisApp(call, async () => {});
+    const there = await spotifyApp.connect(async () => {if (plays) app.starts = 3;}, `spotify:track:${id(2)}`, 42, {full});
+    return {there, app, spotifyApp};
+  };
+  let r = await run({plays: true});
+  assert.deepEqual([r.there, r.app.volume, r.app.heardBefore], [true, 0.6, false]);
+  r = await run({plays: true, full: true});
+  assert.deepEqual([r.there, r.app.volume], [true, 1]);
+  await r.spotifyApp.pause();
+  assert.equal(r.app.volume, 0.6, 'the quizmaster\'s volume back after a full one');
+  r = await run({plays: false, full: true});
+  assert.deepEqual([r.there, r.app.volume], [false, 0.6], 'Connect did nothing: not there, volume as it was');
+  r = await run({plays: true, at: 0});
+  assert.equal(r.there, false, 'the song from 0:00, not the start time: not there');
 });
 
 test('Build quiz previews a track from its start point on the chosen player, for the desk only', () => fixture(async ctx => {

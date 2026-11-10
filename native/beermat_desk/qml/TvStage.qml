@@ -1095,10 +1095,15 @@ Item {
             }
             Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, 0.72) }
             Column {
+                id: spotColumn
                 anchors.centerIn: parent; spacing: 28
                 scale: spotlight.shown ? 1 : 0.7
+                // The photos get the height the words leave (with a margin), and joint leaders share the width.
+                readonly property int count: spotlight.shown ? Math.max(1, spotlight.shown.initials.length) : 1
+                readonly property int discSize: Math.max(240, Math.min(spotlight.height - spotKind.height - spotNames.height - spotDetail.height - 3 * spacing - 60,
+                                                                       (spotlight.width - 160 - (count - 1) * 30) / count))
                 Behavior on scale { NumberAnimation { duration: 600; easing.type: Easing.OutBack } }
-                Text { anchors.horizontalCenter: parent.horizontalCenter; text: spotlight.shown ? spotlight.shown.kind : ""; color: root.pal.gold; font.pixelSize: 48; font.weight: Font.Bold; font.letterSpacing: 8 }
+                Text { id: spotKind; anchors.horizontalCenter: parent.horizontalCenter; text: spotlight.shown ? spotlight.shown.kind : ""; color: root.pal.gold; font.pixelSize: 48; font.weight: Font.Bold; font.letterSpacing: 8 }
                 Row {
                     anchors.horizontalCenter: parent.horizontalCenter; spacing: 30
                     Repeater {
@@ -1108,8 +1113,8 @@ Item {
                             objectName: "spotlightDisc"
                             required property string modelData
                             readonly property bool isPhoto: /^(\/|https?:)/.test(modelData)
-                            // Big: the team's moment (one photo half the screen's height; joint leaders share the width).
-                            readonly property int size: spotlight.shown && spotlight.shown.initials.length > 2 ? 340 : spotlight.shown && spotlight.shown.initials.length > 1 ? 440 : 540
+                            // Big: the team's moment (one photo most of the screen's height; joint leaders share the width).
+                            readonly property int size: spotColumn.discSize
                             width: size; height: size; radius: size / 2; color: root.pal.violet; border.color: root.pal.gold; border.width: 10
                             // The photo is cut to a circle inside the ring (clip only cuts to the square: its corners covered the
                             // ring), filled from its middle. A Canvas, not a shader: it draws with software rendering too.
@@ -1136,13 +1141,14 @@ Item {
                 }
                 // Joint leaders' names wrap within the screen, smaller the more there are.
                 Text {
+                    id: spotNames
                     objectName: "spotlightNames"
                     anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(implicitWidth, spotlight.width - 160)
                     text: spotlight.shown ? spotlight.shown.names : ""; color: root.pal.text; font.family: Theme.display; font.weight: Font.Bold
                     font.pixelSize: text.length <= 24 ? 110 : text.length <= 48 ? 84 : 64
                     wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter; maximumLineCount: 3; elide: Text.ElideRight
                 }
-                Text { anchors.horizontalCenter: parent.horizontalCenter; text: spotlight.shown ? spotlight.shown.detail : ""; color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 56; font.weight: Font.Bold }
+                Text { id: spotDetail; anchors.horizontalCenter: parent.horizontalCenter; text: spotlight.shown ? spotlight.shown.detail : ""; color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 56; font.weight: Font.Bold }
             }
         }
 

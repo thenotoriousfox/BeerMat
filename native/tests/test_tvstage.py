@@ -413,6 +413,8 @@ class TvStageTest(unittest.TestCase):
             self.assertEqual(len(discs), 1, 'the leader in the spotlight')
             disc = discs[0]
             size = disc.property('width')
+            self.assertGreaterEqual(size, 620, 'one team\'s photo fills most of the screen\'s height')
+            self.assertLessEqual(disc.mapToItem(self.stage, 0, size).y(), 1080 - 200, 'with room for the name under it')
             frame = self.window.grabWindow()
             def colour(x, y):
                 point = disc.mapToItem(None, x, y)
@@ -438,6 +440,13 @@ class TvStageTest(unittest.TestCase):
         self.assertGreaterEqual(left, 0)
         self.assertLessEqual(left + names.property('width'), 1920)
         self.assertLessEqual(names.property('contentWidth'), names.property('width') + 1, 'the names wrap rather than run off the screen')
+        self.assertLessEqual(names.mapToItem(self.stage, 0, names.property('height')).y(), 1080, 'the names under the discs stay on the screen')
+        discs = [o for o in items(self.stage) if o.objectName() == 'spotlightDisc' and o.isVisible()]
+        self.assertEqual(len(discs), 3)
+        for disc in discs:
+            corner = disc.mapToItem(self.stage, 0, 0)
+            self.assertGreaterEqual(disc.property('width'), 400, 'joint leaders\' discs big too')
+            self.assertTrue(corner.x() >= 0 and corner.x() + disc.property('width') <= 1920 and corner.y() >= 0, 'each disc on the screen')
         spotlight = self.stage.findChild(QObject, 'spotlight')
         spotlight.setProperty('shown', None); spotlight.setProperty('armedFor', None)
 

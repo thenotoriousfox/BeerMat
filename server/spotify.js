@@ -1,6 +1,6 @@
 import os from 'node:os';
 // Optional Spotify control for music rounds. The laptop's own Spotify app does the playing; this only tells it what
-// to play, over D-Bus when it's on this laptop (Linux), else through Spotify's Web API. Sign-in uses PKCE (no app secret). Tokens stay in the quiz database on this laptop.
+// to play through Spotify's Web API, and over D-Bus as well when it's on this laptop (Linux). Sign-in uses PKCE (no app secret). Tokens stay in the quiz database on this laptop.
 // Needs internet on the laptop (e.g. hotspot.py --keep-wifi) and Spotify Premium for playback control.
 import {randomBytes, createHash} from 'node:crypto';
 import {execFile} from 'node:child_process';
@@ -60,6 +60,29 @@ export function mprisApp(call = gdbus, wait = ms => new Promise(r => setTimeout(
       } finally {
         if (volume !== undefined) await setVolume(full ? 1 : volume);
         raised = full && volume !== undefined;
+      }
+    },
+    // Spotify Connect told to play it (`send`, with the start time, as the Electron desk did: the song starts there in
+    // one step, no jump), then checked: the app has the song, at the start time, within a couple of seconds. False when
+    // it hasn't (Connect said yes and the app did nothing), so the caller plays it over D-Bus instead.
+    async connect(send, uri, startSeconds, {full = false} = {}) {
+      const id = uri.split(':').pop(), target = startSeconds * 1e6;
+      const was = Number(/<(?:double )?([\d.]+)>/.exec(await property('Volume'))?.[1]);
+      const volume = !raised && was > 0 ? (loudness = was) : loudness;
+      let there = false;
+      if (volume !== undefined) await setVolume(0);
+      try {
+        await send();
+        for (let i = 0; i < 12 && !there; i++) {
+          await wait(200);
+          if (!(await track()).endsWith(id)) continue;
+          const at = await position();
+          there = Number.isNaN(at) || (at >= target - 1e6 && at < target + 5e6);
+        }
+        return there;
+      } finally {
+        if (volume !== undefined) await setVolume(there && full ? 1 : volume);
+        raised = there && full && volume !== undefined;
       }
     },
     async pause() {
@@ -160,9 +183,14 @@ export function createSpotify({getMeta, setMeta, now, accountsUrl = 'https://acc
     const body = {uris: [uri], position_ms: startSeconds * 1000}, chosen = saved().device, here = os.hostname().toLowerCase();
     playedHere = false;
     const devices = async () => (await api('GET', '/me/player/devices').catch(() => null))?.devices?.filter(d => !d.is_restricted) || [];
-    if (localApp && (!chosen || (await devices()).some(d => d.id === chosen && d.name.toLowerCase() === here))) {
+    const players = localApp ? await devices() : [];
+    if (localApp && (!chosen || players.some(d => d.id === chosen && d.name.toLowerCase() === here))) {
       await token();
-      playedHere = await localApp.play(uri, startSeconds, {full: !preview && saved().fullVolume !== false}).then(() => true, () => false);
+      const options = {full: !preview && saved().fullVolume !== false};
+      // Through Spotify Connect first (it starts the song at the start time); over D-Bus when that doesn't play.
+      const mine = chosen || players.find(d => d.type === 'Computer' && d.name.toLowerCase() === here)?.id;
+      if (mine && localApp.connect) playedHere = await localApp.connect(() => api('PUT', `/me/player/play?device_id=${encodeURIComponent(mine)}`, body), uri, startSeconds, options).catch(() => false);
+      if (!playedHere) playedHere = await localApp.play(uri, startSeconds, options).then(() => true, () => false);
       if (playedHere) return null;
     }
     try {return await api('PUT', `/me/player/play${chosen ? '?device_id=' + encodeURIComponent(chosen) : ''}`, body);}
