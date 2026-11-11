@@ -45,6 +45,8 @@ const passwordOk = (password, stored) => {
   return timingSafeEqual(mine, Buffer.from(hash, 'base64'));
 };
 const defaultPrivacy = {leaderboards: false, photo: false, history: false};
+// A quiz laptop as the account's other devices see it (the quizmaster link).
+const deskRow = d => ({keyId: d.key_id, venueKey: d.public_key, name: d.name, title: d.title, role: d.role, addresses: JSON.parse(d.addresses), link: d.link, seen: d.seen});
 // Haversine distance in km.
 const distance = (a, b) => {
   const rad = x => x * Math.PI / 180, dLat = rad(b.lat - a.lat), dLon = rad(b.lon - a.lon);
@@ -92,6 +94,10 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
     CREATE INDEX IF NOT EXISTS events_starts ON events(starts);
     CREATE TABLE IF NOT EXISTS email_tokens(hash TEXT PRIMARY KEY, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, purpose TEXT NOT NULL, expires INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS stripe_events(id TEXT PRIMARY KEY, received INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS desks(key_id TEXT PRIMARY KEY, public_key TEXT NOT NULL, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, name TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT '', role TEXT NOT NULL, addresses TEXT NOT NULL DEFAULT '[]', link TEXT, seen INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS tv_devices(hash TEXT PRIMARY KEY, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, name TEXT NOT NULL, created INTEGER NOT NULL, seen INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS tv_pairings(hash TEXT PRIMARY KEY, name TEXT NOT NULL, device TEXT, expires INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS reports(id TEXT PRIMARY KEY, kind TEXT NOT NULL, target TEXT NOT NULL, reason TEXT NOT NULL, reporter TEXT, created INTEGER NOT NULL, resolved INTEGER);
     CREATE TABLE IF NOT EXISTS shared_buzzers(id TEXT PRIMARY KEY, name TEXT NOT NULL, venue TEXT REFERENCES venues(id) ON DELETE SET NULL, venue_key TEXT NOT NULL, audio BLOB,
       seconds REAL NOT NULL, created INTEGER NOT NULL, hidden INTEGER NOT NULL DEFAULT 0, removed INTEGER);
@@ -442,10 +448,14 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         return res.end(readFileSync(file));
       }
       // The pages emailed links open: confirm an email address, choose a new password.
-      if (method === 'GET' && (p === '/verify' || p === '/reset' || p === '/pages/pages.js' || p === '/pages/pages.css')) {
-        const file = path.join(pagesDir, {'/verify': 'verify.html', '/reset': 'reset.html'}[p] || path.basename(p));
+      // And the quizmaster's devices: a TV signing in (/tv) and a phone approving it or running the quiz (/connect).
+      // Both may try a laptop's own address on the device's network (connect-src http:) before its quizmaster link.
+      const pageFiles = {'/verify': 'verify.html', '/reset': 'reset.html', '/tv': 'tv.html', '/connect': 'connect.html', '/pages/pages.js': 'pages.js', '/pages/pages.css': 'pages.css',
+        '/pages/link.js': 'link.js', '/pages/tv.js': 'tv.js', '/pages/connect.js': 'connect.js', '/pages/qr.js': path.join('..', '..', 'web', 'qr.js')};
+      if (method === 'GET' && pageFiles[p]) {
+        const file = path.join(pagesDir, pageFiles[p]);
         res.writeHead(200, {'Content-Type': staticTypes[path.extname(file)], 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-cache',
-          'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"});
+          'Content-Security-Policy': `default-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'${p === '/tv' || p === '/connect' ? '; connect-src \'self\' http:' : ''}`});
         return res.end(readFileSync(file));
       }
       // The admin console: its own pages; everything it shows comes from the admin API below.
@@ -551,7 +561,8 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       if (method === 'GET' && p === '/v1/me/export') {
         const a = me();
         return send(200, {profile: profile(a), results: rows('SELECT event,team,date,added,claim FROM results WHERE account=?', a.id).map(r => ({...r, claim: JSON.parse(r.claim)})),
-          favourites: rows('SELECT venue FROM favourites WHERE account=?', a.id).map(f => f.venue), venues: rows('SELECT * FROM venues WHERE owner=?', a.id).map(venueOut)});
+          favourites: rows('SELECT venue FROM favourites WHERE account=?', a.id).map(f => f.venue), venues: rows('SELECT * FROM venues WHERE owner=?', a.id).map(venueOut),
+          laptops: rows('SELECT * FROM desks WHERE account=?', a.id).map(deskRow), tvs: rows('SELECT name, created, seen FROM tv_devices WHERE account=?', a.id)});
       }
       if (method === 'DELETE' && p === '/v1/me') {
         const a = me();
@@ -996,15 +1007,84 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       // plan ends (at most a month ahead, so it is renewed) plus two weeks, for laptops that are seldom online.
       // The phone deck: a ticket that lets this account's phone host the quiz on a laptop of its venue (or any laptop, for
       // an admin). The laptop checks it with the licence key, so it needs no internet itself.
-      if (method === 'POST' && p === '/v1/deck-tickets') {
-        check(account, 'Sign in first', 401);
-        check(licenceKey, 'The phone deck isn’t set up on this service yet', 503);
-        check(typeof input.venueKey === 'string' && input.venueKey.length < 200, 'Which laptop?');
-        const v = venueOfKey(input.venueKey);
-        check(account.admin || (v && v.owner === account.id), v ? 'Only the venue’s own account can host from a phone' : 'That laptop isn’t registered with a venue', 403);
-        return send(200, {ticket: signDeckTicket({venueKey: input.venueKey, account: account.id, name: account.display_name, admin: !!account.admin, venue: v?.id || null,
-          issued: now(), expires: now() + 5 * 60000}, licenceKey)});
+      // ---- Quizmaster devices: found through the account, not the network ----
+      // Venue Wi-Fi often keeps devices apart (client isolation), so a laptop running BeerMat tells the service where
+      // it can be reached: its addresses on its networks and its quizmaster link (a Cloudflare tunnel, through the
+      // internet). Another desk, a TV or a phone signed in to the same account finds it here and gets a ticket for it.
+      // Roles: 'desk' (its own quiz, its desk on it), 'hosting' (its own quiz, the desk on another device) and
+      // 'remote' (its desk is running another laptop's quiz). A laptop that hasn't said so for 90 seconds is closed.
+      const DESK_OPEN_MS = 90000;
+      const openDesks = accountId => rows('SELECT * FROM desks WHERE account=? AND seen>? ORDER BY seen DESC', accountId, now() - DESK_OPEN_MS).map(deskRow);
+      const laptopRequest = (request, kind) => {
+        check(request?.kind === kind && request.v === 1 && Number.isSafeInteger(request.at) && verifyClaim(request), 'Not a request from a quiz laptop');
+        check(Math.abs(now() - request.at) < 10 * 60000, 'This laptop’s clock is wrong: set its date and time, then try again');
+        return request.venueKey;
+      };
+      if (method === 'PUT' && p === '/v1/me/desk') {
+        const publicKey = laptopRequest(input.request, 'beermat.desk');
+        check(['desk', 'hosting', 'remote'].includes(input.role), 'Which role?');
+        const addresses = Array.isArray(input.addresses) ? input.addresses.filter(a => typeof a === 'string' && /^https?:\/\/[\w.:[\]-]{1,80}$/.test(a)).slice(0, 8) : [];
+        const link = typeof input.link === 'string' && /^https:\/\/[\w.-]{1,120}$/.test(input.link) ? input.link : null;
+        run(`INSERT INTO desks VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(key_id) DO UPDATE SET public_key=excluded.public_key, account=excluded.account, name=excluded.name,
+          title=excluded.title, role=excluded.role, addresses=excluded.addresses, link=excluded.link, seen=excluded.seen`,
+        keyId(publicKey), publicKey, me().id, text(input.name, 60) || 'Quiz laptop', text(input.title, 120), input.role, JSON.stringify(addresses), link, now());
+        // A laptop that closed without saying so: its addresses go after a day.
+        run('DELETE FROM desks WHERE seen<?', now() - 86400000);
+        return send(200, {desks: openDesks(account.id).filter(d => d.venueKey !== publicKey)});
       }
+      if (method === 'POST' && p === '/v1/me/desk/closed') {run('DELETE FROM desks WHERE public_key=? AND account=?', laptopRequest(input.request, 'beermat.desk-closed'), me().id); return send(200, {ok: true});}
+      if (method === 'GET' && p === '/v1/me/desks') return send(200, {desks: openDesks(me().id)});
+      // A ticket for one of the account's laptops, for a role there: a phone deck ('deck'), another desk ('desk') or a
+      // TV ('tv'). The laptop checks it with the licence key, once, within five minutes.
+      const quizTicket = (acct, venueKey, role) => {
+        check(licenceKey, 'Quizmaster devices aren’t set up on this service yet', 503);
+        check(typeof venueKey === 'string' && venueKey.length < 200, 'Which laptop?');
+        check(['deck', 'desk', 'tv'].includes(role), 'Which role?');
+        const v = venueOfKey(venueKey), open = one('SELECT 1 FROM desks WHERE public_key=? AND account=? AND seen>?', venueKey, acct.id, now() - DESK_OPEN_MS);
+        check(acct.admin || open || (v && v.owner === acct.id), v ? 'That laptop isn’t signed in to this account' : 'That laptop isn’t signed in to this account, or isn’t open', 403);
+        return signDeckTicket({venueKey, account: acct.id, name: acct.display_name, admin: !!acct.admin, venue: v?.id || null, role, nonce: id(), issued: now(), expires: now() + 5 * 60000}, licenceKey);
+      };
+      // TVs: a TV signs in once by QR code (a phone signed in approves it) and keeps a device token; with it, the TV asks
+      // here each time it starts which of the account's laptops is running a quiz, with a ticket for each.
+      const deviceAccount = device => {
+        check(typeof device === 'string' && device.length < 100, 'Sign this TV in again', 401);
+        const d = one('SELECT d.hash, a.* FROM tv_devices d JOIN accounts a ON a.id=d.account WHERE d.hash=?', sha(device));
+        check(d, 'Sign this TV in again', 401);
+        run('UPDATE tv_devices SET seen=? WHERE hash=?', now(), d.hash);
+        return d;
+      };
+      const newDevice = (accountId, name) => {const t = token(); run('INSERT INTO tv_devices VALUES(?,?,?,?,?)', sha(t), accountId, text(name, 60) || 'TV', now(), now()); return t;};
+      if (method === 'POST' && p === '/v1/tv-pairings') {
+        limit('pair:' + ip);
+        const code = token();
+        run('DELETE FROM tv_pairings WHERE expires<?', now());
+        run('INSERT INTO tv_pairings VALUES(?,?,?,?)', sha(code), text(input.name, 60) || 'TV', null, now() + 10 * 60000);
+        return send(200, {code, expires: now() + 10 * 60000});
+      }
+      if (parts[0] === 'tv-pairings' && parts[1] && parts.length <= 3) {
+        const pairing = one('SELECT * FROM tv_pairings WHERE hash=? AND expires>?', sha(parts[1]), now());
+        check(pairing, 'This TV’s code has run out: the TV shows a new one', 404);
+        if (method === 'GET' && parts.length === 2) {
+          if (!pairing.device) return send(200, {waiting: true, name: pairing.name});
+          run('DELETE FROM tv_pairings WHERE hash=?', pairing.hash);
+          return send(200, {device: pairing.device});
+        }
+        if (method === 'POST' && parts[2] === 'approve') {
+          check(!pairing.device, 'This TV is already signed in');
+          run('UPDATE tv_pairings SET device=? WHERE hash=?', newDevice(me().id, pairing.name), pairing.hash);
+          return send(200, {ok: true, name: pairing.name});
+        }
+      }
+      // A signed-in desk becoming a TV gets its device token straight away.
+      if (method === 'POST' && p === '/v1/me/tv-devices') return send(200, {device: newDevice(me().id, input.name)});
+      if (method === 'POST' && p === '/v1/tv/connect') {
+        limit('tv:' + ip);
+        const acct = deviceAccount(input.device);
+        const laptops = openDesks(acct.id).filter(d => d.role !== 'remote');
+        return send(200, {account: acct.display_name, desks: laptops.map(d => ({...d, ticket: quizTicket(acct, d.venueKey, 'tv')}))});
+      }
+      // /v1/deck-tickets: the phone deck's older name for it (role 'deck').
+      if (method === 'POST' && (p === '/v1/desk-tickets' || p === '/v1/deck-tickets')) return send(200, {ticket: quizTicket(me(), input.venueKey, p === '/v1/deck-tickets' ? 'deck' : input.role || 'deck')});
       if (method === 'POST' && p === '/v1/licence') {
         limit('licence:' + ip);
         check(licenceKey, 'Licences aren’t set up on this service yet', 503);

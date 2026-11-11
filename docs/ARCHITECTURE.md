@@ -42,6 +42,7 @@ server from its own marking (`server/results.js`) and kept on the laptop across 
 | Service | Where | Needs |
 |---|---|---|
 | Online quizzes over a public link | `server/laptop.js` (Cloudflare quick tunnel) | internet on the laptop, `cloudflared` |
+| Quizmaster devices through the account (another desk, TVs, phone decks; venue Wi-Fi often keeps devices apart) | `server/server.js` (quizmaster link, `remoteServer`), `server/laptop.js` (its tunnel), `online/service.js` (`/v1/me/desk`, tickets, TV pairing, `/tv`, `/connect`), `native/beermat_desk/link.py`, `tvscreen.py` | a BeerMat Online account; internet when connecting (the quiz Wi-Fi works without) |
 | Player accounts and profiles | `online/service.js` | a deployed BeerMat Online |
 | Results in profiles, statistics, achievements | `online/service.js`, `shared/achievements.js` | the same |
 | Venue pages, quiz listings, favourites, reminders | `online/service.js`, `mobile/www` | the same |

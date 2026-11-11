@@ -14,19 +14,23 @@ export function signLicence(payload, privateKey) {
   return {...body, sig: sign(null, Buffer.from(canonical(body)), key).toString('base64')};
 }
 
-// A deck ticket: BeerMat Online saying that this account runs the venue a laptop belongs to (or is a BeerMat admin), so
-// its phone may host that laptop's quiz (the phone deck). Signed with the licence key, for one laptop, for minutes.
+// A deck ticket: BeerMat Online saying that this account may use a laptop (it runs the laptop's venue, the laptop is
+// signed in to it, or it's a BeerMat admin), as a phone deck, another desk or a TV. Signed with the licence key, for
+// one laptop, for minutes.
 export function signDeckTicket(payload, privateKey) {
   const key = createPrivateKey({key: Buffer.from(privateKey, 'base64'), format: 'der', type: 'pkcs8'});
   const body = {v: 1, kind: 'beermat.deck-ticket', ...payload};
   return {...body, sig: sign(null, Buffer.from(canonical(body)), key).toString('base64')};
 }
 
-// The ticket's details when it is genuine, for this laptop and not expired; otherwise null.
-export function readDeckTicket(ticket, {venueKey, now, publicKey = licencePublicKey}) {
+// The ticket's details when it is genuine, for this laptop, for one of `roles` and not expired; otherwise null. Its
+// role: 'deck' (a phone hosting; tickets from before roles have none), 'desk' (another BeerMat desk running this
+// laptop's quiz) or 'tv' (a TV showing it). The laptop also keeps each ticket's nonce until it expires: once only.
+export function readDeckTicket(ticket, {venueKey, now, publicKey = licencePublicKey, roles = ['deck', 'desk']}) {
   try {
     const {sig, ...body} = ticket;
     if (body.v !== 1 || body.kind !== 'beermat.deck-ticket' || body.venueKey !== venueKey || !(body.expires > now) || !(body.expires - now < 15 * 60000)) return null;
+    if (!roles.includes(body.role || 'deck')) return null;
     const key = createPublicKey({key: Buffer.from(publicKey, 'base64'), format: 'der', type: 'spki'});
     return verify(null, Buffer.from(canonical(body)), key, Buffer.from(sig, 'base64')) ? body : null;
   } catch {return null;}

@@ -120,6 +120,9 @@ class QuizServer(base: String) {
      * state again". Emits true when connected (and on every nudge), false when the stream drops; reconnects by itself.
      */
     fun updates(secret: String): Flow<Boolean> = callbackFlow {
+        // Through a laptop's quizmaster link (https, a Cloudflare tunnel) server-sent events are held back: look every
+        // two seconds instead.
+        if (base.startsWith("https://")) while (isActive) { trySend(true); kotlinx.coroutines.delay(2000) }
         while (isActive) {
             var connection: HttpURLConnection? = null
             try {

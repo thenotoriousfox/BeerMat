@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><link rel="stylesheet" href="/pages/pages.css"><link rel="icon" href="/brand/mark.svg" type="image/svg+xml"><title>Connect · BeerMat</title></head>
+<body data-page="connect"><main><img class="logo" src="/brand/logo.svg" alt="BeerMat"><h1 id="heading">Run the quiz from this phone</h1>
+<form id="signIn" hidden><p>Sign in with the BeerMat account your quiz laptop uses.</p><label>Email<input id="email" type="email" maxlength="200" autocomplete="username" required></label><label>Password<input id="password" type="password" maxlength="200" autocomplete="current-password" required></label><button>Sign in</button></form>
+<section id="tv" hidden><p>Sign this TV in to your account? It will show the quiz on whichever laptop is running it.</p><button id="approve" type="button">Sign the TV in</button></section>
+<section id="deck" hidden><p>Pick the laptop to run from this phone.</p><div id="laptops" class="choices"></div></section>
+<p id="status" role="status"></p>
+<button id="signOut" class="quiet" type="button" hidden>Sign out</button>
+</main><script type="module" src="/pages/connect.js"></script></body></html>

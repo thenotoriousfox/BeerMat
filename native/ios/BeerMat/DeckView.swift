@@ -56,10 +56,23 @@ struct DeckFindView: View {
     var body: some View {
         Text(t("Host the quiz on the laptop from this phone: the questions, the reveals and the leaderboard. The laptop keeps the TV and the sound.")).foregroundStyle(Brand.muted)
         BigButton(title: deck.searching ? t("Looking for the quiz…") : t("Find the quiz"), enabled: !deck.searching && !deck.busy) { deck.search() }
+        DeckLaptopsView()
         Text(t("Or type the laptop’s address")).foregroundStyle(Brand.muted).padding(.top, 12)
         TextField("192.168.1.20:3000", text: $address).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
             .padding(12).background(Brand.panel, in: RoundedRectangle(cornerRadius: 12))
         Button(t("Connect")) { deck.connect(address) }.buttonStyle(.bordered).disabled(address.isEmpty || deck.busy)
+    }
+}
+
+/// Several of the account's laptops are running a quiz: which one.
+struct DeckLaptopsView: View {
+    @EnvironmentObject var deck: DeckModel
+    var body: some View {
+        ForEach(deck.laptops.indices, id: \.self) { i in
+            let laptop: [String: Any] = deck.laptops[i]
+            let label: String = "\(laptop.str("title")) · \(laptop.str("name"))"
+            Button(label) { deck.open(laptop) }.buttonStyle(.bordered).disabled(deck.busy)
+        }
     }
 }
 

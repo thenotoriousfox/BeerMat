@@ -4,7 +4,7 @@
 <header><div class="brand-head"><img class="mark" src="/brand/mark.svg" alt=""><div class="brand-text"><img class="wordmark" src="/brand/wordmark.svg" alt="BeerMat"><p class="desk-label">Quizmaster desk</p></div></div><span id="connection" role="status">Connecting…</span></header>
 <p id="message" role="status" aria-live="polite"></p>
 <section id="login"><h2>Open the quiz desk</h2><form id="loginForm"><label>Quizmaster key<input id="key" type="password" required autocomplete="current-password"></label><button>Unlock</button></form></section>
-<main id="panel" hidden>
+<main id="panel" hidden><div id="deskAway" class="desk-away" role="status" hidden><p id="deskAwayText"></p><p class="muted">This laptop keeps the quiz: the phones, the TV and the sound stay here.</p><button id="takeDeskBack" type="button">Take the desk back</button></div>
 <nav aria-label="Dashboard"><button data-tab="live" class="selected">Tonight</button><button data-tab="build">Quizzes</button><button data-tab="teams">Teams</button><button data-tab="venue">Venue</button><button data-tab="settings">Settings</button><a href="/tv" target="_blank" rel="noopener">TV screen ↗</a><button id="logout" class="subtle">Lock desk</button></nav>
 <div data-pane="live" class="tonight">
 <section class="control-bar"><div class="control-top"><div class="event"><p class="eyebrow">Tonight</p><h2 id="eventTitle">BeerMat</h2><span id="eventState" class="muted"></span></div><ol id="steps" class="steps" aria-label="Quiz progress"></ol></div>

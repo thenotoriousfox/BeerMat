@@ -786,8 +786,33 @@ function themeStyles(look) {
   const fresh = link.cloneNode(); fresh.href = `/themes.css?${Date.now()}`;
   fresh.onload = () => link.remove(); link.after(fresh);
 }
+// A TV signed in through the account: BeerMat Online's TV page (online/pages/tv.js) found this laptop and sent a ticket
+// (#ticket=…), swapped here for this TV's key, and where to go back to (#back=…) if the laptop stops answering (its
+// quizmaster link changes when it restarts): the TV then asks BeerMat Online again.
+let tvKey = readStorage('beermat-tv', true), tvBack = readStorage('beermat-tv-back', true), tvFailing = 0;
+const tvSignIn = (async () => {
+  const sent = new URLSearchParams(location.hash.slice(1));
+  if (!sent.get('ticket')) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  try {
+    const ticket = JSON.parse(atob(sent.get('ticket').replace(/-/g, '+').replace(/_/g, '/')));
+    const response = await fetch('/api/tv/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ticket, name: 'TV'}), signal: AbortSignal.timeout(10000)});
+    const data = await response.json();
+    if (response.ok) {tvKey = data.key; writeStorage('beermat-tv', tvKey, true);}
+  } catch {}
+  if (/^https:\/\/[\w.:-]+\/tv/.test(sent.get('back') || '')) {tvBack = sent.get('back'); writeStorage('beermat-tv-back', tvBack, true);}
+})();
 async function publicState() {
-  const response = await fetch('/api/leaderboard', {signal: AbortSignal.timeout(8000)}); if (!response.ok) throw Error(t('Cannot reach quiz server')); return response.json();
+  await tvSignIn;
+  try {
+    const response = await fetch('/api/leaderboard' + (tvKey ? '?tv=' + encodeURIComponent(tvKey) : ''), {signal: AbortSignal.timeout(8000)});
+    if (!response.ok) throw Error(t('Cannot reach quiz server'));
+    tvFailing = 0; return response.json();
+  } catch (e) {
+    // Half a minute without the laptop: back to BeerMat Online for where it is now.
+    if (tvBack && ++tvFailing >= 6) location.href = tvBack;
+    throw e;
+  }
 }
 let initialised = false, deviceChecked = false, lastSettings = null;
 // Inside the BeerMat app (its web view adds BeerMatApp/<version> to the user agent): a way back to the app's
@@ -1018,4 +1043,4 @@ if (role === 'display') {
   $('stage').addEventListener('load', fitStage, true); document.fonts?.ready.then(() => {titleFit = ''; fitTitle(); fitStage();});
 }
 setInterval(() => {if (role === 'player') updateControls(); else if (current) {if (current.question && current.question.type !== 'pinpoint') revealPicture($('media'), current.question, offset); $('status').textContent = timeText(current.question, offset); renderCountdown(); fitTitle(); fitStage(); countdownCue();}}, 200);
-const updates = live(refresh, () => role === 'player' ? secret : '');
+const updates = live(refresh, () => role === 'player' ? secret : role === 'display' ? tvKey : '', 5000, () => role === 'display' ? 'tv' : 'key');

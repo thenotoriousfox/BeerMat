@@ -1,4 +1,5 @@
 import http from 'node:http';
+import os from 'node:os';
 import {DatabaseSync} from 'node:sqlite';
 import {randomBytes, randomInt, timingSafeEqual, createHash} from 'node:crypto';
 import {existsSync, mkdirSync, writeFileSync, statSync, statfsSync, createReadStream, unlinkSync, readdirSync, readFileSync, rmSync, renameSync} from 'node:fs';
@@ -91,6 +92,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     CREATE TABLE IF NOT EXISTS buzzes(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),at INTEGER NOT NULL,status TEXT NOT NULL,PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS agrees(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),at INTEGER NOT NULL,PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS host_sessions(hash TEXT PRIMARY KEY,expires INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS tv_sessions(hash TEXT PRIMARY KEY,name TEXT NOT NULL,expires INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS go_wide(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS fifty(team TEXT REFERENCES teams(id),question INTEGER REFERENCES questions(id),PRIMARY KEY(team,question));
     CREATE TABLE IF NOT EXISTS device_ips(ip TEXT PRIMARY KEY,team TEXT REFERENCES teams(id),seen INTEGER NOT NULL);
@@ -308,8 +310,19 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     return !!session && session.expires > now();
   }
   const attempts = new Map();
+  // A TV signed in through the account (a ticket from BeerMat Online): it reads the TV, nothing more.
+  const tvKey = (req, url) => req.headers.authorization?.replace(/^Bearer /, '') || url.searchParams.get('tv') || '';
+  const isTv = auth => !!auth && !!one('SELECT 1 FROM tv_sessions WHERE hash=? AND expires>?', hash(auth), now());
+  // Tickets from BeerMat Online work once: their nonces are kept until they expire.
+  const usedNonces = new Map();
+  const freshTicket = ticket => {
+    if (!ticket?.nonce) return true;
+    if (usedNonces.has(ticket.nonce)) return false;
+    usedNonces.set(ticket.nonce, ticket.expires); return true;
+  };
   function prune() {
-    run('DELETE FROM host_sessions WHERE expires<=?', now());
+    run('DELETE FROM host_sessions WHERE expires<=?', now()); run('DELETE FROM tv_sessions WHERE expires<=?', now());
+    for (const [nonce, expires] of usedNonces) if (expires <= now()) usedNonces.delete(nonce);
     for (const [ip, a] of attempts) if (now() - a.time >= 60000) attempts.delete(ip);
   }
 
@@ -858,6 +871,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       mkdirSync(folder, {recursive: true}); writeFileSync(path.join(folder, file), JSON.stringify(results, null, 2), {mode: 0o600});
       saved = path.join('results', file);
     }
+    // Signed in: BeerMat Online hears this laptop has closed (rather than waiting for it to fall silent).
+    if (!closing && getMeta('onlineSession', null)) closeDesk();
     simulator?.stop(); simulator = null; rehearsalLog = [];
     const photos = rows('SELECT photo FROM teams WHERE photo IS NOT NULL AND photo NOT IN (SELECT photo FROM regulars WHERE photo IS NOT NULL)').map(t => t.photo);
     transaction(() => {
@@ -986,6 +1001,35 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     if (typeof session.admin === 'boolean') return session.admin;
     try {const me = await onlineApi('GET', '/v1/me'); setMeta('onlineSession', {...session, admin: !!me.admin}); return !!me.admin;} catch {return false;}
   }
+  // ---- The quizmaster link ----
+  // Signed in to BeerMat Online, this laptop says every 30 seconds where the account's other devices can reach it: its
+  // addresses on its networks, and its quizmaster link (a Cloudflare tunnel to the quizmaster port, for venues whose
+  // Wi-Fi keeps devices apart). The answer is the account's other open laptops, for the desk's "another desk is open".
+  let linkOthers = [], linkError = '', linkRole = 'desk', deskAway = null, beating = null;
+  const awayNow = () => deskAway && one('SELECT 1 FROM host_sessions WHERE hash=? AND expires>?', deskAway.session, now()) ? {name: deskAway.name, since: deskAway.since} : null;
+  const linkState = () => ({signedIn: !!getMeta('onlineSession', null), others: linkOthers, link: laptop?.link?.() || null, error: linkError, role: linkRole});
+  const deskRequest = kind => signClaim({v: 1, kind, at: now()}, venueKey());
+  function beat() {
+    if (beating) return beating;
+    beating = (async () => {
+      try {
+        if (!getMeta('onlineSession', null) || !onlineBase() || !fetchImpl) {linkOthers = []; linkError = ''; laptop?.linkDown?.(); return;}
+        if (remoteServer.listening) laptop?.linkUp?.(remoteServer.address().port, () => beat());
+        const tunnel = laptop?.link?.(), port = server.listening ? server.address().port : 3000;
+        const reply = await onlineApi('PUT', '/v1/me/desk', {request: deskRequest('beermat.desk'), name: os.hostname().slice(0, 60), title: settings().title,
+          role: awayNow() ? 'hosting' : linkRole, addresses: lanAddresses(interfaces).filter(a => a.kind !== 'virtual').map(a => joinUrlFor(a.address, port)),
+          link: tunnel?.ready ? tunnel.url : null});
+        const before = JSON.stringify(linkOthers);
+        linkOthers = (reply.desks || []).map(d => ({keyId: d.keyId, venueKey: d.venueKey, name: d.name, title: d.title, role: d.role, addresses: d.addresses, link: d.link}));
+        if (linkError || JSON.stringify(linkOthers) !== before) {linkError = ''; notify();}
+      } catch (e) {if (linkError !== e.message) {linkError = e.message; notify();}}
+      finally {beating = null;}
+    })();
+    return beating;
+  }
+  const closeDesk = () => onlineApi('POST', '/v1/me/desk/closed', {request: deskRequest('beermat.desk-closed')}).catch(() => {});
+  const beatTimer = setInterval(beat, 30000); beatTimer.unref?.();
+  const firstBeat = setTimeout(beat, 1500); firstBeat.unref?.();
   const libraryClip = buzzer => libraryApi(`/v1/buzzers/${encodeURIComponent(buzzer)}/audio`, {kind: 'beermat.buzzer-get', buzzer});
   // Online mode: phones and the TV get the public link as the join address.
   const onlineUrl = () => laptop?.online?.()?.ready ? laptop.online().url : null;
@@ -1329,6 +1373,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     try {
       const url = new URL(req.url, 'http://quiz.local'), key = req.headers['sec-websocket-key'];
       if (url.pathname !== '/api/events' || !localAllowed(req) || !/^[A-Za-z0-9+/]{22}==$/.test(key || '') || !originOk(req)) return refuse();
+      // Through the quizmaster link: a signed-in desk, phone deck or TV only.
+      if (req.viaRemote && !isHost(url.searchParams.get('key') || '') && !isTv(url.searchParams.get('tv') || '')) return refuse();
       team = streamTeam(url);
       socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '
         + createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64') + '\r\n\r\n');
@@ -1341,10 +1387,10 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     addStream({team: team?.id || null, send: v => frame(1, v), ping: () => frame(9), end: () => {frame(8); socket.end();}}, done => socket.on('close', done));
   }
   // Same-site requests only; online the page is on https (Cloudflare's end of the tunnel).
-  const originOk = req => !req.headers.origin || req.headers.origin === `http://${req.headers.host}` || (req.viaTunnel && req.headers.origin === `https://${req.headers.host}`);
+  const originOk = req => !req.headers.origin || req.headers.origin === `http://${req.headers.host}` || ((req.viaTunnel || req.viaRemote) && req.headers.origin === `https://${req.headers.host}`);
   // Phones are recognised by their address on the quiz Wi-Fi. The laptop itself (loopback) is never a team device.
   // Online players all arrive through the tunnel from this laptop, so they have no address of their own here.
-  const clientIp = req => req.viaTunnel ? '' : clientAddress ? clientAddress(req) : (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+  const clientIp = req => req.viaTunnel || req.viaRemote ? '' : clientAddress ? clientAddress(req) : (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
   const loopback = ip => ip.startsWith('127.') || ip === '::1';
   const DEVICE_MS = 12 * 60 * 60 * 1000;
   function rememberDevice(req, teamId) {
@@ -1418,6 +1464,16 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       const url = new URL(req.url, 'http://quiz.local'); const p = url.pathname;
       // A phone deck may also reach the desk from the venue's Wi-Fi (signed in, or signing in), as a TV may the TV page.
       if (!localAllowed(req) && !tvOnly(req, url) && !deckAllowed(req, url)) return send(403, {error: 'Not available on this network'});
+      // The quizmaster link (a tunnel for the account's other devices, through the internet): pages and pictures, the
+      // sign-ins, and otherwise only what a signed-in desk, phone deck or TV may use. Never the players' routes.
+      if (req.viaRemote) {
+        const read = req.method === 'GET' || req.method === 'HEAD', bearer = req.headers.authorization?.replace(/^Bearer /, '') || '';
+        const signedIn = isHost(bearer) || isHost(url.searchParams.get('key') || '') || isTv(tvKey(req, url));
+        const allowed = (read && !p.startsWith('/api/') && !['/host', '/host.js', '/spotify/callback'].includes(p))
+          || (req.method === 'POST' && (p === '/api/deck/login' || p === '/api/tv/login')) || (read && (p === '/api/hello' || p === '/api/deck/hello'))
+          || p.startsWith('/api/host/') || (read && (p === '/api/leaderboard' || p.startsWith('/api/looks/') || p === '/api/events') && signedIn);
+        if (!allowed) return send(404, {error: 'Not found'});
+      }
       // The online link reaches the players' and TV pages; the desk only while the quizmaster allows it (Desk on the
       // online link), and Spotify sign-in never.
       if (req.viaTunnel && (p === '/spotify/callback' || (!settings().deskOnline && (['/host', '/host.js', '/api/login'].includes(p) || p.startsWith('/api/host/'))))) return send(404, {error: 'Not found'});
@@ -1521,17 +1577,21 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
       if (p.startsWith('/api/deck/')) {
         requireValue(!req.viaTunnel, 'Not found', 404);
         requireValue(p === '/api/deck/login' && req.method === 'POST', 'Not found', 404);
-        const tries = attempts.get('deck:' + req.socket.remoteAddress) || {n: 0, time: now()};
+        const from = 'deck:' + (req.viaRemote ? 'link:' + (req.headers['cf-connecting-ip'] || '') : req.socket.remoteAddress);
+        const tries = attempts.get(from) || {n: 0, time: now()};
         if (now() - tries.time >= 60000) {tries.n = 0; tries.time = now();}
-        attempts.set('deck:' + req.socket.remoteAddress, tries);
+        attempts.set(from, tries);
         requireValue(++tries.n <= 10, 'Wait one minute before trying again', 429);
         const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 40) : 'Phone';
         let how;
         if (body.ticket) {
           const ticket = readDeckTicket(body.ticket, {venueKey: venueKey().publicKey, now: now(), publicKey: licenceKey});
-          requireValue(ticket, 'BeerMat Online’s ticket isn’t for this laptop, or has run out: try again', 403);
-          how = ticket.admin ? 'admin' : 'venue';
+          requireValue(ticket && freshTicket(ticket), 'BeerMat Online’s ticket isn’t for this laptop, or has run out: try again', 403);
+          // Another BeerMat desk on the same account (it runs this laptop's quiz from there), or a phone.
+          how = ticket.role === 'desk' ? 'desk' : ticket.admin ? 'admin' : 'venue';
         } else {
+          // Through the quizmaster link only with a ticket: the code is for the venue's own networks.
+          requireValue(!req.viaRemote, 'Sign in with your BeerMat account', 403);
           requireValue(deckCode && deckCode.expires > now() && equal(String(body.code ?? '').replace(/\D/g, ''), deckCode.code), 'That code isn’t right, or has run out: ask the desk for a new one', 403);
           deckCode = null; how = 'code';
         }
@@ -1541,8 +1601,47 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         notify();
         return send(200, {key, title: settings().title});
       }
+      // A TV signs in with a ticket from BeerMat Online (the TV's account has this laptop open): a TV session, which
+      // reads the TV's state and live updates, through the quizmaster link as on the venue's Wi-Fi.
+      if (p === '/api/tv/login') {
+        requireValue(!req.viaTunnel, 'Not found', 404);
+        const from = 'tv:' + (req.viaRemote ? 'link:' + (req.headers['cf-connecting-ip'] || '') : req.socket.remoteAddress);
+        const tries = attempts.get(from) || {n: 0, time: now()};
+        if (now() - tries.time >= 60000) {tries.n = 0; tries.time = now();}
+        attempts.set(from, tries);
+        requireValue(++tries.n <= 10, 'Wait one minute before trying again', 429);
+        const ticket = readDeckTicket(body.ticket, {venueKey: venueKey().publicKey, now: now(), publicKey: licenceKey, roles: ['tv']});
+        requireValue(ticket && freshTicket(ticket), 'BeerMat Online’s ticket isn’t for this laptop, or has run out: try again', 403);
+        const key = token(), name = typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 40) : 'TV';
+        run('INSERT INTO tv_sessions VALUES(?,?,?)', hash(key), name, now() + SESSION_MS);
+        return send(200, {key, title: settings().title});
+      }
       if (p.startsWith('/api/host/')) {
         requireValue(isHost(auth), 'Host login required', 403);
+        // Another desk on the account takes over: this laptop keeps the quiz (its phones, sound and TV) and shows that
+        // the desk is elsewhere, with a way to take it back.
+        if (p === '/api/host/handover') {
+          const mine = deckSessions.get(hash(auth));
+          requireValue(mine?.how === 'desk', 'Only another BeerMat desk takes over the desk');
+          deskAway = {session: hash(auth), name: mine.name, since: now()};
+          beat(); return send(200, {ok: true});
+        }
+        if (p === '/api/host/handover/end') {
+          if (deskAway) {run('DELETE FROM host_sessions WHERE hash=?', deskAway.session); deckSessions.delete(deskAway.session);}
+          deskAway = null; beat(); return send(200, {ok: true});
+        }
+        // The quizmaster link: this laptop's other devices on the account, a ticket for one, a TV's device token, and
+        // whether this desk is running another laptop's quiz ('remote') or its own ('desk').
+        if (p === '/api/host/link') {await beat(); return send(200, linkState());}
+        if (p === '/api/host/link/ticket') {
+          requireValue(['desk', 'tv'].includes(body.role) && typeof body.venueKey === 'string', 'Which laptop?');
+          const other = linkOthers.find(d => d.venueKey === body.venueKey);
+          requireValue(other, 'That laptop isn’t open any more', 404);
+          const {ticket} = await onlineApi('POST', '/v1/desk-tickets', {venueKey: body.venueKey, role: body.role});
+          return send(200, {ticket, name: other.name, addresses: other.addresses, link: other.link});
+        }
+        if (p === '/api/host/link/tv-device') return send(200, await onlineApi('POST', '/v1/me/tv-devices', {name: os.hostname()}));
+        if (p === '/api/host/link/role') {requireValue(['desk', 'remote'].includes(body.role), 'Which role?'); linkRole = body.role; await beat(); return send(200, {ok: true});}
         // The desk's controls for phone decks: a code to sign one in, taking one off, and asking the desk to play.
         if (p === '/api/host/deck-code') {deckCode = {code: String(randomInt(0, 1000000)).padStart(6, '0'), expires: now() + 5 * 60000}; return send(200, deckCode);}
         if (p === '/api/host/deck/disconnect') {
@@ -1557,12 +1656,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           notify();
           return send(200, {ok: true});
         }
-        if (p === '/api/host/logout') {run('DELETE FROM host_sessions WHERE hash=?', hash(auth)); deckSessions.delete(hash(auth)); return send(200, {ok: true});}
+        if (p === '/api/host/logout') {run('DELETE FROM host_sessions WHERE hash=?', hash(auth)); deckSessions.delete(hash(auth)); if (deskAway?.session === hash(auth)) {deskAway = null; beat();} return send(200, {ok: true});}
         if (p === '/api/host/plan') return send(200, planOut());
         if (p === '/api/host/plan/refresh') return send(200, await refreshLicence());
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats(), board = boardStep(), recap = {...recapState(), active: !!recapState(), available: !recapState() && !!recapOffer()};
-          return send(200, {protocol: PROTOCOL, serverTime: now(), varChecks: varChecks(), varCheck: varShown(), tvScreens: tvScreens(), decks: decks(), deskConnected: deskConnected(), deckCommand, nextStep: nextStep(board, recap), nextRound: nextRound(), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board, recap, back: backStep(), timer: getMeta('timer', null), wheels: getMeta('wheels', []), slides: slides(), wheel: getMeta('wheel', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {protocol: PROTOCOL, serverTime: now(), varChecks: varChecks(), varCheck: varShown(), tvScreens: tvScreens(), decks: decks(), deskConnected: deskConnected(), deckCommand, deskAway: awayNow(), link: linkState(), nextStep: nextStep(board, recap), nextRound: nextRound(), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board, recap, back: backStep(), timer: getMeta('timer', null), wheels: getMeta('wheels', []), slides: slides(), wheel: getMeta('wheel', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -1646,11 +1745,12 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           const data = p.endsWith('signin') ? await onlineApi('POST', '/v1/sessions', {email: body.email, password: body.password})
             : await onlineApi('POST', '/v1/accounts', {email: body.email, password: body.password, displayName: body.displayName});
           setMeta('onlineSession', {token: data.token, email: data.account.email, name: data.account.displayName, admin: !!data.account.admin});
+          beat();
           return send(200, {signedIn: true, email: data.account.email, name: data.account.displayName});
         }
         if (p === '/api/host/online/signout') {
-          if (getMeta('onlineSession', null)) await onlineApi('DELETE', '/v1/sessions').catch(() => {});
-          setMeta('onlineSession', null); return send(200, {signedIn: false});
+          if (getMeta('onlineSession', null)) {await closeDesk(); await onlineApi('DELETE', '/v1/sessions').catch(() => {});}
+          setMeta('onlineSession', null); beat(); return send(200, {signedIn: false});
         }
         if (p === '/api/host/online/call') {
           requireValue(typeof body.method === 'string' && typeof body.path === 'string' && onlineCalls.some(([m, re]) => m === body.method && re.test(body.path)), 'Not a venue call');
@@ -2495,25 +2595,28 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     }
   };
   // Two doors to the same quiz: the main port (laptop, quiz Wi-Fi) and a laptop-only port for the online tunnel.
+  // A third, also laptop-only, for the quizmaster link's tunnel: the account's other desks, TVs and phones.
   const server = http.createServer(handle), publicServer = http.createServer((req, res) => {req.viaTunnel = true; handle(req, res);});
+  const remoteServer = http.createServer((req, res) => {req.viaRemote = true; handle(req, res);});
   publicServer.on('upgrade', (req, socket) => {req.viaTunnel = true; openSocket(req, socket);});
+  remoteServer.on('upgrade', (req, socket) => {req.viaRemote = true; openSocket(req, socket);});
   server.on('upgrade', openSocket);
   // Idle connections stay open a minute (Node's default is 5 s): the desk and phones reuse them, and one closed just as
   // it's reused fails the request.
-  for (const s of [server, publicServer]) {s.requestTimeout = 15000; s.headersTimeout = 10000; s.keepAliveTimeout = 60000;}
+  for (const s of [server, publicServer, remoteServer]) {s.requestTimeout = 15000; s.headersTimeout = 10000; s.keepAliveTimeout = 60000;}
   let closing = null;
   function close() {
     simulator?.stop(); simulator = null;
-    clearInterval(ticker); clearInterval(keepAlive); clearInterval(syncTimer); clearInterval(licenceTimer); clearTimeout(firstRenew); clearTimeout(notifyTimer);
+    clearInterval(ticker); clearInterval(keepAlive); clearInterval(syncTimer); clearInterval(licenceTimer); clearTimeout(firstRenew); clearInterval(beatTimer); clearTimeout(firstBeat); laptop?.linkDown?.(); clearTimeout(notifyTimer);
     for (const stream of streams) stream.end();
     laptop?.goOffline?.();
     const shut = s => new Promise(resolve => {s.close(() => resolve()); s.closeAllConnections();});
-    closing ||= Promise.all([shut(server), shut(publicServer), flushing?.catch(() => {})]).then(() => db.close());
+    closing ||= Promise.all([shut(server), shut(publicServer), shut(remoteServer), flushing?.catch(() => {})]).then(() => db.close());
     return closing;
   }
   // A fresh one-time desk login for the desktop app, which runs the server and opens the desk itself.
   const newDeskTicket = () => (deskLink = token());
-  return {server, publicServer, db, close, newDeskTicket};
+  return {server, publicServer, remoteServer, db, close, newDeskTicket, closeDesk};
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   // ALLOWED_ADDRESSES limits which local addresses answer, e.g. 127.0.0.1,10.42.0.1 for hotspot-only play.
@@ -2533,5 +2636,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   // Online mode's tunnel connects here; only this laptop can reach it.
   quiz.publicServer.on('error', e => console.log(`Online mode unavailable: port ${process.env.PUBLIC_PORT || 3001} is busy (${e.code}).`));
   quiz.publicServer.listen(Number(process.env.PUBLIC_PORT || 3001), '127.0.0.1');
+  quiz.remoteServer.listen(Number(process.env.REMOTE_PORT || 0), '127.0.0.1');
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => quiz.close().then(() => process.exit(0)));
 }

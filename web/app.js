@@ -173,7 +173,8 @@ export function selectOptions(select, entries, chosen) {
   if (chosen !== undefined && [...select.options].some(o => o.value === String(chosen))) select.value = chosen;
 }
 // Live updates: a server-sent event nudges a refresh; a slow poll covers missed events and heartbeats.
-export function live(refresh, key = () => '', slowPoll = 5000) {
+// The stream's key goes as `param()`: 'key' (a team's or the desk's), or 'tv' (a TV signed in through the account).
+export function live(refresh, key = () => '', slowPoll = 5000, param = () => 'key') {
   let source = null, currentKey = null, running = false, again = false;
   async function update() {
     if (running) {again = true; return;}
@@ -184,7 +185,7 @@ export function live(refresh, key = () => '', slowPoll = 5000) {
     const k = key();
     if (source && k === currentKey) return;
     source?.close(); currentKey = k;
-    const address = '/api/events' + (k ? '?key=' + encodeURIComponent(k) : '');
+    const address = '/api/events' + (k ? `?${param()}=` + encodeURIComponent(k) : '');
     // Online (https, through Cloudflare) the nudges come over a WebSocket: the tunnel holds server-sent events back.
     if (location.protocol === 'https:') {
       source = new WebSocket('wss://' + location.host + address);

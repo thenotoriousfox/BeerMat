@@ -197,6 +197,28 @@ open); the Qt desk (its `/api/events?…&desk=1` stream) carries it out. The des
 The same in a phone's browser, with no app: the laptop serves `/deck` (and `/deck.js`) on the quiz Wi-Fi and the venue's,
 signing in with the desk's code; the desks show its address as a QR code beside the code.
 
+### Quizmaster devices through the account
+
+Venue Wi-Fi often keeps devices apart, so a desk, TV or phone deck finds the laptop through BeerMat Online, not the
+network (docs/ONLINE.md): a laptop signed in says every 30 s where it can be reached (`PUT /v1/me/desk`: its addresses
+and its **quizmaster link**, a Cloudflare tunnel to a laptop-only port, `remoteServer` in server.js), and the account's
+devices get a ticket for it (`POST /v1/desk-tickets {venueKey, role}`). Each tries the laptop's addresses first
+(`/api/hello`), then the link. Tickets work once (their `nonce`).
+
+- Another desk or a phone: `POST /api/deck/login {name, ticket}` (role `desk` or `deck`), as above. A desk then takes
+  over with `POST /api/host/handover`: `/api/host/state` has `deskAway {name, since}` until the laptop's own desk calls
+  `handover/end` (its session ends). The laptop keeps playing the desk's sound, relayed as for a TV screen.
+- A TV: `POST /api/tv/login {ticket, name}` → `{key}`; then `/api/leaderboard` and `/api/events` with `?tv=<key>` (or
+  `Authorization: Bearer`). The browser TV takes `#ticket=…&back=…` from BeerMat Online's `/tv` page and goes back
+  there after half a minute without the laptop.
+- Through the link the quiz server answers pages and pictures, these sign-ins, `/api/hello`, `/api/deck/hello`,
+  `/api/host/*` with a session, and the TV's state with a TV or desk session; nothing else (no players, no key login).
+  Live updates there come over a WebSocket: the tunnel holds server-sent events back.
+- `/api/host/link` → `{signedIn, others, link, error, role}`; `link/ticket {venueKey, role}`, `link/tv-device`,
+  `link/role {role}`: the desk's own calls through its laptop.
+
+On BeerMat's own quiz Wi-Fi none of this is needed: the laptop is the Wi-Fi, and the TV page and the code work offline.
+
 ## Compatibility rules
 
 1. Add fields; don't rename or remove them. Bump `protocol` if you must.

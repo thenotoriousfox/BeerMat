@@ -114,6 +114,9 @@ class Updates(QObject):
 
         def failed(message):
             self._set('', '' if quiet else f'Couldn’t check for updates: {message}')
+        # Running another laptop's quiz (link.py): its server would fetch the update for that laptop, not this one.
+        if getattr(self.api, 'remote', False):
+            return
         self.api.host('update/check', {'kind': self.kind}, done, failed, timeout_ms=30000)
 
     @Slot()
@@ -124,7 +127,7 @@ class Updates(QObject):
     def install(self):
         if not self.canInstall or self._state:
             return
-        why = self.busy()
+        why = 'Go back to this laptop’s quiz to update BeerMat here' if getattr(self.api, 'remote', False) else self.busy()
         if why:
             self.toast.emit(why, True)
             return

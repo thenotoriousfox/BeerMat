@@ -2047,6 +2047,26 @@
   "À lire avant {round}",
   "Para leer antes de {round}"
  ],
+ "No quiz laptop is open on your account. Open BeerMat on the laptop, signed in to BeerMat Online.": [
+  "Aucun ordinateur de quiz n’est ouvert sur votre compte. Ouvrez BeerMat sur l’ordinateur, connecté à BeerMat Online.",
+  "No hay ningún portátil de quiz abierto en tu cuenta. Abre BeerMat en el portátil, con la sesión iniciada en BeerMat Online."
+ ],
+ "No quiz found. Sign in to BeerMat Online (Profile) with the laptop’s account, or join the quiz Wi-Fi, or type the laptop’s address.": [
+  "Aucun quiz trouvé. Connectez-vous à BeerMat Online (Profil) avec le compte de l’ordinateur, rejoignez le Wi-Fi du quiz ou tapez l’adresse de l’ordinateur.",
+  "No se encontró ningún quiz. Inicia sesión en BeerMat Online (Perfil) con la cuenta del portátil, conéctate al wifi del quiz o escribe la dirección del portátil."
+ ],
+ "{name} can’t be reached: it has no quizmaster link yet. Check it’s on the internet.": [
+  "{name} est injoignable : il n’a pas encore de lien quizmaster. Vérifiez qu’il est connecté à Internet.",
+  "No se puede llegar a {name}: aún no tiene enlace de presentador. Comprueba que tiene internet."
+ ],
+ "Update BeerMat first, or sign this TV in with your BeerMat account.": [
+  "Mettez d’abord BeerMat à jour, ou connectez cette TV avec votre compte BeerMat.",
+  "Actualiza BeerMat primero, o inicia sesión en esta TV con tu cuenta de BeerMat."
+ ],
+ "Sign in with BeerMat": [
+  "Se connecter avec BeerMat",
+  "Iniciar sesión con BeerMat"
+ ],
  "Question sent to the phones": [
   "Question envoyée aux téléphones",
   "Pregunta enviada a los teléfonos"

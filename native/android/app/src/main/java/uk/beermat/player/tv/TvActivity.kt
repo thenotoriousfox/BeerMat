@@ -68,11 +68,19 @@ import uk.beermat.player.ui.UpdateBanner
 import uk.beermat.player.ui.updateOffer
 
 /**
- * BeerMat TV: an Android TV, Google TV or Fire TV shows the quiz with no cable to the laptop. It finds the quiz laptop
- * on the TV's network (TvFinder), then shows the quiz's own TV page (/tv, the one a TV's browser opens) full screen,
- * with sound, the screen kept on; if the laptop drops off it tries again by itself. Back returns to the address.
+ * BeerMat TV: an Android TV, Google TV or Fire TV shows the quiz with no cable to the laptop. On BeerMat's quiz Wi-Fi it
+ * finds the laptop itself (TvFinder); anywhere else it signs in through the BeerMat account: BeerMat Online's TV page
+ * (online/pages/tv.js) shows a QR code a phone signed in approves once, then finds whichever of the account's laptops is
+ * running a quiz and opens its TV page (its address on the TV's network if it answers, else its quizmaster link). The
+ * quiz's TV page shows full screen, with sound, the screen kept on; if the laptop drops off it tries again by itself,
+ * and through the account goes back to BeerMat Online for where it is now. Back returns to this screen.
  */
 class TvActivity : ComponentActivity() {
+    companion object {
+        /** BeerMat Online's TV page, as the app (no start button: it plays sound by itself). */
+        fun onlineTv(base: String) = base.trimEnd('/') + "/tv?app=1"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         I18n.load(this)
@@ -87,20 +95,21 @@ class TvActivity : ComponentActivity() {
             BeerMatTheme {
                 var showing by remember { mutableStateOf<String?>(null) }
                 val current = showing
-                if (current == null) Connect(saved = prefs.getString("address", null), gateway = { TvFinder.gateway(this) }, own = { TvFinder.ownAddress(this) }) { base ->
-                    prefs.edit().putString("address", base).apply(); showing = base
+                val online = onlineTv(uk.beermat.player.online.OnlineClient(this).baseUrl)
+                if (current == null) Connect(saved = prefs.getString("address", null), gateway = { TvFinder.gateway(this) }, account = { showing = online }) { base ->
+                    prefs.edit().putString("address", base).apply(); showing = "$base/tv?app=1"
                 } else {
                     BackHandler { showing = null }
-                    TvPage(current)
+                    TvPage(current, home = online)
                 }
             }
         }
     }
 }
 
-/** Finding the quiz: automatically on the TV's network, or the address the quizmaster types. */
+/** Finding the quiz: on the quiz Wi-Fi by itself, otherwise through the BeerMat account, or the address typed. */
 @Composable
-private fun Connect(saved: String?, gateway: () -> String?, own: () -> String?, open: (String) -> Unit) {
+private fun Connect(saved: String?, gateway: () -> String?, account: () -> Unit, open: (String) -> Unit) {
     var status by remember { mutableStateOf(t("Looking for the quiz on this Wi-Fi…")) }
     var looking by remember { mutableIntStateOf(1) }
     var typed by remember { mutableStateOf(saved?.removePrefix("http://") ?: "") }
@@ -119,17 +128,15 @@ private fun Connect(saved: String?, gateway: () -> String?, own: () -> String?, 
     LaunchedEffect(update) { if (update != null) { delay(150); runCatching { updateButton.requestFocus() } } }
     LaunchedEffect(looking) {
         status = t("Looking for the quiz on this Wi-Fi…")
-        val quiz = TvFinder.find(TvFinder.candidates(saved, gateway())) ?: run {
-            status = t("Looking for the quiz laptop on this network…")
-            TvFinder.find(TvFinder.neighbours(own()))
-        }
+        val quiz = TvFinder.find(TvFinder.candidates(saved, gateway()))
         update = updateOffer(apps)
         found = quiz?.first
         if (quiz != null && update != null) {
             typed = quiz.first.removePrefix("http://")
             status = t("Found “{title}”. Update BeerMat first, or show the quiz.", "title" to quiz.second)
         } else if (quiz != null) { status = t("Found “{title}”", "title" to quiz.second); delay(800); open(quiz.first) }
-        else status = t("No quiz found on this network. Is the TV on the same Wi-Fi as the laptop? Or type the address from the desk (TV without a cable…).")
+        else if (update == null) account()
+        else status = t("Update BeerMat first, or sign this TV in with your BeerMat account.")
     }
     LaunchedEffect(checking) {
         if (!checking) return@LaunchedEffect
@@ -163,18 +170,28 @@ private fun Connect(saved: String?, gateway: () -> String?, own: () -> String?, 
                     colors = ButtonDefaults.buttonColors(containerColor = Brand.gold, contentColor = Brand.onAccent),
                     modifier = Modifier.testTag("tv-connect")) { Text(t("Show the quiz"), fontSize = 18.sp, fontWeight = FontWeight.Bold) }
             }
+            OutlinedButton({ account() }, modifier = Modifier.testTag("tv-account")) { Text(t("Sign in with BeerMat"), color = Brand.text) }
             OutlinedButton({ looking++ }, modifier = Modifier.focusRequester(button).testTag("tv-look-again")) { Text(t("Look again"), color = Brand.text) }
         }
     }
 }
 
-/** The quiz's TV page, full screen with sound; when the laptop can't be reached it tries again every few seconds. */
+/** The quiz's TV page (or BeerMat Online's, to sign in), full screen with sound; when the laptop can't be reached it
+ *  tries again every few seconds, and after three tries goes back to BeerMat Online's page (`home`): a laptop reached
+ *  through the account may have a new quizmaster link since it restarted. */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun TvPage(base: String) {
+private fun TvPage(url: String, home: String) {
     var lost by remember { mutableStateOf(false) }
     var view by remember { mutableStateOf<WebView?>(null) }
-    LaunchedEffect(lost) { while (lost) { delay(4000); view?.reload() } }
+    var shown by remember { mutableStateOf(url) }
+    LaunchedEffect(lost) {
+        var tries = 0
+        while (lost) {
+            delay(4000); tries++
+            if (tries >= 3 && url == home) view?.loadUrl(home) else view?.reload()
+        }
+    }
     Box(Modifier.fillMaxSize().background(Brand.bg)) {
         AndroidView({ context ->
             // Debug builds: the page can be inspected from a computer (chrome://inspect), and its console is in logcat.
@@ -192,6 +209,8 @@ private fun TvPage(base: String) {
                 settings.domStorageEnabled = true
                 // Sound without a press of OK: the TV page plays the quiz's sounds.
                 settings.mediaPlaybackRequiresUserGesture = false
+                // BeerMat Online's page (https) asks the laptop's own address on this network (http) before its link.
+                settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 setBackgroundColor(0xFF140B2E.toInt())
                 isFocusable = false
                 webViewClient = object : WebViewClient() {
@@ -199,14 +218,14 @@ private fun TvPage(base: String) {
                         if (request.isForMainFrame) lost = true
                     }
                     // Each try starts hopeful; an error for the page itself (not a picture) means the laptop's gone.
-                    override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) { lost = false }
+                    override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) { lost = false; shown = url }
                 }
-                loadUrl("$base/tv?app=1")
+                loadUrl(url)
                 view = this
             }
         }, modifier = Modifier.fillMaxSize().testTag("tv-page"))
         if (lost) Box(Modifier.fillMaxSize().background(Brand.bg), contentAlignment = Alignment.Center) {
-            Text(t("Can’t reach the quiz laptop at {address}. Trying again…", "address" to base.removePrefix("http://")), color = Brand.muted, fontSize = 24.sp,
+            Text(t("Can’t reach the quiz laptop at {address}. Trying again…", "address" to android.net.Uri.parse(shown).host.orEmpty()), color = Brand.muted, fontSize = 24.sp,
                 modifier = Modifier.padding(40.dp))
         }
     }

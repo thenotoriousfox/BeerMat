@@ -82,6 +82,28 @@ ApplicationWindow {
             DeskButton { objectName: "welcomeTvScreen"; text: "This computer is the TV screen"; onClicked: { desk.welcomed(""); welcome.close(); desk.becomeTvScreen() } }
         }
     }
+    // Another laptop on this BeerMat Online account is running a quiz (link.py): what is this device for?
+    Dialog {
+        id: otherDesk
+        objectName: "otherDesk"
+        anchors.centerIn: parent; modal: true; width: Math.min(620, window.width - 40)
+        visible: !!desk.link.other.name && desk.connected && !welcome.visible
+        closePolicy: Popup.NoAutoClose
+        background: Rectangle { radius: Theme.radius; color: Theme.panel; border.color: Theme.gold }
+        header: Text { text: "BeerMat is open on another device"; color: Theme.text; font.family: Theme.display; font.pixelSize: 24; font.weight: Font.Bold; padding: 20 }
+        ColumnLayout {
+            width: parent.width; spacing: 10
+            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
+                   text: `${desk.link.other.title || "A quiz"} is running on ${desk.link.other.name || "another laptop"}, signed in to the same BeerMat account.` }
+            DeskButton { objectName: "useAsDesk"; Layout.fillWidth: true; kind: "primary"; enabled: !desk.link.busy; text: "Use this device as the desk"; onClicked: desk.link.useAsDesk() }
+            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 12
+                   text: "Run that quiz from here. Its phones, TV and sound stay on that laptop, which shows that the desk is here." }
+            DeskButton { objectName: "useAsTv"; Layout.fillWidth: true; enabled: !desk.link.busy; text: "Use this device as the TV"; onClicked: desk.link.useAsTv() }
+            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 12
+                   text: "Show that quiz's TV full screen here, with its sound. BeerMat opens again as a TV screen." }
+            DeskButton { objectName: "ignoreOther"; Layout.fillWidth: true; enabled: !desk.link.busy; text: "Ignore"; onClicked: desk.link.ignore() }
+        }
+    }
     // The TV's sounds play while the TV is showing, as Electron's TV window does.
     Binding { target: desk.sound; property: "on"; value: screens.open && !screens.blanked }
     // "Automatic" sends the TV's sound down its own cable while it is full screen on its screen, as the Electron app.
@@ -225,6 +247,9 @@ ApplicationWindow {
                     Pill { visible: !!desk.updates.latest; text: "Update: " + desk.updates.latest; tone: Theme.gold
                            TapHandler { onTapped: window.workspace = window.workspaces.findIndex(w => w.name === "Settings") }
                            HoverHandler { cursorShape: Qt.PointingHandCursor } }
+                    // Running another laptop's quiz from here (link.py).
+                    Pill { objectName: "remotePill"; visible: !!desk.link.remote.name; text: (desk.link.lost ? "Finding " : "On ") + (desk.link.remote.name || "") + (desk.link.lost ? " again…" : ""); tone: desk.link.lost ? Theme.bad : Theme.gold; strong: true }
+                    DeskButton { visible: !!desk.link.remote.name; text: "Back to this laptop's quiz"; onClicked: desk.link.leave() }
                     DeskButton { text: "Load quiz…"; shortcutHint: "Ctrl+O"; onClicked: openQuiz.open() }
                 }
             }
@@ -248,6 +273,23 @@ ApplicationWindow {
                 SettingsWorkspace { view: window.view; onOpenWebDesk: window.openWebDesk(); onSwapScreens: window.swapScreens()
                                     onOpenLibrary: (tab) => { libraryWorkspace.tab = tab; window.workspace = window.workspaces.findIndex(w => w.name === "Library") } }
             }
+        }
+    }
+
+    // ---- this laptop's desk is on another device: the quiz, its phones, TV and sound stay here ----
+    Rectangle {
+        objectName: "deskAway"
+        anchors.fill: parent; z: 50
+        visible: !!desk.link.away.name
+        color: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, 0.96)
+        MouseArea { anchors.fill: parent; hoverEnabled: true }   // the desk underneath stays out of reach
+        ColumnLayout {
+            anchors.centerIn: parent; width: Math.min(560, parent.width - 48); spacing: 14
+            Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; color: Theme.text; font.family: Theme.display; font.pixelSize: 30; font.weight: Font.Bold
+                   text: `The desk is on ${desk.link.away.name || "another device"}` }
+            Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 15
+                   text: "This laptop keeps the quiz: the phones, the TV and the sound stay here. Leave BeerMat open." }
+            DeskButton { objectName: "takeDeskBack"; Layout.alignment: Qt.AlignHCenter; kind: "primary"; text: "Take the desk back"; onClicked: desk.link.takeBack() }
         }
     }
 

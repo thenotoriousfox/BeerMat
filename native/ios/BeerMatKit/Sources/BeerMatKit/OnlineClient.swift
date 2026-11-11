@@ -164,7 +164,9 @@ public final class OnlineClient: @unchecked Sendable {
 
     /// The venues this account runs (a phone signed in with one, or an admin's, can host that venue's quiz).
     public func myVenues() async throws -> [[String: Any]] { try await api("GET", "/v1/me/venues")["venues"] as? [[String: Any]] ?? [] }
-    /// A ticket for this phone to host the quiz on the laptop with `venueKey`: the venue's own account, or an admin.
+    /// The account's open quiz laptops: where each can be reached (`addresses`, its quizmaster `link`) and its `role`.
+    public func desks() async throws -> [[String: Any]] { try await api("GET", "/v1/me/desks")["desks"] as? [[String: Any]] ?? [] }
+    /// A ticket for this phone to host the quiz on the laptop with `venueKey`: signed in to this account, the venue's own, or an admin.
     public func deckTicket(venueKey: String) async throws -> [String: Any] { try await api("POST", "/v1/deck-tickets", ["venueKey": venueKey])["ticket"] as? [String: Any] ?? [:] }
     public func venue(_ id: String) async throws -> [String: Any] { try await api("GET", "/v1/venues/" + (id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id)) }
     public func favourites() async throws -> [String: Any] { try await api("GET", "/v1/me/favourites") }

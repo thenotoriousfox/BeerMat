@@ -803,3 +803,7 @@ body.simple .advanced, body.simple option.advanced { display: none !important; }
 .group-board li { padding: 8px 16px; border-radius: 14px; background: rgba(255,255,255,.06); border: 1px solid var(--line, rgba(255,255,255,.12)); }
 .group-board li.top { border-color: var(--gold, #fbbf24); } .group-board li.eyebrow { background: none; border: 0; padding-left: 0; }
 .reaction-table ol { font-size: 1.4em; margin: 4px 0; }
+/* The web desk: another BeerMat desk on the account is running this laptop's quiz. */
+.desk-away { margin: 0 0 16px; padding: 14px 18px; border: 1px solid var(--gold); border-radius: 14px; background: color-mix(in srgb, var(--gold) 10%, transparent); }
+.desk-away p { margin: 0 0 6px; }
+.desk-away[hidden] { display: none; }

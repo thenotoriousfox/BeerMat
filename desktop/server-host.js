@@ -52,6 +52,8 @@ try {
   const preferred = Number(env.PORT || 3000);
   const port = await listen(quiz.server, preferred ? [preferred, ...Array.from({length: 10}, (_, i) => preferred + 2 + i)] : [0], env.BIND || '0.0.0.0');
   const publicPort = await listen(quiz.publicServer, [0], '127.0.0.1');
+  // The quizmaster link's tunnel comes in here (server.js remoteServer).
+  await listen(quiz.remoteServer, [0], '127.0.0.1');
   channel.on(async message => {
     if (message?.type === 'ticket') channel.send({type: 'ticket', id: message.id, ticket: quiz.newDeskTicket()});
     if (message?.type === 'backup') {

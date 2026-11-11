@@ -43,11 +43,30 @@ export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cl
   const ps = (...args) => [powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', hotspot, ...args, '-StateDir', hotspotState]];
   const jobs = {};
   // Looked for each time, so installing cloudflared while BeerMat runs is enough (tests pass a path, or null for none).
-  const tool = () => cloudflared === undefined ? onPath('cloudflared') : cloudflared;
+  // The desk's builds carry their own (runtime/), so the quizmaster link works with nothing to install.
+  const bundled = path.join(root, 'runtime', windows ? 'cloudflared.exe' : 'cloudflared');
+  const tool = () => cloudflared === undefined ? (existsSync(bundled) ? bundled : onPath('cloudflared')) : cloudflared;
   // Online mode: one cloudflared process while it lasts. The link counts once Cloudflare has registered a connection.
   let tunnel = null, tunnelError = '';
-  process.once('exit', () => tunnel?.child.kill());
+  // The quizmaster link: another cloudflared, to the quizmaster port, while the laptop is signed in to BeerMat Online,
+  // so the account's other devices reach this laptop through the internet where the venue's Wi-Fi keeps them apart.
+  let link = null;
+  process.once('exit', () => {tunnel?.child.kill(); link?.child.kill();});
   const online = () => tunnel ? {url: tunnel.url, ready: tunnel.ready} : null;
+  // A quick tunnel to this laptop's `port`; `changed` when it's ready or has ended, `ended(error)` once it has.
+  function openTunnel(port, changed, ended) {
+    const child = launch(tool(), ['tunnel', '--no-autoupdate', '--url', `http://127.0.0.1:${port}`]), mine = {child, url: '', ready: false, log: ''};
+    child.stderr?.setEncoding('utf8');
+    child.stderr?.on('data', text => {
+      mine.log = (mine.log + text).slice(-4000);
+      mine.url ||= /https:\/\/[a-z0-9-]+\.trycloudflare\.com/.exec(mine.log)?.[0] || '';
+      if (mine.url && !mine.ready && /Registered tunnel connection/.test(mine.log)) {mine.ready = true; changed?.();}
+    });
+    const end = error => {if (mine.over) return; mine.over = true; ended(error || (mine.log.split('\n').filter(l => / ERR /.test(l)).pop()?.replace(/^.* ERR /, '') || 'cloudflared quit')); changed?.();};
+    child.on('exit', () => end());
+    child.on('error', e => end('Could not start cloudflared: ' + e.message));
+    return mine;
+  }
   function job(name, work, done) {
     requireValue(!jobs[name]?.running, 'Still working on the last one', 409);
     jobs[name] = {running: true, ok: null, message: ''};
@@ -92,24 +111,26 @@ export function createLaptop({root, run = exec, tunnel: launch = startTunnel, cl
       const cloudflaredPath = tool();
       requireValue(cloudflaredPath, windows ? 'Install cloudflared first: winget install Cloudflare.cloudflared' : 'Install cloudflared first: sudo pacman -S cloudflared');
       requireValue(!tunnel, 'Already online');
-      const child = launch(cloudflaredPath, ['tunnel', '--no-autoupdate', '--url', `http://127.0.0.1:${port}`]), mine = {child, url: '', ready: false, log: ''};
-      tunnel = mine; tunnelError = '';
-      child.stderr?.setEncoding('utf8');
-      child.stderr?.on('data', text => {
-        mine.log = (mine.log + text).slice(-4000);
-        mine.url ||= /https:\/\/[a-z0-9-]+\.trycloudflare\.com/.exec(mine.log)?.[0] || '';
-        if (mine.url && !mine.ready && /Registered tunnel connection/.test(mine.log)) {mine.ready = true; changed?.();}
-      });
-      const ended = error => {
+      tunnelError = '';
+      const mine = tunnel = openTunnel(port, changed, error => {
         if (tunnel !== mine) return;
         tunnel = null;
-        if (!mine.stopping) tunnelError = error || 'Online mode stopped: ' + (mine.log.split('\n').filter(l => / ERR /.test(l)).pop()?.replace(/^.* ERR /, '') || 'cloudflared quit');
-        changed?.();
-      };
-      child.on('exit', () => ended());
-      child.on('error', e => ended('Could not start cloudflared: ' + e.message));
+        if (!mine.stopping) tunnelError = error.startsWith('Could not') ? error : 'Online mode stopped: ' + error;
+      });
     },
     goOffline() {if (tunnel) {tunnel.stopping = true; tunnel.child.kill();}},
+    // The quizmaster link: {url, ready, error}, or null when it isn't wanted. Started again a minute after it ends.
+    link: () => link && {url: link.url, ready: link.ready, error: link.error || ''},
+    linkUp(port, changed) {
+      if (link && !link.over) return;
+      if (!tool()) {link = {url: '', ready: false, error: 'cloudflared isn’t on this laptop', over: true, port}; return;}
+      const mine = link = openTunnel(port, changed, error => {
+        if (link !== mine || mine.stopping) return;
+        mine.error = error;
+        mine.retry = setTimeout(() => {if (link === mine) {link = null; this.linkUp(port, changed);}}, 60000); mine.retry.unref?.();
+      });
+    },
+    linkDown() {if (link) {link.stopping = true; clearTimeout(link.retry); link.child?.kill(); link = null;}},
     stopWifi(done) {job('wifi', () => windows ? run(...ps('down'), 60000) : asRoot(run, python, hotspot, ['down', '--apply'], 180000), done);},
     async wifiOn() {
       requireValue(!windows, 'Switch Wi-Fi on from the Windows quick settings (the network icon on the taskbar)');
