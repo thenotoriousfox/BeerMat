@@ -21,6 +21,20 @@ public struct DeckVar: Equatable {
     public let id: Int, team: String, answer: String, full: Int
 }
 
+/// What a team answered to the question in play, its points, and whether its mark can be changed yet: as soon as the
+/// team locks its answer in (server.js deckAnswers).
+public struct DeckAnswer: Equatable {
+    public let team: String, name: String, answer: String, points: Int, canMark: Bool
+    /// Whether the team has answered yet (every team is listed), and a mark the quizmaster gave without one.
+    public var answered = true, byHand = false
+}
+
+/// Every team's answer to the question in play: `full` is the question's points (Right); every mark can be changed
+/// once answers close (`canMark`).
+public struct DeckMarking: Equatable {
+    public let question: Int, full: Int, canMark: Bool, rows: [DeckAnswer]
+}
+
 /// The quiz as the phone deck (Run the night) shows it, from /api/host/state: what the big button does next (the
 /// server's nextStep, as the Qt desk's Next), the question and what can be done with it (desk.py's canSend, canClose…),
 /// and the teams. As DeckState.kt in the Android app.
@@ -35,6 +49,8 @@ public struct DeckState: Equatable {
     public var varChecks: [DeckVar] = []
     /// The next round's intro, for the quizmaster to read out before starting it (server.js nextRound).
     public var nextRound: DeckRound?
+    /// What each team answered, to overrule the automatic marking.
+    public var marking: DeckMarking?
 
     public var canNext: Bool { nextStep != nil && question?.live != true }
     public var canSend: Bool { question.map { $0.held && $0.live } ?? false }
@@ -75,6 +91,12 @@ public struct DeckState: Equatable {
                          fastRehearsal: rehearsal?.str("speed") == "fast", rehearsal: rehearsal != nil)
         state.varChecks = (s["varChecks"] as? [[String: Any]] ?? []).map { DeckVar(id: $0.int("id"), team: $0.str("name"), answer: $0.str("answer"), full: number($0["full"]).map { Int($0) } ?? 1) }
         state.nextRound = (s["nextRound"] as? [String: Any]).map { DeckRound(title: $0.str("title"), intro: $0.str("intro")) }.flatMap { $0.intro.isEmpty ? nil : $0 }
+        state.marking = (s["deckAnswers"] as? [String: Any]).map { m in
+            DeckMarking(question: m.int("question"), full: number(m["full"]).map { Int($0) } ?? 1, canMark: m.bool("canMark"),
+                        rows: (m["rows"] as? [[String: Any]] ?? []).map { DeckAnswer(team: $0.str("team"), name: $0.str("name"), answer: $0.str("answer"), points: $0.int("points"),
+                                                                              canMark: $0["canMark"] == nil ? m.bool("canMark") : $0.bool("canMark"),
+                                                                              answered: $0.bool("answered", true), byHand: $0.bool("byHand")) })
+        }.flatMap { $0.question == q?.id ? $0 : nil }
         return state
     }
 }

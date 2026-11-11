@@ -129,6 +129,22 @@ function render() {
     $('answered').textContent = t('{n} of {total} teams answered', {n: state.answers.length, total: teams.length});
     $('answer').textContent = !question.revealed && answerText(question) ? t('Answer: {answer}', {answer: answerText(question)}) : '';
     const button = (label, onclick, cls = 'subtle') => {const b = element('button', label, cls); b.type = 'button'; b.disabled = busy; b.onclick = onclick; return b;};
+    // What each team answered, with its points; the quizmaster can overrule a mark as soon as the team locks its answer in.
+    const marking = state.deckAnswers?.question === question.id ? state.deckAnswers : null;
+    const mark = (row, points) => act(() => host('mark', {team: row.team, question: question.id, points}), t('{team}: {points} points', {team: row.name, points}));
+    $('teamAnswers').replaceChildren(...(marking?.rows || []).map(row => {
+      const li = element('li', undefined, row.answered === false && !row.byHand ? '' : row.points > 0 ? 'right' : 'wrong');
+      const head = element('div', undefined, 'deck-answer-head');
+      head.append(element('strong', row.name), element('span', t('{n} pts', {n: row.points}), 'deck-points'));
+      li.append(head, element('p', row.answered === false ? t(row.byHand ? 'Marked by hand' : 'No answer yet') : row.answer || '–', 'deck-answer-text' + (row.answered === false ? ' muted' : '')));
+      if (row.canMark ?? marking.canMark) {
+        const buttons = element('div', undefined, 'deck-mark');
+        buttons.append(button('✓ ' + t('Right'), () => mark(row, marking.full), row.points === marking.full ? '' : 'subtle'), button('✗ ' + t('Wrong'), () => mark(row, 0), row.points === 0 ? '' : 'subtle'),
+          button('−1', () => mark(row, row.points - 1)), button('+1', () => mark(row, row.points + 1)));
+        li.append(buttons);
+      }
+      return li;
+    }));
     $('controls').replaceChildren(...[
       can.send() && button(t('Send question'), () => act(() => host('send'), t('Question sent to the phones')), ''),
       can.pause() && button(t('Pause timer'), () => act(() => host('pause', {expectedQuestion: question.id}), t('Timer paused'))),

@@ -11,7 +11,7 @@ ColumnLayout {
     readonly property var q: view.question || null
     // The current question's answers (choice questions show their counts on the tiles instead), as Teams & marking
     // has them; not while it is marking a past question.
-    readonly property var feed: q && !(view.marking && view.marking.past) && !(q.options && q.options.length) ? (view.answerRows || []) : []
+    readonly property var feed: q && !(view.marking && view.marking.past) && !(q.options && q.options.length) ? (view.answerRows || []).filter(r => r.present) : []
     property real now: Date.now()
     readonly property real remainingMs: q && q.deadline ? Math.max(0, q.deadline - now) : (q ? q.remaining : 0)
     Timer { interval: 200; running: live.visible; repeat: true; onTriggered: live.now = Date.now() }

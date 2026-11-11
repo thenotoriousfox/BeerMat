@@ -54,6 +54,8 @@ def media_extension(data, declared):
     if data[:3] == b'ID3' or (len(data) > 1 and data[0] == 255 and data[1] & 224 == 224):
         return '.mp3'
     return MEDIA_TYPES[declared]
+# Games the quizmaster runs and scores as they go (model.js hostDriven): marked only once closed.
+HOST_DRIVEN = {'buzzer', 'bingo', 'musicbingo', 'clips'}
 TYPE_NAMES = {'text': 'Typed answer', 'choice': 'Multiple choice', 'multi': 'Tick all that apply', 'letter': 'Letter keypad',
               'number': 'Number', 'nearest': 'Nearest wins', 'sequence': 'Put in order', 'pinpoint': 'Pinpoint', 'wordsnake': 'Word trail',
               'tiles': 'Letter tiles', 'vote': 'Vote', 'buzzer': 'Buzzer', 'bingo': 'Bingo', 'musicbingo': 'Music bingo', 'clips': 'Sound clips',
@@ -416,6 +418,7 @@ class Desk(QObject):
         if self._review and self._review['question'].get('id') == (q or {}).get('id'):
             self._review = None
         marking = self._review['question'] if self._review else q
+        listing = self._review.get('marking') if self._review else s.get('deckAnswers') if q and (s.get('deckAnswers') or {}).get('question') == q.get('id') else None
         history = s.get('history', [])
         teams = [t for t in s.get('teams', []) if t.get('enabled')]
         answered = {a['team'] for a in s.get('answers', []) if a.get('submitted')}
@@ -471,10 +474,13 @@ class Desk(QObject):
                           'answered': (t.get('stats') or {}).get('answered', 0), 'photo': t.get('photo') or '', 'photoStatus': t.get('photo_status') or '',
                           'group': t.get('grp') or '', 'table': t.get('table_no') or 0, 'rtt': t.get('rtt')} for t in sorted(s.get('teams', []), key=lambda t: t['name'].lower())],
             'waitingCount': sum(1 for t in s.get('teams', []) if t.get('waiting') and t.get('enabled')),
-            'answerRows': self._answer_rows({**s, 'answers': self._review['answers']} if self._review else s, marking),
-            'canMark': bool(marking and not marking.get('open') and not marking.get('live')),
-            'isSheet': bool(marking and marking.get('type') == 'sheet'), 'sheetItems': (marking or {}).get('items') or [],
-            'marking': {'id': (marking or {}).get('id'), 'text': (marking or {}).get('text', ''), 'points': (marking or {}).get('points', 1), 'past': bool(self._review)},
+            # The server's marking list (server.js markingList), as the web desk and phone deck show it: every team, its
+            # answer as words, and whether its mark can be changed yet (as soon as it locks its answer in, or once closed).
+            'answerRows': self._answer_rows(listing), 'canMark': bool(listing and listing.get('canMark')),
+            'markingKey': (listing or {}).get('key') or '', 'markingAway': self._away_text((self._review or s).get('away')),
+            'isSheet': bool(listing and listing.get('sheet')), 'sheetItems': [i['item'] for i in (listing or {}).get('sheet') or []],
+            'sheetKeys': [i['key'] for i in (listing or {}).get('sheet') or []],
+            'marking': {'id': (marking or {}).get('id'), 'text': (marking or {}).get('text', ''), 'points': (listing or {}).get('full', (marking or {}).get('points', 1)), 'past': bool(self._review)},
             # Questions played so far, newest first (the desk can mark any closed one).
             'history': [{'id': h.get('id'), 'text': h.get('text') or '', 'round': h.get('round', ''), 'type': TYPE_NAMES.get(h.get('type'), h.get('type', ''))}
                         for h in s.get('history', [])],
@@ -492,27 +498,20 @@ class Desk(QObject):
         self.networkChanged.emit()
 
     @staticmethod
-    def _answer_rows(s, q):
-        """Each team's answer to the current question, as the web desk's marking cards: value, points, sheet marks."""
-        if not q:
-            return []
-        names = {t['id']: t['name'] for t in s.get('teams', [])}
-        rows = []
-        for a in s.get('answers', []):
-            if a.get('team') not in names:
-                continue
-            try:
-                value = json.loads(a['value']) if isinstance(a.get('value'), str) and a['value'][:1] in '[{"' else a.get('value')
-            except ValueError:
-                value = a.get('value')
-            shown = ', '.join(map(str, value)) if isinstance(value, list) else '' if value is None else str(value)
-            try:
-                marks = json.loads(a['marks']) if isinstance(a.get('marks'), str) else (a.get('marks') or [])
-            except ValueError:
-                marks = []
-            rows.append({'teamId': a['team'], 'team': names[a['team']], 'value': shown, 'items': value if isinstance(value, list) else [],
-                         'points': a.get('points') or 0, 'marks': marks, 'submitted': a.get('submitted') is not None})
-        return sorted(rows, key=lambda r: r['team'].lower())
+    def _answer_rows(listing):
+        """Each team's row in Teams & marking: its answer as words, points, a sheet's items and ticks."""
+        return [{'teamId': r['team'], 'team': r['name'], 'value': r.get('answer') or '', 'items': r.get('items') or [], 'points': r.get('points') or 0,
+                 'marks': r.get('marks') or [], 'submitted': bool(r.get('answered')), 'byHand': bool(r.get('byHand')),
+                 'present': bool(r.get('answered') or r.get('byHand')), 'canMark': bool(r.get('canMark'))}
+                for r in (listing or {}).get('rows') or []]
+
+    @staticmethod
+    def _away_text(away):
+        """Teams whose phone left the quiz page while the question was open (as the web desk's awayText)."""
+        if not away:
+            return ''
+        return '👀 Left the quiz page: ' + ' · '.join(
+            f"{a['name']} ({'away now, ' if a.get('awayNow') else ''}{round(a.get('ms', 0) / 1000)}s{', %d times' % a['count'] if a.get('count', 0) > 1 else ''})" for a in away)
 
     @staticmethod
     def _next_step(s, library):

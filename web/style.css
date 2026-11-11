@@ -521,6 +521,8 @@ details.menu[open] > summary { color: var(--text); background: var(--surface-2);
    rows rather than one long column. */
 #markCards, #teamCards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; align-items: start; }
 #markCards > *, #teamCards > * { margin: 0; }
+#markCards .card.scored { border-color: color-mix(in srgb, var(--good, #3ecf8e) 50%, transparent); }
+.mark-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .room-teams li.waiting { border-style: dashed; } .room-teams li.offline { opacity: .55; }
 .up-next { margin: 0; padding-left: 22px; display: grid; gap: 4px; color: var(--muted); }
 .up-next li.played { text-decoration: line-through; opacity: .55; }
@@ -807,3 +809,12 @@ body.simple .advanced, body.simple option.advanced { display: none !important; }
 .desk-away { margin: 0 0 16px; padding: 14px 18px; border: 1px solid var(--gold); border-radius: 14px; background: color-mix(in srgb, var(--gold) 10%, transparent); }
 .desk-away p { margin: 0 0 6px; }
 .desk-away[hidden] { display: none; }
+/* The phone deck: each team's answer, with its points and the buttons to overrule the marking. */
+.deck-answers { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; }
+.deck-answers li { padding: 10px 12px; border-radius: 12px; background: var(--panel, rgba(255,255,255,.05)); border-left: 4px solid var(--line-strong); }
+.deck-answers li.right { border-left-color: var(--good, #4ade80); }
+.deck-answers li.wrong { border-left-color: var(--bad, #f87171); }
+.deck-answer-head { display: flex; justify-content: space-between; gap: 8px; }
+.deck-answer-text { margin: 4px 0 0; overflow-wrap: anywhere; }
+.deck-mark { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 6px; margin-top: 8px; }
+.deck-mark button { min-width: 3em; padding-left: 8px; padding-right: 8px; white-space: nowrap; font-size: .95rem; }

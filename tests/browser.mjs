@@ -119,8 +119,13 @@ try {
   await host.locator('#markCards select').evaluate(select => select.blur());
   for (let i = 0; i < 2; i++) await host.waitForResponse(response => response.url().endsWith('/api/host/review'));
   assert.equal(await host.locator('#markCards select').inputValue(), '0', 'Polling must preserve unsaved marks');
-  await host.locator('#markCards button').click(); await waitFor(host, () => document.getElementById('markCards').textContent.includes('Saved score: 0'));
-  await host.locator('#markCards select').selectOption('1'); await host.locator('#markCards button').click(); await waitFor(host, () => document.getElementById('markCards').textContent.includes('Saved score: 1'));
+  await host.locator('#markCards button').click(); await waitFor(host, () => document.getElementById('markCards').textContent.includes('0 pts'));
+  await host.locator('#markCards select').selectOption('1'); await host.locator('#markCards button').click(); await waitFor(host, () => document.getElementById('markCards').textContent.includes('1 pts'));
+  // A typed answer as the Qt desk shows it: ✓ Right, ✗ Wrong, −1 and +1 beside the points.
+  await host.locator('#reviewSelect').selectOption('1');
+  const typed = host.locator('#markCards .card', {hasText: 'hi'});
+  await typed.locator('button:text-is("✗ Wrong")').click(); await waitFor(host, () => document.getElementById('markCards').textContent.includes('0 pts'));
+  await typed.locator('button:text-is("+1")').click(); await waitFor(host, () => document.getElementById('markCards').textContent.includes('1 pts'));
   log('choice submission, one-item sheet submission and partial-credit marking');
   await host.locator('[data-tab=live]').click(); await host.locator('#next').click(); await player.getByRole('heading', {name: 'Picture question', exact: true}).waitFor(); await waitFor(player, () => document.querySelector('#media img')?.complete && document.querySelector('#media img')?.naturalWidth === 1); await host.locator('#close').click();
   await host.locator('#next').click(); await player.getByRole('heading', {name: 'Audio question', exact: true}).waitFor(); await waitFor(player, () => document.querySelector('#media audio')?.readyState >= 1);

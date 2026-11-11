@@ -1516,28 +1516,37 @@ async function loadReview() {
   const signature = JSON.stringify([r, state.teams.map(t => [t.id, t.name])]); if (signature === reviewSignature) return;
   // Polling must not replace a mark that is being edited.
   if ($('markCards').contains(document.activeElement) || $('markCards').querySelector('[data-dirty=true]')) return;
-  reviewSignature = signature; const q = r.question;
-  $('reviewKey').textContent = q.type === 'sheet' ? 'One point per item. Review any items without a key.' : answerKey(q) + (q.aliases?.length ? ' · Also accepts: ' + q.aliases.join(', ') : '');
+  reviewSignature = signature; const q = r.question, m = r.marking;
+  // The server's marking list, as the Qt desk and the phone deck show it (server.js markingList).
+  $('reviewKey').textContent = m.key; $('reviewState').textContent = m.canMark ? 'Closed: mark below' : 'Mark answers as they lock in';
   renderMedia($('reviewMedia'), q); $('reviewAway').textContent = awayText(r.away);
-  $('markCards').replaceChildren(...state.teams.map(team => {
-    const answer = r.answers.find(a => a.team === team.id), card = element('form', undefined, 'card');
+  $('markCards').replaceChildren(...m.rows.map(row => {
+    const card = element('form', undefined, 'card' + (row.points > 0 ? ' scored' : ''));
     card.oninput = card.onchange = () => {card.dataset.dirty = 'true';};
-    card.append(element('h3', team.name), element('p', answer ? `Saved score: ${answer.points}` : 'No final answer submitted'));
-    let marks = [];
-    if (q.type === 'sheet') {
-      const values = answer ? JSON.parse(answer.value) : []; let saved = [];
-      try {saved = JSON.parse(answer?.marks || '[]') || [];} catch {}
-      q.items.forEach((item, i) => {const row = element('label', `${i + 1}. ${item} · Answer: ${values[i] || '(blank)'} · Key: ${q.itemAnswers?.[i] || '(manual)'}`); const select = element('select');
-        selectOptions(select, [['0', '0 — incorrect / blank'], ['1', '1 — correct']], String(saved[i] ?? 0)); row.append(select); card.append(row); marks.push(select);
-      });
-    } else card.append(element('p', answer ? shownValue(q, answer.value) : '(no answer)', 'submitted-answer'));
-    const points = element('input'); points.type = 'number'; points.min = '-200'; points.max = '200'; points.step = '1'; points.required = true; points.value = answer?.points || 0;
-    if (q.type !== 'sheet') {const label = element('label', 'Total points'); label.append(points); card.append(label);}
-    const save = element('button', 'Save mark'); save.disabled = q.live;
-    card.append(save); card.onsubmit = e => {e.preventDefault(); action(async () => {
-      await request('mark', {team: team.id, question: q.id, ...(q.type === 'sheet' ? {marks: marks.map(m => Number(m.value))} : {points: Number(points.value)})});
-      card.dataset.dirty = 'false'; reviewSignature = ''; save.blur();
-    }, 'Mark saved');}; return card;
+    const save = (body, done) => action(async () => {
+      await request('mark', {team: row.team, question: q.id, ...body});
+      card.dataset.dirty = 'false'; reviewSignature = ''; document.activeElement?.blur();
+    }, done);
+    card.append(element('h3', row.name), element('p', `${row.points} pts${row.byHand ? ' · marked by hand' : ''}`));
+    const marks = [];
+    if (m.sheet) m.sheet.forEach(({item, key}, i) => {
+      const label = element('label', `${i + 1}. ${item} · Answer: ${row.items[i] || '(blank)'} · Key: ${key || '(manual)'}`), select = element('select');
+      selectOptions(select, [['0', '0 — incorrect / blank'], ['1', '1 — correct']], String(row.marks[i] ?? 0)); select.disabled = !row.canMark;
+      label.append(select); card.append(label); marks.push(select);
+    });
+    else card.append(element('p', row.answered ? row.answer || '(blank)' : row.byHand ? '(marked by hand)' : '(no answer)', 'submitted-answer'));
+    if (!row.canMark) {card.append(element('p', row.answered ? 'Marked once the game closes' : 'Waiting for answers to close', 'muted')); return card;}
+    const points = element('input'); points.type = 'number'; points.min = '-200'; points.max = '200'; points.step = '1'; points.required = true; points.value = row.points;
+    if (!m.sheet) {const label = element('label', 'Total points'); label.append(points); card.append(label);}
+    const submit = element('button', m.sheet ? 'Save sheet marks' : 'Set points');
+    const quick = (text, points, done) => {const b = element('button', text, 'subtle'); b.type = 'button'; b.onclick = () => save({points}, done); return b;};
+    const buttons = element('div', undefined, 'mark-buttons');
+    // A sheet is marked item by item (as on the Qt desk); anything else by its points.
+    buttons.append(submit, ...m.sheet ? [] : [quick(`✓ Right (${m.full})`, m.full, `${row.name}: right`), quick('✗ Wrong', 0, `${row.name}: wrong`),
+      quick('−1', row.points - 1, `${row.name}: ${row.points - 1} points`), quick('+1', row.points + 1, `${row.name}: ${row.points + 1} points`)]);
+    card.append(buttons);
+    card.onsubmit = e => {e.preventDefault(); save(m.sheet ? {marks: marks.map(x => Number(x.value))} : {points: Number(points.value)}, 'Mark saved');};
+    return card;
   }));
 }
 async function refresh() {

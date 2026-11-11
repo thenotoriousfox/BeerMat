@@ -374,15 +374,28 @@ try {
   await deckPhone.click('#next');
   await deckPhone.waitForFunction(() => !document.getElementById('questionCard').hidden && document.getElementById('state').textContent.startsWith('Open'));
   assert.equal(await deckPhone.locator('#answer').textContent(), 'Answer: Artist: Tracy Chapman · Title: Fast Car');
+  // A team answers: the phone shows it and, as soon as it's locked in, can overrule the marking.
+  const deckQuestion = (await host('state')).question.id;
+  await fetch(base + '/api/answer', {method: 'POST', headers: {Authorization: 'Bearer ' + others[0]}, body: JSON.stringify({question: deckQuestion, value: ['Tracy Chapman', 'Fast Cars']})});
+  const bears = deckPhone.locator('#teamAnswers li', {hasText: 'Tracy Chapman, Fast Cars'});
+  await bears.locator('.deck-mark').waitFor();
+  assert.equal(await deckPhone.locator('#state').textContent().then(t => t.startsWith('Open')), true, 'marked while answers are still open');
+  const before = (await host('state')).deckAnswers.rows.find(r => r.answer === 'Tracy Chapman, Fast Cars').points;
+  await bears.locator('button:text-is("✓ Right")').click();
+  await deckPhone.waitForFunction(() => /4 pts/.test([...document.querySelectorAll('#teamAnswers li')].find(li => li.textContent.includes('Fast Cars'))?.textContent || ''));
+  assert.notEqual(before, 4, 'the sheet was marked short of full points automatically');
   await deckPhone.click('#controls button:text("Close answers")');
   await deckPhone.waitForFunction(() => document.getElementById('state').textContent === 'Closed');
+  assert.equal((await host('state')).deckAnswers.rows.find(r => r.answer === 'Tracy Chapman, Fast Cars').points, 4, 'overruled from the phone, and closing keeps it');
+  assert.equal(await deckPhone.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'the answers fit the phone');
+  await deckPhone.locator('#teamAnswers').scrollIntoViewIfNeeded(); await shot(deckPhone, 'deck-marking');
   await deckPhone.click('#controls button:text("Reveal answer")');
   await deckPhone.waitForFunction(() => document.getElementById('state').textContent === 'Answer: Artist: Tracy Chapman · Title: Fast Car', null, {timeout: 15000});
   assert.equal((await host('state')).question.revealed, true);
   await shot(deckPhone, 'deck');
   await deckPhone.click('#leave');
   await deckPhone.locator('#codeForm').waitFor({state: 'visible'});
-  log('Run the night in a phone’s browser: the desk’s code, then a question opened, closed and revealed');
+  log('Run the night in a phone’s browser: the desk’s code, then a question opened, a team’s answer overruled, closed and revealed');
 
   assert.deepEqual(errors, []);
   log('no JavaScript errors on the phone, desk or TV');

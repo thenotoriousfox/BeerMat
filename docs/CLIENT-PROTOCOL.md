@@ -189,7 +189,13 @@ the venue's (the only host session allowed off the quiz Wi-Fi). `GET /api/deck/h
 a ticket comes from BeerMat Online (`POST /v1/deck-tickets {venueKey}`, for the venue's own account or an admin; signed
 with the licence key, bound to that laptop, five minutes); a code is six digits from the desk (`deck-code`), once, five
 minutes. `/api/host/state` adds `nextStep` (what the desk's Next does), `decks` (phones signed in: `{id, name, since,
-how}`), `deskConnected` and `deckCommand`. Clips, songs, bingo calls and audio play from the laptop, so a phone asks the
+how}`), `deskConnected`, `deckCommand` and `deckAnswers` (the question in play's marking list, the
+same one both desks show, and `/api/host/review` returns as `marking` for any question: `{question, full, canMark, key,
+sheet: [{item, key}] | null, rows: [{team, name, answered, byHand, answer, points, canMark, items, marks}]}`: every team in
+play, `answer` as words (the chosen letter, the word a snake spells…), a sheet's `items` and ticks; a row's `canMark` once
+that team has locked its answer in, or every row once answers close (the top-level `canMark`; never during a buzzer,
+bingo or clips game), when the phone overrules a mark with `POST /api/host/mark {team, question, points}` as the desk
+does. Settling at close leaves a hand mark alone: no nearest ranking or fixed speed bonus over it). Clips, songs, bingo calls and audio play from the laptop, so a phone asks the
 desk: `deck-command {action: callNumber|playClips|playClip|stopClips|playAudio|pauseAudio, value}` (409 with no desk
 open); the Qt desk (its `/api/events?…&desk=1` stream) carries it out. The desk takes a phone off with `deck/disconnect
 {id}`.

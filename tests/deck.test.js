@@ -154,3 +154,106 @@ test('the next round’s intro reaches the desks and phone deck until the round 
     assert.equal((await host('library/save', {revision: (await host('library')).revision, quiz: {title: 'Too long', rounds: [{id: 'r1', title: 'R', intro: 'x'.repeat(1001), questions: [q('a', 'One')]}]}})).status, 400);
   } finally {await done();}
 });
+
+test('the phone deck sees what each team answered and overrules a mark as soon as the team locks its answer in', async () => {
+  const {post, host, done} = await setup({plan: 'pro'});
+  try {
+    await host('settings', {waitingRoom: false});
+    const {code} = await host('deck-code');
+    const phone = (await post('/api/deck/login', {code, name: 'Dan’s phone'})).key;
+    const teams = [];
+    for (const name of ['Owls', 'Bears', 'Wolves']) teams.push((await post('/api/join', {name})).secret);
+    const q = await host('open', {text: 'Capital of France?', type: 'text', answer: 'Paris', seconds: 60, points: 2});
+    assert.equal((await post('/api/answer', {question: q.id, value: 'Paris'}, teams[0])).status, 200);
+    assert.equal((await post('/api/answer', {question: q.id, value: 'Pari'}, teams[1])).status, 200);
+    let s = await host('state', {}, phone);
+    assert.deepEqual([s.deckAnswers.question, s.deckAnswers.full, s.deckAnswers.canMark], [q.id, 2, false], 'answers still open');
+    // Every team, so the quizmaster sees who hasn't answered; the answer to mark by.
+    assert.deepEqual(s.deckAnswers.rows.map(r => [r.name, r.answer, r.points, r.answered, r.canMark]), [['Bears', 'Pari', 0, true, true], ['Owls', 'Paris', 2, true, true], ['Wolves', '', 0, false, false]]);
+    assert.equal(s.deckAnswers.key, 'Answer: Paris');
+    const bears = s.deckAnswers.rows[0].team, wolves = s.deckAnswers.rows[2].team;
+    // A near miss, overruled while the others are still answering; a team yet to answer waits for answers to close.
+    assert.equal((await host('mark', {team: bears, question: q.id, points: 2}, phone)).ok, true);
+    assert.equal((await host('mark', {team: wolves, question: q.id, points: 2}, phone)).status, 409);
+    s = await host('state', {}, phone);
+    assert.deepEqual(s.deckAnswers.rows.map(r => [r.name, r.answer, r.points]), [['Bears', 'Pari', 2], ['Owls', 'Paris', 2], ['Wolves', '', 0]]);
+    assert.equal((await post('/api/answer', {question: q.id, value: 'Lyon'}, teams[1])).status, 409, 'a locked-in answer stays as it was');
+    await host('close', {expectedQuestion: q.id}, phone);
+    s = await host('state', {}, phone);
+    assert.equal(s.deckAnswers.canMark, true);
+    assert.deepEqual(s.deckAnswers.rows.map(r => [r.name, r.points, r.canMark]), [['Bears', 2, true], ['Owls', 2, true], ['Wolves', 0, true]], 'closing keeps the hand mark');
+    assert.equal(s.teams.find(t => t.name === 'Bears').score, 2, 'and the leaderboard follows');
+    // Once closed, any team (a paper answer).
+    assert.equal((await host('mark', {team: wolves, question: q.id, points: 1}, phone)).ok, true);
+    // The desks read the same list (the web desk from review, the Qt desk from the state or review).
+    const review = await host('review', {question: q.id});
+    s = await host('state', {}, phone);
+    assert.deepEqual(review.marking, s.deckAnswers);
+    assert.deepEqual(review.marking.rows.find(r => r.name === 'Wolves'), {team: wolves, name: 'Wolves', answered: false, byHand: true, points: 1, canMark: true, answer: '', items: [], marks: []});
+  } finally {await done();}
+});
+
+test('every desk reads an answer the same way: the word a snake spells, the chosen letter, a sheet item by item', async () => {
+  const {post, host, done} = await setup({plan: 'pro'});
+  try {
+    await host('settings', {waitingRoom: false});
+    const owls = (await post('/api/join', {name: 'Owls'})).secret;
+    const choice = await host('open', {text: 'Planet?', type: 'choice', options: ['Venus', 'Mars'], answer: 'Mars', seconds: 60, points: 1});
+    await post('/api/answer', {question: choice.id, value: 'Mars'}, owls);
+    let m = (await host('state')).deckAnswers;
+    assert.deepEqual([m.key, m.rows[0].answer], ['Answer: B. Mars', 'B. Mars']);
+    await host('close', {expectedQuestion: choice.id});
+    const snake = await host('open', {text: 'Snake', type: 'wordsnake', answer: 'CAT', seconds: 60, points: 1});
+    const path = (await host('state')).question.snakePath;
+    await post('/api/answer', {question: snake.id, value: path}, owls);
+    m = (await host('state')).deckAnswers;
+    assert.equal(m.rows[0].answer, 'CAT');
+    await host('close', {expectedQuestion: snake.id});
+    const sheet = await host('open', {text: 'Sheet', type: 'sheet', items: ['One?', 'Two?'], itemAnswers: ['1', ''], seconds: 60, points: 2});
+    await post('/api/answer', {question: sheet.id, value: ['1', 'two']}, owls);
+    m = (await host('state')).deckAnswers;
+    assert.deepEqual(m.sheet, [{item: 'One?', key: '1'}, {item: 'Two?', key: ''}]);
+    assert.deepEqual([m.rows[0].items, m.rows[0].marks], [['1', 'two'], [1, null]], 'the keyed item ticked, the other to review');
+    assert.equal((await host('mark', {team: m.rows[0].team, question: sheet.id, marks: [1, 1]})).ok, true, 'a locked-in sheet, item by item');
+    m = (await host('state')).deckAnswers;
+    assert.deepEqual([m.rows[0].marks, m.rows[0].points], [[1, 1], 2]);
+  } finally {await done();}
+});
+
+test('settling a question leaves hand marks alone: nearest ranking and a fixed speed bonus', async () => {
+  const {post, host, done} = await setup({plan: 'pro'});
+  try {
+    await host('settings', {waitingRoom: false});
+    const teams = [];
+    for (const name of ['Owls', 'Bears']) teams.push((await post('/api/join', {name})).secret);
+    const ids = async () => Object.fromEntries((await host('state')).teams.map(t => [t.name, t.id]));
+    const points = async id => Object.fromEntries((await host('review', {question: id})).answers.map(a => [a.team, a.points]));
+    const near = await host('open', {text: 'How tall is the Eiffel Tower in metres?', type: 'nearest', answer: '330', seconds: 60, points: 3});
+    await post('/api/answer', {question: near.id, value: '330'}, teams[0]);
+    await post('/api/answer', {question: near.id, value: '200'}, teams[1]);
+    const {Owls, Bears} = await ids();
+    assert.equal((await host('mark', {team: Owls, question: near.id, points: 1})).ok, true);
+    await host('close', {expectedQuestion: near.id});
+    assert.deepEqual(await points(near.id), {[Owls]: 1, [Bears]: 0}, 'the nearest team keeps the points it was given');
+    const fast = await host('open', {text: 'Capital of France?', type: 'text', answer: 'Paris', seconds: 60, points: 2, fastestFingers: true, speedBonus: 5, bonusMode: 'fixed', bonusPlaces: 2});
+    await post('/api/answer', {question: fast.id, value: 'Paris'}, teams[0]);
+    await post('/api/answer', {question: fast.id, value: 'Paris'}, teams[1]);
+    assert.equal((await host('mark', {team: Owls, question: fast.id, points: 2})).ok, true);
+    await host('close', {expectedQuestion: fast.id});
+    assert.deepEqual(await points(fast.id), {[Owls]: 2, [Bears]: 7}, 'no bonus on top of a hand mark');
+  } finally {await done();}
+});
+
+test('a buzzer game is only marked once it closes', async () => {
+  const {post, host, done} = await setup({plan: 'pro'});
+  try {
+    await host('settings', {waitingRoom: false});
+    const owls = (await post('/api/join', {name: 'Owls'})).secret;
+    const q = await host('open', {text: 'Buzz!', type: 'buzzer', answer: 'Yes', seconds: 60, points: 2});
+    await post('/api/buzz', {question: q.id}, owls);
+    await host('buzz', {question: q.id, action: 'wrong', announced: ''});
+    const s = await host('state');
+    assert.deepEqual(s.deckAnswers.rows.map(r => r.canMark), [false]);
+    assert.equal((await host('mark', {team: s.teams[0].id, question: q.id, points: 2})).status, 409);
+  } finally {await done();}
+});

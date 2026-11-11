@@ -298,10 +298,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const latest = () => one('SELECT * FROM questions ORDER BY id DESC LIMIT 1');
   const questionById = id => Number.isSafeInteger(id) && id > 0 ? one('SELECT * FROM questions WHERE id=?', id) : null;
   const dataOf = q => JSON.parse(q.data);
+  const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const pending = q => !!q && !q.closed && (hostDriven(dataOf(q).type) || q.paused_ms !== null || now() < q.deadline);
   // A reveal can be held back for a few seconds (while the TV plays its drum roll); until then it is "revealing".
   const revealedNow = q => !!q?.revealed && (q.revealed_at ?? 0) <= now();
   const accepting = q => pending(q) && q.paused_ms === null && !settings().ended && now() < q.deadline;
+  const lockedIn = (q, team) => !hostDriven(dataOf(q).type) && typeof team === 'string' && !!one('SELECT 1 FROM answers WHERE team=? AND question=? AND submitted IS NOT NULL', team, q.id);
+  // Teams the quizmaster marked by hand: settling leaves their points alone.
+  const markedByHand = q => new Set(rows('SELECT DISTINCT team FROM marking_log WHERE question=?', q.id).map(r => r.team));
 
   // Host sessions survive restarts; only a hash of each token is stored.
   function isHost(auth) {
@@ -1170,13 +1174,14 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function settle(q) {
     if (!q || q.settled || pending(q)) return;
     const data = dataOf(q);
+    const byHand = markedByHand(q);
     transaction(() => {
       if (data.type === 'nearest') {
         const ranked = rankNearest(data, rows('SELECT team,value,submitted FROM answers WHERE question=? AND submitted IS NOT NULL', q.id));
-        for (const r of ranked) run('UPDATE answers SET points=? WHERE team=? AND question=?', r.points, r.team, q.id);
+        for (const r of ranked) if (!byHand.has(r.team)) run('UPDATE answers SET points=? WHERE team=? AND question=?', r.points, r.team, q.id);
       }
       // Fixed speed bonus: once answers stop, the quickest fully right answers get it.
-      for (const team of speedBonusTeams(q, data)) run('UPDATE answers SET points=points+? WHERE team=? AND question=?', speedBonusOf(data), team, q.id);
+      for (const team of speedBonusTeams(q, data)) if (!byHand.has(team)) run('UPDATE answers SET points=points+? WHERE team=? AND question=?', speedBonusOf(data), team, q.id);
       run('UPDATE questions SET settled=1 WHERE id=?', q.id);
       endAway(q);
     });
@@ -1350,6 +1355,53 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
     const played = new Set(rows('SELECT data FROM questions').map(q => dataOf(q).sourceId).filter(Boolean));
     const round = library().rounds.find(r => r.questions.some(q => !played.has(q.id) && !q.tieBreaker));
     return round?.intro && !round.questions.some(q => played.has(q.id)) ? {id: round.id, title: round.title, intro: round.intro} : null;
+  }
+  // The marking list for a question, the same on every desk (Qt desk, web desk, phone deck): every team in play (and any
+  // that answered), what it answered as words, its points (and a sheet's items and ticks), and whether its mark can be
+  // changed yet: as soon as the team has locked its answer in, or every team once answers close (`canMark`; a buzzer,
+  // bingo or clips game only once it closes). `full`: the question's points, for "right"; `key`: the answer to mark by.
+  function markingList(q) {
+    if (!q) return null;
+    const data = dataOf(q), open = pending(q), driven = hostDriven(data.type);
+    const answers = new Map(rows('SELECT team,value,points,submitted,marks FROM answers WHERE question=?', q.id).map(a => [a.team, a]));
+    const teams = rows(`SELECT id,name FROM teams WHERE kind<>'device' AND ((enabled=1 AND waiting=0) OR id IN (SELECT team FROM answers WHERE question=?))`, q.id);
+    const parse = (raw, fallback) => {try {return JSON.parse(raw) ?? fallback;} catch {return fallback;}};
+    return {question: q.id, full: data.points ?? 1, canMark: !open, key: markingKey(data), sheet: data.type === 'sheet' ? data.items.map((item, i) => ({item, key: data.itemAnswers?.[i] || ''})) : null,
+      rows: teams.map(t => {
+        const a = answers.get(t.id), answered = !!a && a.submitted !== null;
+        const items = data.type === 'sheet' && a ? parse(a.value, []).map(v => String(v ?? '')) : [];
+        return {team: t.id, name: t.name, answered, byHand: !!a && !answered, points: a?.points ?? 0, canMark: !open || (!driven && answered),
+          answer: answered ? shownAnswer(data, a.value) : '', items, marks: a?.marks ? parse(a.marks, []) : []};
+      }).sort((x, y) => x.name.localeCompare(y.name))};
+  }
+  // An answer as the quizmaster reads it: the word a snake or tiles spell, the chosen letter, items in order…
+  function shownAnswer(data, value) {
+    const parsed = (() => {try {return typeof value === 'string' && /^[[{"]/.test(value) ? JSON.parse(value) : value;} catch {return value;}})();
+    try {
+      if (data.type === 'wordsnake') return parsed.path.map(i => data.snake.grid[i]).join('') + (parsed.wide ? ' (used the hint)' : '');
+      if (data.type === 'tiles') return parsed.map(i => data.pieces[i]).join('');
+      if (data.type === 'multi') return parsed.join(', ') || '(nothing ticked)';
+      if (data.type === 'pinpoint') return parsed.map((p, i) => `${i ? 'Go-wide tap' : 'Tap'} at ${Math.round(p[0] * 100)}%, ${Math.round(p[1] * 100)}%`).join(' · ');
+      if (data.type === 'sequence') return parsed.map(i => data.items[i]).join(' → ');
+    } catch {}
+    const i = data.options?.indexOf(value);
+    if ((data.type === 'choice' || data.type === 'vote') && i >= 0) return `${LETTERS[i]}. ${value}`;
+    const one = x => x === null || x === undefined ? '' : typeof x === 'object' ? (x.text ?? x.answer ?? JSON.stringify(x)) : String(x);
+    return Array.isArray(parsed) ? parsed.map(one).filter(Boolean).join(', ') : one(parsed);
+  }
+  // What to mark by, as the desks show it above the answers.
+  function markingKey(data) {
+    const modes = {progressive: 'full game (line, two lines, full house)', line: 'one line', twoLines: 'two lines', fullHouse: 'full house'};
+    if (data.type === 'vote') return 'Vote: no right answer';
+    if (data.type === 'sequence') return 'Order: ' + data.items.join(' → ');
+    if (data.type === 'multi') return 'Right ticks: ' + data.correct.join(', ');
+    if (data.type === 'pinpoint') return data.targets ? `${data.targets.length} places to find, ${data.points} ${data.points === 1 ? 'point' : 'points'} each` : `Pinpoint target set${data.goWide ? ` · a second guess scores ${data.goWidePoints}` : ''}`;
+    if (data.type === 'bingo') return `Bingo: ${modes[data.mode]} wins`;
+    if (data.type === 'musicbingo') return `Music bingo: ${data.songs.length} songs, ${modes[data.mode]} wins`;
+    if (data.type === 'clips') return `Right clip: ${data.targetClip + 1}. ${data.clips[data.targetClip]?.label || '(unnamed)'}`;
+    if (data.type === 'sheet') return `${data.items.length} sheet questions: one point per item. Review any items without a key.`;
+    const i = data.options?.indexOf(data.answer);
+    return `Answer: ${data.type === 'choice' && i >= 0 ? `${LETTERS[i]}. ` : ''}${data.answer || '(manual marking)'}${data.answerNote ? ` · ${data.answerNote}` : ''}${data.type === 'nearest' ? ` · top ${data.places} score` : ''}${data.aliases?.length ? ' · Also accepts: ' + data.aliases.join(', ') : ''}`;
   }
   // The desk's big button, as nextStep() in web/host.js and desk.py's _next_step, worked out here for the phone deck.
   function nextStep(board, recap) {
@@ -1661,7 +1713,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/plan/refresh') return send(200, await refreshLicence());
         if (p === '/api/host/state') {
           const q = latest(), stats = teamStats(), board = boardStep(), recap = {...recapState(), active: !!recapState(), available: !recapState() && !!recapOffer()};
-          return send(200, {protocol: PROTOCOL, serverTime: now(), varChecks: varChecks(), varCheck: varShown(), tvScreens: tvScreens(), decks: decks(), deskConnected: deskConnected(), deckCommand, deskAway: awayNow(), link: linkState(), nextStep: nextStep(board, recap), nextRound: nextRound(), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board, recap, back: backStep(), timer: getMeta('timer', null), wheels: getMeta('wheels', []), slides: slides(), wheel: getMeta('wheel', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
+          return send(200, {protocol: PROTOCOL, serverTime: now(), varChecks: varChecks(), varCheck: varShown(), tvScreens: tvScreens(), decks: decks(), deskConnected: deskConnected(), deckCommand, deckAnswers: markingList(q), deskAway: awayNow(), link: linkState(), nextStep: nextStep(board, recap), nextRound: nextRound(), plan: planOut(), rehearsal: rehearsalState(), settings: settings(), sounds: soundPack(), look: lookFor(latest()), looks, tie: tieForFirst(), looksByType: looksByType(), soundThemes: Object.keys(themes).sort(), soundThemesByType: themesByType(), soundThemeNow: themeFor(latest()), bingoCalls: bingoCalls(), view: tvView(), board, recap, back: backStep(), timer: getMeta('timer', null), wheels: getMeta('wheels', []), slides: slides(), wheel: getMeta('wheel', null), blockedWords: getMeta('blockedWords', []), libraryRevision: library().revision,
             teams: scores(true).map(t => ({...t, stats: stats[t.id] || {answered: 0, scored: 0, fastest: null}})), question: publicQuestion(q, true), away: awayList(q), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0),
             history: rows('SELECT * FROM questions ORDER BY id DESC LIMIT 300').map(h => publicQuestion(h, true))});
         }
@@ -2258,10 +2310,13 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         }
         if (p === '/api/host/review') {
           const q = questionById(body.question); requireValue(q, 'Question not found', 404);
-          return send(200, {question: publicQuestion(q, true), answers: rows('SELECT * FROM answers WHERE question=?', q.id), away: awayList(q)});
+          return send(200, {question: publicQuestion(q, true), answers: rows('SELECT * FROM answers WHERE question=?', q.id), away: awayList(q), marking: markingList(q)});
         }
         if (p === '/api/host/mark') {
-          const q = questionById(body.question); requireValue(q && !pending(q), 'Close question before marking', 409);
+          const q = questionById(body.question); requireValue(q, 'Close question before marking', 409);
+          // While answers are open, a team's answer can be marked as soon as it's locked in (a phone can't change it
+          // then), except in a buzzer, bingo or clips game, which the quizmaster runs and scores as it goes.
+          requireValue(!pending(q) || lockedIn(q, body.team), 'Close question before marking', 409);
           const data = dataOf(q); let points = body.points; let marks = null;
           if (Object.hasOwn(body, 'marks')) {
             requireValue(data.type === 'sheet' && Array.isArray(body.marks) && body.marks.length === data.items.length && body.marks.every(m => m === 0 || m === 1), 'Each sheet item needs a zero or one mark');

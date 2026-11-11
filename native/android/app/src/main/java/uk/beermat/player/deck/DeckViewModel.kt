@@ -193,6 +193,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
 
     fun send() { if (deck?.canSend == true) act("send", done = t("Question sent to the phones")) }
     /** VAR Check ruling: overturned gives the question's points; either way the TV shows the decision. */
+    /** Overrule the automatic marking: this team's points for the question in play. */
+    fun mark(team: DeckAnswer, points: Int) = act("mark", JSONObject().put("team", team.team).put("question", current).put("points", points), t("{team}: {points} points", "team" to team.name, "points" to points))
     fun ruleVar(check: Long, decision: String) = act("var", JSONObject().put("id", check).put("decision", decision), if (decision == "overturned") t("VAR Check: overturned") else t("VAR Check: the decision stands"))
     fun close() { if (deck?.canClose == true) act("close", JSONObject().put("expectedQuestion", current), t("Answers closed")) }
     fun pause() { if (deck?.canPause == true) act("pause", JSONObject().put("expectedQuestion", current), t("Timer paused")) }

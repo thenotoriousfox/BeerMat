@@ -16,6 +16,16 @@ data class DeckRound(val title: String, val intro: String)
 
 data class DeckTeam(val name: String, val score: Double, val rank: Int, val connected: Boolean)
 
+/** What a team answered to the question in play, its points, and whether its mark can be changed yet: as soon as the
+ *  team locks its answer in (server.js deckAnswers). */
+data class DeckAnswer(val team: String, val name: String, val answer: String, val points: Int, val canMark: Boolean,
+                      /** Whether the team has answered yet (every team is listed), and a mark given without an answer. */
+                      val answered: Boolean = true, val byHand: Boolean = false)
+
+/** Every team's answer to the question in play: `full` is the question's points (Right), and every mark can be
+ *  changed once answers close (`canMark`). */
+data class DeckMarking(val question: Long, val full: Int, val canMark: Boolean, val rows: List<DeckAnswer>)
+
 /** A team's VAR Check waiting for a ruling: its answer and the question's full points (what Overturn gives). */
 data class DeckVar(val id: Long, val team: String, val answer: String, val full: Int)
 
@@ -30,6 +40,8 @@ data class DeckState(
     val varChecks: List<DeckVar> = emptyList(),
     /** The next round's intro, for the quizmaster to read out before starting it (server.js nextRound). */
     val nextRound: DeckRound? = null,
+    /** What each team answered, to overrule the automatic marking. */
+    val marking: DeckMarking? = null,
 ) {
     val canNext get() = nextStep != null && question?.live != true
     val canSend get() = question.let { it != null && it.held && it.live }
@@ -81,6 +93,14 @@ data class DeckState(
                 fastRehearsal = s.optJSONObject("rehearsal")?.optJSONObject("options")?.optString("speed") == "fast",
                 rehearsal = s.optJSONObject("rehearsal")?.optJSONObject("options") != null,
                 nextRound = s.optJSONObject("nextRound")?.let { DeckRound(it.optString("title"), it.optString("intro")) }?.takeIf { it.intro.isNotBlank() },
+                marking = s.optJSONObject("deckAnswers")?.let { m ->
+                    DeckMarking(m.optLong("question"), m.optInt("full", 1), m.optBoolean("canMark"),
+                        m.optJSONArray("rows")?.let { a -> List(a.length()) { a.getJSONObject(it) } }.orEmpty().map {
+                            DeckAnswer(it.optString("team"), it.optString("name"), it.optString("answer"), it.optInt("points"),
+                                if (it.has("canMark")) it.optBoolean("canMark") else m.optBoolean("canMark"),
+                                it.optBoolean("answered", true), it.optBoolean("byHand"))
+                        })
+                }?.takeIf { it.question == q?.id },
             )
         }
     }

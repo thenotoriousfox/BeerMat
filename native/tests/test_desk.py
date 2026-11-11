@@ -537,6 +537,15 @@ class DeskTest(DeskCase):
         self.assertNotIn('answer', desk.tv['question'], 'the TV never gets the answer before the reveal')
         self.shot('tv-question', tv)
         self.shot('3-live')
+        # A locked-in answer can be marked while answers are still open.
+        wait(lambda: any(r['team'] == player for r in desk.view['answerRows']), what='the answer in Teams & marking')
+        self.assertFalse(desk.view['canMark'])
+        self.assertTrue(next(r for r in desk.view['answerRows'] if r['team'] == player)['canMark'])
+        # Every team, as the web desk and phone deck list them: one yet to answer waits for answers to close.
+        waiting = [r for r in desk.view['answerRows'] if r['team'] != player]
+        self.assertTrue(waiting and not any(r['canMark'] or r['submitted'] for r in waiting))
+        self.assertTrue(desk.view['markingKey'].startswith('Answer: '))
+        self.assertEqual([r['team'] for r in desk.view['answerRows'] if r['present']], [player], 'the live feed shows only answers')
 
         desk.closeAnswers()
         wait(lambda: desk.view['phase'] == 'Answers closed' and desk.view['canReveal'], what='answers to close')
@@ -545,7 +554,7 @@ class DeskTest(DeskCase):
         self.assertEqual(next(t for t in desk.view['teams'] if t['name'] == player)['score'], 1)
         # Teams & marking: the answers to the closed question, marked by hand and corrected (the server keeps score).
         row = next(r for r in desk.view['answerRows'] if r['team'] == player)
-        self.assertEqual((row['value'], row['points']), ('Mars', 1))
+        self.assertEqual((row['value'], row['points']), ('B. Mars', 1), 'the chosen letter, as the web desk shows it')
         self.assertTrue(desk.view['canMark'])
         other = next(t['id'] for t in desk.view['allTeams'] if t['name'] != player)
         desk.mark(other, 2)

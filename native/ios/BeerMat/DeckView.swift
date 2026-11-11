@@ -155,7 +155,47 @@ struct DeckQuestionCard: View {
             DeckVarChecks(checks: d.varChecks)
             DeckControls(d: d, q: q)
             DeckRoundControls(d: d, q: q)
+            if let m = d.marking { DeckTeamAnswers(marking: m) }
         }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(Brand.panel, in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
+/// What each team answered, with its points; the quizmaster overrules a mark as soon as the team locks its answer in.
+struct DeckTeamAnswers: View {
+    let marking: DeckMarking
+    var body: some View {
+        ForEach(marking.rows, id: \.team) { row in
+            DeckTeamAnswer(row: row, full: marking.full)
+        }
+    }
+}
+
+struct DeckTeamAnswer: View {
+    @EnvironmentObject var deck: DeckModel
+    let row: DeckAnswer, full: Int
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(row.name).fontWeight(.bold)
+                Spacer()
+                Text(t("{n} pts", ["n": row.points])).foregroundStyle(row.points > 0 ? Brand.good : Brand.muted)
+            }
+            if row.answered { Text(row.answer.isEmpty ? "–" : row.answer) } else { Text(t(row.byHand ? "Marked by hand" : "No answer yet")).foregroundStyle(Brand.muted) }
+            if row.canMark { DeckMarkButtons(row: row, full: full) }
+        }.padding(12).frame(maxWidth: .infinity, alignment: .leading).background(Brand.raised, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct DeckMarkButtons: View {
+    @EnvironmentObject var deck: DeckModel
+    let row: DeckAnswer, full: Int
+    var body: some View {
+        HStack(spacing: 6) {
+            Button("✓ " + t("Right")) { deck.mark(row, full) }
+            Button("✗ " + t("Wrong")) { deck.mark(row, 0) }
+            Button("−1") { deck.mark(row, row.points - 1) }
+            Button("+1") { deck.mark(row, row.points + 1) }
+        }.buttonStyle(.bordered).controlSize(.small).disabled(deck.busy)
     }
 }
 

@@ -2067,6 +2067,26 @@
   "Se connecter avec BeerMat",
   "Iniciar sesión con BeerMat"
  ],
+ "Right": [
+  "Juste",
+  "Correcto"
+ ],
+ "{n} pts": [
+  "{n} pts",
+  "{n} ptos"
+ ],
+ "No answer yet": [
+  "Pas encore de réponse",
+  "Aún sin respuesta"
+ ],
+ "Marked by hand": [
+  "Corrigé à la main",
+  "Corregido a mano"
+ ],
+ "{team}: {points} points": [
+  "{team} : {points} points",
+  "{team}: {points} puntos"
+ ],
  "Question sent to the phones": [
   "Question envoyée aux téléphones",
   "Pregunta enviada a los teléfonos"

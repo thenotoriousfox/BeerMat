@@ -195,5 +195,28 @@ private fun QuestionCard(vm: DeckViewModel, ui: DeckUi, d: DeckState, q: DeckQue
                 OutlinedButton({ vm.desk("pauseAudio") }, enabled = !busy) { Text(t("Pause or carry on")) }
             }
         }
+        d.marking?.let { TeamAnswers(vm, ui, it) }
+    }
+}
+
+/** What each team answered, with its points; the quizmaster overrules a mark as soon as the team locks its answer in. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TeamAnswers(vm: DeckViewModel, ui: DeckUi, m: uk.beermat.player.deck.DeckMarking) {
+    m.rows.forEach { a ->
+        Column(Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(12.dp)).background(Brand.raised).padding(12.dp).testTag("deckTeamAnswer")) {
+            Row(Modifier.fillMaxWidth()) {
+                Text(a.name, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(t("{n} pts", "n" to a.points), color = if (a.points > 0) Brand.good else Brand.muted)
+            }
+            if (a.answered) Text(a.answer.ifBlank { "–" }, modifier = Modifier.padding(top = 2.dp))
+            else Text(t(if (a.byHand) "Marked by hand" else "No answer yet"), color = Brand.muted, modifier = Modifier.padding(top = 2.dp))
+            if (a.canMark) FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedButton({ vm.mark(a, m.full) }, enabled = !ui.busy, modifier = Modifier.testTag("deckMarkRight")) { Text("✓ " + t("Right")) }
+                OutlinedButton({ vm.mark(a, 0) }, enabled = !ui.busy) { Text("✗ " + t("Wrong")) }
+                OutlinedButton({ vm.mark(a, a.points - 1) }, enabled = !ui.busy) { Text("−1") }
+                OutlinedButton({ vm.mark(a, a.points + 1) }, enabled = !ui.busy) { Text("+1") }
+            }
+        }
     }
 }

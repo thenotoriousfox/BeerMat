@@ -1,4 +1,4 @@
-// Teams & marking: mark the current question's answers once it's closed (points, or a sheet item by item), correct a
+// Teams & marking: mark the current question's answers (each one once it's locked in, or all once it's closed) (points, or a sheet item by item), correct a
 // team's score with a reason, and look after teams (let in, rename, move to another phone, disable, restore). The
 // server checks every value; nothing here works out a score.
 import QtQuick
@@ -27,7 +27,7 @@ RowLayout {
                 id: markingState
                 // Left out when the question picker would otherwise run out of room.
                 visible: answersPanel.width - 32 - 80 - 16 - 120 >= implicitWidth + 8
-                text: !(view.marking && view.marking.id) ? "" : view.canMark ? "Closed: mark below" : "Close answers to mark them"
+                text: !(view.marking && view.marking.id) ? "" : view.canMark ? "Closed: mark below" : "Mark answers as they lock in"
                 color: view.canMark ? Theme.good : Theme.muted; font.pixelSize: 12; font.weight: Font.Bold
             }
             // Any question played so far can be marked again (paper answers, a disputed mark).
@@ -40,8 +40,15 @@ RowLayout {
                 onActivated: desk.review(currentValue)
             }
         }
-        ListView {
+        ColumnLayout {
             anchors.fill: parent
+            spacing: 8
+            // What to mark by, and phones that left the quiz page while it was open (as the web desk).
+            Text { objectName: "markingKey"; visible: text !== ""; text: view.markingKey || ""; color: Theme.goldHi; font.pixelSize: 13; font.weight: Font.DemiBold
+                   wrapMode: Text.WordWrap; Layout.fillWidth: true }
+            Text { visible: text !== ""; text: view.markingAway || ""; color: Theme.gold; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+        ListView {
+            Layout.fillWidth: true; Layout.fillHeight: true
             clip: true; spacing: 8
             model: view.answerRows || []
             delegate: Rectangle {
@@ -61,20 +68,24 @@ RowLayout {
                     RowLayout {
                         Layout.fillWidth: true
                         Text { text: modelData.team; color: Theme.text; font.pixelSize: 15; font.weight: Font.Bold; Layout.fillWidth: true; elide: Text.ElideRight }
-                        Text { text: modelData.submitted || modelData.points !== 0 ? "" : "draft"; color: Theme.faint; font.pixelSize: 11 }
                         Text { text: `${modelData.points} pts`; color: Theme.goldHi; font.family: Theme.display; font.pixelSize: 16; font.weight: Font.Bold }
                     }
-                    Text { visible: !view.isSheet; text: modelData.value || "—"; color: Theme.text; font.pixelSize: 15; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                    Text { visible: !view.isSheet; text: modelData.submitted ? (modelData.value || "(blank)") : modelData.byHand ? "(marked by hand)" : "(no answer)"
+                           color: modelData.submitted ? Theme.text : Theme.muted; font.pixelSize: 15; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                    Text { visible: !modelData.canMark; text: modelData.submitted ? "Marked once the game closes" : "Waiting for answers to close"; color: Theme.faint; font.pixelSize: 12 }
                     // Points for the whole answer
-                    RowLayout {
-                        visible: view.canMark && !view.isSheet
+                    Flow {
+                        visible: modelData.canMark && !view.isSheet
+                        Layout.fillWidth: true
                         spacing: 6
                         SpinBox { id: points; from: -200; to: 200; value: modelData.points; editable: true }
                         DeskButton { text: "Set points"; implicitHeight: 34; onClicked: desk.mark(answerCard.modelData.teamId, points.value) }
                         DeskButton { text: `✓ Right (${view.marking ? view.marking.points : 1})`; implicitHeight: 34; onClicked: desk.mark(answerCard.modelData.teamId, view.marking.points) }
                         DeskButton { text: "✗ Wrong"; implicitHeight: 34; onClicked: desk.mark(answerCard.modelData.teamId, 0) }
+                        DeskButton { text: "−1"; implicitHeight: 34; onClicked: desk.mark(answerCard.modelData.teamId, answerCard.modelData.points - 1) }
+                        DeskButton { text: "+1"; implicitHeight: 34; onClicked: desk.mark(answerCard.modelData.teamId, answerCard.modelData.points + 1) }
                     }
-                    // A sheet, item by item
+                    // A sheet, item by item, with its key
                     Repeater {
                         model: view.isSheet ? view.sheetItems : []
                         delegate: RowLayout {
@@ -82,23 +93,25 @@ RowLayout {
                             required property string modelData
                             Layout.fillWidth: true
                             CheckBox {
-                                enabled: view.canMark
+                                enabled: answerCard.modelData.canMark
                                 checked: answerCard.sheetMarks[index] === true
                                 onToggled: { const m = answerCard.sheetMarks.slice(); m[index] = checked; answerCard.sheetMarks = m }
                                 palette.windowText: Theme.text
-                                text: `${index + 1}. ${modelData}: ${(answerCard.modelData.items || [])[index] || "—"}`
+                                Layout.fillWidth: true
+                                text: `${index + 1}. ${modelData}: ${(answerCard.modelData.items || [])[index] || "(blank)"} · Key: ${(view.sheetKeys || [])[index] || "(manual)"}`
                             }
                         }
                     }
                     DeskButton {
-                        visible: view.canMark && view.isSheet
+                        visible: modelData.canMark && view.isSheet
                         text: "Save sheet marks"; implicitHeight: 34
                         onClicked: desk.markSheet(answerCard.modelData.teamId, answerCard.sheetMarks)
                     }
                 }
             }
             Text { visible: parent.count === 0; anchors.centerIn: parent; width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
-                   text: q ? "No answers yet." : "Answers to the current question appear here."; color: Theme.muted; font.pixelSize: 13 }
+                   text: q ? "No teams yet." : "Answers to the current question appear here."; color: Theme.muted; font.pixelSize: 13 }
+        }
         }
     }
 

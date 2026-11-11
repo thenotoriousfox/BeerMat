@@ -23,7 +23,8 @@ test('persistent identities, authoritative deadlines, validation, scoring and ac
  assert.equal((await api('answer',{question:id,value:' '},team.secret)).status,400);
  assert.equal((await api('answer',{question:id,value:'cardiff'},team.secret)).status,200);
  assert.equal((await api('answer',{question:id,value:'London'},team.secret)).status,409);
- assert.equal((await api('host/mark',{question:id,team:team.id,points:4},host)).status,409);
+ // A locked-in answer can be marked while answers are open (the same points here, so the scores below hold).
+ assert.equal((await api('host/mark',{question:id,team:team.id,points:2},host)).status,200);
  clock+=10000;
  const t2=await api('join',{name:'Second Team'});
  assert.equal((await api('answer',{question:id,value:'Cardiff'},t2.secret)).status,409);

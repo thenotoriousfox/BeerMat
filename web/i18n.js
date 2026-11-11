@@ -544,6 +544,12 @@ const T = {
   '{name} can’t be reached: it has no quizmaster link yet. Check it’s on the internet.': ['{name} est injoignable : il n’a pas encore de lien quizmaster. Vérifiez qu’il est connecté à Internet.', 'No se puede llegar a {name}: aún no tiene enlace de presentador. Comprueba que tiene internet.'],
   'Update BeerMat first, or sign this TV in with your BeerMat account.': ['Mettez d’abord BeerMat à jour, ou connectez cette TV avec votre compte BeerMat.', 'Actualiza BeerMat primero, o inicia sesión en esta TV con tu cuenta de BeerMat.'],
   'Sign in with BeerMat': ['Se connecter avec BeerMat', 'Iniciar sesión con BeerMat'],
+  // The phone deck's marking: each team's answer, and overruling it.
+  'Right': ['Juste', 'Correcto'],
+  '{n} pts': ['{n} pts', '{n} ptos'],
+  'No answer yet': ['Pas encore de réponse', 'Aún sin respuesta'],
+  'Marked by hand': ['Corrigé à la main', 'Corregido a mano'],
+  '{team}: {points} points': ['{team} : {points} points', '{team}: {points} puntos'],
   'Question sent to the phones': ['Question envoyée aux téléphones', 'Pregunta enviada a los teléfonos'],
   'Timer paused': ['Minuteur en pause', 'Temporizador en pausa'],
   'Timer resumed': ['Minuteur relancé', 'Temporizador reanudado'],
