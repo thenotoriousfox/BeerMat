@@ -35,14 +35,24 @@ async function start() {
     $('title').textContent = hello.title || 'BeerMat';
     $('found').textContent = t('Found {title}.', {title: hello.title || 'BeerMat'});
   } catch {}
+  // Signed in through the account: BeerMat Online's page (online/pages/connect.js) sent a ticket for this laptop.
+  const ticket = new URLSearchParams(location.hash.slice(1)).get('ticket');
+  if (ticket) {
+    history.replaceState(null, '', location.pathname + location.search);
+    try {
+      key = (await call('deck/login', {ticket: JSON.parse(atob(ticket.replace(/-/g, '+').replace(/_/g, '/'))), name: phoneName()})).key;
+      writeStorage('beermat-deck', key);
+    } catch (e) {if (e.message) say(e.message, true);}
+  }
   if (key && await refresh(true)) return run();
   $('signIn').hidden = false; $('deck').hidden = true;
 }
+// The desk lists it by the kind of phone (a phone with the code has no account name to go by).
+const phoneName = () => /iPhone|iPad/.test(navigator.userAgent) ? 'iPhone (browser)' : /Android/.test(navigator.userAgent) ? 'Android (browser)' : 'Phone (browser)';
 $('codeForm').onsubmit = async e => {
   e.preventDefault();
   try {
-    // The desk lists it by the kind of phone (it has no account name to go by).
-    key = (await call('deck/login', {code: $('code').value, name: /iPhone|iPad/.test(navigator.userAgent) ? 'iPhone (browser)' : /Android/.test(navigator.userAgent) ? 'Android (browser)' : 'Phone (browser)'})).key;
+    key = (await call('deck/login', {code: $('code').value, name: phoneName()})).key;
     writeStorage('beermat-deck', key);
     $('code').value = '';
     if (await refresh(true)) run();
@@ -52,8 +62,16 @@ function run() {
   $('signIn').hidden = true; $('deck').hidden = false;
   stream?.close();
   // The server nudges on every change; each nudge means "fetch the state again".
-  stream = new EventSource(`/api/events?key=${encodeURIComponent(key)}`);
-  stream.onmessage = () => refresh();
+  // Through the quizmaster link (https, a Cloudflare tunnel) the nudges come over a WebSocket: it holds events back.
+  const address = `/api/events?key=${encodeURIComponent(key)}`;
+  if (location.protocol === 'https:') {
+    const socket = stream = new WebSocket('wss://' + location.host + address);
+    socket.onmessage = () => refresh();
+    socket.onclose = () => {if (stream === socket) setTimeout(() => {if (stream === socket) run();}, 1000);};
+  } else {
+    stream = new EventSource(address);
+    stream.onmessage = () => refresh();
+  }
   render();
 }
 function signedOut(why) {

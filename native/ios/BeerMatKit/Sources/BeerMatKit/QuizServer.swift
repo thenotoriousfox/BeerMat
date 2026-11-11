@@ -88,6 +88,12 @@ public final class QuizServer: @unchecked Sendable {
     public func updates(_ secret: String) -> AsyncStream<Bool> {
         AsyncStream { continuation in
             let task = Task {
+                // Through a laptop's quizmaster link (https, a Cloudflare tunnel) server-sent events are held back: look
+                // every two seconds instead.
+                while base.hasPrefix("https://") && !Task.isCancelled {
+                    continuation.yield(true)
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                }
                 while !Task.isCancelled {
                     do {
                         var request = URLRequest(url: URL(string: "\(base)/api/events?key=\(secret)")!)

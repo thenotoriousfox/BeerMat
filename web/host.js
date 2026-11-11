@@ -1545,7 +1545,9 @@ async function refresh() {
   if (!key) {$('connection').textContent = 'Desk locked'; return;}
   try {
     const s = await request('state'); if (busy) return; if (!library) await loadLibrary(); if (!panelsLoaded) {panelsLoaded = true; loadSpotify(); loadLaptop(); loadNetwork(); loadHistory();}
-    $('login').hidden = true; $('panel').hidden = false; $('connection').textContent = '● Server connected'; const wasEnded = state?.settings.ended; renderState(s); renderNetwork(); if (panelsLoaded && s.settings.ended && !wasEnded) loadHistory(); else renderHistory();
+    $('login').hidden = true; $('panel').hidden = false; $('connection').textContent = '● Server connected';
+    // Another BeerMat desk on the account is running this laptop's quiz (server.js deskAway).
+    $('deskAway').hidden = !s.deskAway; if (s.deskAway) $('deskAwayText').textContent = `The desk is on ${s.deskAway.name}.`; const wasEnded = state?.settings.ended; renderState(s); renderNetwork(); if (panelsLoaded && s.settings.ended && !wasEnded) loadHistory(); else renderHistory();
     if (tab === 'live') await loadReview();
   } catch (e) {
     if (e.status === 403) {key = ''; writeStorage('beermat-host', '', true); $('panel').hidden = true; $('login').hidden = false; message('Log in to unlock the desk again.', true);}
@@ -1555,6 +1557,7 @@ async function refresh() {
 }
 window.addEventListener('beforeunload', e => {if (dirty) {e.preventDefault(); e.returnValue = '';}});
 setInterval(() => {if (state) {$('liveTimer').textContent = timeText(state.question, offset); renderTimer();}}, 200);
+$('takeDeskBack').onclick = async () => {try {await request('handover/end'); await refresh();} catch (e) {message(e.message, true);}};
 const updates = live(refresh, () => key);
 // Opened from the app icon: a one-time ticket in the address unlocks the desk without typing the key a second time.
 const ticket = new URLSearchParams(location.hash.slice(1)).get('ticket');

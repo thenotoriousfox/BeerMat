@@ -1,15 +1,21 @@
 """The quiz server's desk API (/api/host/…), the same one the web desk uses, over Qt's own networking so nothing blocks
 the window. Live updates come from /api/events: the server sends a version number whenever anything changes, and
-the desk then fetches the whole state again."""
+the desk then fetches the whole state again.
+
+It can also run another laptop's quiz (the account's other desk, link.py): point() moves it to that laptop's address or
+quizmaster link (a Cloudflare tunnel, https), where the live updates come over a WebSocket (the tunnel holds
+server-sent events back), and `remote` leaves out desk=1 (the laptop's own desk plays what a phone asks for)."""
 import json
 
 from PySide6.QtCore import QObject, QTimer, QUrl, Signal
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
+from PySide6.QtWebSockets import QWebSocket
 
 
 class DeskApi(QObject):
     changed = Signal()            # the quiz changed: fetch the state again
     connection = Signal(bool)     # the live-update stream is (or isn't) connected
+    signedOut = Signal()          # the quiz server no longer takes this desk's session (another laptop's took it back)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -18,10 +24,18 @@ class DeskApi(QObject):
         self._net = QNetworkAccessManager(self)
         self._stream = None
         self._stream_buffer = b''
+        self._socket = None
+        self.remote = False
         self._retry = QTimer(self, singleShot=True, interval=1000, timeout=self._open_stream)
 
     def use(self, port):
         self.base = f'http://127.0.0.1:{port}'
+
+    def point(self, base, session, remote):
+        """Another quiz server from now on (or this laptop's own again), with its session."""
+        self.close()
+        self.base, self.session, self.remote = base, session, remote
+        self._open_stream()
 
     def call(self, route, body=None, done=None, failed=None, timeout_ms=15000, retry=True):
         """POST /api/<route> with the desk session; done(json) or failed(message) on the UI thread. Sent once more if
@@ -48,6 +62,10 @@ class DeskApi(QObject):
                     done(data)
             elif retry and not status and reply.error() == QNetworkReply.NetworkError.RemoteHostClosedError:
                 self.call(route, body, done, failed, timeout_ms, retry=False)
+            elif self.remote and status == 403 and route.startswith('host/') and data.get('error') == 'Host login required':
+                if failed:
+                    failed(data['error'])
+                self.signedOut.emit()
             elif failed:
                 failed(data.get('error') or (reply.errorString() if not status else f'The quiz server said {status}'))
             reply.deleteLater()
@@ -55,8 +73,10 @@ class DeskApi(QObject):
         return reply
 
     def get(self, route, done=None, failed=None, timeout_ms=10000):
-        """GET /api/<route> (no session needed: the TV's public state)."""
+        """GET /api/<route> (the TV's state: no session needed here, but through another laptop's link it is)."""
         request = QNetworkRequest(QUrl(f'{self.base}/api/{route}'))
+        if self.session:
+            request.setRawHeader(b'Authorization', f'Bearer {self.session}'.encode())
         request.setTransferTimeout(timeout_ms)
         reply = self._net.get(request)
 
@@ -110,13 +130,35 @@ class DeskApi(QObject):
             return
         if self._stream:
             self._stream.abort()
+        if self._socket:
+            self._socket.abort()
+            self._socket = None
         # desk=1: the quiz desk itself, which plays what a phone deck asks for (clips, songs: server.js deckCommand).
-        request = QNetworkRequest(QUrl(f'{self.base}/api/events?key={self.session}&desk=1'))
+        address = f'{self.base}/api/events?key={self.session}' + ('' if self.remote else '&desk=1')
+        if self.base.startswith('https:'):
+            return self._open_socket(address.replace('https:', 'wss:', 1))
+        request = QNetworkRequest(QUrl(address))
         request.setRawHeader(b'Accept', b'text/event-stream')
         self._stream_buffer = b''
         stream = self._stream = self._net.get(request)
         stream.readyRead.connect(lambda: self._read_stream(stream))
         stream.finished.connect(lambda: self._stream_ended(stream))
+
+    def _open_socket(self, address):
+        socket = self._socket = QWebSocket('', parent=self)
+        socket.textMessageReceived.connect(lambda _: socket is self._socket and (self.connection.emit(True), self.changed.emit()))
+        socket.connected.connect(lambda: socket is self._socket and self.connection.emit(True))
+
+        def ended():
+            if socket is self._socket:
+                self._socket = None
+                self.connection.emit(False)
+                self._retry.start()
+            socket.deleteLater()
+        socket.disconnected.connect(ended)
+        request = QNetworkRequest(QUrl(address))
+        request.setRawHeader(b'Origin', self.base.encode())
+        socket.open(request)
 
     def _read_stream(self, stream):
         if stream is not self._stream:
@@ -136,6 +178,9 @@ class DeskApi(QObject):
 
     def close(self):
         self._retry.stop()
+        if self._socket:
+            socket, self._socket = self._socket, None
+            socket.abort()
         if self._stream:
             stream, self._stream = self._stream, None
             stream.abort()

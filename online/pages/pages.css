@@ -13,3 +13,12 @@ input:focus-visible, button:focus-visible { outline: 3px solid var(--gold); outl
 button { font: inherit; font-weight: 700; width: 100%; min-height: 48px; border: 0; border-radius: 10px; background: var(--gold); color: #140b2e; margin-top: 8px; cursor: pointer; }
 button:disabled { opacity: .6; }
 #status { color: var(--muted); } #status.error { color: var(--bad); }
+/* The TV page and the connect page (link.js). */
+section[hidden], button[hidden] { display: none; }
+.choices { display: grid; gap: 10px; }
+.choices button { margin: 0; text-align: left; padding: 12px 16px; }
+button.quiet { background: transparent; color: var(--muted); border: 1px solid var(--line); margin-top: 20px; }
+.qr { background: #fff; border-radius: 12px; padding: 8px; width: min(60vh, 100%); margin: 16px auto; }
+.qr svg { display: block; width: 100%; height: auto; }
+body.tv main { max-width: 40rem; text-align: center; }
+body.tv .logo { margin: 0 auto 16px; }

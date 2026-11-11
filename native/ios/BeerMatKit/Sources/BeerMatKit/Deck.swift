@@ -79,15 +79,14 @@ public struct DeckState: Equatable {
     }
 }
 
-/// Where the quiz laptop is, for a phone about to host it (as TvFinder.kt in the Android app): the last address that
-/// worked, BeerMat's hotspot, then every address on the phone's own network at the desk's port.
+/// Where the quiz laptop is, for a phone about to host it without the account (as TvFinder.kt in the Android app): the
+/// last address that worked and BeerMat's hotspot. Signed in to BeerMat Online, the phone finds it through the account
+/// instead (OnlineClient.desks): venue Wi-Fi often keeps devices apart, so searching its network finds nothing.
 public enum DeckFinder {
     public static let hotspot = "10.42.0.1", deskPort = 3000
 
-    public static func candidates(saved: String?, own: String?) -> [String] {
-        var list = [saved, hotspot, "\(hotspot):\(deskPort)"].compactMap { $0 }.filter { !$0.isEmpty }.compactMap { try? QuizServer.normalise($0) }
-        let parts = (own ?? "").split(separator: ".").compactMap { Int($0) }
-        if parts.count == 4 { list += (1...254).filter { $0 != parts[3] }.map { "http://\(parts[0]).\(parts[1]).\(parts[2]).\($0):\(deskPort)" } }
+    public static func candidates(saved: String?) -> [String] {
+        let list = [saved, hotspot, "\(hotspot):\(deskPort)"].compactMap { $0 }.filter { !$0.isEmpty }.compactMap { try? QuizServer.normalise($0) }
         var seen = Set<String>()
         return list.filter { seen.insert($0).inserted }
     }

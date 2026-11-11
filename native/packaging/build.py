@@ -5,7 +5,9 @@ nothing else. Run it on the system you're building for (PyInstaller doesn't cros
     .venv/bin/python native/packaging/build.py              # Linux: dist/native/BeerMat-Desk-<v>-linux-x64.tar.gz (+ AppImage)
     .venv\\Scripts\\python native\\packaging\\build.py         # Windows: dist\\native\\BeerMat-Desk-<v>-win-x64.zip (+ installer)
 
-Node.js comes from nodejs.org (checked against its published SHA-256) and is cached in native/packaging/cache.
+Node.js comes from nodejs.org (checked against its published SHA-256), and cloudflared (the quizmaster link's tunnel,
+server/laptop.js) from Cloudflare's GitHub release (checked against the SHA-256 below); both are cached in
+native/packaging/cache.
 The AppImage needs appimagetool on the PATH (or APPIMAGETOOL); the Windows installer needs Inno Setup's iscc.
 """
 import hashlib
@@ -23,6 +25,11 @@ from pathlib import Path
 import licences
 
 NODE_VERSION = 'v24.22.0'   # an LTS with node:sqlite (the server needs 22.13+)
+# cloudflared: the account's other devices reach this laptop through it where venue Wi-Fi keeps devices apart.
+CLOUDFLARED_VERSION = '2026.10.5'
+CLOUDFLARED = {'linux-x64': ('cloudflared-linux-amd64', 'e1bc0cf084fd9e590554fe769a86b1db46701c3f847a43d902f7b974a4e16298'),
+               'linux-arm64': ('cloudflared-linux-arm64', '72e0d05a67e09da87cf495e409a28c3cc5994dd23fc66a982eebea6a55923b7d'),
+               'win-x64': ('cloudflared-windows-amd64.exe', 'db4e4c413612a0916f3e1679d3caaf376f94911952d163028fb726fb2e0516a9')}
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 CACHE, OUT = HERE / 'cache', ROOT / 'dist' / 'native'
@@ -67,7 +74,24 @@ def node_runtime():
     else:
         (runtime / 'bin').mkdir(parents=True); shutil.copy2(folder / 'bin' / 'node', runtime / 'bin' / 'node')
     shutil.copy2(folder / 'LICENSE', runtime / 'LICENSE')
+    cloudflared(runtime)
     return runtime
+
+
+def cloudflared(runtime):
+    """Cloudflare's cloudflared, checked, into runtime/ (server/laptop.js looks there first)."""
+    asset, expected = CLOUDFLARED[TARGET]
+    cached = CACHE / f'{CLOUDFLARED_VERSION}-{asset}'
+    CACHE.mkdir(parents=True, exist_ok=True)
+    if not cached.exists():
+        print('Downloading', asset, CLOUDFLARED_VERSION)
+        data = urllib.request.urlopen(f'https://github.com/cloudflare/cloudflared/releases/download/{CLOUDFLARED_VERSION}/{asset}', timeout=300).read()
+        if hashlib.sha256(data).hexdigest() != expected:
+            sys.exit(f'{asset}: checksum mismatch')
+        cached.write_bytes(data)
+    target = runtime / ('cloudflared.exe' if WINDOWS else 'cloudflared')
+    shutil.copy2(cached, target)
+    target.chmod(0o755)
 
 
 def pyinstaller(runtime):

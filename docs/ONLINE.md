@@ -32,6 +32,11 @@ only for the app (`capacitor://localhost`, `http(s)://localhost`) and origins li
 | `POST /v1/venues/:id/keys` `{publicKey}` | operator | register a quiz laptop (its key is on the desk under Past quizzes) |
 | `PATCH /v1/admin/venues/:id` `{plan, planUntil}` | admin | set a venue's plan (see Plans) |
 | `POST /v1/licence` (a request signed by the laptop) | a registered quiz laptop | a signed licence for its venue's plan |
+| `PUT /v1/me/desk` `{request, name, title, role, addresses, link}` · `POST /v1/me/desk/closed` `{request}` | a quiz laptop signed in (the request signed by its key) | the quizmaster link: where this laptop can be reached, every 30 s (`role`: `desk`, `hosting` with its desk elsewhere, `remote` running another's quiz); answers the account's other open laptops. One silent for 90 s is closed |
+| `GET /v1/me/desks` | signed in | the account's open laptops, each with `venueKey`, `addresses`, `link` and `role` |
+| `POST /v1/desk-tickets` `{venueKey, role}` (`deck`, `desk`, `tv`) · `POST /v1/deck-tickets` `{venueKey}` | signed in: the laptop is open on this account, or its venue's own, or an admin | a ticket for that laptop, signed with the licence key, once, five minutes |
+| `POST /v1/tv-pairings` `{name}` · `GET /v1/tv-pairings/:code` · `POST /v1/tv-pairings/:code/approve` | a TV · the TV · signed in | a TV signs in: its QR code (`/connect#tv=…`), then a device token once a phone approves it (ten minutes) |
+| `POST /v1/me/tv-devices` `{name}` · `POST /v1/tv/connect` `{device}` | signed in · a TV | a device token for a desk becoming a TV · the account's laptops running a quiz, each with a TV ticket |
 | `POST /v1/venues/:id/events` · `PATCH/DELETE /v1/events/:id` | operator | publish, change, cancel a quiz night |
 | `GET /v1/venues/:id` · `GET /v1/events?q=…|lat=…&lon=…&radiusKm=…` | anyone | venue page · upcoming quizzes by town, postcode area or location |
 | `POST /v1/venue-results` (signed summary) | a registered laptop | results shared by the quizmaster (off by default) |
@@ -40,6 +45,10 @@ only for the app (`capacitor://localhost`, `http(s)://localhost`) and origins li
 | `GET /v1/admin/overview` · `GET /v1/admin/venues` · `GET /v1/admin/accounts?q=` | admin | the admin console's pages |
 | `PATCH /v1/admin/accounts/:id` `{admin, removePhoto}` · `DELETE /v1/admin/accounts/:id` | admin | admin rights, remove a picture, delete an account |
 | `GET /v1/venues.json` | anyone | every venue in `venues.json`'s format (the nightly copy) |
+
+Pages for quizmasters' devices: **/tv** (a TV's browser, or BeerMat TV on Android: a QR code to sign in once, then the
+account's laptop running a quiz, opened at its address on the TV's network if it answers, else at its quizmaster link)
+and **/connect** (a phone signed in approves a TV, or opens a laptop's phone deck). `online/pages/`.
 
 ## Venues and the admin console
 
@@ -222,6 +231,8 @@ reads every question and answer first.
 | `venue_results` | signed summaries shared by registered laptops, one per laptop/event |
 | `favourites` | account, venue |
 | `shared_buzzers` | name, the venue and laptop key that shared it, the MP3, its length, when, hidden, removed (a removed clip keeps its row, without the audio) |
+| `desks` | a quiz laptop signed in (the quizmaster link): its key, account, computer name, quiz title, role, its addresses on its networks and its tunnel's address, when last heard; gone when it signs out or after a day silent |
+| `tv_devices`, `tv_pairings` | a TV signed in to an account: SHA-256 of its device token, its name, when made and last used; a pairing code's SHA-256 for ten minutes |
 
 **Results are never trusted from players.** A claim is produced by the quiz laptop (`/api/team/result`) and signed
 with its Ed25519 key (`shared/claims.js`); the service checks the signature, the shape and the numbers. Statistics and

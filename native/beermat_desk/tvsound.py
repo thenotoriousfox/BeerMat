@@ -110,6 +110,9 @@ class TvSound(QObject):
         # when a clip or song ends. screens: how many are connected.
         self.screens = 0
         self.relay = None
+        # This desk running another laptop's quiz (link.py): that laptop plays the TV's sounds and the desk's own
+        # playback (relayed); here, nothing is heard.
+        self.remote = False
         self._followed = None     # the last relayed playback this TV screen acted on
 
     onChanged = Signal()
@@ -209,7 +212,7 @@ class TvSound(QObject):
 
     # ---- the desk's own playback: sound clips, music bingo songs, an audio question played again ----
     def _relaying(self):
-        return bool(self.screens and self.relay)
+        return bool((self.screens or self.remote) and self.relay)
 
     def desk_play(self, src, position_ms=0):
         """Plays one of the quiz's files for the desk: on the TV screens when there are any (silently here, to keep
@@ -373,6 +376,8 @@ class TvSound(QObject):
 
     def follow(self, s):
         """Called with every new public state (the TV's): plays what changed since the last one."""
+        if self.remote:
+            return
         self._state, self._offset = s, s.get('offset', 0)
         if s.get('sounds'):
             self._pack = s['sounds']

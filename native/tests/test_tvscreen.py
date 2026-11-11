@@ -16,7 +16,7 @@ from PySide6.QtQml import QQmlApplicationEngine                            # noq
 
 from test_desk import DeskCase, HERE, ROOT, app, wait                      # noqa: E402
 from beermat_desk import gradients, svgmotion                              # noqa: E402
-from beermat_desk.tvscreen import TvScreen, neighbours, normalise          # noqa: E402
+from beermat_desk.tvscreen import TvScreen, normalise                      # noqa: E402
 
 
 class AddressesTest(unittest.TestCase):
@@ -24,10 +24,6 @@ class AddressesTest(unittest.TestCase):
         self.assertEqual(normalise('10.42.0.1'), 'http://10.42.0.1:3000')
         self.assertEqual(normalise(' http://192.168.1.20:3001/ '), 'http://192.168.1.20:3001')
         self.assertEqual(normalise(''), '')
-        found = neighbours('192.168.1.20')
-        self.assertEqual(len(found), 253)
-        self.assertNotIn('http://192.168.1.20:3000', found)
-        self.assertEqual(neighbours('not an address'), [])
 
 
 class TvScreenTest(DeskCase):

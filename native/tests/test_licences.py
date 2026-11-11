@@ -1,5 +1,5 @@
 """LICENCES.txt (native/packaging/licences.py): Qt under the LGPL with its texts, what the Qt wheels bring in its own
-sections rather than as system libraries, Node's licence, and Python's."""
+sections rather than as system libraries, Node's licence, cloudflared's, and Python's."""
 import sys
 import tempfile
 import unittest
@@ -16,11 +16,12 @@ class LicencesTest(unittest.TestCase):
             internal = app / '_internal'
             (internal / 'runtime').mkdir(parents=True)
             (internal / 'runtime' / 'LICENSE').write_text('Node.js is licensed for use as follows: MIT')
+            (internal / 'runtime' / 'cloudflared').write_bytes(b'')
             for lib in ('libQt6Core.so.6', 'libavcodec.so.61', 'libicuuc.so.73', 'shiboken6.cpython-313-x86_64-linux-gnu.so'):
                 (internal / lib).write_bytes(b'')
             text = licences.write(app, '9.9.9').read_text(encoding='utf-8')
         self.assertTrue(text.startswith('BeerMat Desk 9.9.9'))
-        for heading in ('Qt and Qt for Python', 'FFmpeg (with Qt Multimedia)', 'ICU (with Qt)', 'PSF License', 'Node.js — MIT',
+        for heading in ('Qt and Qt for Python', 'FFmpeg (with Qt Multimedia)', 'ICU (with Qt)', 'PSF License', 'Node.js — MIT', 'cloudflared (Cloudflare) — Apache License 2.0',
                         'PyInstaller bootloader', 'GNU Lesser General Public License version 3', 'GNU General Public License version 3',
                         'GNU Lesser General Public License version 2.1'):
             self.assertIn(heading, text)

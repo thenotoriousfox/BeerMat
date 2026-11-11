@@ -81,6 +81,11 @@ While the quiz Wi-Fi runs, the quiz server answers only on it (and this laptop),
 `server/server.js`): a smart TV or TV stick stays on the venue's Wi-Fi, where the laptop also is (`--keep-wifi`). The
 desk's port there is 3000. `/tv` is the TV page; `/display` redirects to it.
 
+Quizmaster devices (another desk, a TV screen computer, BeerMat TV, phone decks) find the laptop through the BeerMat
+account, not the network: venue Wi-Fi often keeps devices apart. A laptop signed in to BeerMat Online reports its
+addresses and its quizmaster link (a Cloudflare tunnel to `remoteServer`; the desk's builds carry `cloudflared`), and
+devices get tickets for it (docs/CLIENT-PROTOCOL.md, "Quizmaster devices through the account").
+
 ## Words on phones and TVs
 
 Every phrase phones and TVs show is in `web/i18n.js` with French and Spanish (`tests/i18n.test.js` checks). After

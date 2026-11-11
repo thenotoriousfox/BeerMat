@@ -5,13 +5,16 @@ import UIKit
 enum DeckStage { case find, code, run }
 
 /// Run the night: this phone hosting the quiz on the laptop, beside the Qt desk (the deck routes in server.js), as
-/// DeckViewModel.kt in the Android app. It finds the laptop (the quiz Wi-Fi or the venue's), signs in with a ticket
-/// from BeerMat Online when the account runs the venue (or is an admin's), or with the code the desk shows, and then
-/// does what the desk's Next, Close and Reveal do. Clips, songs and audio play from the laptop: the phone asks the desk.
+/// DeckViewModel.kt in the Android app. Signed in to BeerMat Online, it finds the laptop through the account (venue
+/// Wi-Fi often keeps devices apart): its address on this network if it answers, else its quizmaster link, with a
+/// ticket for it. Without the account, on BeerMat's quiz Wi-Fi, with the code the desk shows. Then it does what the
+/// desk's Next, Close and Reveal do. Clips, songs and audio play from the laptop: the phone asks the desk.
 @MainActor
 final class DeckModel: ObservableObject {
     @Published var stage: DeckStage = .find
     @Published var searching = false
+    /// The account's laptops running a quiz, to choose from.
+    @Published var laptops: [[String: Any]] = []
     @Published var address = UserDefaults.standard.string(forKey: "deck:address") ?? ""
     @Published var title = ""
     @Published var deck: DeckState?
@@ -41,13 +44,9 @@ final class DeckModel: ObservableObject {
         }
     }
 
-    /// Where the laptop is: the last address, the quiz Wi-Fi's, then the whole network the phone is on.
-    func search() {
-        guard !searching else { return }
-        searching = true; message = ""
-        Task {
-            let places = DeckFinder.candidates(saved: UserDefaults.standard.string(forKey: "deck:address"), own: Self.ownAddress())
-            let found = await DeckFinder.find(places) { base in
+    /// The first of `places` answering as a BeerMat quiz, each given two and a half seconds.
+    private static func firstQuiz(_ places: [String]) async -> (String, String)? {
+        await DeckFinder.find(places) { base in
                 guard let s = try? QuizServer(base) else { return nil }
                 return try? await withThrowingTaskGroup(of: String?.self) { group in
                     group.addTask { (try? await s.deckHello())?.str("title") }
@@ -57,8 +56,41 @@ final class DeckModel: ObservableObject {
                     return first
                 }
             }
-            searching = false
-            if let found { connect(found.0) } else { say(t("No quiz found. Join the quiz Wi-Fi (or the venue’s, with the laptop on it) and try again, or type the laptop’s address."), error: true) }
+    }
+
+    /// Where the laptop is: through the account when signed in; otherwise the last address and the quiz Wi-Fi.
+    func search() {
+        guard !searching else { return }
+        searching = true; message = ""; laptops = []
+        Task {
+            defer { searching = false }
+            if let client = online?.client, client.signedIn {
+                do {
+                    let open = try await client.desks().filter { $0.str("role") != "remote" }
+                    if open.isEmpty { say(t("No quiz laptop is open on your account. Open BeerMat on the laptop, signed in to BeerMat Online."), error: true) }
+                    else if open.count == 1 { self.open(open[0]) } else { laptops = open }
+                    return
+                } catch { say(error.localizedDescription, error: true) }
+            }
+            let found = await Self.firstQuiz(DeckFinder.candidates(saved: UserDefaults.standard.string(forKey: "deck:address")))
+            if let found { connect(found.0) } else { say(t("No quiz found. Sign in to BeerMat Online (Profile) with the laptop’s account, or join the quiz Wi-Fi, or type the laptop’s address."), error: true) }
+        }
+    }
+
+    /// One of the account's laptops: its address on this network if it answers, else its quizmaster link.
+    func open(_ laptop: [String: Any]) {
+        laptops = []
+        work {
+            let addresses = laptop["addresses"] as? [String] ?? []
+            let link = laptop.str("link")
+            guard let base = await Self.firstQuiz(addresses)?.0 ?? (link.hasPrefix("https://") ? link : nil) else {
+                throw QuizError(message: t("{name} can’t be reached: it has no quizmaster link yet. Check it’s on the internet.", ["name": laptop.str("name")]), status: 0)
+            }
+            guard let client = self.online?.client else { return }
+            let s = try QuizServer(base)
+            self.server = s; self.address = s.base; self.title = laptop.str("title")
+            let ticket = try await client.deckTicket(venueKey: laptop.str("venueKey"))
+            self.signedIn(try await s.deckLogin(name: self.name, ticket: ticket))
         }
     }
 
@@ -197,19 +229,5 @@ final class DeckModel: ObservableObject {
         var body: [String: Any] = ["action": action]
         if let value { body["value"] = value }
         act("deck-command", body, t("Asked the desk"))
-    }
-
-    /// The phone's own IPv4 address on Wi-Fi, for searching its network.
-    static func ownAddress() -> String? {
-        var list: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&list) == 0, let first = list else { return nil }
-        defer { freeifaddrs(list) }
-        for p in sequence(first: first, next: { $0.pointee.ifa_next }) {
-            let a = p.pointee
-            guard let addr = a.ifa_addr, addr.pointee.sa_family == UInt8(AF_INET), String(cString: a.ifa_name).hasPrefix("en") else { continue }
-            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-            if getnameinfo(addr, socklen_t(addr.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 { return String(cString: host) }
-        }
-        return nil
     }
 }

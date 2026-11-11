@@ -11,14 +11,13 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import uk.beermat.player.net.QuizServer
 import java.net.HttpURLConnection
-import java.net.Inet4Address
 import java.net.URL
 
 /**
- * Where the quiz laptop is, for the TV app. A TV is usually on the venue's own Wi-Fi, which the laptop stays on beside
- * its quiz Wi-Fi (the quiz server answers the TV page on every network); on the quiz Wi-Fi the laptop is the router.
- * So: the last address that worked, this network's router, BeerMat's hotspot, then every address on the TV's own
- * network at the desk's port. Each is asked /api/hello; the first that answers as BeerMat is the quiz.
+ * Where the quiz laptop is, for the TV app, without the account: on BeerMat's own quiz Wi-Fi the laptop is the router
+ * (no internet needed), so the last address that worked, this network's router and BeerMat's hotspot are each asked
+ * /api/hello. Anywhere else the TV signs in through the BeerMat account instead (BeerMat Online's TV page, TvActivity):
+ * venue Wi-Fi often keeps devices apart, so searching its network finds nothing.
  */
 object TvFinder {
     /** BeerMat's own hotspot address (scripts/hotspot): tried when nothing else answers. */
@@ -31,23 +30,10 @@ object TvFinder {
         listOfNotNull(saved?.takeIf { it.isNotBlank() }, gateway?.takeIf { it.isNotBlank() && it != "0.0.0.0" }, HOTSPOT)
             .map { QuizServer.normalise(it) }.distinct()
 
-    /** Every other address on the TV's network (its /24, however big the network), at the desk's port. */
-    fun neighbours(own: String?, port: Int = DESK_PORT): List<String> {
-        val parts = own?.split(".")?.mapNotNull { it.toIntOrNull() }?.takeIf { it.size == 4 } ?: return emptyList()
-        val prefix = parts.take(3).joinToString(".")
-        return (1..254).filter { it != parts[3] }.map { "http://$prefix.$it:$port" }
-    }
-
     /** The default gateway of the network the TV is on now (IPv4), if any. */
     fun gateway(context: Context): String? = runCatching {
         val cm = context.getSystemService(ConnectivityManager::class.java)
         cm.getLinkProperties(cm.activeNetwork)?.routes?.firstOrNull { it.isDefaultRoute && it.gateway?.address?.size == 4 }?.gateway?.hostAddress
-    }.getOrNull()
-
-    /** The TV's own IPv4 address on the network it's on now. */
-    fun ownAddress(context: Context): String? = runCatching {
-        val cm = context.getSystemService(ConnectivityManager::class.java)
-        cm.getLinkProperties(cm.activeNetwork)?.linkAddresses?.map { it.address }?.firstOrNull { it is Inet4Address && !it.isLoopbackAddress }?.hostAddress
     }.getOrNull()
 
     /** The first place that answers as a BeerMat quiz (in the order given), with its title; null when none does. Asked

@@ -53,14 +53,26 @@ the desk's own TV window closed, or on another screen.
 
 On an **Android TV, Google TV or Fire TV** (most TV sticks), install the BeerMat app (the Android download on the
 website; on a Fire TV, sideload it) and open **BeerMat TV** from the TV's apps: on the quiz Wi-Fi it finds the quiz by
-itself (on the venue's Wi-Fi or the quiz Wi-Fi), with no address to type, and starts full screen with sound.
+itself; anywhere else it signs in with your BeerMat account (below), and starts full screen with sound.
+
+**Signing a TV in.** Many venues' Wi-Fi keeps devices from reaching each other, so TVs, phones and other desks find the
+quiz laptop through your BeerMat account, not the network. Sign the laptop in to BeerMat Online (Venue). On the TV, open
+BeerMat TV, or the TV's browser at `online.beermatquiz.co.uk/tv`: it shows a QR code. Scan it with your phone, sign in
+with the same account and press **Sign the TV in**. Once is enough: from then on the TV finds whichever of your laptops
+is running a quiz. It uses the laptop's address on the venue's Wi-Fi when that works, and otherwise goes through the
+internet (the laptop's quizmaster link).
 
 ## The TV on another computer
 
 When the TVs are wired to a different computer from the quizmaster's laptop (a PC behind the bar, say), open BeerMat on
 that computer and make it the **TV screen**: the first-run welcome's *This computer is the TV screen*, or Settings →
-Screens → *Use this computer as a TV screen*. It looks for the quiz on its networks (the quiz Wi-Fi or the venue's
-Wi-Fi), connecting by itself to the laptop it used last; otherwise choose the quiz, or type the laptop's address. It
+Screens → *Use this computer as a TV screen*. On the quiz Wi-Fi it finds the laptop by itself; otherwise it shows a QR
+code to sign in with your BeerMat account, as a TV does (above), then finds the laptop through the account.
+
+**Two desks on one account.** Open BeerMat on a second computer signed in to the same BeerMat account while a quiz is
+running on the first, and it asks what this device is for: **Use this device as the desk** runs that quiz from here
+(the first laptop keeps the quiz, its phones, TV and sound, shows *The desk is on …* and can **Take the desk back**),
+**Use this device as the TV** makes it the TV screen, signed in already, and **Ignore** keeps its own quiz. It
 shows the TV full screen and plays all the sound there: the TV's own sounds, and the desk's sound clips, music bingo
 songs and audio questions, which while a TV screen is connected play on it instead of the laptop (Settings → Screens
 says which TV screen is connected). Spotify plays wherever Settings → Spotify sends it: open Spotify on the TV screen,

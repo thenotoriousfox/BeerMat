@@ -22,13 +22,8 @@ class TvFinderTest {
         assertNull(TvFinder.find(listOf("http://192.168.1.1")) { null })
     }
 
-    @Test fun theRestOfTheTvsNetworkAtTheDesksPort() {
-        val all = TvFinder.neighbours("192.168.1.57")
-        assertEquals(253, all.size, "every other address on the /24")
-        assertEquals("http://192.168.1.1:3000", all.first(), "starting at .1")
-        assertEquals(false, "http://192.168.1.57:3000" in all, "not the TV itself")
-        assertEquals("http://192.168.1.254:3000", all.last(), "to .254")
-        assertEquals(emptyList<String>(), TvFinder.neighbours(null), "no network")
+    @Test fun signingInGoesToBeerMatOnlinesTvPage() {
+        assertEquals("https://online.beermatquiz.co.uk/tv?app=1", uk.beermat.player.tv.TvActivity.onlineTv("https://online.beermatquiz.co.uk/"), "BeerMat Online's TV page, as the app")
     }
 
     @Test fun aBatchAtATimeStoppingAtTheFirst() = runBlocking {

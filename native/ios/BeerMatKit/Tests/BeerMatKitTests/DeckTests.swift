@@ -15,11 +15,10 @@ final class DeckTests: XCTestCase {
 
     override func tearDown() { try? input?.fileHandleForWriting.close(); process?.waitUntilExit() }
 
-    func testFinderTriesTheLastAddressTheHotspotThenTheNetwork() {
-        let places = DeckFinder.candidates(saved: "192.168.1.20:3000", own: "192.168.1.31")
-        XCTAssertEqual(Array(places.prefix(3)), ["http://192.168.1.20:3000", "http://10.42.0.1", "http://10.42.0.1:3000"])
-        XCTAssertEqual(places.count, 3 + 253 - 1, "the saved address isn't asked twice")
-        XCTAssertFalse(places.contains("http://192.168.1.31:3000"))
+    func testWithoutTheAccountTheFinderTriesTheLastAddressThenTheQuizWiFi() {
+        let places = DeckFinder.candidates(saved: "192.168.1.20:3000")
+        XCTAssertEqual(places, ["http://192.168.1.20:3000", "http://10.42.0.1", "http://10.42.0.1:3000"], "no search of the phone's network")
+        XCTAssertEqual(DeckFinder.candidates(saved: "10.42.0.1"), ["http://10.42.0.1", "http://10.42.0.1:3000"], "the saved address isn't asked twice")
     }
 
     func testAPhoneHostsTheQuizWithTheDesksCode() async throws {

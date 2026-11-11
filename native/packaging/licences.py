@@ -134,6 +134,10 @@ def write(app, version):
     parts.append(section(f'Python {sys.version.split()[0]} — PSF License', python_licence()))
     if node.exists():
         parts.append(section('Node.js — MIT (and the licences of what Node.js includes)', node.read_text(encoding='utf-8', errors='replace')))
+    if any((internal / 'runtime').glob('cloudflared*')):
+        parts.append(section('cloudflared (Cloudflare) — Apache License 2.0',
+                             'The quizmaster link\'s tunnel, unmodified, from https://github.com/cloudflare/cloudflared (_internal/runtime). '
+                             'Licence text below.\n\n' + (TEXTS / 'cloudflared-apache-2.0.txt').read_text(encoding='utf-8')))
     parts.append(section('PyInstaller bootloader — GNU GPL v2 or later, with the PyInstaller bootloader exception',
                          'The program that starts BeerMat Desk is PyInstaller\'s bootloader. Its licence\'s exception allows it to be '
                          'distributed with any program, under that program\'s own terms. https://pyinstaller.org/en/stable/license.html'))

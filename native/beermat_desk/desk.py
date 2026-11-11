@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Property, QObject, QSettings, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import Property, QCoreApplication, QObject, QSettings, QTimer, QUrl, Signal, Slot
 
 from .api import DeskApi
 from .library import Library
@@ -19,6 +19,7 @@ from .tvsound import TvSound
 from .live import LiveTools
 from . import looks
 from .online import OnlineVenue
+from .link import DeskLink
 from .prefs import Prefs
 from .updates import Updates
 
@@ -86,6 +87,7 @@ class Desk(QObject):
         self.liveTools = LiveTools(self)
         self.liveTools.clipsChanged.connect(self._rebuild)
         self.onlineVenue = OnlineVenue(self)
+        self.deskLink = DeskLink(self)
         self.prefsModel = Prefs(self)
         self.updater = Updates(self.api, self._update_busy, self)
         self.updater.toast.connect(self.toast)
@@ -153,6 +155,20 @@ class Desk(QObject):
     @Property(QObject, constant=True)
     def online(self):
         return self.onlineVenue
+
+    @Property(QObject, constant=True)
+    def link(self):
+        """The account's other laptops: run one's quiz from here, become a TV, or this laptop's desk is elsewhere."""
+        return self.deskLink
+
+    def goneRemote(self):
+        """This desk switched to another laptop's quiz, or back to its own: everything comes from there now."""
+        self.statusChanged.emit()
+        self._library = None
+        self.refresh()
+        self.load_library()
+        self.loadResults()
+        self.loadNetwork()
 
     @Property(QObject, constant=True)
     def live(self):
@@ -253,6 +269,8 @@ class Desk(QObject):
 
     @Property(str, notify=statusChanged)
     def serverUrl(self):
+        if self.api.remote:
+            return self.api.base
         return f'http://127.0.0.1:{self.server.info["port"]}' if self.server.info else ''
 
     @Property(str, notify=statusChanged)
@@ -284,6 +302,13 @@ class Desk(QObject):
 
     def stop(self):
         self._poll.stop()
+        # Closing while running another laptop's quiz: that laptop takes its desk back (up to two seconds to say so).
+        if self.api.remote:
+            reply = self.api.host('logout', {})
+            deadline = time.monotonic() + 2
+            while reply.isRunning() and time.monotonic() < deadline:
+                QCoreApplication.processEvents()
+                time.sleep(0.02)
         self.api.close()
         self.server.stop()
 
@@ -346,6 +371,7 @@ class Desk(QObject):
             self._follow_deck(state.get('deckCommand'))
             self.liveTools.followSpotifyClip(state.get('question'))
             self._follow_var(state.get('varChecks') or [])
+            self.deskLink.follow(state)
             if state.get('libraryRevision') != (self._library or {}).get('revision'):
                 self.load_library()
             self._rebuild()
@@ -366,6 +392,10 @@ class Desk(QObject):
             self.tvChanged.emit()
             self.tvSound.base = self.serverUrl
             self.tvSound.follow(state)
+            # The desk is on another device: what it plays (clips, songs, an audio question again) is heard here,
+            # unless a TV screen computer plays it.
+            if (self._state or {}).get('deskAway') and not (self._state or {}).get('tvScreens'):
+                self.tvSound.follow_playback(state.get('playback'), time.time() * 1000 + state['offset'])
         self.api.get('leaderboard', got)
 
     def load_library(self):

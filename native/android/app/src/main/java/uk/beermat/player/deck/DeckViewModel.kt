@@ -22,6 +22,8 @@ enum class DeckStage { Find, Code, Run }
 data class DeckUi(
     val stage: DeckStage = DeckStage.Find,
     val searching: Boolean = false,
+    /** The account's laptops running a quiz, to choose from (BeerMat Online's /v1/me/desks). */
+    val laptops: List<JSONObject> = emptyList(),
     val address: String = "",
     val title: String = "",
     val deck: DeckState? = null,
@@ -31,9 +33,11 @@ data class DeckUi(
 )
 
 /**
- * Run the night: this phone hosting the quiz on the laptop, beside the Qt desk (the deck routes in server.js). It finds the
- * laptop as the TV app does (the quiz Wi-Fi or the venue's), signs in with a ticket from BeerMat Online when the
- * account runs the venue (or is an admin's), or with the code the desk shows, and then does what the desk's Next,
+ * Run the night: this phone hosting the quiz on the laptop, beside the Qt desk (the deck routes in server.js). Signed in
+ * to BeerMat Online, it finds the laptop through the account, not the network (venue Wi-Fi often keeps devices apart):
+ * the account's laptops running a quiz, each with its addresses and its quizmaster link (a Cloudflare tunnel), and a
+ * ticket for it. It tries the laptop's address on this network first, then the link. Without the account it finds the
+ * laptop on BeerMat's own quiz Wi-Fi and signs in with the code the desk shows. Then it does what the desk's Next,
  * Close, Reveal and the round's own controls do. Clips, songs and audio play from the laptop: the phone asks the desk.
  */
 class DeckViewModel(app: Application) : AndroidViewModel(app) {
@@ -48,21 +52,44 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
 
     fun say(text: String, error: Boolean = false) = _ui.update { it.copy(message = text, error = error) }
 
-    /** Where the laptop is: the last address, the network's router and the quiz Wi-Fi's, then the whole network. */
+    /** Where the laptop is: through the account when signed in; otherwise on the quiz Wi-Fi (the last address, the
+     *  network's router, BeerMat's hotspot). */
     fun search() {
         if (_ui.value.searching) return
-        _ui.update { it.copy(searching = true, message = "", error = false) }
+        _ui.update { it.copy(searching = true, message = "", error = false, laptops = emptyList()) }
         viewModelScope.launch {
-            val context = getApplication<Application>()
-            val gateway = TvFinder.gateway(context)
-            val first = TvFinder.candidates(prefs.getString("address", null), gateway) + listOfNotNull(gateway, TvFinder.HOTSPOT).map { QuizServer.normalise("$it:${TvFinder.DESK_PORT}") }
-            val found = TvFinder.find((first + TvFinder.neighbours(TvFinder.ownAddress(context))).distinct()) { base ->
-                runCatching { QuizServer(base).deckHello().optString("title", "BeerMat") }.getOrNull()
-            }
-            _ui.update { it.copy(searching = false) }
-            if (found == null) say(t("No quiz found. Join the quiz Wi-Fi (or the venue’s, with the laptop on it) and try again, or type the laptop’s address."), true)
-            else connect(found.first)
+            try {
+                if (online.signedIn) {
+                    val laptops = try { online.desks().filter { it.optString("role") != "remote" } } catch (e: OnlineError) { say(e.message ?: "", true); null }
+                    if (laptops != null) {
+                        if (laptops.isEmpty()) say(t("No quiz laptop is open on your account. Open BeerMat on the laptop, signed in to BeerMat Online."), true)
+                        else if (laptops.size == 1) open(laptops[0])
+                        else _ui.update { it.copy(laptops = laptops) }
+                        return@launch
+                    }
+                }
+                val context = getApplication<Application>()
+                val gateway = TvFinder.gateway(context)
+                val places = (TvFinder.candidates(prefs.getString("address", null), gateway) + listOfNotNull(gateway, TvFinder.HOTSPOT).map { QuizServer.normalise("$it:${TvFinder.DESK_PORT}") }).distinct()
+                val found = TvFinder.find(places) { base -> runCatching { QuizServer(base).deckHello().optString("title", "BeerMat") }.getOrNull() }
+                if (found == null) say(t("No quiz found. Sign in to BeerMat Online (Profile) with the laptop’s account, or join the quiz Wi-Fi, or type the laptop’s address."), true)
+                else connect(found.first)
+            } finally { _ui.update { it.copy(searching = false) } }
         }
+    }
+
+    /** One of the account's laptops: its address on this network if it answers, else its quizmaster link; signed in
+     *  with a ticket for it. */
+    fun open(laptop: JSONObject) = work {
+        _ui.update { it.copy(laptops = emptyList()) }
+        val addresses = laptop.optJSONArray("addresses")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty()
+        val base = TvFinder.find(addresses) { b -> runCatching { QuizServer(b).deckHello().optString("title", "BeerMat") }.getOrNull() }?.first
+            ?: laptop.optString("link").takeIf { it.startsWith("https://") }
+            ?: throw QuizError(t("{name} can’t be reached: it has no quizmaster link yet. Check it’s on the internet.", "name" to laptop.optString("name")), 0)
+        val s = QuizServer(base)
+        server = s
+        _ui.update { it.copy(address = s.base, title = laptop.optString("title", "BeerMat")) }
+        signedIn(s.deckLogin(name, ticket = online.deckTicket(laptop.getString("venueKey"))))
     }
 
     /** The laptop at [address]: a ticket from BeerMat Online if this account may host there, else the desk's code. */

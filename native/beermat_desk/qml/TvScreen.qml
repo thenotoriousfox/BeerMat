@@ -1,5 +1,6 @@
 // BeerMat as a TV screen (tvscreen.py): the TV of the quizmaster's laptop, full screen on this computer. Until it has
-// found the quiz it shows what it found (or a place to type the laptop's address); afterwards moving the mouse, or
+// found the quiz it shows how it's finding it: a QR code to sign this TV in to the BeerMat account, the account's
+// laptops to choose from, or a place to type the laptop's address on the quiz Wi-Fi; afterwards moving the mouse, or
 // Escape, brings up a small bar to change quiz, become the quizmaster desk or close.
 import QtQuick
 import QtQuick.Controls.Basic
@@ -32,22 +33,30 @@ Window {
             spacing: 16
             Text { text: "BeerMat TV screen"; color: Theme.text; font.family: Theme.display; font.pixelSize: 40; font.weight: Font.Bold }
             Text {
+                objectName: "tvScreenMessage"
                 Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 18
-                text: tvScreen.searching ? "Looking for the quiz on this computer’s networks…"
-                    : tvScreen.found.length ? "Choose the quiz to show on the TV."
-                    : "No quiz found. Open BeerMat on the quizmaster’s laptop, with this computer on its quiz Wi-Fi or the venue’s Wi-Fi, then search again, or type the laptop’s address."
+                text: tvScreen.message || "Looking for the quiz…"
+            }
+            // Signing this TV in: a phone signed in to the account scans it (BeerMat Online's /connect).
+            Rectangle {
+                visible: tvScreen.pairUrl !== ""
+                Layout.alignment: Qt.AlignHCenter
+                width: 300; height: 300; radius: 12; color: "white"
+                QrCode { objectName: "tvSignInQr"; anchors.fill: parent; anchors.margins: 14; text: tvScreen.pairUrl }
             }
             Repeater {
                 model: tvScreen.found
                 delegate: DeskButton {
                     required property var modelData
-                    objectName: "quiz-" + modelData.address
+                    objectName: "quiz-" + modelData.venueKey
                     Layout.fillWidth: true; implicitHeight: 52
-                    text: `${modelData.title}  ·  ${modelData.address}`
+                    text: `${modelData.title}  ·  ${modelData.name}`
                     kind: "primary"
-                    onClicked: tvScreen.connectTo(modelData.address)
+                    onClicked: tvScreen.choose(modelData.venueKey)
                 }
             }
+            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 14
+                   text: "On BeerMat’s own quiz Wi-Fi, with no internet, type the laptop’s address instead (10.42.0.1 on Linux, 192.168.137.1 on Windows)." }
             RowLayout {
                 Layout.fillWidth: true; spacing: 8
                 Field { id: typed; objectName: "typedAddress"; Layout.fillWidth: true; placeholderText: "Laptop address, e.g. 10.42.0.1 or 192.168.1.20"
@@ -57,6 +66,7 @@ Window {
             Flow {
                 Layout.fillWidth: true; spacing: 8
                 DeskButton { text: tvScreen.searching ? "Searching…" : "Search again"; enabled: !tvScreen.searching; implicitHeight: 40; onClicked: tvScreen.search() }
+                DeskButton { visible: tvScreen.signedIn; text: "Sign this TV out"; implicitHeight: 40; onClicked: tvScreen.signOut() }
                 DeskButton { text: "Use this computer as the quizmaster desk"; implicitHeight: 40; onClicked: tvScreen.becomeDesk() }
                 DeskButton { text: "Close"; implicitHeight: 40; onClicked: tvScreen.quit() }
             }
@@ -81,7 +91,7 @@ Window {
         RowLayout {
             id: barRow
             anchors.centerIn: parent; spacing: 8
-            Text { text: `TV screen · ${tvScreen.title} (${tvScreen.address})`; color: "white"; font.pixelSize: 14 }
+            Text { text: `TV screen · ${tvScreen.title}`; color: "white"; font.pixelSize: 14 }
             DeskButton { text: "Change quiz"; implicitHeight: 34; onClicked: { bar.open = false; tvScreen.forget() } }
             DeskButton { text: win.full ? "Window" : "Full screen"; implicitHeight: 34; onClicked: win.full = !win.full }
             DeskButton { text: "Quizmaster desk"; implicitHeight: 34; onClicked: tvScreen.becomeDesk() }

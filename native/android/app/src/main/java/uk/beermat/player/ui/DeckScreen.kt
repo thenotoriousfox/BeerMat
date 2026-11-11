@@ -72,6 +72,12 @@ private fun DeckFind(vm: DeckViewModel, ui: DeckUi) {
     Text(t("Host the quiz on the laptop from this phone: the questions, the reveals and the leaderboard. The laptop keeps the TV and the sound."),
         color = Brand.muted, modifier = Modifier.padding(vertical = 8.dp))
     BigButton(if (ui.searching) t("Looking for the quiz…") else t("Find the quiz"), enabled = !ui.searching && !ui.busy, modifier = Modifier.testTag("deckFind")) { vm.search() }
+    // Several of the account's laptops are running a quiz: which one.
+    ui.laptops.forEach { laptop ->
+        OutlinedButton({ vm.open(laptop) }, enabled = !ui.busy, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag("deckLaptop")) {
+            Text("${laptop.optString("title", "BeerMat")} · ${laptop.optString("name")}")
+        }
+    }
     Text(t("Or type the laptop’s address"), color = Brand.muted, modifier = Modifier.padding(top = 16.dp))
     OutlinedTextField(address, { address = it.trim() }, singleLine = true, placeholder = { Text("192.168.1.20:3000") }, modifier = Modifier.fillMaxWidth().testTag("deckAddress"))
     OutlinedButton({ vm.connect(address) }, enabled = address.isNotBlank() && !ui.busy, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text(t("Connect")) }

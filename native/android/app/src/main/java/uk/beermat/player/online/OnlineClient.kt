@@ -140,7 +140,9 @@ class OnlineClient(context: Context, private val identity: Identity = Identity(c
 
     /** The venues this account runs (a phone signed in with one, or an admin's, can host that venue's quiz). */
     suspend fun myVenues() = api("GET", "/v1/me/venues").getJSONArray("venues")
-    /** A ticket for this phone to host the quiz on the laptop with [venueKey]: the venue's own account, or an admin. */
+    /** The account's open quiz laptops: where each can be reached (addresses, its quizmaster link) and its role. */
+    suspend fun desks(): List<JSONObject> = api("GET", "/v1/me/desks").getJSONArray("desks").let { a -> (0 until a.length()).map { a.getJSONObject(it) } }
+    /** A ticket for this phone to host the quiz on the laptop with [venueKey]: signed in to this account, the venue's own, or an admin. */
     suspend fun deckTicket(venueKey: String) = api("POST", "/v1/deck-tickets", JSONObject().put("venueKey", venueKey)).getJSONObject("ticket")
 
     suspend fun venue(id: String) = api("GET", "/v1/venues/" + URLEncoder.encode(id, "UTF-8"))
