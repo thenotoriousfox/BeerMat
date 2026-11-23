@@ -1026,6 +1026,8 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         const before = JSON.stringify(linkOthers);
         linkOthers = (reply.desks || []).map(d => ({keyId: d.keyId, venueKey: d.venueKey, name: d.name, title: d.title, role: d.role, addresses: d.addresses, link: d.link}));
         if (linkError || JSON.stringify(linkOthers) !== before) {linkError = ''; notify();}
+        // Start or stop the relay loop based on whether a phone deck is waiting on it.
+        if (reply.relay) startRelay(); else stopRelay();
       } catch (e) {if (linkError !== e.message) {linkError = e.message; notify();}}
       finally {beating = null;}
     })();
@@ -1034,6 +1036,52 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   const closeDesk = () => onlineApi('POST', '/v1/me/desk/closed', {request: deskRequest('beermat.desk-closed')}).catch(() => {});
   const beatTimer = setInterval(beat, 30000); beatTimer.unref?.();
   const firstBeat = setTimeout(beat, 1500); firstBeat.unref?.();
+
+  // ---- Phone deck relay through BeerMat Online ----
+  // When a phone deck connects via the relay (instead of a tunnel), the laptop pushes its deck-relevant state to
+  // Online every second and picks up commands the phone queued there. This avoids depending on Cloudflare quick tunnels.
+  let relayTimer = null, relayVersion = 0, relayActive = false;
+  function deckState() {
+    const q = latest(), board = boardStep(), recap = {...recapState(), active: !!recapState(), available: !recapState() && !!recapOffer()};
+    return {serverTime: now(), varChecks: varChecks(), decks: decks(), deskConnected: deskConnected(), deckCommand, deckAnswers: markingList(q),
+      deskAway: awayNow(), nextStep: nextStep(board, recap), nextRound: nextRound(), rehearsal: rehearsalState(), settings: shownSettings(), sounds: soundPack(),
+      board, recap, back: backStep(), teams: scores(true).map(t => ({...t})), question: publicQuestion(q, true), answers: rows('SELECT * FROM answers WHERE question=?', q?.id || 0)};
+  }
+  const RELAY_ROUTES = new Set(['send', 'close', 'reveal', 'next', 'back', 'mark', 'buzz', 'board', 'recap', 'pause', 'resume', 'deck-command', 'var', 'settings', 'logout']);
+  // A session for executing relay commands, created when the relay starts.
+  let relaySessionKey = null;
+  function ensureRelaySession() {
+    if (relaySessionKey && one('SELECT 1 FROM host_sessions WHERE hash=? AND expires>?', hash(relaySessionKey), now())) return;
+    relaySessionKey = randomBytes(32).toString('base64url');
+    run('INSERT INTO host_sessions VALUES(?,?)', hash(relaySessionKey), now() + 24 * 60 * 60 * 1000);
+    deckSessions.set(hash(relaySessionKey), {id: hash(relaySessionKey).slice(0, 12), name: 'Phone (relay)', since: now(), how: 'relay'});
+  }
+  async function relayPush() {
+    if (!getMeta('onlineSession', null) || !onlineBase() || !fetchImpl) return;
+    try {
+      const state = deckState();
+      const reply = await onlineApi('POST', '/v1/me/desk/relay', {request: deskRequest('beermat.relay-push'), state});
+      if (reply.commands?.length) {
+        ensureRelaySession();
+        const port = server.address().port;
+        for (const cmd of reply.commands) {
+          if (!RELAY_ROUTES.has(cmd.route)) continue;
+          try {
+            await fetchImpl(`http://127.0.0.1:${port}/api/host/${cmd.route}`, {method: 'POST',
+              headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + relaySessionKey},
+              body: JSON.stringify(cmd.body || {}), signal: AbortSignal.timeout(5000)});
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+  function startRelay() {
+    if (relayTimer) return;
+    relayTimer = setInterval(relayPush, 1000); relayTimer.unref?.();
+  }
+  function stopRelay() {
+    if (relayTimer) {clearInterval(relayTimer); relayTimer = null;}
+  }
   const libraryClip = buzzer => libraryApi(`/v1/buzzers/${encodeURIComponent(buzzer)}/audio`, {kind: 'beermat.buzzer-get', buzzer});
   // Online mode: phones and the TV get the public link as the join address.
   const onlineUrl = () => laptop?.online?.()?.ready ? laptop.online().url : null;
@@ -1048,8 +1096,19 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   function publicState() {
     // The board once per state (every phone asks for one on each change): its rows, whether to reveal it, team groups.
     const board = publicScores();
-    return {protocol: PROTOCOL, serverTime: now(), build, rehearsal: !liveNow(), settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view: tvView(), question: publicQuestion(latest()), teams: board, reveal: board.length ? boardReveal() : null, recap: recapState(), wheel: getMeta('wheel', null), timer: getMeta('timer', null),
-      groups: groupScores(board), slides: slides(), fastTrack: fastTrackShown(), varCheck: varShown()};
+    const view = tvView();
+    // A past question shown on the TV for review: its text, answer, and what each team scored.
+    let reviewData = null;
+    if (view === 'review') {
+      const rid = getMeta('reviewQuestion', null);
+      const rq = rid && questionById(rid);
+      if (rq) {
+        const answers = rows('SELECT a.team, a.value, a.points, t.name FROM answers a JOIN teams t ON t.id=a.team WHERE a.question=?', rq.id);
+        reviewData = {question: publicQuestion(rq, true), answers};
+      }
+    }
+    return {protocol: PROTOCOL, serverTime: now(), build, rehearsal: !liveNow(), settings: shownSettings(), look: lookFor(latest()), sounds: soundPack(), event: getMeta('event', ''), view, question: publicQuestion(latest()), teams: board, reveal: board.length ? boardReveal() : null, recap: recapState(), wheel: getMeta('wheel', null), timer: getMeta('timer', null),
+      groups: groupScores(board), slides: slides(), fastTrack: fastTrackShown(), varCheck: varShown(), review: reviewData};
   }
   // The Fast Track moment on the TV: a team jumping to first place fills the screen for a few seconds.
   // Progressive clues showing now: one at the start, one more every clueSeconds of answering time (a pause holds them).
@@ -2062,7 +2121,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
           if (Object.hasOwn(body, 'maxTeams')) {requireValue(Number.isInteger(body.maxTeams) && body.maxTeams >= 0 && body.maxTeams <= 250, 'Maximum teams must be 0 (no limit) to 250'); next.maxTeams = body.maxTeams;}
           if (Object.hasOwn(body, 'language')) {requireValue(['en', 'fr', 'es'].includes(body.language), 'Unknown language'); next.language = body.language;}
           // Choosing a projector view ends a leaderboard reveal, which otherwise holds the TV until the next question.
-          if (Object.hasOwn(body, 'displayMode')) {requireValue(['auto', 'join', 'leaderboard', 'question', 'wheel', 'winner', 'slides', 'blank'].includes(body.displayMode), 'Invalid projector view'); next.displayMode = body.displayMode; setMeta('board', null);}
+          if (Object.hasOwn(body, 'displayMode')) {requireValue(['auto', 'join', 'leaderboard', 'question', 'wheel', 'winner', 'slides', 'blank', 'review'].includes(body.displayMode), 'Invalid projector view'); next.displayMode = body.displayMode; setMeta('board', null); if (body.displayMode !== 'review') setMeta('reviewQuestion', null);}
           // Extra blocked team-name words stay private to the desk.
           if (Object.hasOwn(body, 'blockedWords')) {
             requireValue(typeof body.blockedWords === 'string' && body.blockedWords.length <= 2000, 'Blocked words must be up to 2,000 characters');
@@ -2311,6 +2370,19 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
         if (p === '/api/host/review') {
           const q = questionById(body.question); requireValue(q, 'Question not found', 404);
           return send(200, {question: publicQuestion(q, true), answers: rows('SELECT * FROM answers WHERE question=?', q.id), away: awayList(q), marking: markingList(q)});
+        }
+        // Show a past question on the TV with its answers and scores, or clear it.
+        if (p === '/api/host/tv-review') {
+          if (body.question) {
+            const q = questionById(body.question); requireValue(q, 'Question not found', 404);
+            setMeta('reviewQuestion', body.question);
+            setMeta('settings', {...settings(), displayMode: 'review'});
+          } else {
+            setMeta('reviewQuestion', null);
+            if (settings().displayMode === 'review') setMeta('settings', {...settings(), displayMode: 'auto'});
+          }
+          notify();
+          return send(200, {ok: true});
         }
         if (p === '/api/host/mark') {
           const q = questionById(body.question); requireValue(q, 'Close question before marking', 409);
@@ -2662,7 +2734,7 @@ export function createQuiz({database = 'quiz.sqlite', hostKey, now = Date.now, m
   let closing = null;
   function close() {
     simulator?.stop(); simulator = null;
-    clearInterval(ticker); clearInterval(keepAlive); clearInterval(syncTimer); clearInterval(licenceTimer); clearTimeout(firstRenew); clearInterval(beatTimer); clearTimeout(firstBeat); laptop?.linkDown?.(); clearTimeout(notifyTimer);
+    clearInterval(ticker); clearInterval(keepAlive); clearInterval(syncTimer); clearInterval(licenceTimer); clearTimeout(firstRenew); clearInterval(beatTimer); clearTimeout(firstBeat); stopRelay(); laptop?.linkDown?.(); clearTimeout(notifyTimer);
     for (const stream of streams) stream.end();
     laptop?.goOffline?.();
     const shut = s => new Promise(resolve => {s.close(() => resolve()); s.closeAllConnections();});

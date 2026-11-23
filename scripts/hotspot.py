@@ -138,6 +138,12 @@ def running():
         name, _, device = line.rpartition(':')
         if name in (profile, PROFILE):
             return {'interface': device, 'ssid': ssid(device), 'keepWifi': False}
+    # Fallback: profile name lost (/run is tmpfs) but a card is still in AP mode.
+    for line in ask(['nmcli', '-t', '-f', 'DEVICE,TYPE', 'device', 'status']).splitlines():
+        name, _, kind = line.rpartition(':')
+        if kind == 'wifi' and name != AP_IFACE:
+            if any(l.strip() == 'type AP' for l in ask(['iw', 'dev', name, 'info']).splitlines()):
+                return {'interface': name, 'ssid': ssid(name), 'keepWifi': False}
     return None
 
 def take_down():

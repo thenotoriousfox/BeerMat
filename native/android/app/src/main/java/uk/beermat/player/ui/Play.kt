@@ -362,7 +362,18 @@ private fun Question(vm: PlayerViewModel, ui: UiState, q: Question) {
     when {
         submitted != null -> Result(q, submitted.points)
         !q.open -> Text(if (q.revealed) t("Answer revealed") else t("Answers closed"), color = Brand.muted)
-        else -> BigButton(t("Lock in answer"), enabled = !ui.busy && ready(q, value) && (most == 0 || stake != null)) { vm.submit(value, stake) }
+        else -> {
+            val speed = q.raw.optBoolean("fastestFingers")
+            if (speed) Text(t("⚡ Speed counts! Your answer is final the moment you tap submit."), color = Brand.muted, modifier = Modifier.padding(bottom = 8.dp))
+            if (speed) {
+                BigButton(t("Lock in answer"), enabled = !ui.busy && ready(q, value) && (most == 0 || stake != null)) { vm.submit(value, stake) }
+            } else {
+                var confirmSubmit by remember(q.id) { mutableStateOf(false) }
+                BigButton(t("Lock in answer"), enabled = !ui.busy && ready(q, value) && (most == 0 || stake != null)) { confirmSubmit = true }
+                if (confirmSubmit) androidx.compose.material3.AlertDialog({ confirmSubmit = false }, title = { Text(t("Lock in answer")) }, text = { Text(t("Submit this as your final answer?")) },
+                    confirmButton = { TextButton({ confirmSubmit = false; vm.submit(value, stake) }) { Text(t("Submit")) } }, dismissButton = { TextButton({ confirmSubmit = false }) { Text(t("Cancel")) } })
+            }
+        }
     }
     if (q.revealed) revealLines(q).forEachIndexed { i, line -> Text(line, color = Brand.good, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(top = if (i == 0) 12.dp else 4.dp)) }
     if (q.revealed) VarCheck(vm, ui, q)

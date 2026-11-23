@@ -53,7 +53,7 @@ function updateControls() {
   $('awayNote').hidden = !(q?.open && !current.answer);
   $('status').textContent = q?.held ? t('Listen: the question comes to your phone when it’s been read out') : q ? timeText(q, offset) : '';
   if (q) revealPicture($('media'), q, offset);
-  $('answerState').textContent = current.settings.ended ? t('Quiz finished') : q?.type === 'buzzer' || !q?.live ? '' : current.answer ? t('✓ Final answer saved') : q?.paused && !q.held ? t('Paused') : '';
+  $('answerState').textContent = current.settings.ended ? t('Quiz finished') : q?.type === 'buzzer' || !q?.live ? '' : current.answer ? t('✓ Final answer saved') : q?.paused && !q.held ? t('Paused') : q?.fastestFingers && q.open ? t('⚡ Speed counts! Your answer is final the moment you tap submit.') : '';
   // Timer bar: how much answering time is left (not shown for host-driven games).
   const timed = q && !['buzzer', 'bingo', 'musicbingo', 'clips'].includes(q.type) && (q.open || q.paused);
   $('timerBar').hidden = !timed;
@@ -451,6 +451,22 @@ function displayState(s) {
   }
   $('joinHint').textContent = !joining ? '' : online ? t('Join: {url}', {url: address}) : t('Join: Wi-Fi “{ssid}” → {url}', {ssid: joinSsid, url: address});
   $('boardSection').hidden = s.view !== 'leaderboard'; $('projectQuestion').hidden = s.view !== 'question';
+  // Review: a past question shown with its answers and scores.
+  $('reviewSection').hidden = s.view !== 'review';
+  if (s.view === 'review' && s.review) {
+    const rq = s.review.question;
+    $('reviewRound').textContent = rq?.round || '';
+    $('reviewQuestion').textContent = rq?.text || '';
+    const answer = rq?.answer || '';
+    const note = rq?.answerNote ? ` · ${rq.answerNote}` : '';
+    $('reviewAnswer').replaceChildren(element('p', t('Answer: {answer}', {answer: answer + note})));
+    const sorted = [...(s.review.answers || [])].sort((a, b) => (b.points || 0) - (a.points || 0) || a.name.localeCompare(b.name));
+    $('reviewAnswers').replaceChildren(...sorted.map(a => {
+      const li = element('li'); li.classList.toggle('right', (a.points || 0) > 0);
+      li.append(element('span', a.name, 'team-name'), element('span', String(a.value || '–'), 'muted'), element('strong', String(a.points ?? 0)));
+      return li;
+    }));
+  }
   const q = s.question; $('question').textContent = !q ? t('Waiting for the quizmaster') : q.text || '🎙 ' + t('Listen to the quizmaster'); $('question').classList.toggle('listen', !!q && !q.text); $('round').textContent = q?.round || ''; $('status').textContent = timeText(q, offset);
   $('riskNote').textContent = riskNote(q); $('riskNote').hidden = !riskNote(q) || !!q?.revealed;
   if (q?.type === 'pinpoint') renderPinpoint($('media'), q); else {renderMedia($('media'), q, {tv: true}); revealPicture($('media'), q, offset); followVideo($('media'), q);}
@@ -607,10 +623,33 @@ function showLeader(s) {
 }
 // The leaderboard revealed from the desk: from the bottom up to third place, then the leader (who gets the spotlight,
 // showLeader from soundCues), then second place, which completes the board. The server names the rows still hidden.
+let revealedNames = new Set();
 function applyReveal(s) {
   const r = s.reveal, rows = [...$('leaderboard').children], hidden = new Set(r && !r.done ? r.hidden || [] : []);
   rows.forEach((li, i) => li.classList.toggle('shown', !hidden.has(s.teams[i]?.name)));
   $('leaderboard').classList.toggle('revealing', !!r && !r.done);
+  // A team revealed with minus points gets a moment of shame on the TV.
+  if (r && !r.done && role === 'display') {
+    const nowShown = new Set(s.teams.filter(t => !hidden.has(t.name)).map(t => t.name));
+    for (const team of s.teams) {
+      if (nowShown.has(team.name) && !revealedNames.has(team.name) && (team.score ?? 0) < 0) {
+        showShame(team);
+      }
+    }
+    revealedNames = nowShown;
+  }
+  if (!r) revealedNames = new Set();
+}
+// Grand embarrassing moment for a team on minus points during the leaderboard reveal.
+function showShame(team) {
+  const box = $('firstPlace'); box.dataset.question = 'shame';
+  $('firstKind').textContent = '😬 ' + t('MINUS POINTS');
+  $('firstPhoto').replaceChildren(team.photo ? avatar(team.photo) : element('span', [...team.name][0].toUpperCase(), 'avatar first-initial'));
+  $('firstName').textContent = team.name;
+  $('firstDetail').textContent = t('{n} points', {n: team.score});
+  box.hidden = false; box.classList.remove('show'); void box.offsetWidth; box.classList.add('show');
+  playSound('wrong');
+  clearTimeout(firstTimer); firstTimer = setTimeout(() => {box.hidden = true;}, 5000);
 }
 // The wheel always turns forwards and stops with the server's chosen segment under the pointer. It clicks each time
 // a segment edge passes the pointer, so the clicks slow down with the wheel.
@@ -947,6 +986,8 @@ if (role === 'player') {
       return message(q.type === 'sequence' ? t('Place every item in order first') : q.type === 'pinpoint' ? t('Tap the picture first') : q.type === 'wordsnake' ? t('Trace the word first') : q.type === 'tiles' ? t('Place the tiles first') : keypad(q.type) || q.type === 'multi' ? t('Choose an answer first') : t('Type an answer first'), true);
     }
     if (q.wager && stake === null) return message(t('Choose your stake first'), true);
+    // Confirm before submitting so a stray tap can't lock the answer in — but not on speed questions.
+    if (!q.fastestFingers && !confirm(t('Submit this as your final answer?'))) return;
     submitting = true; updateControls(); clearTimeout(draftTimer);
     try {await api('answer', {question: q.id, value, ...(q.wager && {wager: stake})}, secret); message('Final answer received'); await refresh();}
     catch (e) {message(e.status ? e.message : t('Could not confirm submission. Reconnecting will check whether it was received.'), true); await refresh();}

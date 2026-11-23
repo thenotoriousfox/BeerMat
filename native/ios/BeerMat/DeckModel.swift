@@ -22,6 +22,7 @@ final class DeckModel: ObservableObject {
     @Published var message = ""
     @Published var isError = false
     private var server: QuizServer?
+    private var relay: RelayServer?
     private var key: String? = UserDefaults.standard.string(forKey: "deck:key")
     private var following: Task<Void, Never>?
     weak var online: OnlineModel?
@@ -77,18 +78,25 @@ final class DeckModel: ObservableObject {
         }
     }
 
-    /// One of the account's laptops: its address on this network if it answers, else its quizmaster link.
+    /// One of the account’s laptops: its address on this network if it answers, else its quizmaster link, else the relay.
     func open(_ laptop: [String: Any]) {
         laptops = []
         work {
             let addresses = laptop["addresses"] as? [String] ?? []
             let link = laptop.str("link")
-            guard let base = await Self.firstQuiz(addresses)?.0 ?? (link.hasPrefix("https://") ? link : nil) else {
-                throw QuizError(message: t("{name} can’t be reached: it has no quizmaster link yet. Check it’s on the internet.", ["name": laptop.str("name")]), status: 0)
-            }
+            let base = await Self.firstQuiz(addresses)?.0 ?? (link.hasPrefix("https://") ? link : nil)
             guard let client = self.online?.client else { return }
-            let s = try QuizServer(base)
-            self.server = s; self.address = s.base; self.title = laptop.str("title")
+            // Relay through BeerMat Online when the laptop isn’t directly reachable.
+            if base == nil {
+                let r = try await client.relayConnect(venueKey: laptop.str("venueKey"))
+                let rs = RelayServer(base: client.baseUrl, keyId: r.str("keyId"), token: r.str("token"))
+                self.relay = rs; self.server = nil; self.title = laptop.str("title")
+                self.key = rs.token
+                self.run()
+                return
+            }
+            let s = try QuizServer(base!)
+            self.server = s; self.relay = nil; self.address = s.base; self.title = laptop.str("title")
             let ticket = try await client.deckTicket(venueKey: laptop.str("venueKey"))
             self.signedIn(try await s.deckLogin(name: self.name, ticket: ticket))
         }
@@ -116,7 +124,7 @@ final class DeckModel: ObservableObject {
     func code(_ code: String) { work { guard let s = self.server else { return }; self.signedIn(try await s.deckLogin(name: self.name, code: code)) } }
 
     private func signedIn(_ newKey: String) {
-        key = newKey
+        key = newKey; relay = nil
         UserDefaults.standard.set(newKey, forKey: "deck:key"); UserDefaults.standard.set(server?.base, forKey: "deck:keyFor")
         run()
     }
@@ -124,17 +132,31 @@ final class DeckModel: ObservableObject {
     private func run() {
         stage = .run
         following?.cancel()
-        guard let s = server, let k = key else { return }
-        following = Task { [weak self] in
-            await self?.refresh()
-            for await on in s.updates(k) where on { await self?.refresh() }
+        if let r = relay {
+            let k = key ?? r.token
+            following = Task { [weak self] in
+                await self?.refresh()
+                for await on in r.updates(k) where on { await self?.refresh() }
+            }
+        } else {
+            guard let s = server, let k = key else { return }
+            following = Task { [weak self] in
+                await self?.refresh()
+                for await on in s.updates(k) where on { await self?.refresh() }
+            }
         }
     }
 
     private func refresh() async {
-        guard let s = server, let k = key else { return }
         do {
-            let d = DeckState.parse(try await s.host(k, "state"))
+            let raw: [String: Any]
+            if let r = relay {
+                raw = try await r.state()
+            } else {
+                guard let s = server, let k = key else { return }
+                raw = try await s.host(k, "state")
+            }
+            let d = DeckState.parse(raw)
             deck = d
             // The answer appears when the TV's drum roll ends, which nothing announces: look again until it has.
             if d.question?.revealing == true { Task { try? await Task.sleep(nanoseconds: 1_000_000_000); await self.refresh() } }
@@ -144,7 +166,7 @@ final class DeckModel: ObservableObject {
     }
 
     private func signedOut(_ why: String, error: Bool) {
-        following?.cancel(); key = nil
+        following?.cancel(); key = nil; relay = nil
         UserDefaults.standard.removeObject(forKey: "deck:key"); UserDefaults.standard.removeObject(forKey: "deck:keyFor")
         stage = .find; deck = nil
         say(why, error: error)
@@ -152,16 +174,23 @@ final class DeckModel: ObservableObject {
 
     func leave() {
         work {
-            if let s = self.server, let k = self.key { _ = try? await s.host(k, "logout") }
+            _ = try? await self.hostCommand("logout")
             self.signedOut(t("This phone no longer hosts the quiz"), error: false)
         }
+    }
+
+    /// Sends a host command through the relay or directly to the quiz server.
+    @discardableResult
+    private func hostCommand(_ route: String, _ body: [String: Any] = [:]) async throws -> [String: Any] {
+        if let r = relay { return try await r.host(r.token, route, body) }
+        guard let s = server, let k = key else { return [:] }
+        return try await s.host(k, route, body)
     }
 
     /// One of the desk's routes; `done` is said when it works.
     private func act(_ route: String, _ body: [String: Any] = [:], _ done: String) {
         work {
-            guard let s = self.server, let k = self.key else { return }
-            try await s.host(k, route, body)
+            try await self.hostCommand(route, body)
             self.say(done); await self.refresh()
         }
     }
@@ -174,9 +203,8 @@ final class DeckModel: ObservableObject {
         switch step {
         case "finish":
             work {
-                guard let s = self.server, let k = self.key else { return }
-                try await s.host(k, "settings", ["ended": true, "leaderboardVisible": true])
-                if d.question != nil { try await s.host(k, "board", ["action": "show"]) }
+                try await self.hostCommand("settings", ["ended": true, "leaderboardVisible": true])
+                if d.question != nil { try await self.hostCommand("board", ["action": "show"]) }
                 self.say(t("Quiz finished: the final standings are on the TV")); await self.refresh()
             }
         case "show": act("board", ["action": "show"], t("Leaderboard on the TV"))
@@ -191,10 +219,10 @@ final class DeckModel: ObservableObject {
     func back() {
         guard let label = deck?.back else { return }
         work {
-            guard let s = self.server, let k = self.key, let step = try await s.host(k, "state")["back"] as? [String: Any] else { return }
+            guard let step = try await self.hostCommand("state")["back"] as? [String: Any] else { return }
             var body: [String: Any] = ["kind": step.str("kind")]
             if step.int("answers") > 0 { body["discard"] = true }
-            try await s.host(k, "back", body)
+            try await self.hostCommand("back", body)
             self.say(t("Back: {step}", ["step": label.prefix(1).lowercased() + label.dropFirst()])); await self.refresh()
         }
     }
@@ -212,11 +240,11 @@ final class DeckModel: ObservableObject {
     func reveal() {
         guard let d = deck, d.canReveal, let q = d.question else { return }
         work {
-            guard let s = self.server, let k = self.key else { return }
             var delay = 0
-            if !d.fastRehearsal, let sound = d.revealSound, let url = URL(string: sound.hasPrefix("http") ? sound : s.base + sound),
+            if !d.fastRehearsal, let sound = d.revealSound, let serverBase = self.server?.base,
+               let url = URL(string: sound.hasPrefix("http") ? sound : serverBase + sound),
                let length = try? await AVURLAsset(url: url).load(.duration) { delay = min(10000, Int(length.seconds * 1000)) }
-            try await s.host(k, "reveal", ["question": q.id, "revealed": true, "delay": delay])
+            try await self.hostCommand("reveal", ["question": q.id, "revealed": true, "delay": delay])
             self.say(delay > 0 ? t("Drum roll… the answer appears in {n}s", ["n": (delay + 999) / 1000]) : t("Answer revealed on the TV")); await self.refresh()
         }
     }

@@ -34,12 +34,17 @@ async function start() {
     const laptops = (await api('GET', '/v1/me/desks', null, token)).desks.filter(d => d.role !== 'remote');
     $('deck').hidden = false;
     if (!laptops.length) return say('No quiz laptop is open on your account. Open BeerMat on the laptop, signed in to BeerMat Online.');
-    choices($('laptops'), laptops, async laptop => {
+    choices($(‘laptops’), laptops, async laptop => {
       try {
-        const {ticket} = await api('POST', '/v1/desk-tickets', {venueKey: laptop.venueKey, role: 'deck'}, token);
+        // Try the laptop directly first (quiz Wi-Fi or LAN); fall back to the relay through BeerMat Online.
         const base = await reachable(laptop);
-        if (!base) return say(`${laptop.name} can’t be reached: it has no quizmaster link yet. Check the laptop is on the internet.`, true);
-        location.href = `${base}/deck#ticket=${ticketParam(ticket)}`;
+        if (base) {
+          const {ticket} = await api(‘POST’, ‘/v1/desk-tickets’, {venueKey: laptop.venueKey, role: ‘deck’}, token);
+          return location.href = `${base}/deck#ticket=${ticketParam(ticket)}`;
+        }
+        // The laptop isn’t directly reachable: use the relay (commands and state go through BeerMat Online).
+        const {keyId, token: relayToken} = await api(‘POST’, ‘/v1/relay/connect’, {venueKey: laptop.venueKey}, token);
+        location.href = `/relay-deck#keyId=${encodeURIComponent(keyId)}&token=${encodeURIComponent(relayToken)}`;
       } catch (e) {say(e.message, true);}
     });
   } catch (e) {if (e.status === 401) {store(SESSION, null); return signIn();} say(e.message, true);}

@@ -39,6 +39,8 @@ RowLayout {
                 currentIndex: view.marking && view.marking.past ? Math.max(0, indexOfValue(view.marking.id)) : 0
                 onActivated: desk.review(currentValue)
             }
+            DeskButton { visible: view.marking && view.marking.past; text: "Show on TV"; onClicked: desk.showOnTv(view.marking.id) }
+            DeskButton { visible: view.marking && view.marking.past && (view.settings || {}).displayMode === "review"; text: "Clear TV"; kind: "subtle"; onClicked: desk.showOnTv(0) }
         }
         ColumnLayout {
             anchors.fill: parent

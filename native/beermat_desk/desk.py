@@ -704,6 +704,11 @@ class Desk(QObject):
         if self._review:
             self.review(self._review['question']['id'])
 
+    @Slot(int)
+    def showOnTv(self, question):
+        """Show a question with its answers and scores on the TV, or clear it (0)."""
+        self.api.host('tv-review', {'question': question or None}, lambda _: None, lambda e: self.toast.emit(e, True))
+
     @Slot(str, str)
     def teamNote(self, team, note):
         self.api.host('team', {'id': team, 'action': 'note', 'note': note}, lambda _: (self.toast.emit('Note saved', False), self.refresh()), lambda e: self.toast.emit(e, True))

@@ -6,30 +6,46 @@ import './compat.js';
 import {$, element, readStorage, writeStorage} from './app.js';
 import {t, setLanguage, translatePage} from './i18n.js';
 
-let key = readStorage('beermat-deck'), state = null, busy = false, messageTimer, revealLength = new Map(), stream = null, deadlineTimer = null;
-const STEPS = {reveal: 'Reveal next position', revealFirst: 'Reveal the leader', revealSecond: 'Reveal second place', show: 'Show leaderboard', recap: 'Reveal the secret round',
-  recapAnswer: 'Reveal the next secret answer', recapResults: 'Show the round’s results', finish: 'Finish quiz & reveal leaderboard', round: 'Start next round', question: 'Start next question'};
+let key = readStorage(‘beermat-deck’), state = null, busy = false, messageTimer, revealLength = new Map(), stream = null, deadlineTimer = null;
+const relay = window.__relay || null; // {keyId, token, base} when running through BeerMat Online’s relay
+const STEPS = {reveal: ‘Reveal next position’, revealFirst: ‘Reveal the leader’, revealSecond: ‘Reveal second place’, show: ‘Show leaderboard’, recap: ‘Reveal the secret round’,
+  recapAnswer: ‘Reveal the next secret answer’, recapResults: ‘Show the round’s results’, finish: ‘Finish quiz & reveal leaderboard’, round: ‘Start next round’, question: ‘Start next question’};
 
 function say(text, error = false) {
-  $('message').textContent = text; $('message').classList.toggle('error', error);
-  clearTimeout(messageTimer); messageTimer = setTimeout(() => {$('message').textContent = '';}, error ? 7000 : 4000);
+  $(‘message’).textContent = text; $(‘message’).classList.toggle(‘error’, error);
+  clearTimeout(messageTimer); messageTimer = setTimeout(() => {$(‘message’).textContent = ‘’;}, error ? 7000 : 4000);
 }
 async function call(route, body = {}) {
-  const response = await fetch('/api/' + route, {method: 'POST', headers: {'Content-Type': 'application/json', ...(key && {Authorization: 'Bearer ' + key})}, body: JSON.stringify(body), signal: AbortSignal.timeout(10000)});
+  if (relay && route.startsWith(‘host/’)) {
+    // Through the relay: commands are queued on BeerMat Online for the laptop to pick up.
+    const response = await fetch(`${relay.base}/relay/${relay.keyId}/command`, {method: ‘POST’,
+      headers: {‘Content-Type’: ‘application/json’}, body: JSON.stringify({token: relay.token, route: route.slice(5), body}), signal: AbortSignal.timeout(10000)});
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw Error(t(data.error || ‘Something went wrong’));
+    return data;
+  }
+  const response = await fetch(‘/api/’ + route, {method: ‘POST’, headers: {‘Content-Type’: ‘application/json’, ...(key && {Authorization: ‘Bearer ‘ + key})}, body: JSON.stringify(body), signal: AbortSignal.timeout(10000)});
   const data = await response.json().catch(() => ({}));
-  if ((response.status === 401 || response.status === 403) && route.startsWith('host/')) {signedOut(t('The desk has taken this phone off. Sign in again to host.')); throw Error('');}
-  if (!response.ok) throw Error(t(data.error || 'Something went wrong'));
+  if ((response.status === 401 || response.status === 403) && route.startsWith(‘host/’)) {signedOut(t(‘The desk has taken this phone off. Sign in again to host.’)); throw Error(‘’);}
+  if (!response.ok) throw Error(t(data.error || ‘Something went wrong’));
   return data;
 }
-// One thing at a time, as on the desk: a double tap can't skip a question.
+// One thing at a time, as on the desk: a double tap can’t skip a question.
 async function act(fn, done) {
   if (busy) return; busy = true; render();
   try {await fn(); if (done) say(done); await refresh();} catch (e) {if (e.message) say(e.message, true);} finally {busy = false; render();}
 }
-const host = (route, body) => call('host/' + route, body);
+const host = (route, body) => call(‘host/’ + route, body);
 
 // ---- signing in ----
 async function start() {
+  // Relay mode: already authenticated through BeerMat Online, no sign-in needed.
+  if (relay) {
+    if (await refresh(true)) return run();
+    say(t('The laptop isn't relaying yet. It may take a few seconds — try refreshing.'), true);
+    $('signIn').hidden = true; $('deck').hidden = true;
+    return;
+  }
   try {
     const hello = await (await fetch('/api/deck/hello')).json();
     $('title').textContent = hello.title || 'BeerMat';
@@ -61,16 +77,23 @@ $('codeForm').onsubmit = async e => {
 function run() {
   $('signIn').hidden = true; $('deck').hidden = false;
   stream?.close();
-  // The server nudges on every change; each nudge means "fetch the state again".
-  // Through the quizmaster link (https, a Cloudflare tunnel) the nudges come over a WebSocket: it holds events back.
-  const address = `/api/events?key=${encodeURIComponent(key)}`;
-  if (location.protocol === 'https:') {
-    const socket = stream = new WebSocket('wss://' + location.host + address);
-    socket.onmessage = () => refresh();
-    socket.onclose = () => {if (stream === socket) setTimeout(() => {if (stream === socket) run();}, 1000);};
-  } else {
-    stream = new EventSource(address);
+  if (relay) {
+    // Through the relay: SSE from BeerMat Online, nudging on each state change from the laptop.
+    stream = new EventSource(`${relay.base}/relay/${relay.keyId}/events?token=${encodeURIComponent(relay.token)}`);
     stream.onmessage = () => refresh();
+    stream.onerror = () => {if (stream) setTimeout(() => run(), 2000);};
+  } else {
+    // The server nudges on every change; each nudge means "fetch the state again".
+    // Through the quizmaster link (https, a Cloudflare tunnel) the nudges come over a WebSocket: it holds events back.
+    const address = `/api/events?key=${encodeURIComponent(key)}`;
+    if (location.protocol === 'https:') {
+      const socket = stream = new WebSocket('wss://' + location.host + address);
+      socket.onmessage = () => refresh();
+      socket.onclose = () => {if (stream === socket) setTimeout(() => {if (stream === socket) run();}, 1000);};
+    } else {
+      stream = new EventSource(address);
+      stream.onmessage = () => refresh();
+    }
   }
   render();
 }
@@ -83,7 +106,14 @@ $('leave').onclick = () => act(async () => {await host('logout').catch(() => {})
 
 async function refresh(first = false) {
   try {
-    state = await host('state');
+    if (relay) {
+      const r = await fetch(`${relay.base}/relay/${relay.keyId}/state?token=${encodeURIComponent(relay.token)}`, {signal: AbortSignal.timeout(10000)});
+      const data = await r.json();
+      if (!data.state) {if (first) return false; return false;}
+      state = data.state;
+    } else {
+      state = await host('state');
+    }
     if (state.settings?.language) {setLanguage(state.settings.language); translatePage();}
     $('title').textContent = state.settings?.title || 'BeerMat';
     render();
@@ -129,8 +159,8 @@ function render() {
     b.onclick = () => act(() => host('var', {id: c.id, decision}), decision === 'overturned' ? t('VAR Check: overturned') : t('VAR Check: the decision stands')); return b;};
   $('varChecks').replaceChildren(...(state.varChecks || []).map(c => {const row = element('div', undefined, 'var-check');
     row.append(element('p', t('📺 VAR Check: {team} answered “{answer}”', {team: c.name, answer: c.answer || '–'})), rule(c, 'overturned'), rule(c, 'stands')); return row;}));
-  $('questionCard').hidden = !question;
-  if (question) {
+  $('questionCard').hidden = !question || !!state.settings?.ended;
+  if (question && !state.settings?.ended) {
     $('round').textContent = question.round || '';
     $('question').textContent = question.text || '';
     $('readItOut').hidden = !(question.hideText && !question.revealed);
@@ -145,7 +175,9 @@ function render() {
     // What each team answered, with its points; the quizmaster can overrule a mark as soon as the team locks its answer in.
     const marking = state.deckAnswers?.question === question.id ? state.deckAnswers : null;
     const mark = (row, points) => act(() => host('mark', {team: row.team, question: question.id, points}), t('{team}: {points} points', {team: row.name, points}));
-    $('teamAnswers').replaceChildren(...(marking?.rows || []).map(row => {
+    // While the question is open, only show teams that have answered (the rest are still typing).
+    const rows = (marking?.rows || []).filter(row => !question.open || row.answered !== false || row.byHand);
+    $('teamAnswers').replaceChildren(...rows.map(row => {
       const li = element('li', undefined, row.answered === false && !row.byHand ? '' : row.points > 0 ? 'right' : 'wrong');
       const head = element('div', undefined, 'deck-answer-head');
       head.append(element('strong', row.name), element('span', t('{n} pts', {n: row.points}), 'deck-points'));
@@ -185,8 +217,9 @@ function render() {
   $('back').hidden = !state.back; $('back').textContent = state.back ? t('Back: {step}', {step: state.back.label.charAt(0).toLowerCase() + state.back.label.slice(1)}) : '';
   $('back').disabled = busy;
   $('deskClosed').hidden = !!state.deskConnected;
-  // The next round's intro, to read out before starting it (the TV doesn't show it).
-  $('nextRoundIntro').hidden = !state.nextRound; $('nextRoundTitle').textContent = state.nextRound ? t('Read out before {round}', {round: state.nextRound.title}) : ''; $('nextRoundText').textContent = state.nextRound?.intro || '';
+  // The next round's intro, to read out before starting the round (not while the leaderboard is being revealed).
+  const showIntro = state.nextRound && (state.nextStep === 'round' || state.nextStep === 'question');
+  $('nextRoundIntro').hidden = !showIntro; $('nextRoundTitle').textContent = showIntro ? t('Read out before {round}', {round: state.nextRound.title}) : ''; $('nextRoundText').textContent = showIntro ? state.nextRound?.intro || '' : '';
   const board = [...state.teams].filter(team => team.enabled !== false && !team.waiting).sort((a, b) => (a.rank || 999) - (b.rank || 999) || a.name.localeCompare(b.name));
   $('board').replaceChildren(...(board.length ? board.map(team => {
     const li = element('li'); li.append(element('span', String(team.rank || '–'), 'rank'), element('span', team.name, 'team-name'), element('strong', String(team.score ?? ''))); li.classList.toggle('away', !team.connected); return li;

@@ -83,6 +83,14 @@
   "🚀 VOIE RAPIDE",
   "🚀 VÍA RÁPIDA"
  ],
+ "MINUS POINTS": [
+  "POINTS NÉGATIFS",
+  "PUNTOS NEGATIVOS"
+ ],
+ "⚡ Speed counts! Your answer is final the moment you tap submit.": [
+  "⚡ La vitesse compte ! Votre réponse est définitive dès que vous appuyez.",
+  "⚡ ¡La velocidad cuenta! Tu respuesta es definitiva en cuanto pulses enviar."
+ ],
  "Straight to first place!": [
   "Directement à la première place !",
   "¡Directo al primer puesto!"
@@ -270,6 +278,14 @@
  "Submit final answer": [
   "Envoyer la réponse finale",
   "Enviar respuesta final"
+ ],
+ "Submit this as your final answer?": [
+  "Envoyer ceci comme réponse finale ?",
+  "¿Enviar esto como respuesta final?"
+ ],
+ "Submit": [
+  "Envoyer",
+  "Enviar"
  ],
  "One final submission per question. Drafts are saved while you type. Check your answer before submitting.": [
   "Une seule réponse finale par question. Les brouillons sont enregistrés pendant la saisie. Vérifiez avant d’envoyer.",

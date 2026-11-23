@@ -283,6 +283,21 @@ player, and the TV until the native one is done), `online/`, `site/`, `shared/`.
   quiz Wi-Fi, any iPhone build, a Windows build and install, and the keychain on a real desktop session (the packaged
   test ran without one and used the file fallback, as designed).
 
+## Release 1.1.0 (23 Nov 2026)
+
+* **Phone deck relay**: commands and state flow through BeerMat Online when the laptop isn't directly reachable,
+  removing the dependency on Cloudflare quick tunnels. Browser, Android and iOS.
+* **Phone deck UX fixes**: answers only appear for teams that have answered (not "No answer yet" for everyone while
+  the question is open); round intro only shows before the round starts, not during the leaderboard reveal; question
+  card hides when the quiz ends.
+* **Show any question on TV**: the desk can show a past question with its answers and scores on the TV (review mode).
+  Browser TV and Qt TV.
+* **Minus points shame**: during the leaderboard reveal, any team on minus points gets a fullscreen moment on the TV.
+* **Answer submission confirmation**: a confirm dialog before submitting an answer (skipped for fastest-fingers
+  questions, which show a speed warning instead). Browser, Android and iOS.
+* **Wi-Fi detection fix**: `hotspot.py` `running()` falls back to checking `iw` for AP-mode interfaces when the
+  profile file in `/run` is missing.
+
 ## Real display check (28 Oct 2026, this development machine)
 
 KDE Plasma on Wayland, DP-4 2560×1440 (primary) and HDMI-A-5 1920×1080, NVIDIA, `native/tests/display_check.py`:

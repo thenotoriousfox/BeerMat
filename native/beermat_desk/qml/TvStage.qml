@@ -929,6 +929,53 @@ Item {
                 }
             }
 
+            // Review: a past question shown with its answers and scores.
+            Item {
+                objectName: "reviewView"
+                anchors.fill: parent
+                opacity: root.view === "review" ? 1 : 0; visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 300 } }
+                readonly property var r: root.tv.review || null
+                readonly property var q: r ? r.question : null
+                Column {
+                    width: parent.width; spacing: 22
+                    Text { text: reviewView.q ? (reviewView.q.round || "").toUpperCase() : ""; color: root.pal.gold; font.pixelSize: 30; font.weight: Font.Bold; font.letterSpacing: 4 }
+                    Text { width: parent.width; text: reviewView.q ? reviewView.q.text : ""; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight
+                           color: root.pal.text; font.family: Theme.display; font.pixelSize: 60; font.weight: Font.Bold }
+                    Rectangle {
+                        width: parent.width; height: revAnswerCol.implicitHeight + 44; radius: 22
+                        color: Qt.rgba(root.pal.good.r, root.pal.good.g, root.pal.good.b, 0.12); border.color: root.pal.good; border.width: 2
+                        Column {
+                            id: revAnswerCol; x: 30; y: 22; width: parent.width - 60; spacing: 6
+                            Text { width: parent.width; wrapMode: Text.WordWrap; color: root.pal.goldHi; font.family: Theme.display; font.pixelSize: 52; font.weight: Font.Bold
+                                   text: reviewView.q ? root.t("Answer: {answer}", {answer: reviewView.q.answer ?? (reviewView.q.itemAnswers || []).join(", ")}) : "" }
+                            Text { visible: text !== ""; width: parent.width; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight; color: root.pal.muted; font.pixelSize: 28
+                                   text: reviewView.q ? reviewView.q.answerNote : "" }
+                        }
+                    }
+                    Grid {
+                        readonly property var list: reviewView.r ? (reviewView.r.answers || []).slice().sort((a, b) => (b.points || 0) - (a.points || 0)) : []
+                        columns: list.length > 8 ? 2 : 1; columnSpacing: 40; rowSpacing: 10; width: parent.width
+                        Repeater {
+                            model: parent.list
+                            delegate: Rectangle {
+                                required property var modelData
+                                required property int index
+                                readonly property bool correct: (modelData.points || 0) > 0
+                                width: parent.columns > 1 ? 880 : 1800; height: parent.columns > 1 ? 70 : Math.min(84, 700 / Math.max(1, parent.list.length) - 10); radius: 16
+                                color: correct ? Qt.rgba(root.pal.good.r, root.pal.good.g, root.pal.good.b, 0.18) : Qt.rgba(1, 1, 1, 0.06)
+                                Text { x: 26; anchors.verticalCenter: parent.verticalCenter; text: modelData.name; color: root.pal.text; font.pixelSize: Math.min(38, parent.height * 0.5); font.weight: Font.DemiBold
+                                       width: parent.width * 0.4; elide: Text.ElideRight }
+                                Text { x: parent.width * 0.45; anchors.verticalCenter: parent.verticalCenter; text: String(modelData.value || "–"); color: root.pal.muted; font.pixelSize: Math.min(32, parent.height * 0.42)
+                                       width: parent.width * 0.3; elide: Text.ElideRight }
+                                Text { anchors.right: parent.right; anchors.rightMargin: 26; anchors.verticalCenter: parent.verticalCenter
+                                       text: (modelData.points || 0) > 0 ? "+" + modelData.points : String(modelData.points || 0); color: correct ? root.pal.good : root.pal.muted; font.pixelSize: Math.min(36, parent.height * 0.48); font.weight: Font.Bold }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Wheel: turns forwards and stops with the server's chosen segment under the pointer.
             Item {
                 id: wheelView
@@ -1032,6 +1079,7 @@ Item {
             property string boardDone: ""
             property int fastTrackSeen: -1
             property int varSeen: -1
+            property var shameShown: ({})  // team names already shamed this reveal
             // VAR Check: "VAR CHECK" over a drum roll, then the decision.
             Timer {
                 id: varDecision; interval: 3000
@@ -1070,6 +1118,19 @@ Item {
                                                         detail: top[0].score === null ? "" : root.t("{n} points", {n: top[0].score})}, 5000 + (top.length - 1) * 2500)
                     }
                     spotlight.boardDone = done || (spotlight.boardDone === "" ? "-" : spotlight.boardDone)
+                    // A team revealed with minus points gets a moment of shame.
+                    if (r && !r.done) {
+                        const hidden = new Set(r.hidden || [])
+                        for (const team of root.teams) {
+                            if (!hidden.has(team.name) && !spotlight.shameShown[team.name] && (team.score ?? 0) < 0) {
+                                const s = Object.assign({}, spotlight.shameShown); s[team.name] = true; spotlight.shameShown = s
+                                spotlight.shownFor = null
+                                spotlight.show({kind: "😬 " + root.t("MINUS POINTS"), names: team.name, photos: team.photo ? [team.photo] : [], initials: [team.name.charAt(0).toUpperCase()],
+                                                detail: root.t("{n} points", {n: team.score})}, 5000)
+                            }
+                        }
+                    }
+                    if (!r) spotlight.shameShown = ({})
                     // VAR Check: a ruling on a team's appeal, seen happening.
                     const v = root.tv.varCheck
                     if (v && v.id !== spotlight.varSeen) {

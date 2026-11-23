@@ -24,8 +24,8 @@ android {
         applicationId = "uk.beermat.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 632
-        versionName = "1.0.0"
+        versionCode = 633
+        versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // BeerMat Online and the venue list, as mobile/www/config.js.
         buildConfigField("String", "ONLINE_SERVICE", "\"${project.findProperty("onlineService") ?: "https://online.beermatquiz.co.uk"}\"")

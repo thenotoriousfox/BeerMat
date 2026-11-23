@@ -168,6 +168,8 @@ public final class OnlineClient: @unchecked Sendable {
     public func desks() async throws -> [[String: Any]] { try await api("GET", "/v1/me/desks")["desks"] as? [[String: Any]] ?? [] }
     /// A ticket for this phone to host the quiz on the laptop with `venueKey`: signed in to this account, the venue's own, or an admin.
     public func deckTicket(venueKey: String) async throws -> [String: Any] { try await api("POST", "/v1/deck-tickets", ["venueKey": venueKey])["ticket"] as? [String: Any] ?? [:] }
+    /// Relay: a fallback connection to a laptop through BeerMat Online when it isn't directly reachable.
+    public func relayConnect(venueKey: String) async throws -> [String: Any] { try await api("POST", "/v1/relay/connect", ["venueKey": venueKey]) }
     public func venue(_ id: String) async throws -> [String: Any] { try await api("GET", "/v1/venues/" + (id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id)) }
     public func favourites() async throws -> [String: Any] { try await api("GET", "/v1/me/favourites") }
     public func favourite(_ id: String, on: Bool) async throws { try await api(on ? "PUT" : "DELETE", "/v1/me/favourites/" + id) }

@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import uk.beermat.player.net.QuizError
 import uk.beermat.player.net.QuizServer
+import uk.beermat.player.net.RelayServer
 import uk.beermat.player.online.OnlineClient
 import uk.beermat.player.online.OnlineError
 import uk.beermat.player.tv.TvFinder
@@ -46,6 +47,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private val _ui = MutableStateFlow(DeckUi(address = prefs.getString("address", "") ?: ""))
     val ui: StateFlow<DeckUi> = _ui
     private var server: QuizServer? = null
+    private var relay: RelayServer? = null
     private var key: String? = prefs.getString("key", null)
     private var following: Job? = null
     private val name get() = online.profile?.optString("displayName")?.takeIf { it.isNotBlank() }?.let { t("{name}’s phone", "name" to it) } ?: Build.MODEL
@@ -78,25 +80,36 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** One of the account's laptops: its address on this network if it answers, else its quizmaster link; signed in
-     *  with a ticket for it. */
+    /** One of the account’s laptops: its address on this network if it answers, else its quizmaster link; when neither
+     *  works, relay through BeerMat Online. Signed in with a ticket (direct) or the relay token (relayed). */
     fun open(laptop: JSONObject) = work {
         _ui.update { it.copy(laptops = emptyList()) }
         val addresses = laptop.optJSONArray("addresses")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty()
         val base = TvFinder.find(addresses) { b -> runCatching { QuizServer(b).deckHello().optString("title", "BeerMat") }.getOrNull() }?.first
             ?: laptop.optString("link").takeIf { it.startsWith("https://") }
-            ?: throw QuizError(t("{name} can’t be reached: it has no quizmaster link yet. Check it’s on the internet.", "name" to laptop.optString("name")), 0)
-        val s = QuizServer(base)
-        server = s
-        _ui.update { it.copy(address = s.base, title = laptop.optString("title", "BeerMat")) }
-        signedIn(s.deckLogin(name, ticket = online.deckTicket(laptop.getString("venueKey"))))
+        if (base != null) {
+            val s = QuizServer(base)
+            server = s; relay = null
+            _ui.update { it.copy(address = s.base, title = laptop.optString("title", "BeerMat")) }
+            signedIn(s.deckLogin(name, ticket = online.deckTicket(laptop.getString("venueKey"))))
+        } else {
+            // Relay through BeerMat Online when the laptop isn’t directly reachable.
+            val venueKey = laptop.getString("venueKey")
+            val r = online.relayConnect(venueKey)
+            val rs = RelayServer(online.baseUrl, r.getString("keyId"), r.getString("token"))
+            relay = rs; server = null
+            _ui.update { it.copy(address = online.baseUrl, title = laptop.optString("title", "BeerMat")) }
+            // No deckLogin needed — the relay token is the auth.
+            key = rs.token
+            run()
+        }
     }
 
     /** The laptop at [address]: a ticket from BeerMat Online if this account may host there, else the desk's code. */
     fun connect(address: String) = work {
         val s = try { QuizServer(address) } catch (_: Exception) { throw QuizError(t("That address isn’t a BeerMat quiz."), 0) }
         val hello = s.deckHello()
-        server = s
+        server = s; relay = null
         prefs.edit().putString("address", s.base).apply()
         _ui.update { it.copy(address = s.base, title = hello.optString("title", "BeerMat")) }
         // Back to a laptop this phone already hosts: the key it had still works until the desk takes it off.
@@ -117,14 +130,22 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private fun run() {
         _ui.update { it.copy(stage = DeckStage.Run) }
         following?.cancel()
-        val s = server ?: return; val k = key ?: return
-        following = viewModelScope.launch { s.updates(k).collect { if (it) refresh() } }
+        val k = key ?: return
+        val rs = relay
+        if (rs != null) {
+            following = viewModelScope.launch { rs.updates(k).collect { if (it) refresh() } }
+        } else {
+            val s = server ?: return
+            following = viewModelScope.launch { s.updates(k).collect { if (it) refresh() } }
+        }
     }
 
     private suspend fun refresh() {
-        val s = server ?: return; val k = key ?: return
+        val k = key ?: return
         try {
-            val d = DeckState.parse(s.host(k, "state"))
+            val rs = relay
+            val state = if (rs != null) rs.state() else { val s = server ?: return; s.host(k, "state") }
+            val d = DeckState.parse(state)
             _ui.update { it.copy(deck = d) }
             // The answer appears when the TV's drum roll ends, which nothing announces: look again until it has.
             if (d.question?.revealing == true) viewModelScope.launch { kotlinx.coroutines.delay(1000); refresh() }
@@ -134,14 +155,14 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun signedOut(why: String) {
-        following?.cancel(); key = null
+        following?.cancel(); key = null; relay = null
         prefs.edit().remove("key").remove("keyFor").apply()
         _ui.update { it.copy(stage = DeckStage.Find, deck = null) }
         say(why, true)
     }
 
     fun leave() = work {
-        runCatching { server?.host(key!!, "logout") }
+        runCatching { hostCommand("logout") }
         signedOut(t("This phone no longer hosts the quiz"))
         say(t("This phone no longer hosts the quiz"))
     }
@@ -155,9 +176,16 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Sends a host command through the direct server or the relay, whichever is active. */
+    private suspend fun hostCommand(route: String, body: JSONObject = JSONObject()): JSONObject {
+        val k = key!!
+        val rs = relay
+        return if (rs != null) rs.host(k, route, body) else server!!.host(k, route, body)
+    }
+
     /** One of the desk's routes; [done] is said when it works. */
     private fun act(route: String, body: JSONObject = JSONObject(), done: String) = work {
-        server!!.host(key!!, route, body)
+        hostCommand(route, body)
         say(done)
         refresh()
     }
@@ -169,9 +197,9 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     fun next() {
         when (val step = deck?.takeIf { it.canNext }?.nextStep ?: return) {
             "finish" -> work {
-                val s = server!!; val k = key!!; val ended = JSONObject().put("ended", true).put("leaderboardVisible", true)
-                s.host(k, "settings", ended)
-                if (deck?.question != null) s.host(k, "board", JSONObject().put("action", "show"))
+                val ended = JSONObject().put("ended", true).put("leaderboardVisible", true)
+                hostCommand("settings", ended)
+                if (deck?.question != null) hostCommand("board", JSONObject().put("action", "show"))
                 say(t("Quiz finished: the final standings are on the TV")); refresh()
             }
             "show" -> act("board", JSONObject().put("action", "show"), t("Leaderboard on the TV"))
@@ -185,8 +213,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     fun back() {
         val label = deck?.back ?: return
         work {
-            val step = server!!.host(key!!, "state").optJSONObject("back") ?: return@work
-            server!!.host(key!!, "back", JSONObject().put("kind", step.getString("kind")).apply { if (step.optInt("answers") > 0) put("discard", true) })
+            val step = hostCommand("state").optJSONObject("back") ?: return@work
+            hostCommand("back", JSONObject().put("kind", step.getString("kind")).apply { if (step.optInt("answers") > 0) put("discard", true) })
             say(t("Back: {step}", "step" to label)); refresh()
         }
     }
@@ -204,8 +232,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     fun reveal() {
         val d = deck?.takeIf { it.canReveal } ?: return
         work {
-            val delay = if (d.fastRehearsal || d.revealSound == null) 0 else minOf(10000, server!!.soundLength(d.revealSound))
-            server!!.host(key!!, "reveal", JSONObject().put("question", d.question!!.id).put("revealed", true).put("delay", delay))
+            val delay = if (d.fastRehearsal || d.revealSound == null) 0 else server?.let { minOf(10000, it.soundLength(d.revealSound)) } ?: 0
+            hostCommand("reveal", JSONObject().put("question", d.question!!.id).put("revealed", true).put("delay", delay))
             say(if (delay > 0) t("Drum roll… the answer appears in {n}s", "n" to (delay + 999) / 1000) else t("Answer revealed on the TV")); refresh()
         }
     }
@@ -217,7 +245,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Clips, songs, bingo calls and audio play from the laptop: the desk does them. */
     fun desk(action: String, value: Int? = null) = work {
-        server!!.host(key!!, "deck-command", JSONObject().put("action", action).apply { if (value != null) put("value", value) })
+        hostCommand("deck-command", JSONObject().put("action", action).apply { if (value != null) put("value", value) })
         say(t("Asked the desk"))
     }
 

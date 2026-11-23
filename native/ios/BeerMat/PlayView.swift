@@ -215,6 +215,7 @@ private struct QuestionView: View {
     @State private var points: [[Double]] = []
     @State private var loaded = false
     @State private var stake: Int?
+    @State private var confirmSubmit = false
     private var most: Int { (q.raw["wager"] as? NSNumber)?.intValue ?? 0 }
     /// The choices this team's 50/50 took away (none until it takes one).
     private var fiftyRemoved: [String] { q.raw["fiftyRemoved"] as? [String] ?? [] }
@@ -305,7 +306,15 @@ private struct QuestionView: View {
             if let wager = submitted?.wager { Text(t("Staked {n}", ["n": wager])).foregroundStyle(Brand.muted) }
             if let submitted { ResultView(points: submitted.points) }
             else if !q.open { Text(q.revealed ? t("Answer revealed") : t("Answers closed")).foregroundStyle(Brand.muted) }
-            else { BigButton(title: t("Lock in answer"), enabled: !model.busy && ready && (most == 0 || stake != nil)) { model.submit(value, wager: stake) } }
+            else if q.raw["fastestFingers"] as? Bool == true {
+                Text(t("⚡ Speed counts! Your answer is final the moment you tap submit.")).foregroundStyle(Brand.muted).padding(.bottom, 4)
+                BigButton(title: t("Lock in answer"), enabled: !model.busy && ready && (most == 0 || stake != nil)) { model.submit(value, wager: stake) }
+            }
+            else { BigButton(title: t("Lock in answer"), enabled: !model.busy && ready && (most == 0 || stake != nil)) { confirmSubmit = true }
+                .alert(t("Lock in answer"), isPresented: $confirmSubmit) {
+                    Button(t("Submit")) { model.submit(value, wager: stake) }
+                    Button(t("Cancel"), role: .cancel) {}
+                } message: { Text(t("Submit this as your final answer?")) } }
             if q.revealed { ForEach(revealLines(q), id: \.self) { Text($0).font(.title3.bold()).foregroundStyle(Brand.good) } }
             if q.revealed { VarCheckView(question: q.id) }
             if q.revealed && !q.answerNote.isEmpty { Text(q.answerNote).foregroundStyle(Brand.muted) }

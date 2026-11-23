@@ -225,6 +225,31 @@ devices get a ticket for it (`POST /v1/desk-tickets {venueKey, role}`). Each tri
 
 On BeerMat's own quiz Wi-Fi none of this is needed: the laptop is the Wi-Fi, and the TV page and the code work offline.
 
+### Phone deck through the relay
+
+When the laptop isn't directly reachable (no tunnel, or the tunnel is down), a phone deck falls back to relaying
+commands and state through BeerMat Online. The phone never connects to the laptop: BeerMat Online holds the state and
+queues commands.
+
+**Laptop side** (the relay loop in `server/server.js`): every second while signed in with a live quiz, `POST
+/v1/me/desk/relay {request: signedClaim, state}` pushes a trimmed deck state (the fields the phone deck uses from
+`/api/host/state`, roughly 2–5 KB) and picks up queued commands → `{commands: [{route, body, at}], version}`. The
+laptop executes each command as an internal `/api/host/<route>` call. The heartbeat's response includes `relay: true`
+when a phone is waiting on the relay, triggering the loop to start.
+
+**Phone side**: `POST /v1/relay/connect {venueKey}` (authenticated by the user's Online session) → `{keyId, token,
+state}`. The token is an HMAC scoped to the desk's key ID and account, valid for 12 hours.
+
+- State: `GET /v1/relay/:keyId/state?token=...` → `{state, version}`.
+- Nudges: `GET /v1/relay/:keyId/events?token=...` (SSE): a version number on each state push from the laptop.
+- Commands: `POST /v1/relay/:keyId/command {token, route, body}`: queued until the laptop's next relay push. Only
+  the same routes a phone deck uses: `send`, `close`, `reveal`, `next`, `back`, `mark`, `buzz`, `board`, `recap`,
+  `pause`, `resume`, `deck-command`, `var`, `settings`, `logout`. Max 10 pending, rate-limited.
+
+The relay is in-memory on Online (no database), cleaned up after 90 seconds of no laptop push.
+
+**Fallback order**: LAN addresses → quizmaster link → relay through Online → code on the quiz Wi-Fi.
+
 ## Compatibility rules
 
 1. Add fields; don't rename or remove them. Bump `protocol` if you must.

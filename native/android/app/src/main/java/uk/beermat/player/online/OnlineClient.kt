@@ -145,6 +145,9 @@ class OnlineClient(context: Context, private val identity: Identity = Identity(c
     /** A ticket for this phone to host the quiz on the laptop with [venueKey]: signed in to this account, the venue's own, or an admin. */
     suspend fun deckTicket(venueKey: String) = api("POST", "/v1/deck-tickets", JSONObject().put("venueKey", venueKey)).getJSONObject("ticket")
 
+    /** Relay: a fallback connection to a laptop through BeerMat Online when it isn't directly reachable. */
+    suspend fun relayConnect(venueKey: String) = api("POST", "/v1/relay/connect", JSONObject().put("venueKey", venueKey))
+
     suspend fun venue(id: String) = api("GET", "/v1/venues/" + URLEncoder.encode(id, "UTF-8"))
     suspend fun favourites() = api("GET", "/v1/me/favourites")
     suspend fun favourite(id: String, on: Boolean) = api(if (on) "PUT" else "DELETE", "/v1/me/favourites/" + URLEncoder.encode(id, "UTF-8"))

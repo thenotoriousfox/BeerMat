@@ -128,6 +128,11 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   if (!db.prepare('PRAGMA table_info(venues)').all().some(c => c.name === 'library_banned')) db.exec('ALTER TABLE venues ADD COLUMN library_banned INTEGER NOT NULL DEFAULT 0');
   const one = (sql, ...a) => db.prepare(sql).get(...a), rows = (sql, ...a) => db.prepare(sql).all(...a), run = (sql, ...a) => db.prepare(sql).run(...a);
   const transaction = fn => {db.exec('BEGIN'); try {const result = fn(); db.exec('COMMIT'); return result;} catch (e) {db.exec('ROLLBACK'); throw e;}};
+  // Phone deck relay: in-memory state pushed by laptops, read by phone decks through this service.
+  const relays = new Map(); // keyId → {state, version, commands:[], streams:Set, updatedAt}
+  const relaySecret = randomBytes(32);
+  const relayCleanup = setInterval(() => {for (const [kid, r] of relays) if (now() - r.updatedAt > 90000) {for (const s of r.streams) try {s.end();} catch {} relays.delete(kid);}}, 30000);
+  relayCleanup.unref?.();
   const attempts = new Map();
   // Ten tries a minute per address (and per email for sign-in), then a pause.
   function limit(name) {
@@ -1030,7 +1035,10 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
         keyId(publicKey), publicKey, me().id, text(input.name, 60) || 'Quiz laptop', text(input.title, 120), input.role, JSON.stringify(addresses), link, now());
         // A laptop that closed without saying so: its addresses go after a day.
         run('DELETE FROM desks WHERE seen<?', now() - 86400000);
-        return send(200, {desks: openDesks(account.id).filter(d => d.venueKey !== publicKey)});
+        // Tell the laptop whether a phone deck is waiting on the relay (so it starts pushing state).
+        const kid = keyId(publicKey), relay = relays.get(kid);
+        const relayActive = !!(relay && (relay.streams.size > 0 || relay.commands.length > 0));
+        return send(200, {desks: openDesks(account.id).filter(d => d.venueKey !== publicKey), relay: relayActive});
       }
       if (method === 'POST' && p === '/v1/me/desk/closed') {run('DELETE FROM desks WHERE public_key=? AND account=?', laptopRequest(input.request, 'beermat.desk-closed'), me().id); return send(200, {ok: true});}
       if (method === 'GET' && p === '/v1/me/desks') return send(200, {desks: openDesks(me().id)});
@@ -1085,6 +1093,112 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
       }
       // /v1/deck-tickets: the phone deck's older name for it (role 'deck').
       if (method === 'POST' && (p === '/v1/desk-tickets' || p === '/v1/deck-tickets')) return send(200, {ticket: quizTicket(me(), input.venueKey, p === '/v1/deck-tickets' ? 'deck' : input.role || 'deck')});
+
+      // ---- Phone deck relay: commands and state through BeerMat Online, no tunnel needed ----
+      // The laptop pushes its deck state here every second; a phone deck reads it and sends commands back. This avoids
+      // relying on Cloudflare quick tunnels (trycloudflare.com), which have no uptime guarantee.
+
+      // The laptop pushes state and picks up queued commands. Authenticated by a signed claim.
+      if (method === 'POST' && p === '/v1/me/desk/relay') {
+        const publicKey = laptopRequest(input.request, 'beermat.relay-push');
+        const kid = keyId(publicKey);
+        check(input.state && typeof input.state === 'object', 'Send the deck state');
+        let relay = relays.get(kid);
+        if (!relay) {relay = {state: null, version: 0, commands: [], streams: new Set(), updatedAt: 0}; relays.set(kid, relay);}
+        relay.state = input.state;
+        relay.version++;
+        relay.updatedAt = now();
+        // Nudge all connected phone deck SSE streams.
+        for (const stream of relay.streams) stream.write(`data: ${relay.version}\n\n`);
+        // Update the desk's seen timestamp (counts as a heartbeat).
+        run('UPDATE desks SET seen=? WHERE key_id=?', now(), kid);
+        // Return queued commands and clear them.
+        const commands = relay.commands.splice(0);
+        return send(200, {commands, version: relay.version});
+      }
+
+      // A phone connects to the relay: validates account access, returns a relay token.
+      if (method === 'POST' && p === '/v1/relay/connect') {
+        const venueKey = text(input.venueKey, 200, {required: true, name: 'Venue key'});
+        const acct = me();
+        const v = venueOfKey(venueKey), open = one('SELECT 1 FROM desks WHERE public_key=? AND account=? AND seen>?', venueKey, acct.id, now() - DESK_OPEN_MS);
+        check(acct.admin || open || (v && v.owner === acct.id), "That laptop isn't signed in to this account, or isn't open", 403);
+        const kid = keyId(venueKey);
+        const expires = now() + 12 * 60 * 60 * 1000;
+        const relayToken = createHmac('sha256', relaySecret).update(`${kid}:${acct.id}:${expires}`).digest('base64url');
+        const token = `${kid}:${acct.id}:${expires}:${relayToken}`;
+        const relay = relays.get(kid);
+        return send(200, {keyId: kid, token, state: relay?.state || null});
+      }
+
+      // Relay token validation: keyId:accountId:expires:hmac.
+      const relayAuth = () => {
+        const token = url.searchParams.get('token') || input.token || '';
+        const [kid, accountId, exp, sig] = token.split(':');
+        check(kid && accountId && exp && sig, 'Relay token required', 401);
+        check(Number(exp) > now(), 'Relay token expired', 401);
+        const expected = createHmac('sha256', relaySecret).update(`${kid}:${accountId}:${exp}`).digest('base64url');
+        check(sig === expected, 'Invalid relay token', 401);
+        return {keyId: kid, accountId};
+      };
+
+      // SSE stream: the phone listens for state changes.
+      if (method === 'GET' && parts[0] === 'relay' && parts[1] && parts[2] === 'events' && parts.length === 3) {
+        const {keyId: kid} = relayAuth();
+        check(kid === parts[1], 'Token does not match this relay', 403);
+        res.writeHead(200, {...headers(req), 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive'});
+        const relay = relays.get(kid);
+        if (relay?.state) res.write(`data: ${relay.version}\n\n`);
+        const stream = res;
+        if (relay) relay.streams.add(stream);
+        else {const r = {state: null, version: 0, commands: [], streams: new Set([stream]), updatedAt: now()}; relays.set(kid, r);}
+        const ping = setInterval(() => {try {res.write(': keep-alive\n\n');} catch {clearInterval(ping);}}, 15000);
+        req.on('close', () => {clearInterval(ping); relays.get(kid)?.streams.delete(stream);});
+        return;
+      }
+
+      // The phone fetches the latest deck state.
+      if (method === 'GET' && parts[0] === 'relay' && parts[1] && parts[2] === 'state' && parts.length === 3) {
+        const {keyId: kid} = relayAuth();
+        check(kid === parts[1], 'Token does not match this relay', 403);
+        const relay = relays.get(kid);
+        return send(200, {state: relay?.state || null, version: relay?.version || 0});
+      }
+
+      // The phone sends a command to the laptop (queued until the laptop's next relay push).
+      if (method === 'POST' && parts[0] === 'relay' && parts[1] && parts[2] === 'command' && parts.length === 3) {
+        const {keyId: kid} = relayAuth();
+        check(kid === parts[1], 'Token does not match this relay', 403);
+        const ALLOWED = ['send', 'close', 'reveal', 'next', 'back', 'mark', 'buzz', 'board', 'recap', 'pause', 'resume', 'deck-command', 'var', 'settings', 'logout'];
+        check(typeof input.route === 'string' && ALLOWED.includes(input.route), 'Unknown command');
+        limit('relay-cmd:' + kid);
+        const relay = relays.get(kid);
+        check(relay?.state, "The laptop isn't relaying right now", 503);
+        check(relay.commands.length < 10, 'Too many pending commands', 429);
+        relay.commands.push({route: input.route, body: input.body || {}, at: now()});
+        return send(200, {ok: true});
+      }
+
+      // The relay deck page: serves the laptop's deck.html with relay config injected.
+      if (method === 'GET' && p === '/relay-deck') {
+        const deckHtml = readFileSync(path.join(here, '..', 'web', 'deck.html'), 'utf8');
+        const csp = "default-src 'self' 'unsafe-inline'; style-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'";
+        res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-cache',
+          'Content-Security-Policy': csp});
+        // The hash carries the relay token; the page script reads it and sets window.__relay before deck.js runs.
+        const script = `<script>const h=new URLSearchParams(location.hash.slice(1));window.__relay={keyId:h.get('keyId'),token:h.get('token'),base:location.origin+'/v1'};history.replaceState(null,'',location.pathname);</script>`;
+        return res.end(deckHtml.replace('</head>', script + '</head>'));
+      }
+      // Static files the relay deck page needs (deck.js and its imports, served from the web/ directory).
+      const deckFiles = {'/deck.js': 'deck.js', '/compat.js': 'compat.js', '/app.js': 'app.js', '/i18n.js': 'i18n.js', '/style.css': 'style.css'};
+      if (method === 'GET' && deckFiles[p]) {
+        const file = path.join(here, '..', 'web', deckFiles[p]);
+        if (existsSync(file)) {
+          res.writeHead(200, {'Content-Type': staticTypes[path.extname(file)], 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache'});
+          return res.end(readFileSync(file));
+        }
+      }
+
       if (method === 'POST' && p === '/v1/licence') {
         limit('licence:' + ip);
         check(licenceKey, 'Licences aren’t set up on this service yet', 503);
@@ -1248,7 +1362,7 @@ export function createService({database = 'online.sqlite', now = Date.now, allow
   }
   const server = http.createServer(handle);
   server.requestTimeout = 15000;
-  return {server, db, importVenues, publishRegular, close: () => new Promise(resolve => {clearInterval(regularTimer); server.close(() => {db.close(); resolve();}); server.closeAllConnections();})};
+  return {server, db, importVenues, publishRegular, close: () => new Promise(resolve => {clearInterval(regularTimer); clearInterval(relayCleanup); for (const r of relays.values()) for (const s of r.streams) try {s.end();} catch {} relays.clear(); server.close(() => {db.close(); resolve();}); server.closeAllConnections();})};
 }
 
 // The HTML side of an email: tables and inline styles, which every email app understands, in BeerMat's colours.
