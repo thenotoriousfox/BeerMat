@@ -23,6 +23,7 @@
 		175372F8FF19CA46A0629217 /* OnlineClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7EDE1E4265BC7CE267A738 /* OnlineClient.swift */; };
 		824B1EFAECB440714C6D85B0 /* Protocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA82F1400160E8D1E89D553 /* Protocol.swift */; };
 		DCA9A29548AD00DD58319A60 /* QuizServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723B713B67C2EFF1B15DBFF3 /* QuizServer.swift */; };
+		4A7489C3AE1CBE266B8380D8 /* RelayServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D88D718662F431CEEE65A20 /* RelayServer.swift */; };
 		AB449958B668108CE226ABBF /* SeededOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 045DB452985247F4E616213E /* SeededOrder.swift */; };
 		C1CA00203A886769CDCB1800 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D4DCD33D451C33EE27B1FBEE /* Assets.xcassets */; };
 		1BC78985E0E9CAB836A5C41D /* Fredoka.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3B50F7CF233B3E0A87753B66 /* Fredoka.ttf */; };
@@ -50,6 +51,7 @@
 		BD7EDE1E4265BC7CE267A738 /* OnlineClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineClient.swift; sourceTree = "<group>"; };
 		0AA82F1400160E8D1E89D553 /* Protocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Protocol.swift; sourceTree = "<group>"; };
 		723B713B67C2EFF1B15DBFF3 /* QuizServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizServer.swift; sourceTree = "<group>"; };
+		9D88D718662F431CEEE65A20 /* RelayServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayServer.swift; sourceTree = "<group>"; };
 		045DB452985247F4E616213E /* SeededOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeededOrder.swift; sourceTree = "<group>"; };
 		D4DCD33D451C33EE27B1FBEE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3B50F7CF233B3E0A87753B66 /* Fredoka.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Fredoka.ttf; sourceTree = "<group>"; };
@@ -111,6 +113,7 @@
 				BD7EDE1E4265BC7CE267A738 /* OnlineClient.swift */,
 				0AA82F1400160E8D1E89D553 /* Protocol.swift */,
 				723B713B67C2EFF1B15DBFF3 /* QuizServer.swift */,
+				9D88D718662F431CEEE65A20 /* RelayServer.swift */,
 				045DB452985247F4E616213E /* SeededOrder.swift */,
 			);
 			path = BeerMatKit/Sources/BeerMatKit;
@@ -208,6 +211,7 @@
 				175372F8FF19CA46A0629217 /* OnlineClient.swift in Sources */,
 				824B1EFAECB440714C6D85B0 /* Protocol.swift in Sources */,
 				DCA9A29548AD00DD58319A60 /* QuizServer.swift in Sources */,
+				4A7489C3AE1CBE266B8380D8 /* RelayServer.swift in Sources */,
 				AB449958B668108CE226ABBF /* SeededOrder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
