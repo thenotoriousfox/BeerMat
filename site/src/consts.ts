@@ -4,7 +4,7 @@ export const SITE_DESCRIPTION = 'Run a pub quiz from one laptop: the desk for th
 export const ONLINE = 'https://online.beermatquiz.co.uk';
 export const DOWNLOADS = 'https://downloads.beermatquiz.co.uk';
 // Off until a release is on downloads.beermatquiz.co.uk (the first one with BeerMat's own buzzer sounds).
-export const DOWNLOADS_READY = false;
+export const DOWNLOADS_READY = true;
 export const CONTACT = 'hello@beermatquiz.co.uk';
 export const PRICE = {monthly: '£19.99', yearly: '£199'};
 // The offers (BeerMat Online's /v1/checkout and /v1/offers): a free trial of Pro with no card, the founding price kept
