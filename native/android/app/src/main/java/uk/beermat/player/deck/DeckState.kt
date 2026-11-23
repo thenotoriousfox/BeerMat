@@ -1,0 +1,118 @@
+package uk.beermat.player.deck
+
+import org.json.JSONObject
+
+/** The question in play, as the phone deck needs it (the host view of server.js's publicQuestion). */
+data class DeckQuestion(
+    val id: Long, val text: String, val type: String, val round: String,
+    val open: Boolean, val live: Boolean, val held: Boolean, val paused: Boolean, val revealed: Boolean, val revealing: Boolean,
+    val remaining: Long, val answer: String, val clips: Int, val audio: Boolean, val buzzing: String?,
+    /** Wording only the desk shows until the reveal (hideText): the quizmaster reads it out. */
+    val hideText: Boolean = false,
+)
+
+/** A round about to start and how it works, as the quizmaster wrote it. */
+data class DeckRound(val title: String, val intro: String)
+
+data class DeckTeam(val name: String, val score: Double, val rank: Int, val connected: Boolean)
+
+/** What a team answered to the question in play, its points, and whether its mark can be changed yet: as soon as the
+ *  team locks its answer in (server.js deckAnswers). */
+data class DeckAnswer(val team: String, val name: String, val answer: String, val points: Int, val canMark: Boolean,
+                      /** Whether the team has answered yet (every team is listed), and a mark given without an answer. */
+                      val answered: Boolean = true, val byHand: Boolean = false)
+
+/** Every team's answer to the question in play: `full` is the question's points (Right), and every mark can be
+ *  changed once answers close (`canMark`). */
+data class DeckMarking(val question: Long, val full: Int, val canMark: Boolean, val rows: List<DeckAnswer>)
+
+/** A team's VAR Check waiting for a ruling: its answer and the question's full points (what Overturn gives). */
+data class DeckVar(val id: Long, val team: String, val answer: String, val full: Int)
+
+/** The current recap question being shown on the TV after a secret round. */
+data class DeckRecap(val round: String, val n: Int, val count: Int, val text: String, val answer: String)
+
+/**
+ * The quiz as the phone deck shows it, from /api/host/state: what the big button does next (the server's nextStep, as
+ * the Qt desk's Next), the question and what can be done with it (the desk's canSend, canClose… in desk.py), and the
+ * teams. Pure, so it can be tested without a phone.
+ */
+data class DeckState(
+    val title: String, val nextStep: String?, val question: DeckQuestion?, val teams: List<DeckTeam>, val answered: Int,
+    val back: String?, val backAnswers: Int, val deskOpen: Boolean, val revealSound: String?, val fastRehearsal: Boolean, val rehearsal: Boolean,
+    val varChecks: List<DeckVar> = emptyList(),
+    /** The next round's intro, for the quizmaster to read out before starting it (server.js nextRound). */
+    val nextRound: DeckRound? = null,
+    /** What each team answered, to overrule the automatic marking. */
+    val marking: DeckMarking? = null,
+    /** The current question being shown on the TV during a secret round recap (server.js recapState). */
+    val recap: DeckRecap? = null,
+) {
+    val canNext get() = nextStep != null && question?.live != true
+    val canSend get() = question.let { it != null && it.held && it.live }
+    val canClose get() = question.let { it != null && (it.open || it.live) && !it.revealed }
+    val canReveal get() = question.let { it != null && !it.open && !it.live && !it.revealed && !it.revealing }
+    val canPause get() = question.let { it != null && it.open && !it.paused }
+    val canResume get() = question.let { it != null && it.paused && !it.held }
+
+    companion object {
+        /** The answer to read, and its note after it (a first letter's whole answer: "S · Scoville"). */
+        private fun answerText(o: JSONObject): String {
+            val note = o.optString("answerNote").takeIf { !o.isNull("answerNote") }.orEmpty()
+            return listOf(mainAnswer(o), note).filter { it.isNotBlank() }.joinToString(" · ")
+        }
+
+        /** The answer itself: an answer sheet's lines (a music round's artist and title) when it has no single answer. */
+        private fun mainAnswer(o: JSONObject): String {
+            val answer = o.optString("answer").takeIf { !o.isNull("answer") } ?: ""
+            val margin = o.optDouble("tolerance", 0.0).takeUnless { it.isNaN() } ?: 0.0
+            if (answer.isNotEmpty() && margin > 0) return "$answer (± ${if (margin % 1.0 == 0.0) margin.toLong().toString() else margin.toString()}${if (o.optBoolean("tolerancePercent")) "%" else ""})"
+            if (answer.isNotEmpty()) return answer
+            val items = o.optJSONArray("items"); val answers = o.optJSONArray("itemAnswers") ?: return ""
+            return List(answers.length()) { i -> answers.optString(i).takeIf { it.isNotBlank() }?.let { a -> items?.optString(i)?.takeIf { it.isNotBlank() }?.let { "$it: $a" } ?: a } }
+                .filterNotNull().joinToString(" · ")
+        }
+
+        fun parse(s: JSONObject): DeckState {
+            val q = s.optJSONObject("question")?.let { o ->
+                val media = o.optString("media").takeIf { !o.isNull("media") } ?: ""
+                DeckQuestion(o.getLong("id"), o.optString("text"), o.optString("type"), o.optString("round"),
+                    o.optBoolean("open"), o.optBoolean("live"), o.optBoolean("held"), o.optBoolean("paused"), o.optBoolean("revealed"), o.optBoolean("revealing"),
+                    o.optLong("remaining"), answerText(o), o.optJSONArray("clips")?.length() ?: 0,
+                    Regex("""\.(mp3|ogg|wav|mp4|webm)$""", RegexOption.IGNORE_CASE).containsMatchIn(media) || o.optJSONObject("clip")?.optString("spotify").orEmpty().isNotEmpty(),
+                    o.optJSONObject("buzz")?.optJSONObject("active")?.optString("name"), o.optBoolean("hideText"))
+            }
+            val teams = s.optJSONArray("teams")?.let { a -> List(a.length()) { a.getJSONObject(it) } }.orEmpty()
+                .filter { it.optBoolean("enabled", true) && !it.optBoolean("waiting") }
+            val back = s.optJSONObject("back")
+            return DeckState(
+                title = s.optJSONObject("settings")?.optString("title").orEmpty().ifBlank { "BeerMat" },
+                nextStep = s.optString("nextStep").takeIf { !s.isNull("nextStep") && it.isNotBlank() },
+                question = q,
+                teams = teams.map { DeckTeam(it.optString("name"), it.optDouble("score", 0.0), it.optInt("rank"), it.optBoolean("connected")) }.sortedWith(compareBy({ if (it.rank > 0) it.rank else 999 }, { it.name.lowercase() })),
+                answered = s.optJSONArray("answers")?.length() ?: 0,
+                back = back?.optString("label")?.takeIf { it.isNotBlank() }, backAnswers = back?.optInt("answers") ?: 0,
+                deskOpen = s.optBoolean("deskConnected"),
+                varChecks = s.optJSONArray("varChecks")?.let { a -> List(a.length()) { a.getJSONObject(it) } }.orEmpty().map { DeckVar(it.optLong("id"), it.optString("name"), it.optString("answer"), it.optInt("full", 1)) },
+                revealSound = s.optJSONObject("sounds")?.optJSONObject("slots")?.optString("reveal")?.takeIf { it.isNotBlank() },
+                fastRehearsal = s.optJSONObject("rehearsal")?.optJSONObject("options")?.optString("speed") == "fast",
+                rehearsal = s.optJSONObject("rehearsal")?.optJSONObject("options") != null,
+                nextRound = s.optJSONObject("nextRound")?.let { DeckRound(it.optString("title"), it.optString("intro")) }?.takeIf { it.intro.isNotBlank() },
+                marking = s.optJSONObject("deckAnswers")?.let { m ->
+                    DeckMarking(m.optLong("question"), m.optInt("full", 1), m.optBoolean("canMark"),
+                        m.optJSONArray("rows")?.let { a -> List(a.length()) { a.getJSONObject(it) } }.orEmpty().map {
+                            DeckAnswer(it.optString("team"), it.optString("name"), it.optString("answer"), it.optInt("points"),
+                                if (it.has("canMark")) it.optBoolean("canMark") else m.optBoolean("canMark"),
+                                it.optBoolean("answered", true), it.optBoolean("byHand"))
+                        })
+                }?.takeIf { it.question == q?.id },
+                recap = s.optJSONObject("recap")?.takeIf { it.optBoolean("active") }?.let { r ->
+                    r.optJSONObject("question")?.let { rq ->
+                        DeckRecap(r.optString("round"), r.optInt("shown") + 1, r.optInt("count"),
+                            rq.optString("text"), answerText(rq))
+                    }
+                },
+            )
+        }
+    }
+}

@@ -1,0 +1,457 @@
+// Settings: the plan, the quiz room, sounds and buzzers, bingo calls, Spotify, the quiz data on this laptop (backup,
+// folders, logs), screens and the TV's sound, and the quizmaster key.
+import QtQuick
+import QtQuick.Controls.Basic
+import QtQuick.Dialogs
+import QtQuick.Layouts
+import Desk
+
+ScrollView {
+    id: settings
+    required property var view
+    readonly property var plan: view.plan || {}
+    readonly property var room: view.settings || {}
+    readonly property var pack: (desk.tv.sounds || {})
+    readonly property var spotify: desk.prefs.spotify
+    signal openWebDesk()
+    signal swapScreens()
+    signal openLibrary(int tab)        // Library: 0 quizzes, 1 buzzers, 2 themes
+    contentWidth: availableWidth
+    MessageDialog {
+        id: tvScreenConfirm
+        title: "Use this computer as a TV screen?"
+        text: "BeerMat closes the quizmaster desk here and opens as a TV screen: it finds the quiz on the quizmaster's laptop and shows its TV full screen, with all the sound. This computer's own quiz is kept, for when it's the desk again (the TV screen's bar, or Escape, has “Quizmaster desk”)."
+        buttons: MessageDialog.Yes | MessageDialog.Cancel
+        onButtonClicked: (button) => { if (button === MessageDialog.Yes) desk.becomeTvScreen() }
+    }
+    onVisibleChanged: if (visible) desk.prefs.loadSpotify()
+    // Back from the browser (Spotify's sign-in) or the Spotify app: check again, as the web desk does on focus.
+    Connections { target: Qt.application; function onStateChanged() { if (settings.visible && Qt.application.state === Qt.ApplicationActive) desk.prefs.loadSpotify() } }
+
+    FileDialog { id: soundFile; property string slot: ""; title: "Choose a sound (MP3, Ogg or WAV)"; nameFilters: ["Sounds (*.mp3 *.ogg *.wav)"]
+                 onAccepted: slot === "buzzer" ? desk.prefs.addBuzzer(buzzerName.text, selectedFile) : desk.prefs.setSound(slot, selectedFile) }
+    FileDialog { id: callsFile; title: "Bingo calls: 90 lines, one per number"; nameFilters: ["Text or JSON (*.txt *.json)", "All files (*)"]; onAccepted: desk.prefs.importCalls(selectedFile) }
+
+  ColumnLayout {
+    width: settings.availableWidth
+    spacing: Theme.gap
+
+    FileDialog { id: restoreFile; title: "Restore a quiz backup"; nameFilters: ["BeerMat backup (*.sqlite)"]; currentFolder: "file://" + desk.dataFolder + "/backups"
+                 onAccepted: { restoreConfirm.file = selectedFile; restoreConfirm.open() } }
+    MessageDialog { id: restoreConfirm; property url file; title: "Replace the current quiz with this backup?"
+                    text: "The current quiz is backed up first. The quiz server restarts; phones reconnect by themselves."
+                    buttons: MessageDialog.Yes | MessageDialog.Cancel; onButtonClicked: (b) => { if (b === MessageDialog.Yes) desk.restore(file) } }
+    FolderDialog { id: backupFolder; title: "Choose a folder for the backup"; onAccepted: desk.backup(selectedFolder) }
+
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Theme.gap
+        Panel {
+            Layout.fillWidth: true; Layout.fillHeight: true; implicitHeight: Math.max(200, fitHeight)
+            title: "Plan"
+            headerExtra: Pill { text: plan.name || "BeerMat Free"; tone: plan.live ? Theme.gold : Theme.muted; strong: !!plan.live }
+            ColumnLayout {
+                anchors.fill: parent; spacing: 8
+                Text {
+                    Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
+                    text: plan.live && plan.trialUntil
+                        ? `Trying BeerMat Pro${plan.venue ? " for " + plan.venue : ""} until ${new Date(plan.trialUntil).toLocaleDateString()}: host live quizzes with real teams. To keep Pro after that, add a card with Manage subscription. Without one it goes back to Free, with nothing to pay.`
+                        : plan.live
+                        ? `BeerMat Pro${plan.venue ? " for " + plan.venue : ""}: host live quizzes with real teams.${plan.expires ? " Licence renews by " + new Date(plan.expires).toLocaleDateString() + "." : ""}`
+                        : "BeerMat Free: create, edit and rehearse as many quizzes as you like, with simulated teams and real phones testing their connection. Hosting a live quiz with real teams is BeerMat Pro."
+                }
+                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 12
+                       text: "Once your venue has Pro, register this laptop with it (Venue) and press Check my plan. That needs the internet once; the plan then holds offline." }
+                Item { Layout.fillHeight: true }
+                // The subscription itself (card, monthly or yearly, cancelling) is on Stripe's page; the venue's account
+                // is also on the website, for when this laptop isn't to hand.
+                Flow {
+                    objectName: "planButtons"
+                    Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 8
+                    Component.onCompleted: desk.online.load()
+                    DeskButton { text: "Check my plan"; onClicked: desk.refreshPlan() }
+                    DeskButton { objectName: "manageSubscription"; visible: !!desk.online.venue.billing; text: "Manage subscription…"; onClicked: desk.online.billing() }
+                    DeskButton { objectName: "getPro"; visible: !plan.live && !desk.online.venue.billing; text: "Get BeerMat Pro…"; onClicked: Qt.openUrlExternally("https://beermatquiz.co.uk/pro") }
+                    DeskButton { objectName: "accountOnline"; text: "Your account online…"; onClicked: Qt.openUrlExternally("https://beermatquiz.co.uk/account") }
+                }
+            }
+        }
+        Panel {
+            Layout.fillWidth: true; Layout.fillHeight: true; implicitHeight: Math.max(200, fitHeight)
+            title: "Quiz data"
+            ColumnLayout {
+                anchors.fill: parent; spacing: 8
+                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
+                       text: `Quizzes, teams and settings live in ${desk.dataFolder}. A checked copy is kept each time the desk starts (the last 10, in backups); take your own before a big night.` }
+                Item { Layout.fillHeight: true }
+                Flow {
+                    Layout.fillWidth: true; spacing: 8
+                    DeskButton { text: "Back up the quiz…"; onClicked: backupFolder.open() }
+                    DeskButton { text: "Restore a backup…"; onClicked: restoreFile.open() }
+                    DeskButton { text: "Open data folder"; onClicked: Qt.openUrlExternally("file://" + desk.dataFolder) }
+                    DeskButton { text: "Open logs"; onClicked: Qt.openUrlExternally("file://" + desk.dataFolder + "/logs") }
+                }
+            }
+        }
+        // Updates (updates.py): checked when the desk starts and twice a day; installed only when the quizmaster says.
+        Panel {
+            objectName: "updatesPanel"
+            Layout.fillWidth: true; Layout.fillHeight: true; implicitHeight: Math.max(200, fitHeight)
+            title: "Updates"
+            headerExtra: Pill { text: desk.updates.latest ? desk.updates.latest + " is out" : "BeerMat Desk " + desk.updates.current
+                                tone: desk.updates.latest ? Theme.gold : Theme.muted; strong: !!desk.updates.latest }
+            ColumnLayout {
+                anchors.fill: parent; spacing: 8
+                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
+                       text: desk.updates.message || "BeerMat Desk looks for a new version when it starts, and installs one only when you say. Quizzes and settings carry over." }
+                Item { Layout.fillHeight: true }
+                Flow {
+                    Layout.fillWidth: true; spacing: 8
+                    DeskButton { visible: desk.updates.canInstall; kind: "primary"; enabled: !desk.updates.state
+                                 text: desk.updates.state === "downloading" ? "Downloading…" : desk.updates.state === "installing" ? "Restarting…" : "Update and restart"
+                                 onClicked: desk.updates.install() }
+                    DeskButton { visible: !!desk.updates.latest && !desk.updates.canInstall; kind: "primary"; text: "Download from the website"; onClicked: desk.updates.openDownloads() }
+                    DeskButton { text: desk.updates.state === "checking" ? "Checking…" : "Check for updates"; enabled: !desk.updates.state; onClicked: desk.updates.checkNow() }
+                }
+            }
+        }
+    }
+
+    // ---- the quiz room ----
+    Panel {
+        Layout.fillWidth: true; implicitHeight: Math.max(170, fitHeight)
+        title: "Quiz room"
+        GridLayout {
+            // Four across, or two in a narrow window.
+            anchors.fill: parent; columns: width < 900 ? 2 : 4; columnSpacing: 14; rowSpacing: 8
+            Label { text: "Quiz name"; color: Theme.muted }
+            Field { text: settings.room.title || ""; Layout.fillWidth: true; maximumLength: 80; onEditingFinished: if (text !== settings.room.title) desk.prefs.set("title", text) }
+            Label { text: "Team limit (0: none)"; color: Theme.muted }
+            SpinBox { from: 0; to: 250; editable: true; value: settings.room.maxTeams || 0; onValueModified: desk.prefs.set("maxTeams", value) }
+            Label { text: "Language (TV and phones)"; color: Theme.muted }
+            ComboBox {
+                textRole: "text"; valueRole: "value"; model: [{value: "en", text: "English"}, {value: "fr", text: "Français"}, {value: "es", text: "Español"}]
+                currentIndex: Math.max(0, indexOfValue(settings.room.language || "en")); onActivated: desk.prefs.set("language", currentValue)
+            }
+            CheckBox { text: "Desk reachable on the online link"; checked: !!settings.room.deskOnline; palette.windowText: Theme.text; onToggled: desk.prefs.set("deskOnline", checked) }
+            CheckBox { text: "Share results with BeerMat Online"; checked: !!settings.room.shareResults; palette.windowText: Theme.text; onToggled: desk.prefs.set("shareResults", checked) }
+            // The website's quizzes-run counter: one anonymous "a quiz finished" when a live quiz ends (privacy policy).
+            CheckBox { text: "Count this venue's quizzes"; checked: settings.room.countQuizzes !== false; palette.windowText: Theme.text; onToggled: desk.prefs.set("countQuizzes", checked)
+                       ToolTip.visible: hovered; ToolTip.text: "When a live quiz finishes, BeerMat Online is told “one quiz finished” (nothing else) for the counter on the website." }
+            CheckBox { text: "Simple mode: fewer formats and options"; checked: !!settings.room.simpleMode; palette.windowText: Theme.text; onToggled: desk.prefs.set("simpleMode", checked)
+                       ToolTip.visible: hovered; ToolTip.text: "Hides the advanced formats and per-question options in Quizzes, for new hosts." }
+        }
+    }
+
+    // ---- sounds and buzzers ----
+    Panel {
+        Layout.fillWidth: true; implicitHeight: Math.max(470, fitHeight)
+        title: "Sounds & buzzers"
+        RowLayout {
+            anchors.fill: parent; spacing: 20
+            ListView {
+                // The file names sit next to their buttons rather than across the whole width.
+                Layout.fillWidth: true; Layout.minimumWidth: 420; Layout.maximumWidth: 760; Layout.fillHeight: true; clip: true; spacing: 4
+                ScrollBar.vertical: ScrollBar {}
+                model: desk.prefs.slots
+                delegate: RowLayout {
+                    required property var modelData
+                    readonly property string media: (settings.pack.slots || {})[modelData.slot] || ""
+                    width: ListView.view.width; spacing: 6
+                    Text { text: modelData.label; color: Theme.text; font.pixelSize: 13; Layout.preferredWidth: 200 }
+                    Text { text: media ? media.split("/").pop() : "none"; color: media ? Theme.muted : Theme.faint; font.pixelSize: 12; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                    Tool { text: "▶"; enabled: media !== ""; onClicked: desk.prefs.preview(media) }
+                    Tool { text: "Change…"; onClicked: { soundFile.slot = modelData.slot; soundFile.open() } }
+                    Tool { text: "✕"; enabled: media !== ""; onClicked: desk.prefs.clearSound(modelData.slot) }
+                }
+            }
+            ColumnLayout {
+                Layout.preferredWidth: 420; Layout.fillWidth: true; Layout.fillHeight: true; spacing: 6; Layout.leftMargin: 24
+                Text { text: "Extra buzzer sounds"; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
+                Text { text: "Teams pick one for their buzz, after the eight built-in ones."; color: Theme.faint; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                ListView {
+                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 2
+                    ScrollBar.vertical: ScrollBar {}
+                    model: settings.pack.buzzers || []
+                    delegate: RowLayout {
+                        required property var modelData
+                        required property int index
+                        width: ListView.view.width
+                        Text { text: modelData.name; color: Theme.text; font.pixelSize: 13; Layout.fillWidth: true; elide: Text.ElideRight }
+                        Tool { text: "▶"; onClicked: desk.prefs.preview(modelData.media) }
+                        Tool { text: "✕"; onClicked: desk.prefs.removeBuzzer(index) }
+                    }
+                }
+                RowLayout {
+                    Field { id: buzzerName; placeholderText: "Name"; Layout.fillWidth: true; maximumLength: 60 }
+                    DeskButton { text: "Add…"; implicitHeight: 34; onClicked: { soundFile.slot = "buzzer"; soundFile.open() } }
+                    DeskButton { text: "Shared buzzer library…"; implicitHeight: 34; onClicked: settings.openLibrary(1) }
+                }
+                Text { text: "Bingo calls"; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold; Layout.topMargin: 8 }
+                RowLayout {
+                    DeskButton { text: "Import 90 calls…"; implicitHeight: 34; onClicked: callsFile.open() }
+                    DeskButton { text: "Built-in calls"; implicitHeight: 34; onClicked: desk.prefs.defaultCalls() }
+                }
+            }
+        }
+    }
+
+    // ---- looks and sound themes ----
+    Panel {
+        Layout.fillWidth: true; implicitHeight: Math.max(420, fitHeight)
+        title: "Looks & sound themes"
+        headerExtra: DeskButton { text: "Theme library…"; implicitHeight: 32; onClicked: settings.openLibrary(2) }
+        RowLayout {
+            anchors.fill: parent; spacing: 20
+            ColumnLayout {
+                // A fixed column: its long description would otherwise take the whole width from the format list.
+                Layout.preferredWidth: 380; Layout.maximumWidth: 380; Layout.minimumWidth: 240; Layout.fillWidth: false; Layout.alignment: Qt.AlignTop; spacing: 8
+                Text { Layout.fillWidth: true; Layout.maximumWidth: 380; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 13
+                       text: "A look colours the TV and phones; a sound theme sets the moments' sounds. Either can follow the question's format: choose “By format”, then pick for each format on the right." }
+                Label { text: "Look"; color: Theme.muted }
+                ComboBox {
+                    Layout.fillWidth: true; textRole: "text"; valueRole: "value"
+                    model: [{value: "@type", text: "By format (below)"}, {value: "@random", text: "A different one each question"}].concat(settings.view.looks || [])
+                    currentIndex: Math.max(0, indexOfValue(settings.room.look || "@type")); onActivated: desk.prefs.setLook(currentValue)
+                }
+                Label { text: "Sound theme"; color: Theme.muted }
+                ComboBox {
+                    Layout.fillWidth: true; textRole: "text"; valueRole: "value"
+                    model: [{value: "", text: "The sound pack (Sounds, above)"}, {value: "@type", text: "By format (below)"}, {value: "@random", text: "A different one each question"}]
+                           .concat((settings.view.soundThemes || []).map(t => ({value: t, text: t})))
+                    currentIndex: Math.max(0, indexOfValue(settings.room.soundTheme || "")); onActivated: desk.prefs.setSoundTheme(currentValue)
+                }
+            }
+            ListView {
+                Layout.fillWidth: true; Layout.minimumWidth: 420; Layout.fillHeight: true; clip: true; spacing: 2
+                ScrollBar.vertical: ScrollBar {}
+                header: RowLayout {
+                    width: ListView.view.width; spacing: 8
+                    Text { text: "Format"; color: Theme.faint; font.pixelSize: 12; Layout.preferredWidth: 170 }
+                    Text { text: "Look"; color: Theme.faint; font.pixelSize: 12; Layout.fillWidth: true; Layout.preferredWidth: 1 }
+                    Text { text: "Sound theme"; color: Theme.faint; font.pixelSize: 12; Layout.fillWidth: true; Layout.preferredWidth: 1 }
+                }
+                model: settings.view.formats || []
+                delegate: RowLayout {
+                    required property var modelData
+                    width: ListView.view.width; spacing: 8
+                    Text { text: modelData.text; color: Theme.text; font.pixelSize: 13; Layout.preferredWidth: 170 }
+                    // Equal columns, under their headings.
+                    ComboBox {
+                        Layout.fillWidth: true; Layout.preferredWidth: 1; textRole: "text"; valueRole: "value"; model: settings.view.looks || []
+                        currentIndex: Math.max(0, indexOfValue((settings.view.looksByType || {})[modelData.value] || "stage"))
+                        onActivated: desk.prefs.setLookFor(modelData.value, currentValue)
+                    }
+                    ComboBox {
+                        Layout.fillWidth: true; Layout.preferredWidth: 1; textRole: "text"; valueRole: "value"
+                        model: [{value: "", text: "Pack sounds"}].concat((settings.view.soundThemes || []).map(t => ({value: t, text: t})))
+                        currentIndex: Math.max(0, indexOfValue((settings.view.soundThemesByType || {})[modelData.value] || ""))
+                        onActivated: desk.prefs.setThemeFor(modelData.value, currentValue)
+                    }
+                }
+            }
+        }
+    }
+
+    // ---- Spotify ----
+    Panel {
+        // As tall as what it shows (much less while Spotify is locked).
+        Layout.fillWidth: true; implicitHeight: spotifyBody.implicitHeight + 72
+        title: "Spotify (optional)"
+        ColumnLayout {
+            id: spotifyBody
+            anchors.fill: parent; spacing: 8
+            Text {
+                Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.gold; font.pixelSize: 13
+                text: "For private quizzes only. Spotify's terms cover personal listening: connecting Spotify gives no right to play music to a pub audience. Use uploaded files and the venue's music licence there. Needs internet on this laptop and Spotify Premium; phones never use Spotify."
+            }
+            Text {
+                visible: !!settings.spotify.locked; Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 13
+                text: "Spotify music rounds come with BeerMat Pro (Plan, above)."
+            }
+            ColumnLayout {
+                visible: !settings.spotify.locked
+                Layout.fillWidth: true; spacing: 6
+                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 12
+                       text: `One-time setup: create an app at developer.spotify.com/dashboard (tick Web API), add the Redirect URI ${settings.spotify.redirectUri || ""}, and paste its Client ID here. The music plays in the Spotify app on this laptop (Spotify Connect): open it and play any song once so it appears below.` }
+                RowLayout {
+                    Field { id: clientId; text: settings.spotify.clientId || ""; placeholderText: "Client ID"; Layout.preferredWidth: 320; maximumLength: 32 }
+                    DeskButton { text: "Connect Spotify"; implicitHeight: 34; enabled: clientId.text.trim().length > 0; onClicked: desk.prefs.connectSpotify(clientId.text) }
+                    DeskButton { text: "Disconnect"; implicitHeight: 34; enabled: !!settings.spotify.connected; onClicked: desk.prefs.disconnectSpotify() }
+                    Text { text: settings.spotify.connected ? `✓ Connected${settings.spotify.user ? " as " + settings.spotify.user : ""}` : "Not connected"
+                           color: settings.spotify.connected ? Theme.good : Theme.muted; font.pixelSize: 13 }
+                }
+                RowLayout {
+                    visible: !!settings.spotify.connected
+                    Label { text: "Play on"; color: Theme.muted }
+                    ComboBox {
+                        Layout.preferredWidth: 380; textRole: "text"; valueRole: "value"
+                        model: [{value: "", text: "Whichever Spotify player is active"}].concat((settings.spotify.devices || []).map(d => ({value: d.id, text: `${d.name} (${d.type})${d.active ? " — active" : ""}`})))
+                        currentIndex: Math.max(0, indexOfValue(settings.spotify.device || ""))
+                        onActivated: desk.prefs.chooseSpotifyDevice(currentValue)
+                    }
+                    DeskButton { text: "Refresh players"; implicitHeight: 34; onClicked: desk.prefs.loadSpotify() }
+                    // A TV screen's own Spotify app can play the music there, beside the TV.
+                    Text { visible: (settings.view.tvScreens || []).length > 0; color: Theme.faint; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap
+                           text: "To play Spotify on the TV screen, open Spotify there (the same account), then Refresh players and choose it." }
+                }
+            }
+            CheckBox {
+                objectName: "spotifyFullVolume"
+                visible: !settings.spotify.locked && !!settings.spotify.connected
+                Layout.fillWidth: true
+                text: "Play clips at full Spotify volume (the Spotify app on this laptop; its own volume comes back when the clip stops)"
+                checked: settings.spotify.fullVolume !== false; palette.windowText: Theme.text
+                contentItem: Text { text: parent.text; color: Theme.text; font.pixelSize: 13; wrapMode: Text.WordWrap; leftPadding: parent.indicator.width + parent.spacing; verticalAlignment: Text.AlignVCenter }
+                onToggled: desk.prefs.setSpotifyFullVolume(checked)
+            }
+            RowLayout {
+                visible: !!settings.spotify.error
+                Text { text: settings.spotify.error || ""; color: Theme.bad; font.pixelSize: 13; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                DeskButton { text: "Check again"; implicitHeight: 34; onClicked: desk.prefs.loadSpotify() }
+            }
+        }
+    }
+
+    Panel {
+        Layout.fillWidth: true; implicitHeight: Math.max(230, fitHeight)
+        title: "Screens"
+        ColumnLayout {
+            anchors.fill: parent; spacing: 8
+            // Each row wraps in a narrow window.
+            Flow {
+                Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 10
+                RowLayout {
+                spacing: 10
+                Label { text: "TV screen"; color: Theme.muted }
+                ComboBox {
+                    id: tvScreen
+                    Layout.preferredWidth: 380
+                    textRole: "text"; valueRole: "value"
+                    model: [{text: "Automatic (the screen that isn't the desk's)", value: ""}].concat(screens.displays.map(d => ({text: `${d.label} (${d.width}×${d.height})${d.primary ? " — main screen" : ""}`, value: d.name})))
+                    Component.onCompleted: currentIndex = Math.max(0, indexOfValue(screens.chosenName))
+                    onActivated: screens.choose(currentValue)
+                }
+                }
+                DeskButton { text: "Swap desk and TV screens"; implicitHeight: 34; enabled: screens.displays.length > 1 && screens.canPlace; onClicked: settings.swapScreens() }
+                CheckBox { text: "Open the TV by itself when a screen is connected"; checked: screens.autoOpen; palette.windowText: Theme.text; onToggled: screens.setAutoOpen(checked) }
+            }
+            Flow {
+                Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 10
+                RowLayout {
+                spacing: 10
+                Label { text: "TV sound"; color: Theme.muted }
+                ComboBox {
+                    Layout.preferredWidth: 480
+                    textRole: "name"; valueRole: "id"
+                    model: [{id: "auto", name: "Automatic: the TV's speakers when it's full screen"}, {id: "laptop", name: "This laptop (the system's default output)"}].concat(desk.sound.outputs)
+                    currentIndex: Math.max(0, indexOfValue(desk.sound.output))
+                    onActivated: desk.sound.chooseOutput(currentValue)
+                }
+                }
+                DeskButton { text: "Test sound"; implicitHeight: 34; onClicked: desk.sound.test() }
+            }
+            Text { text: `Playing on: ${desk.sound.activeOutput}. Sound effects, music, clips and songs play here while the TV is open.`; color: Theme.faint; font.pixelSize: 12
+                   Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: !(settings.view.tvScreens || []).length }
+            // Another computer showing this quiz's TV (BeerMat as a TV screen): the sound plays there.
+            Text { objectName: "tvScreensConnected"; visible: (settings.view.tvScreens || []).length > 0; Layout.fillWidth: true; wrapMode: Text.WordWrap
+                   text: `TV screen connected: ${(settings.view.tvScreens || []).join(", ")}. Sound clips, music bingo songs and audio questions play there, as do its own TV sounds.`
+                   color: Theme.good; font.pixelSize: 13 }
+            Flow {
+                Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 10
+                DeskButton { objectName: "becomeTvScreen"; text: "Use this computer as a TV screen…"; implicitHeight: 34; onClicked: tvScreenConfirm.open() }
+                Text { text: "For the computer wired to the TVs, while the quiz runs on another laptop."; color: Theme.faint; font.pixelSize: 12; height: 34; verticalAlignment: Text.AlignVCenter }
+            }
+            Text {
+                Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.faint; font.pixelSize: 12
+                text: (screens.displays.length > 1 ? `${screens.displays.length} screens connected. ` : "One screen: the TV opens in a window you can drag to a projector. ")
+                      + (screens.canPlace ? "F7 shows or closes the TV, F8 blanks it." : "This desktop (Wayland) doesn't let apps choose a screen: drag the TV window to the TV and press F11.")
+            }
+        }
+    }
+
+    // The quizmaster's phone hosting the night (BeerMat app, signed in with the venue's account or an admin's, or a code).
+    Panel {
+        objectName: "phoneDeckPanel"
+        Layout.fillWidth: true; implicitHeight: Math.max(150, fitHeight)
+        title: "Phone deck"
+        ColumnLayout {
+            anchors.fill: parent; spacing: 8
+            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
+                   text: "Run the night from your phone: open the BeerMat app signed in with this venue's account and choose Run the night. It finds this laptop on the quiz Wi-Fi or the venue's. No account on the phone? Show a code and type it in there." }
+            // No app: the same in the phone's browser, at this laptop's address (the venue's Wi-Fi when the laptop is on
+            // it, else where players join) + /deck.
+            RowLayout {
+                id: webDeck
+                readonly property var lan: ((desk.network || {}).addresses || []).find(a => a.kind === "lan") || null
+                readonly property int port: (desk.network || {}).port || 0
+                readonly property string address: lan && port ? `http://${lan.address}${port === 80 ? "" : ":" + port}/deck`
+                                                : ((desk.tv.settings || {}).joinUrl || "") ? (desk.tv.settings.joinUrl.replace(/\/$/, "") + "/deck") : ""
+                Component.onCompleted: desk.loadNetwork()
+                visible: address !== ""
+                Layout.fillWidth: true; spacing: 12
+                Rectangle { Layout.preferredWidth: 112; Layout.preferredHeight: 112; radius: 10; color: "white"
+                            QrCode { anchors.fill: parent; anchors.margins: 8; text: webDeck.address } }
+                Text { objectName: "webDeckAddress"; Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.text; font.pixelSize: 14
+                       text: `No app? Scan this, or open ${webDeck.address} in the phone's browser, and type the code.` }
+            }
+            Flow {
+                Layout.fillWidth: true; Layout.maximumWidth: parent.width; spacing: 10
+                DeskButton { objectName: "deckCodeButton"; text: desk.deck.code ? "New code" : "Show a code"; implicitHeight: 34; onClicked: desk.deckCode() }
+                Text { objectName: "deckCode"; visible: !!desk.deck.code; height: 34; verticalAlignment: Text.AlignVCenter; color: Theme.text; font.pixelSize: 22; font.bold: true
+                       text: desk.deck.code ? `${desk.deck.code.slice(0, 3)} ${desk.deck.code.slice(3)}` : "" }
+                Text { visible: !!desk.deck.code; height: 34; verticalAlignment: Text.AlignVCenter; color: Theme.faint; font.pixelSize: 12
+                       text: "Works once, for five minutes." }
+            }
+            Repeater {
+                model: settings.view.decks || []
+                delegate: Flow {
+                    required property var modelData
+                    Layout.fillWidth: true; Layout.maximumWidth: parent ? parent.width : 400; spacing: 10
+                    Text { height: 34; verticalAlignment: Text.AlignVCenter; color: Theme.good; font.pixelSize: 13
+                           text: `${modelData.name} is hosting (${modelData.how === "code" ? "signed in with a code" : modelData.how === "admin" ? "BeerMat admin" : "venue account"})` }
+                    DeskButton { text: "Disconnect"; implicitHeight: 34; onClicked: desk.disconnectDeck(modelData.id) }
+                }
+            }
+        }
+    }
+
+    Panel {
+        Layout.fillWidth: true; implicitHeight: Math.max(170, fitHeight)
+        title: "Quizmaster key"
+        ColumnLayout {
+            anchors.fill: parent; spacing: 8
+            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.muted; font.pixelSize: 14
+                   text: "The key opens this quiz's desk in a browser, on this laptop or another device on the quiz network. Keep it to yourself. "
+                         + (desk.keyStore === "keychain" ? "It's kept in this computer's keychain." : "It's kept in the data folder, readable only by you (no system keychain was available).") }
+            RowLayout {
+                spacing: 8
+                Field { id: keyField; text: shown.checked ? desk.hostKey : "••••••••••••••••••••••••"; readOnly: true; Layout.preferredWidth: 300; font.family: "monospace" }
+                CheckBox { id: shown; text: "Show"; palette.windowText: Theme.muted }
+                DeskButton { text: "Copy"; onClicked: { keyField.text = desk.hostKey; keyField.selectAll(); keyField.copy(); keyField.deselect(); keyField.text = Qt.binding(() => shown.checked ? desk.hostKey : "••••••••••••••••••••••••") } }
+                DeskButton { text: "Open the desk in a browser"; onClicked: settings.openWebDesk() }
+            }
+        }
+    }
+
+    Panel {
+        Layout.fillWidth: true; implicitHeight: Math.max(200, fitHeight)
+        title: "Keyboard shortcuts"
+        GridLayout {
+            anchors.fill: parent; columns: 4; columnSpacing: 24; rowSpacing: 6
+            Repeater {
+                model: [["N", "Next (question, round, leaderboard step, finish)"], ["⌫ Backspace", "Back one step"], ["C", "Close answers"], ["P", "Pause / resume the timer"],
+                        ["R", "Reveal the answer"], ["Ctrl+O", "Load a quiz file"], ["F7", "Show or close the TV"], ["F8", "Blank the TV"], ["Ctrl+1…7", "Switch workspace"]]
+                delegate: RowLayout {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    // The key, in a chip as wide as its label needs (⌫ Backspace is wider than a letter).
+                    Rectangle { Layout.preferredWidth: Math.max(74, key.implicitWidth + 16); Layout.preferredHeight: 24; radius: 6; color: Theme.panelRaised; border.color: Theme.line
+                                Text { id: key; objectName: "shortcutKey"; anchors.centerIn: parent; text: modelData[0]; color: Theme.text; font.pixelSize: 12; font.weight: Font.Bold } }
+                    Text { text: modelData[1]; color: Theme.muted; font.pixelSize: 13; Layout.fillWidth: true; elide: Text.ElideRight }
+                }
+            }
+        }
+    }
+}
+}

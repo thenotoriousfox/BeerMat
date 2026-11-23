@@ -1,0 +1,2314 @@
+{
+ "Connected": [
+  "Connecté",
+  "Conectado"
+ ],
+ "BeerMat {version} is out": [
+  "BeerMat {version} est sorti",
+  "Ya está disponible BeerMat {version}"
+ ],
+ "Update the app now, before the quiz starts.": [
+  "Mettez l’appli à jour maintenant, avant le début du quiz.",
+  "Actualiza la app ahora, antes de que empiece el quiz."
+ ],
+ "Update": [
+  "Mettre à jour",
+  "Actualizar"
+ ],
+ "Downloading… {percent}%": [
+  "Téléchargement… {percent} %",
+  "Descargando… {percent} %"
+ ],
+ "Allow BeerMat to install apps, then tap Update again.": [
+  "Autorisez BeerMat à installer des applis, puis touchez de nouveau Mettre à jour.",
+  "Permite que BeerMat instale apps y vuelve a tocar Actualizar."
+ ],
+ "Allow BeerMat to install apps (Settings → Apps, or My Fire TV → Developer options), then press Update again.": [
+  "Autorisez BeerMat à installer des applications (Paramètres → Applications, ou Ma Fire TV → Options pour les développeurs), puis appuyez de nouveau sur Mettre à jour.",
+  "Permite que BeerMat instale aplicaciones (Ajustes → Aplicaciones, o Mi Fire TV → Opciones para desarrolladores) y vuelve a pulsar Actualizar."
+ ],
+ "Found “{title}”. Update BeerMat first, or show the quiz.": [
+  "« {title} » trouvé. Mettez d’abord BeerMat à jour, ou affichez le quiz.",
+  "«{title}» encontrado. Actualiza BeerMat primero o muestra el quiz."
+ ],
+ "The update didn’t download": [
+  "La mise à jour n’a pas été téléchargée",
+  "La actualización no se ha descargado"
+ ],
+ "My location": [
+  "Ma position",
+  "Mi ubicación"
+ ],
+ "Finding where you are…": [
+  "Recherche de votre position…",
+  "Buscando dónde estás…"
+ ],
+ "Listen: the question comes to your phone when it’s been read out": [
+  "Écoutez : la question arrive sur votre téléphone une fois lue",
+  "Escuchad: la pregunta llega al móvil cuando se haya leído"
+ ],
+ "Listen to the quizmaster…": [
+  "Écoutez le maître du quiz…",
+  "Escuchad al presentador…"
+ ],
+ "Listen to the quizmaster": [
+  "Écoutez le maître du quiz",
+  "Escuchad al presentador"
+ ],
+ "Get ready: the question is on its way": [
+  "Préparez-vous : la question arrive",
+  "Preparaos: la pregunta está en camino"
+ ],
+ "Passed on this song": [
+  "Vous passez cette chanson",
+  "Pasáis esta canción"
+ ],
+ "Dabbed: if it’s the song playing, your time is on the TV": [
+  "Coché : si c’est la chanson en cours, votre temps est à la télé",
+  "Marcada: si es la canción que suena, vuestro tiempo sale en la tele"
+ ],
+ "Not on my ticket": [
+  "Pas sur mon ticket",
+  "No está en mi cartón"
+ ],
+ "Dab the song as soon as you know it: the quickest team on each song is on the TV.": [
+  "Cochez la chanson dès que vous la reconnaissez : l’équipe la plus rapide sur chaque chanson est à la télé.",
+  "Marcad la canción en cuanto la reconozcáis: el equipo más rápido en cada canción sale en la tele."
+ ],
+ "Table number": [
+  "Numéro de table",
+  "Número de mesa"
+ ],
+ "🚀 FAST TRACK": [
+  "🚀 VOIE RAPIDE",
+  "🚀 VÍA RÁPIDA"
+ ],
+ "Straight to first place!": [
+  "Directement à la première place !",
+  "¡Directo al primer puesto!"
+ ],
+ "Reactions · song {n}": [
+  "Réactions · chanson {n}",
+  "Reacciones · canción {n}"
+ ],
+ "Quickest on most songs": [
+  "Les plus rapides sur le plus de chansons",
+  "Los más rápidos en más canciones"
+ ],
+ "Groups": [
+  "Groupes",
+  "Grupos"
+ ],
+ "{n} teams · average {score}": [
+  "{n} équipes · moyenne {score}",
+  "{n} equipos · media {score}"
+ ],
+ "1 team · average {score}": [
+  "1 équipe · moyenne {score}",
+  "1 equipo · media {score}"
+ ],
+ "SECRET ROUND": [
+  "MANCHE SECRÈTE",
+  "RONDA SECRETA"
+ ],
+ "Question {n} of {count}": [
+  "Question {n} sur {count}",
+  "Pregunta {n} de {count}"
+ ],
+ "💥 Wipeout: one wrong tick and you score nothing": [
+  "💥 Élimination : une seule mauvaise case et vous ne marquez rien",
+  "💥 Eliminación: una sola marca incorrecta y no puntuáis"
+ ],
+ "🎲 Risk It: a wrong answer loses the points": [
+  "🎲 Quitte ou double : une mauvaise réponse fait perdre les points",
+  "🎲 A todo o nada: una respuesta incorrecta resta los puntos"
+ ],
+ "No team answered this one.": [
+  "Aucune équipe n’a répondu à celle-ci.",
+  "Ningún equipo respondió a esta."
+ ],
+ "Round results": [
+  "Résultats de la manche",
+  "Resultados de la ronda"
+ ],
+ "You are here": [
+  "Vous êtes ici",
+  "Estás aquí"
+ ],
+ "Reconnecting…": [
+  "Reconnexion…",
+  "Reconectando…"
+ ],
+ "Rehearsal mode": [
+  "Mode répétition",
+  "Modo ensayo"
+ ],
+ "Rehearsal": [
+  "Répétition",
+  "Ensayo"
+ ],
+ "Connection successful": [
+  "Connexion réussie",
+  "Conexión correcta"
+ ],
+ "This phone reached the quiz. The quizmaster is rehearsing, so playing is switched off: this is only a connection test.": [
+  "Ce téléphone a rejoint le quiz. Le maître du quiz fait une répétition, le jeu est donc désactivé : ce n’est qu’un test de connexion.",
+  "Este teléfono ha llegado al quiz. El presentador está ensayando, así que el juego está desactivado: es solo una prueba de conexión."
+ ],
+ "Test name": [
+  "Nom du test",
+  "Nombre de prueba"
+ ],
+ "Connection": [
+  "Connexion",
+  "Conexión"
+ ],
+ "Last checked": [
+  "Dernière vérification",
+  "Última comprobación"
+ ],
+ "Keep this page open: the quizmaster sees this phone stay connected. Refreshing or switching Wi-Fi off and on tests reconnecting.": [
+  "Gardez cette page ouverte : le maître du quiz voit que ce téléphone reste connecté. Actualiser ou couper puis rallumer le Wi-Fi teste la reconnexion.",
+  "Mantén esta página abierta: el presentador ve que este teléfono sigue conectado. Recargar o apagar y encender el Wi-Fi prueba la reconexión."
+ ],
+ "Connected: this is a rehearsal, so this phone only tests the connection.": [
+  "Connecté : c’est une répétition, ce téléphone ne fait que tester la connexion.",
+  "Conectado: es un ensayo, así que este teléfono solo prueba la conexión."
+ ],
+ "QUIZ NIGHT": [
+  "SOIRÉE QUIZ",
+  "NOCHE DE QUIZ"
+ ],
+ "Connecting…": [
+  "Connexion…",
+  "Conectando…"
+ ],
+ "Make yourselves known": [
+  "Présentez-vous",
+  "Presentaos"
+ ],
+ "Rename": [
+  "Renommer",
+  "Cambiar nombre"
+ ],
+ "Team name saved": [
+  "Nom de l’équipe enregistré",
+  "Nombre del equipo guardado"
+ ],
+ "That team name is taken": [
+  "Ce nom d’équipe est déjà pris",
+  "Ese nombre de equipo ya está cogido"
+ ],
+ "Team name": [
+  "Nom de l'équipe",
+  "Nombre del equipo"
+ ],
+ "Join quiz": [
+  "Rejoindre le quiz",
+  "Unirse al quiz"
+ ],
+ "Played here before, or lost your team? Get it back": [
+  "Déjà venus, ou équipe perdue ? Récupérez-la",
+  "¿Ya habéis jugado aquí o perdisteis el equipo? Recuperadlo"
+ ],
+ "Private recovery code, or the 4-digit code from the quizmaster": [
+  "Code de récupération privé, ou le code à 4 chiffres de l’animateur",
+  "Código de recuperación privado, o el código de 4 cifras del presentador"
+ ],
+ "Reconnect team": [
+  "Reconnecter l'équipe",
+  "Reconectar equipo"
+ ],
+ "Your private recovery code": [
+  "Votre code de récupération privé",
+  "Vuestro código de recuperación privado"
+ ],
+ "Save this code to reconnect from a different browser. Only share it with your team.": [
+  "Gardez ce code pour vous reconnecter depuis un autre navigateur. Ne le partagez qu’avec votre équipe.",
+  "Guardad este código para reconectaros desde otro navegador. Compartidlo solo con vuestro equipo."
+ ],
+ "While you wait: add a team photo and pick your buzzer sound.": [
+  "En attendant : ajoutez une photo d’équipe et choisissez votre son de buzzer.",
+  "Mientras esperáis: añadid una foto del equipo y elegid vuestro sonido de pulsador."
+ ],
+ "You’re in! Waiting for the quiz to start": [
+  "C’est bon ! En attendant le début du quiz",
+  "¡Dentro! Esperando a que empiece el quiz"
+ ],
+ "IN FIRST PLACE": [
+  "EN TÊTE",
+  "EN PRIMER LUGAR"
+ ],
+ "TIED FOR FIRST": [
+  "EX ÆQUO EN TÊTE",
+  "EMPATE EN CABEZA"
+ ],
+ "▶ Hear it": [
+  "▶ Écouter",
+  "▶ Escuchar"
+ ],
+ "Your buzzer sound": [
+  "Votre son de buzzer",
+  "Vuestro sonido de pulsador"
+ ],
+ "Switch team on this browser": [
+  "Changer d'équipe sur ce navigateur",
+  "Cambiar de equipo en este navegador"
+ ],
+ "Team photo": [
+  "Photo d'équipe",
+  "Foto del equipo"
+ ],
+ "Add a team photo to appear on the big screen. The quizmaster approves it first.": [
+  "Ajoutez une photo d'équipe pour apparaître sur le grand écran. L’animateur la valide d’abord.",
+  "Añadid una foto del equipo para salir en la pantalla grande. El presentador la aprueba primero."
+ ],
+ "Waiting for the quizmaster": [
+  "En attente de l’animateur",
+  "Esperando al presentador"
+ ],
+ "Submit final answer": [
+  "Envoyer la réponse finale",
+  "Enviar respuesta final"
+ ],
+ "One final submission per question. Drafts are saved while you type. Check your answer before submitting.": [
+  "Une seule réponse finale par question. Les brouillons sont enregistrés pendant la saisie. Vérifiez avant d’envoyer.",
+  "Una sola respuesta final por pregunta. Los borradores se guardan mientras escribís. Revisad antes de enviar."
+ ],
+ "BUZZ": [
+  "BUZZ",
+  "PULSAR"
+ ],
+ "I agree": [
+  "D'accord",
+  "De acuerdo"
+ ],
+ "Tap only if you agree. Not tapping means you disagree.": [
+  "Appuyez seulement si vous êtes d’accord. Ne rien faire signifie pas d’accord.",
+  "Pulsad solo si estáis de acuerdo. No pulsar significa que no."
+ ],
+ "THIS ONE!": [
+  "CELUI-LÀ !",
+  "¡ESTE!"
+ ],
+ "Listen to the clips. Tap once, while the right one is playing.": [
+  "Écoutez les extraits. Appuyez une fois, pendant le bon.",
+  "Escuchad los fragmentos. Pulsad una vez, mientras suena el correcto."
+ ],
+ "Last number called": [
+  "Dernier numéro tiré",
+  "Último número cantado"
+ ],
+ "BINGO!": [
+  "BINGO !",
+  "¡BINGO!"
+ ],
+ "Tap numbers on your ticket to dab them as they are called. Call BINGO! when you think you have it — the quizmaster checks your ticket.": [
+  "Touchez les numéros de votre carton pour les cocher quand ils sont annoncés. Criez BINGO ! quand vous pensez l’avoir — l’animateur vérifie votre carton.",
+  "Tocad los números de vuestro cartón para marcarlos cuando se canten. Cantad ¡BINGO! cuando creáis tenerlo — el presentador revisa vuestro cartón."
+ ],
+ "🔔 {names} called BINGO! Checking…": [
+  "🔔 {names} a crié BINGO ! Vérification…",
+  "🔔 ¡{names} ha cantado BINGO! Comprobando…"
+ ],
+ "✗ {name}: not a bingo — eyes down, play on": [
+  "✗ {name} : pas de bingo — on continue !",
+  "✗ {name}: no es bingo — ¡seguimos jugando!"
+ ],
+ "✓ Bingo! The quizmaster says yes.": [
+  "✓ Bingo ! L’animateur confirme.",
+  "✓ ¡Bingo! El presentador lo confirma."
+ ],
+ "Your BINGO call is being checked…": [
+  "Votre BINGO est en cours de vérification…",
+  "Están comprobando vuestro BINGO…"
+ ],
+ "Not a bingo this time — keep playing": [
+  "Pas de bingo cette fois — continuez à jouer",
+  "Esta vez no es bingo — seguid jugando"
+ ],
+ "BINGO called — the quizmaster is checking": [
+  "BINGO crié — l’animateur vérifie",
+  "BINGO cantado — el presentador lo comprueba"
+ ],
+ "Leaderboard": [
+  "Classement",
+  "Clasificación"
+ ],
+ "🔊 Enable sound": [
+  "🔊 Activer le son",
+  "🔊 Activar el sonido"
+ ],
+ "⛶ Full screen": [
+  "⛶ Plein écran",
+  "⛶ Pantalla completa"
+ ],
+ "BeerMat TV": [
+  "BeerMat TV",
+  "BeerMat TV"
+ ],
+ "Looking for the quiz on this Wi-Fi…": [
+  "Recherche du quiz sur ce Wi-Fi…",
+  "Buscando el quiz en esta wifi…"
+ ],
+ "Found “{title}”": [
+  "« {title} » trouvé",
+  "«{title}» encontrado"
+ ],
+ "Looking for the quiz laptop on this network…": [
+  "Recherche de l’ordinateur du quiz sur ce réseau…",
+  "Buscando el portátil del quiz en esta red…"
+ ],
+ "No quiz found on this network. Is the TV on the same Wi-Fi as the laptop? Or type the address from the desk (TV without a cable…).": [
+  "Aucun quiz trouvé sur ce réseau. La télé est-elle sur le même Wi-Fi que l’ordinateur ? Ou tapez l’adresse affichée sur le pupitre (TV without a cable…).",
+  "No se ha encontrado ningún quiz en esta red. ¿Está la tele en la misma wifi que el portátil? O escribe la dirección que muestra el panel (TV without a cable…)."
+ ],
+ "Nothing at {address} answers as a BeerMat quiz.": [
+  "Rien à {address} ne répond comme un quiz BeerMat.",
+  "Nada en {address} responde como un quiz de BeerMat."
+ ],
+ "Quiz address, e.g. 10.42.0.1": [
+  "Adresse du quiz, ex. 10.42.0.1",
+  "Dirección del quiz, p. ej. 10.42.0.1"
+ ],
+ "Show the quiz": [
+  "Afficher le quiz",
+  "Mostrar el quiz"
+ ],
+ "Look again": [
+  "Chercher à nouveau",
+  "Buscar de nuevo"
+ ],
+ "Can’t reach the quiz laptop at {address}. Trying again…": [
+  "Impossible de joindre l’ordinateur du quiz à {address}. Nouvel essai…",
+  "No se puede contactar con el portátil del quiz en {address}. Reintentando…"
+ ],
+ "▶ Start the TV": [
+  "▶ Démarrer la télé",
+  "▶ Iniciar la tele"
+ ],
+ "Press OK on the remote: full screen with sound.": [
+  "Appuyez sur OK sur la télécommande : plein écran avec le son.",
+  "Pulsa OK en el mando: pantalla completa con sonido."
+ ],
+ "✕ Exit full screen": [
+  "✕ Quitter le plein écran",
+  "✕ Salir de pantalla completa"
+ ],
+ "Join the quiz on your phone": [
+  "Rejoignez le quiz sur votre téléphone",
+  "Únete al quiz con tu móvil"
+ ],
+ "Scan with your phone camera": [
+  "Scannez avec l’appareil photo",
+  "Escanea con la cámara del móvil"
+ ],
+ "You’re on the quiz Wi-Fi": [
+  "Vous êtes sur le Wi-Fi du quiz",
+  "Estás en el wifi del quiz"
+ ],
+ "Don’t close this page until you’ve done this, or your phone may leave the quiz Wi-Fi:": [
+  "Ne fermez pas cette page avant d’avoir fait ceci, sinon votre téléphone risque de quitter le Wi-Fi du quiz :",
+  "No cierres esta página hasta hacer esto, o el móvil puede salirse del wifi del quiz:"
+ ],
+ "Android: tap ⋮ at the top, then “Use this network as is”.": [
+  "Android : touchez ⋮ en haut, puis « Utiliser ce réseau tel quel ».",
+  "Android: toca ⋮ arriba y luego «Usar esta red tal cual»."
+ ],
+ "iPhone: tap “Cancel” at the top, then “Use Without Internet”.": [
+  "iPhone : touchez « Annuler » en haut, puis « Utiliser sans Internet ».",
+  "iPhone: toca «Cancelar» arriba y luego «Usar sin Internet»."
+ ],
+ "Then scan the code on the TV, or open {url} in your browser.": [
+  "Puis scannez le code à la télé, ou ouvrez {url} dans votre navigateur.",
+  "Luego escanea el código de la tele, o abre {url} en tu navegador."
+ ],
+ "If your phone warns about “no internet”, choose “Use network as is” or “Stay connected”.": [
+  "Si le téléphone signale « pas d’internet », choisissez « Utiliser ce réseau tel quel » ou « Rester connecté ».",
+  "Si el móvil avisa de «sin internet», elige «Usar la red tal cual» o «Mantener conexión»."
+ ],
+ "This phone was playing as {name}.": [
+  "Ce téléphone jouait pour {name}.",
+  "Este móvil jugaba como {name}."
+ ],
+ "Continue as {name}": [
+  "Continuer avec {name}",
+  "Continuar como {name}"
+ ],
+ "You’re in! Keep this window open to play. If it closes, open {url} in your browser to carry on.": [
+  "C’est parti ! Gardez cette fenêtre ouverte pour jouer. Si elle se ferme, ouvrez {url} dans votre navigateur pour continuer.",
+  "¡Dentro! Deja esta ventana abierta para jugar. Si se cierra, abre {url} en tu navegador para seguir."
+ ],
+ "The quizmaster can see if you leave this page while a question is open.": [
+  "L’animateur voit si vous quittez cette page pendant une question.",
+  "El presentador ve si salís de esta página durante una pregunta."
+ ],
+ "This phone has not joined a team yet": [
+  "Ce téléphone n’a pas encore rejoint d'équipe",
+  "Este móvil aún no se ha unido a un equipo"
+ ],
+ "Send answer": [
+  "Envoyer",
+  "Enviar"
+ ],
+ "Your team": [
+  "Votre équipe",
+  "Vuestro equipo"
+ ],
+ "Close": [
+  "Fermer",
+  "Cerrar"
+ ],
+ "#{rank} · {score} pts": [
+  "{rank}e · {score} pts",
+  "{rank}.º · {score} pts"
+ ],
+ "#{rank}": [
+  "{rank}e",
+  "{rank}.º"
+ ],
+ "You’re in the waiting room — the quizmaster will let you in shortly": [
+  "Vous êtes dans la salle d’attente — le maître du quiz va vous faire entrer",
+  "Estáis en la sala de espera — el presentador os dejará entrar enseguida"
+ ],
+ "Nearly there! The quizmaster will let you in shortly. Keep this window open.": [
+  "Presque ! Le maître du quiz va vous faire entrer. Gardez cette fenêtre ouverte.",
+  "¡Casi! El presentador os dejará entrar enseguida. Mantened esta ventana abierta."
+ ],
+ "Time’s up!": [
+  "Temps écoulé !",
+  "¡Se acabó el tiempo!"
+ ],
+ "No answer this time": [
+  "Pas de réponse cette fois",
+  "Sin respuesta esta vez"
+ ],
+ "No points this time": [
+  "Pas de points cette fois",
+  "Sin puntos esta vez"
+ ],
+ "+1 point": [
+  "+1 point",
+  "+1 punto"
+ ],
+ "+{n} points": [
+  "+{n} points",
+  "+{n} puntos"
+ ],
+ "Draft saved — not sent yet": [
+  "Brouillon enregistré — pas encore envoyé",
+  "Borrador guardado — aún sin enviar"
+ ],
+ "👀 The quizmaster sees if you leave this page": [
+  "👀 L’animateur voit si vous quittez cette page",
+  "👀 El presentador ve si salís de esta página"
+ ],
+ "📷 Take a photo": [
+  "📷 Prendre une photo",
+  "📷 Hacer una foto"
+ ],
+ "🖼️ Choose a photo": [
+  "🖼️ Choisir une photo",
+  "🖼️ Elegir una foto"
+ ],
+ "AND THE WINNER IS…": [
+  "ET LE GAGNANT EST…",
+  "Y EL GANADOR ES…"
+ ],
+ "● Connected": [
+  "● Connecté",
+  "● Conectado"
+ ],
+ "● Connection lost — retrying": [
+  "● Connexion perdue — nouvel essai",
+  "● Conexión perdida — reintentando"
+ ],
+ "Registration is open": [
+  "Inscriptions ouvertes",
+  "Inscripción abierta"
+ ],
+ "Registration closed — existing teams can still recover below.": [
+  "Inscriptions fermées — les équipes existantes peuvent se reconnecter ci-dessous.",
+  "Inscripción cerrada — los equipos existentes pueden reconectarse abajo."
+ ],
+ "This quiz has finished.": [
+  "Ce quiz est terminé.",
+  "Este quiz ha terminado."
+ ],
+ "Team registered. Keep your recovery code.": [
+  "Équipe inscrite. Gardez votre code de récupération.",
+  "Equipo registrado. Guardad vuestro código de recuperación."
+ ],
+ "Welcome back": [
+  "Bon retour",
+  "Bienvenidos de nuevo"
+ ],
+ "Your old recovery code is no longer valid. Ask the quizmaster for a new one.": [
+  "Votre ancien code de récupération n’est plus valable. Demandez-en un nouveau au maître du quiz.",
+  "Vuestro código de recuperación ya no es válido. Pedid uno nuevo al presentador."
+ ],
+ "Browser storage is unavailable. Write down your recovery code before closing this window.": [
+  "Le stockage du navigateur est indisponible. Notez votre code avant de fermer cette fenêtre.",
+  "El almacenamiento del navegador no está disponible. Apuntad el código antes de cerrar esta ventana."
+ ],
+ "Switch teams on this browser? Save your current recovery code first.": [
+  "Changer d'équipe sur ce navigateur ? Gardez d’abord votre code actuel.",
+  "¿Cambiar de equipo en este navegador? Guardad antes el código actual."
+ ],
+ "Quiz finished": [
+  "Quiz terminé",
+  "Quiz terminado"
+ ],
+ "Quizzes": [
+  "Quiz",
+  "Quizzes"
+ ],
+ "Keep this result in your BeerMat profile": [
+  "Garder ce résultat dans votre profil BeerMat",
+  "Guardar este resultado en tu perfil de BeerMat"
+ ],
+ "Keep your team’s finishing place and score in a BeerMat Online profile. Optional: nothing is shared unless you do this.": [
+  "Gardez la place et le score de votre équipe dans un profil BeerMat Online. Facultatif : rien n’est partagé sans votre accord.",
+  "Guarda el puesto y la puntuación de tu equipo en un perfil de BeerMat Online. Opcional: no se comparte nada si no lo haces."
+ ],
+ "Vibrate for new questions and your buzz turn": [
+  "Vibrer pour les nouvelles questions et votre tour de buzzer",
+  "Vibrar con cada pregunta nueva y cuando te toque responder"
+ ],
+ "✓ Final answer saved": [
+  "✓ Réponse finale enregistrée",
+  "✓ Respuesta final guardada"
+ ],
+ "Paused": [
+  "En pause",
+  "En pausa"
+ ],
+ "Paused · {n}s remaining": [
+  "En pause · {n} s restantes",
+  "En pausa · quedan {n} s"
+ ],
+ "{n}s remaining": [
+  "{n} s restantes",
+  "quedan {n} s"
+ ],
+ "Answers closed": [
+  "Réponses fermées",
+  "Respuestas cerradas"
+ ],
+ "Eyes down — game in progress": [
+  "Partie en cours",
+  "Partida en curso"
+ ],
+ "Game over": [
+  "Partie terminée",
+  "Partida terminada"
+ ],
+ "Saving draft…": [
+  "Enregistrement du brouillon…",
+  "Guardando borrador…"
+ ],
+ "Draft kept in this browser — waiting for connection": [
+  "Brouillon gardé dans ce navigateur — en attente de connexion",
+  "Borrador guardado en este navegador — esperando conexión"
+ ],
+ "Draft saved on quiz laptop — final submission still required": [
+  "Brouillon enregistré — la réponse finale reste à envoyer",
+  "Borrador guardado — aún hay que enviar la respuesta final"
+ ],
+ "Draft restored — submit when ready": [
+  "Brouillon restauré — envoyez quand vous êtes prêts",
+  "Borrador recuperado — enviad cuando estéis listos"
+ ],
+ "Your final answer is safely stored on the quiz laptop.": [
+  "Votre réponse finale est bien enregistrée.",
+  "Vuestra respuesta final está guardada."
+ ],
+ "Your answer scored {n} points.": [
+  "Votre réponse a rapporté {n} points.",
+  "Vuestra respuesta ha sumado {n} puntos."
+ ],
+ "Your answer scored 1 point.": [
+  "Votre réponse a rapporté 1 point.",
+  "Vuestra respuesta ha sumado 1 punto."
+ ],
+ "Final answer received": [
+  "Réponse finale reçue",
+  "Respuesta final recibida"
+ ],
+ "Could not confirm submission. Reconnecting will check whether it was received.": [
+  "Envoi non confirmé. La reconnexion vérifiera s’il a été reçu.",
+  "No se pudo confirmar el envío. Al reconectar se comprobará si llegó."
+ ],
+ "Some sheet answers are blank. Submit this as your final sheet?": [
+  "Certaines réponses sont vides. Envoyer cette feuille comme réponse finale ?",
+  "Hay respuestas en blanco. ¿Enviar esta hoja como final?"
+ ],
+ "Choose an answer first": [
+  "Choisissez d’abord une réponse",
+  "Elegid antes una respuesta"
+ ],
+ "Type an answer first": [
+  "Tapez d’abord une réponse",
+  "Escribid antes una respuesta"
+ ],
+ "Place every item in order first": [
+  "Placez d’abord tous les éléments dans l’ordre",
+  "Ordenad antes todos los elementos"
+ ],
+ "Tap the picture first": [
+  "Touchez d’abord l’image",
+  "Tocad antes la imagen"
+ ],
+ "Tap the answer’s letters in order: each touches the last, diagonals too. Any route that spells it is right.": [
+  "Touchez les lettres de la réponse dans l’ordre : chacune touche la précédente, en diagonale aussi. Tout chemin qui l’épelle est bon.",
+  "Tocad las letras de la respuesta en orden: cada una toca la anterior, también en diagonal. Vale cualquier camino que la deletree."
+ ],
+ "Tapping a letter that doesn’t touch starts again.": [
+  "Toucher une lettre qui ne touche pas recommence.",
+  "Tocar una letra que no toca vuelve a empezar."
+ ],
+ "📺 VAR Check": [
+  "📺 Arbitrage vidéo",
+  "📺 VAR"
+ ],
+ "Think it was marked wrong? Ask for a VAR Check.": [
+  "Vous pensez que c’est mal corrigé ? Demandez l’arbitrage vidéo.",
+  "¿Creéis que se ha corregido mal? Pedid el VAR."
+ ],
+ "{n} left this round": [
+  "{n} restant(s) pour cette manche",
+  "{n} restante(s) en esta ronda"
+ ],
+ "{n} left tonight": [
+  "{n} restant(s) ce soir",
+  "{n} restante(s) esta noche"
+ ],
+ "Ask the quizmaster for a VAR Check on this answer?": [
+  "Demander l’arbitrage vidéo au maître du quiz pour cette réponse ?",
+  "¿Pedir el VAR al presentador para esta respuesta?"
+ ],
+ "VAR Check sent: the quizmaster is reviewing it": [
+  "Arbitrage vidéo demandé : le maître du quiz vérifie",
+  "VAR pedido: el presentador lo está revisando"
+ ],
+ "VAR Check: overturned! +{n} points": [
+  "Arbitrage vidéo : décision annulée ! +{n} points",
+  "VAR: ¡decisión revocada! +{n} puntos"
+ ],
+ "VAR Check: the decision stands": [
+  "Arbitrage vidéo : la décision est maintenue",
+  "VAR: la decisión se mantiene"
+ ],
+ "VAR Check is switched off": [
+  "L’arbitrage vidéo est désactivé",
+  "El VAR está desactivado"
+ ],
+ "Already sent for a VAR Check": [
+  "Arbitrage vidéo déjà demandé",
+  "Ya se ha pedido el VAR"
+ ],
+ "No VAR Checks left tonight": [
+  "Plus d’arbitrage vidéo ce soir",
+  "No quedan VAR esta noche"
+ ],
+ "No VAR Checks left this round": [
+  "Plus d’arbitrage vidéo pour cette manche",
+  "No quedan VAR en esta ronda"
+ ],
+ "A VAR Check is for an answer you sent, once it’s revealed": [
+  "L’arbitrage vidéo porte sur une réponse envoyée, une fois révélée",
+  "El VAR es para una respuesta enviada, una vez revelada"
+ ],
+ "📺 VAR Check: {team} answered “{answer}”": [
+  "📺 Arbitrage vidéo : {team} a répondu « {answer} »",
+  "📺 VAR: {team} respondió «{answer}»"
+ ],
+ "Overturn (+{n})": [
+  "Annuler la décision (+{n})",
+  "Revocar (+{n})"
+ ],
+ "Decision stands": [
+  "Décision maintenue",
+  "Se mantiene"
+ ],
+ "VAR Check: overturned": [
+  "Arbitrage vidéo : décision annulée",
+  "VAR: decisión revocada"
+ ],
+ "📺 VAR CHECK": [
+  "📺 ARBITRAGE VIDÉO",
+  "📺 VAR"
+ ],
+ "Checking the replay…": [
+  "On revoit les images…",
+  "Revisando la jugada…"
+ ],
+ "OVERTURNED": [
+  "DÉCISION ANNULÉE",
+  "DECISIÓN REVOCADA"
+ ],
+ "DECISION STANDS": [
+  "DÉCISION MAINTENUE",
+  "SE MANTIENE LA DECISIÓN"
+ ],
+ "No change to the score": [
+  "Le score ne change pas",
+  "El marcador no cambia"
+ ],
+ "Your number (closest without going over)": [
+  "Votre nombre (le plus proche sans dépasser)",
+  "Vuestro número (el más cercano sin pasarse)"
+ ],
+ "True": [
+  "Vrai",
+  "Verdadero"
+ ],
+ "False": [
+  "Faux",
+  "Falso"
+ ],
+ "Before": [
+  "Avant",
+  "Antes"
+ ],
+ "After": [
+  "Après",
+  "Después"
+ ],
+ "Circled on the picture": [
+  "Entouré sur l’image",
+  "Marcado con un círculo en la imagen"
+ ],
+ "Tap the picture once for each place: {n} to find": [
+  "Touchez l’image une fois par endroit : {n} à trouver",
+  "Tocad la imagen una vez por lugar: {n} por encontrar"
+ ],
+ "Your stake: win it if you’re right, lose it if you’re wrong (up to {n})": [
+  "Votre mise : gagnée si c’est juste, perdue sinon (jusqu’à {n})",
+  "Vuestra apuesta: la ganáis si acertáis, la perdéis si falláis (hasta {n})"
+ ],
+ "Choose your stake first": [
+  "Choisissez d’abord votre mise",
+  "Elegid antes vuestra apuesta"
+ ],
+ "Staked {n}": [
+  "Mise : {n}",
+  "Apuesta: {n}"
+ ],
+ "Wager: up to {n} points": [
+  "Mise : jusqu’à {n} points",
+  "Apuesta: hasta {n} puntos"
+ ],
+ "Clue {n} of {total}: {p} points now": [
+  "Indice {n} sur {total} : {p} points maintenant",
+  "Pista {n} de {total}: {p} puntos ahora"
+ ],
+ "Name up to {n}: a point for each right one, any order": [
+  "Citez-en jusqu’à {n} : un point par bonne réponse, dans n’importe quel ordre",
+  "Nombrad hasta {n}: un punto por cada acierto, en cualquier orden"
+ ],
+ "Match each one: a point for each right pair": [
+  "Associez chacun : un point par bonne paire",
+  "Emparejad cada uno: un punto por pareja correcta"
+ ],
+ "Put each one in its group: a point for each right one": [
+  "Placez chacun dans son groupe : un point par bonne réponse",
+  "Poned cada uno en su grupo: un punto por cada acierto"
+ ],
+ "Put the items into {n} groups, then say what links each group": [
+  "Répartissez les éléments en {n} groupes, puis dites ce qui relie chaque groupe",
+  "Repartid los elementos en {n} grupos y decid qué une a cada grupo"
+ ],
+ "Group {n}": [
+  "Groupe {n}",
+  "Grupo {n}"
+ ],
+ "Group {n}: what links them?": [
+  "Groupe {n} : quel est le lien ?",
+  "Grupo {n}: ¿qué los une?"
+ ],
+ "1 point": [
+  "1 point",
+  "1 punto"
+ ],
+ "📺 Watch the TV": [
+  "📺 Regardez la télé",
+  "📺 Mirad la tele"
+ ],
+ "Trace the word first": [
+  "Tracez d’abord le mot",
+  "Trazad antes la palabra"
+ ],
+ "Place the tiles first": [
+  "Placez d’abord les tuiles",
+  "Colocad antes las fichas"
+ ],
+ "Your answer": [
+  "Votre réponse",
+  "Vuestra respuesta"
+ ],
+ "Your number": [
+  "Votre nombre",
+  "Vuestro número"
+ ],
+ "Your number (closest wins)": [
+  "Votre nombre (le plus proche gagne)",
+  "Vuestro número (gana el más cercano)"
+ ],
+ "Tick every right answer — wrong ticks cost points": [
+  "Cochez toutes les bonnes réponses — les erreurs coûtent des points",
+  "Marcad todas las correctas — los fallos restan puntos"
+ ],
+ "Tap the items in order": [
+  "Touchez les éléments dans l’ordre",
+  "Tocad los elementos en orden"
+ ],
+ "Undo last": [
+  "Annuler le dernier",
+  "Deshacer el último"
+ ],
+ "Undo tap": [
+  "Annuler la touche",
+  "Deshacer toque"
+ ],
+ "Tap the picture to place your answer": [
+  "Touchez l’image pour placer votre réponse",
+  "Tocad la imagen para marcar vuestra respuesta"
+ ],
+ "Tap the picture. Second guess: a second tap scores {n} if your first misses.": [
+  "Touchez l’image. Deuxième essai : une 2e touche rapporte {n} si la 1re rate.",
+  "Tocad la imagen. Segundo intento: un 2.º toque suma {n} si el 1.º falla."
+ ],
+ "Tap the first letter": [
+  "Touchez la première lettre",
+  "Tocad la primera letra"
+ ],
+ "Start again": [
+  "Recommencer",
+  "Empezar de nuevo"
+ ],
+ "Hint (scores {n})": [
+  "Indice ({n} pts)",
+  "Pista ({n} pts)"
+ ],
+ "Use the hint? The decoy letters disappear, but a right answer scores {wide} instead of {full}.": [
+  "Utiliser l’indice ? Les leurres disparaissent, mais une bonne réponse rapporte {wide} au lieu de {full}.",
+  "¿Usar la pista? Las letras señuelo desaparecen, pero acertar suma {wide} en vez de {full}."
+ ],
+ "50/50 (scores {n})": [
+  "50/50 ({n} pts)",
+  "50/50 ({n} pts)"
+ ],
+ "50/50? Half the wrong answers disappear, but a right answer scores {fifty} instead of {full}.": [
+  "50/50 ? La moitié des mauvaises réponses disparaît, mais une bonne réponse rapporte {fifty} au lieu de {full}.",
+  "¿50/50? Desaparece la mitad de las respuestas incorrectas, pero acertar suma {fifty} en vez de {full}."
+ ],
+ "Tap the tiles in order to build the answer": [
+  "Touchez les tuiles dans l’ordre pour former la réponse",
+  "Tocad las fichas en orden para formar la respuesta"
+ ],
+ "Locked out — wrong answer on the last buzzer question": [
+  "Bloqués — mauvaise réponse à la dernière question buzzer",
+  "Bloqueados — fallo en la última pregunta de pulsador"
+ ],
+ "You buzzed first — give your answer!": [
+  "Vous avez buzzé en premier — répondez !",
+  "¡Habéis pulsado primero — responded!"
+ ],
+ "Buzzed · you are #{n} in the queue": [
+  "Buzzé · vous êtes n°{n} dans la file",
+  "Pulsado · sois el n.º {n} en la cola"
+ ],
+ "Ruled wrong": [
+  "Jugé faux",
+  "Respuesta incorrecta"
+ ],
+ "Passed": [
+  "Passé",
+  "Pasado"
+ ],
+ "Correct!": [
+  "Correct !",
+  "¡Correcto!"
+ ],
+ "{name} is answering": [
+  "{name} répond",
+  "{name} está respondiendo"
+ ],
+ "Buzz when you know it!": [
+  "Buzzez dès que vous savez !",
+  "¡Pulsad en cuanto lo sepáis!"
+ ],
+ "Buzzing closed": [
+  "Buzzers fermés",
+  "Pulsadores cerrados"
+ ],
+ "{name} answered “{answer}”. Do you agree?": [
+  "{name} a répondu « {answer} ». D’accord ?",
+  "{name} ha respondido «{answer}». ¿Estáis de acuerdo?"
+ ],
+ "✓ You agreed": [
+  "✓ Vous êtes d’accord",
+  "✓ Estáis de acuerdo"
+ ],
+ "Buzzed!": [
+  "Buzzé !",
+  "¡Pulsado!"
+ ],
+ "Agreement recorded": [
+  "Accord enregistré",
+  "Acuerdo registrado"
+ ],
+ "BINGO! Checked and counted": [
+  "BINGO ! Vérifié et compté",
+  "¡BINGO! Comprobado y contado"
+ ],
+ "Tap recorded": [
+  "Touche enregistrée",
+  "Toque registrado"
+ ],
+ "One line": [
+  "Une ligne",
+  "Una línea"
+ ],
+ "Two lines": [
+  "Deux lignes",
+  "Dos líneas"
+ ],
+ "Full house": [
+  "Carton plein",
+  "Cartón lleno"
+ ],
+ "Full game": [
+  "Partie complète",
+  "Partida completa"
+ ],
+ "Playing for {stage}": [
+  "On joue pour : {stage}",
+  "Se juega a: {stage}"
+ ],
+ "{stage}: {names}": [
+  "{stage} : {names}",
+  "{stage}: {names}"
+ ],
+ "{mode} · {n} called": [
+  "{mode} · {n} tirés",
+  "{mode} · {n} cantados"
+ ],
+ "Music bingo · {mode} · {n} played": [
+  "Bingo musical · {mode} · {n} joués",
+  "Bingo musical · {mode} · {n} sonados"
+ ],
+ "Music bingo · {mode}": [
+  "Bingo musical · {mode}",
+  "Bingo musical · {mode}"
+ ],
+ "Song {n}": [
+  "Chanson {n}",
+  "Canción {n}"
+ ],
+ "Revealed: {title}": [
+  "Révélé : {title}",
+  "Revelada: {title}"
+ ],
+ "Last revealed: {title}": [
+  "Dernière révélée : {title}",
+  "Última revelada: {title}"
+ ],
+ "✓ Bingo! Your claim was checked and counted.": [
+  "✓ Bingo ! Votre carton a été vérifié et compté.",
+  "✓ ¡Bingo! Vuestro cartón se ha comprobado y contado."
+ ],
+ "BINGO! {names}": [
+  "BINGO ! {names}",
+  "¡BINGO! {names}"
+ ],
+ "You tapped: {clip}": [
+  "Vous avez touché : {clip}",
+  "Habéis tocado: {clip}"
+ ],
+ "🎵 Clip {n} of {count}": [
+  "🎵 Extrait {n} sur {count}",
+  "🎵 Fragmento {n} de {count}"
+ ],
+ "Get ready — listen for the clips": [
+  "Préparez-vous — écoutez les extraits",
+  "Preparaos — escuchad los fragmentos"
+ ],
+ "Clips finished": [
+  "Extraits terminés",
+  "Fragmentos terminados"
+ ],
+ "Listen carefully…": [
+  "Écoutez bien…",
+  "Escuchad con atención…"
+ ],
+ "{n} teams have tapped": [
+  "{n} équipes ont touché",
+  "{n} equipos han tocado"
+ ],
+ "Buzzers open": [
+  "Buzzers ouverts",
+  "Pulsadores abiertos"
+ ],
+ "The quizmaster has hidden scores for now.": [
+  "L’animateur a masqué les scores pour l’instant.",
+  "El presentador ha ocultado las puntuaciones por ahora."
+ ],
+ "Secret round: the scores stay hidden until the end of the quiz.": [
+  "Manche secrète : les scores restent cachés jusqu’à la fin du quiz.",
+  "Ronda secreta: las puntuaciones siguen ocultas hasta el final del quiz."
+ ],
+ "Secret round: you find out how you did when the quiz ends.": [
+  "Manche secrète : vous saurez comment vous avez fait à la fin du quiz.",
+  "Ronda secreta: sabréis cómo os ha ido al final del quiz."
+ ],
+ "Final standings": [
+  "Classement final",
+  "Clasificación final"
+ ],
+ "Ties share the same rank.": [
+  "Les ex æquo partagent le même rang.",
+  "Los empates comparten puesto."
+ ],
+ "Waiting for teams": [
+  "En attente des équipes",
+  "Esperando equipos"
+ ],
+ "Join: {url}": [
+  "Rejoindre : {url}",
+  "Unirse: {url}"
+ ],
+ "Or go to {url}": [
+  "Ou allez sur {url}",
+  "O entra en {url}"
+ ],
+ "Join the “{ssid}” Wi-Fi first": [
+  "Rejoignez d’abord le Wi-Fi « {ssid} »",
+  "Conéctate primero al wifi «{ssid}»"
+ ],
+ "Join the “{ssid}” Wi-Fi (password: {password})": [
+  "Rejoignez le Wi-Fi « {ssid} » (mot de passe : {password})",
+  "Conéctate al Wi-Fi «{ssid}» (contraseña: {password})"
+ ],
+ "Pick a team name and keep the page open": [
+  "Choisissez un nom d’équipe et gardez la page ouverte",
+  "Elige un nombre de equipo y deja la página abierta"
+ ],
+ "Join: Wi-Fi “{ssid}” → {url}": [
+  "Rejoindre : Wi-Fi « {ssid} » → {url}",
+  "Unirse: Wi-Fi «{ssid}» → {url}"
+ ],
+ "Registration is closed — ask the quizmaster to join": [
+  "Inscriptions fermées — demandez à l’animateur",
+  "Inscripción cerrada — pedídselo al presentador"
+ ],
+ "{n} teams have joined": [
+  "{n} équipes inscrites",
+  "{n} equipos inscritos"
+ ],
+ "1 team has joined": [
+  "1 équipe inscrite",
+  "1 equipo inscrito"
+ ],
+ "Be the first team to join!": [
+  "Soyez la première équipe !",
+  "¡Sed el primer equipo!"
+ ],
+ "Scores are hidden for now": [
+  "Scores masqués pour l’instant",
+  "Puntuaciones ocultas por ahora"
+ ],
+ "No teams yet": [
+  "Pas encore d’équipes",
+  "Aún no hay equipos"
+ ],
+ "{n} points": [
+  "{n} points",
+  "{n} puntos"
+ ],
+ "{n} points — a tie!": [
+  "{n} points — égalité !",
+  "{n} puntos — ¡empate!"
+ ],
+ "Answer reveal": [
+  "Réponse",
+  "Respuesta"
+ ],
+ "Votes": [
+  "Votes",
+  "Votos"
+ ],
+ "Marked by quizmaster": [
+  "Corrigé par l’animateur",
+  "Corregido por el presentador"
+ ],
+ "1 team scored": [
+  "1 équipe a marqué",
+  "1 equipo ha puntuado"
+ ],
+ "{n} teams scored — fastest first": [
+  "{n} équipes ont marqué — la plus rapide d’abord",
+  "{n} equipos han puntuado — el más rápido primero"
+ ],
+ "{n} teams scored — closest first": [
+  "{n} équipes ont marqué — la plus proche d’abord",
+  "{n} equipos han puntuado — el más cercano primero"
+ ],
+ "Tie-breaker — closest first": [
+  "Départage — la plus proche d’abord",
+  "Desempate — el más cercano primero"
+ ],
+ "TIE-BREAKER WINNER": [
+  "VAINQUEUR DU DÉPARTAGE",
+  "GANADOR DEL DESEMPATE"
+ ],
+ "CLOSEST ANSWER": [
+  "RÉPONSE LA PLUS PROCHE",
+  "RESPUESTA MÁS CERCANA"
+ ],
+ "FASTEST FINGERS": [
+  "LES PLUS RAPIDES",
+  "LOS MÁS RÁPIDOS"
+ ],
+ "Answered {answer}": [
+  "A répondu {answer}",
+  "Respondió {answer}"
+ ],
+ "A new quiz has started — pick your team name again.": [
+  "Un nouveau quiz commence — choisissez à nouveau un nom d’équipe.",
+  "Empieza un nuevo quiz — elegid otra vez un nombre de equipo."
+ ],
+ "Nobody scored this time": [
+  "Personne n’a marqué cette fois",
+  "Nadie ha puntuado esta vez"
+ ],
+ "{s}s": [
+  "{s} s",
+  "{s} s"
+ ],
+ "✓ Approved — showing on the big screen": [
+  "✓ Validée — affichée sur le grand écran",
+  "✓ Aprobada — en la pantalla grande"
+ ],
+ "Waiting for the quizmaster to approve it": [
+  "En attente de validation par l’animateur",
+  "Esperando la aprobación del presentador"
+ ],
+ "Uploading…": [
+  "Envoi…",
+  "Subiendo…"
+ ],
+ "Photo sent — the quizmaster will approve it": [
+  "Photo envoyée — l’animateur va la valider",
+  "Foto enviada — el presentador la aprobará"
+ ],
+ "That photo could not be used": [
+  "Cette photo n’a pas pu être utilisée",
+  "No se ha podido usar esa foto"
+ ],
+ "Buzzer sound saved": [
+  "Son du buzzer enregistré",
+  "Sonido del pulsador guardado"
+ ],
+ "Language": [
+  "Langue",
+  "Idioma"
+ ],
+ "A team with your name has already joined. Ask the quizmaster.": [
+  "Une équipe à votre nom a déjà rejoint. Demandez à l’animateur.",
+  "Ya se ha unido un equipo con vuestro nombre. Preguntad al presentador."
+ ],
+ "Registration is closed. Ask the quizmaster.": [
+  "Inscriptions fermées. Demandez à l’animateur.",
+  "Inscripción cerrada. Preguntad al presentador."
+ ],
+ "Name taken. Use your recovery code to reconnect.": [
+  "Nom déjà pris. Utilisez votre code de récupération.",
+  "Nombre ocupado. Usad vuestro código de recuperación."
+ ],
+ "Team limit reached. Ask the quizmaster.": [
+  "Nombre maximal d’équipes atteint. Demandez à l’animateur.",
+  "Límite de equipos alcanzado. Preguntad al presentador."
+ ],
+ "Team name must be 2–40 characters": [
+  "Le nom d'équipe doit faire 2 à 40 caractères",
+  "El nombre debe tener de 2 a 40 caracteres"
+ ],
+ "Please choose a different team name": [
+  "Choisissez un autre nom d'équipe",
+  "Elegid otro nombre de equipo"
+ ],
+ "This team is disabled. Ask the quizmaster.": [
+  "Cette équipe est désactivée. Demandez à l’animateur.",
+  "Este equipo está desactivado. Preguntad al presentador."
+ ],
+ "Team recovery code required": [
+  "Code de récupération requis",
+  "Se necesita el código de recuperación"
+ ],
+ "Question closed, paused or outdated": [
+  "Question fermée, en pause ou dépassée",
+  "Pregunta cerrada, en pausa o pasada"
+ ],
+ "Already submitted": [
+  "Déjà envoyé",
+  "Ya enviada"
+ ],
+ "Already buzzed": [
+  "Déjà buzzé",
+  "Ya habéis pulsado"
+ ],
+ "Buzzing has closed": [
+  "Les buzzers sont fermés",
+  "Los pulsadores están cerrados"
+ ],
+ "Locked out after a wrong answer last question": [
+  "Bloqués après une mauvaise réponse",
+  "Bloqueados tras un fallo"
+ ],
+ "Agree voting is closed": [
+  "Le vote est terminé",
+  "La votación ha terminado"
+ ],
+ "The answering team cannot vote": [
+  "L’équipe qui répond ne peut pas voter",
+  "El equipo que responde no puede votar"
+ ],
+ "Not yet — keep marking your ticket": [
+  "Pas encore — continuez à cocher votre carton",
+  "Todavía no — seguid marcando el cartón"
+ ],
+ "Already claimed": [
+  "Déjà réclamé",
+  "Ya cantado"
+ ],
+ "Wait for the clips to start": [
+  "Attendez le début des extraits",
+  "Esperad a que empiecen los fragmentos"
+ ],
+ "You have already tapped": [
+  "Vous avez déjà touché",
+  "Ya habéis tocado"
+ ],
+ "The hint is not available now": [
+  "L’indice n’est pas disponible maintenant",
+  "Ahora no se puede usar la pista"
+ ],
+ "Cancel": [
+  "Annuler",
+  "Cancelar"
+ ],
+ "The 50/50 is not available now": [
+  "Le 50/50 n’est pas disponible maintenant",
+  "Ahora no se puede usar el 50/50"
+ ],
+ "That code is wrong or has expired. Ask the quizmaster for a new one.": [
+  "Code faux ou expiré. Demandez-en un nouveau à l’animateur.",
+  "Código incorrecto o caducado. Pedid uno nuevo al presentador."
+ ],
+ "Wait one minute before trying again": [
+  "Attendez une minute avant de réessayer",
+  "Esperad un minuto antes de reintentar"
+ ],
+ "Photo must be a JPEG": [
+  "La photo doit être un JPEG",
+  "La foto debe ser JPEG"
+ ],
+ "Team photos are switched off": [
+  "Les photos d'équipe sont désactivées",
+  "Las fotos de equipo están desactivadas"
+ ],
+ "Answer must contain 1–300 characters": [
+  "La réponse doit faire 1 à 300 caractères",
+  "La respuesta debe tener de 1 a 300 caracteres"
+ ],
+ "Select a valid choice": [
+  "Choisissez une option valide",
+  "Elegid una opción válida"
+ ],
+ "Choose a single letter": [
+  "Choisissez une seule lettre",
+  "Elegid una sola letra"
+ ],
+ "Enter a number": [
+  "Entrez un nombre",
+  "Escribid un número"
+ ],
+ "Play the quiz": [
+  "Jouer au quiz",
+  "Jugar al quiz"
+ ],
+ "Scan the code on the TV": [
+  "Scannez le code à la télé",
+  "Escanead el código de la tele"
+ ],
+ "No account, no internet: the quiz runs on the quizmaster’s laptop.": [
+  "Ni compte ni internet : le quiz tourne sur l’ordinateur de l’animateur.",
+  "Sin cuenta ni internet: el quiz funciona en el portátil del presentador."
+ ],
+ "Scan the TV’s code": [
+  "Scanner le code de la télé",
+  "Escanear el código de la tele"
+ ],
+ "Or type the address on the TV": [
+  "Ou tapez l’adresse affichée à la télé",
+  "O escribid la dirección que sale en la tele"
+ ],
+ "Connect": [
+  "Se connecter",
+  "Conectar"
+ ],
+ "Recent quizzes": [
+  "Quiz récents",
+  "Quizzes recientes"
+ ],
+ "Quiz": [
+  "Quiz",
+  "Quiz"
+ ],
+ "Pick a team name": [
+  "Choisissez un nom d’équipe",
+  "Elegid un nombre de equipo"
+ ],
+ "Join the quiz": [
+  "Rejoindre le quiz",
+  "Unirse al quiz"
+ ],
+ "Already playing?": [
+  "Vous jouez déjà ?",
+  "¿Ya estáis jugando?"
+ ],
+ "Type your recovery code, or the 4-digit code the quizmaster gives you to move your team to this phone.": [
+  "Tapez votre code de récupération, ou le code à 4 chiffres donné par l’animateur pour passer votre équipe sur ce téléphone.",
+  "Escribid vuestro código de recuperación, o el código de 4 cifras que os dé el presentador para pasar el equipo a este móvil."
+ ],
+ "Recovery code": [
+  "Code de récupération",
+  "Código de recuperación"
+ ],
+ "Continue as my team": [
+  "Continuer avec mon équipe",
+  "Seguir con mi equipo"
+ ],
+ "‹ Other quizzes": [
+  "‹ Autres quiz",
+  "‹ Otros quizzes"
+ ],
+ "Other quizzes": [
+  "Autres quiz",
+  "Otros quizzes"
+ ],
+ "REHEARSAL": [
+  "RÉPÉTITION",
+  "ENSAYO"
+ ],
+ "You’re connected": [
+  "Vous êtes connectés",
+  "Estáis conectados"
+ ],
+ "This is a rehearsal. Your phone reached the quiz, so it’ll work on the night, but playing is switched off: the quizmaster is testing with simulated teams.": [
+  "C’est une répétition. Votre téléphone a rejoint le quiz, il marchera donc le soir venu, mais le jeu est désactivé : l’animateur teste avec des équipes simulées.",
+  "Es un ensayo. Vuestro móvil ha llegado al quiz, así que funcionará esa noche, pero el juego está desactivado: el presentador está probando con equipos simulados."
+ ],
+ "● CONNECTED": [
+  "● CONNECTÉ",
+  "● CONECTADO"
+ ],
+ "○ RECONNECTING…": [
+  "○ RECONNEXION…",
+  "○ RECONECTANDO…"
+ ],
+ "Join the quiz Wi-Fi": [
+  "Rejoignez le Wi-Fi du quiz",
+  "Conectaos al wifi del quiz"
+ ],
+ "Network: {ssid}": [
+  "Réseau : {ssid}",
+  "Red: {ssid}"
+ ],
+ "Password: {password}": [
+  "Mot de passe : {password}",
+  "Contraseña: {password}"
+ ],
+ "If your phone warns about “no internet”, choose “Use network as is” or “Stay connected”. Then scan the quiz code.": [
+  "Si votre téléphone signale « pas d’internet », choisissez « Utiliser ce réseau » ou « Rester connecté ». Puis scannez le code du quiz.",
+  "Si el móvil avisa de «sin internet», elegid «Usar la red tal cual» o «Mantener la conexión». Luego escanead el código del quiz."
+ ],
+ "Open Wi-Fi settings": [
+  "Ouvrir les réglages Wi-Fi",
+  "Abrir los ajustes de wifi"
+ ],
+ "Done": [
+  "Terminé",
+  "Listo"
+ ],
+ "That code isn’t a BeerMat quiz.": [
+  "Ce code n’est pas un quiz BeerMat.",
+  "Ese código no es de un quiz de BeerMat."
+ ],
+ "That doesn’t look like a quiz address.": [
+  "Ça ne ressemble pas à l’adresse d’un quiz.",
+  "Eso no parece la dirección de un quiz."
+ ],
+ "That address isn’t a BeerMat quiz.": [
+  "Cette adresse n’est pas un quiz BeerMat.",
+  "Esa dirección no es de un quiz de BeerMat."
+ ],
+ "This quiz needs a newer BeerMat app. You can still play in the phone’s browser.": [
+  "Ce quiz demande une version plus récente de l’appli BeerMat. Vous pouvez quand même jouer dans le navigateur.",
+  "Este quiz necesita una versión más nueva de la app BeerMat. Podéis jugar igualmente en el navegador."
+ ],
+ "Can’t reach the quiz. Check you’re on the quiz Wi-Fi, then try again.": [
+  "Le quiz est injoignable. Vérifiez que vous êtes sur le Wi-Fi du quiz, puis réessayez.",
+  "No se puede contactar con el quiz. Comprobad que estáis en el wifi del quiz y volved a intentarlo."
+ ],
+ "Can’t reach the quiz": [
+  "Le quiz est injoignable",
+  "No se puede contactar con el quiz"
+ ],
+ "The scanner isn’t available on this phone. Type the address on the TV instead.": [
+  "Le scanner n’est pas disponible sur ce téléphone. Tapez plutôt l’adresse affichée à la télé.",
+  "El escáner no está disponible en este móvil. Escribid la dirección que sale en la tele."
+ ],
+ "Team": [
+  "Équipe",
+  "Equipo"
+ ],
+ "Connection lost — reconnecting…": [
+  "Connexion perdue — reconnexion…",
+  "Conexión perdida — reconectando…"
+ ],
+ "You’re in the waiting room": [
+  "Vous êtes dans la salle d’attente",
+  "Estáis en la sala de espera"
+ ],
+ "The quizmaster will let you in shortly.": [
+  "L’animateur va vous faire entrer.",
+  "El presentador os dejará entrar enseguida."
+ ],
+ "That’s the quiz!": [
+  "Le quiz est terminé !",
+  "¡Fin del quiz!"
+ ],
+ "Thanks for playing. Final scores are on the TV.": [
+  "Merci d’avoir joué. Les scores finaux sont à la télé.",
+  "Gracias por jugar. Las puntuaciones finales están en la tele."
+ ],
+ "You’re in!": [
+  "C’est bon, vous êtes inscrits !",
+  "¡Ya estáis dentro!"
+ ],
+ "Waiting for the quiz to start. Keep this app open.": [
+  "En attente du début du quiz. Gardez l’appli ouverte.",
+  "Esperando a que empiece el quiz. Mantened la app abierta."
+ ],
+ "Keep this result": [
+  "Garder ce résultat",
+  "Guardar este resultado"
+ ],
+ "Keep it to rejoin from another phone. The quizmaster can also give you a 4-digit code to move your team.": [
+  "Gardez-le pour revenir depuis un autre téléphone. L’animateur peut aussi vous donner un code à 4 chiffres pour déplacer votre équipe.",
+  "Guardadlo para volver desde otro móvil. El presentador también os puede dar un código de 4 cifras para pasar el equipo."
+ ],
+ "Open in the browser instead": [
+  "Ouvrir plutôt dans le navigateur",
+  "Abrir en el navegador"
+ ],
+ "Switch team": [
+  "Changer d’équipe",
+  "Cambiar de equipo"
+ ],
+ "Chosen for you: tap to pick one": [
+  "Choisi pour vous : touchez pour en choisir un",
+  "Elegido para ti: toca para elegir uno"
+ ],
+ "Revealing the leaderboard on the TV…": [
+  "Le classement se dévoile à l’écran…",
+  "La clasificación se está revelando en la tele…"
+ ],
+ "✓ Approved — showing on the TV": [
+  "✓ Validée — affichée à la télé",
+  "✓ Aprobada — sale en la tele"
+ ],
+ "Choose a photo": [
+  "Choisir une photo",
+  "Elegir una foto"
+ ],
+ "Change the photo": [
+  "Changer la photo",
+  "Cambiar la foto"
+ ],
+ "Photo sent: the quizmaster approves it first": [
+  "Photo envoyée : l’animateur la valide d’abord",
+  "Foto enviada: primero la aprueba el presentador"
+ ],
+ "This round plays in your phone’s browser.": [
+  "Cette manche se joue dans le navigateur du téléphone.",
+  "Esta ronda se juega en el navegador del móvil."
+ ],
+ "It opens as your team, and you can come back here after.": [
+  "Elle s’ouvre avec votre équipe, et vous pourrez revenir ici ensuite.",
+  "Se abre con vuestro equipo y luego podéis volver aquí."
+ ],
+ "Open this round": [
+  "Ouvrir cette manche",
+  "Abrir esta ronda"
+ ],
+ "Answer revealed": [
+  "Réponse dévoilée",
+  "Respuesta revelada"
+ ],
+ "Lock in answer": [
+  "Valider la réponse",
+  "Confirmar respuesta"
+ ],
+ "Answer: {answer}": [
+  "Réponse : {answer}",
+  "Respuesta: {answer}"
+ ],
+ "Buzz": [
+  "Buzzer",
+  "Pulsar"
+ ],
+ "▶  Play the clip": [
+  "▶  Écouter l’extrait",
+  "▶  Escuchar el fragmento"
+ ],
+ "❚❚  Pause the clip": [
+  "❚❚  Mettre en pause",
+  "❚❚  Pausar el fragmento"
+ ],
+ "Quiz picture": [
+  "Image du quiz",
+  "Imagen del quiz"
+ ],
+ "Quiz picture: tap to place your answer": [
+  "Image du quiz : touchez pour placer votre réponse",
+  "Imagen del quiz: tocad para colocar la respuesta"
+ ],
+ "Loading the picture…": [
+  "Chargement de l’image…",
+  "Cargando la imagen…"
+ ],
+ "{n} called": [
+  "{n} tirés",
+  "{n} cantados"
+ ],
+ "Music bingo · {n} played": [
+  "Bingo musical · {n} joués",
+  "Bingo musical · {n} sonadas"
+ ],
+ "Winners: {names}": [
+  "Gagnants : {names}",
+  "Ganadores: {names}"
+ ],
+ "TAP": [
+  "TAP",
+  "TOCAR"
+ ],
+ "Tap for this clip": [
+  "Toucher pour cet extrait",
+  "Tocar en este fragmento"
+ ],
+ "Vibrate for new questions": [
+  "Vibrer pour les nouvelles questions",
+  "Vibrar con cada pregunta nueva"
+ ],
+ "Reconnecting": [
+  "Reconnexion",
+  "Reconectando"
+ ],
+ "Play": [
+  "Jouer",
+  "Jugar"
+ ],
+ "Find a quiz": [
+  "Trouver un quiz",
+  "Buscar un quiz"
+ ],
+ "Map": [
+  "Carte",
+  "Mapa"
+ ],
+ "Profile": [
+  "Profil",
+  "Perfil"
+ ],
+ "Optional: keep your team’s results, see your statistics and badges. Playing never needs an account.": [
+  "Facultatif : gardez les résultats de votre équipe, voyez vos statistiques et badges. Jouer ne demande jamais de compte.",
+  "Opcional: guarda los resultados de tu equipo y mira tus estadísticas e insignias. Para jugar nunca hace falta una cuenta."
+ ],
+ "Email": [
+  "E-mail",
+  "Correo"
+ ],
+ "Password": [
+  "Mot de passe",
+  "Contraseña"
+ ],
+ "Your name (new account only)": [
+  "Votre nom (nouveau compte seulement)",
+  "Tu nombre (solo cuenta nueva)"
+ ],
+ "Sign in": [
+  "Se connecter",
+  "Iniciar sesión"
+ ],
+ "Create account": [
+  "Créer un compte",
+  "Crear cuenta"
+ ],
+ "Forgotten your password?": [
+  "Mot de passe oublié ?",
+  "¿Has olvidado la contraseña?"
+ ],
+ "Signed in as {name} ({email})": [
+  "Connecté en tant que {name} ({email})",
+  "Sesión iniciada como {name} ({email})"
+ ],
+ "Confirm your email to count results.": [
+  "Confirmez votre e-mail pour que les résultats comptent.",
+  "Confirma tu correo para que cuenten los resultados."
+ ],
+ "Send again": [
+  "Renvoyer",
+  "Reenviar"
+ ],
+ "{n} result(s) waiting to be sent.": [
+  "{n} résultat(s) en attente d’envoi.",
+  "{n} resultado(s) pendientes de enviar."
+ ],
+ "{n} result(s) kept on this phone: sign in to add them.": [
+  "{n} résultat(s) gardé(s) sur ce téléphone : connectez-vous pour les ajouter.",
+  "{n} resultado(s) guardados en este móvil: inicia sesión para añadirlos."
+ ],
+ "{n} result(s) added to your profile": [
+  "{n} résultat(s) ajouté(s) à votre profil",
+  "{n} resultado(s) añadidos a tu perfil"
+ ],
+ "Your statistics": [
+  "Vos statistiques",
+  "Tus estadísticas"
+ ],
+ "Offline: these are your statistics as last seen.": [
+  "Hors ligne : voici vos statistiques telles que vues la dernière fois.",
+  "Sin conexión: son tus estadísticas tal como se vieron la última vez."
+ ],
+ "Wins": [
+  "Victoires",
+  "Victorias"
+ ],
+ "Podiums": [
+  "Podiums",
+  "Podios"
+ ],
+ "Correct": [
+  "Bonnes réponses",
+  "Aciertos"
+ ],
+ "Badges": [
+  "Badges",
+  "Insignias"
+ ],
+ "{n} result(s) are from a venue that hasn’t registered its quiz laptop yet, so they don’t count yet.": [
+  "{n} résultat(s) viennent d’un lieu qui n’a pas encore enregistré son ordinateur de quiz : ils ne comptent pas encore.",
+  "{n} resultado(s) son de un local que aún no ha registrado su portátil del quiz, así que todavía no cuentan."
+ ],
+ "Privacy": [
+  "Confidentialité",
+  "Privacidad"
+ ],
+ "Show me on leaderboards": [
+  "M’afficher dans les classements",
+  "Mostrarme en las clasificaciones"
+ ],
+ "Show my photo": [
+  "Afficher ma photo",
+  "Mostrar mi foto"
+ ],
+ "Show my quiz history": [
+  "Afficher mon historique de quiz",
+  "Mostrar mi historial de quizzes"
+ ],
+ "Download my data": [
+  "Télécharger mes données",
+  "Descargar mis datos"
+ ],
+ "Your BeerMat data": [
+  "Vos données BeerMat",
+  "Tus datos de BeerMat"
+ ],
+ "Couldn’t fetch your data": [
+  "Impossible de récupérer vos données",
+  "No se han podido obtener tus datos"
+ ],
+ "Sign out": [
+  "Se déconnecter",
+  "Cerrar sesión"
+ ],
+ "Delete my account": [
+  "Supprimer mon compte",
+  "Eliminar mi cuenta"
+ ],
+ "Delete everything, for good?": [
+  "Tout supprimer, définitivement ?",
+  "¿Eliminarlo todo para siempre?"
+ ],
+ "Delete": [
+  "Supprimer",
+  "Eliminar"
+ ],
+ "Advanced": [
+  "Avancé",
+  "Avanzado"
+ ],
+ "Hide advanced": [
+  "Masquer les options avancées",
+  "Ocultar opciones avanzadas"
+ ],
+ "BeerMat Online address": [
+  "Adresse de BeerMat Online",
+  "Dirección de BeerMat Online"
+ ],
+ "Use this address": [
+  "Utiliser cette adresse",
+  "Usar esta dirección"
+ ],
+ "Default: {url}": [
+  "Par défaut : {url}",
+  "Predeterminada: {url}"
+ ],
+ "Signed in": [
+  "Connecté",
+  "Sesión iniciada"
+ ],
+ "Signed out": [
+  "Déconnecté",
+  "Sesión cerrada"
+ ],
+ "Account created: check your email to confirm it": [
+  "Compte créé : vérifiez vos e-mails pour le confirmer",
+  "Cuenta creada: revisa tu correo para confirmarla"
+ ],
+ "Saved": [
+  "Enregistré",
+  "Guardado"
+ ],
+ "Privacy saved": [
+  "Confidentialité enregistrée",
+  "Privacidad guardada"
+ ],
+ "We’ve sent the email again": [
+  "Nous avons renvoyé l’e-mail",
+  "Te hemos reenviado el correo"
+ ],
+ "Your account and everything in it are deleted": [
+  "Votre compte et tout son contenu sont supprimés",
+  "Tu cuenta y todo su contenido se han eliminado"
+ ],
+ "Something went wrong": [
+  "Un problème est survenu",
+  "Algo ha fallado"
+ ],
+ "Result kept in your profile": [
+  "Résultat gardé dans votre profil",
+  "Resultado guardado en tu perfil"
+ ],
+ "Result kept on this phone: sign in under Profile to add it": [
+  "Résultat gardé sur ce téléphone : connectez-vous dans Profil pour l’ajouter",
+  "Resultado guardado en este móvil: inicia sesión en Perfil para añadirlo"
+ ],
+ "Result kept on this phone; it’s added when BeerMat Online can be reached": [
+  "Résultat gardé sur ce téléphone ; il sera ajouté quand BeerMat Online sera joignable",
+  "Resultado guardado en este móvil; se añadirá cuando se pueda contactar con BeerMat Online"
+ ],
+ "BeerMat Online is not set up in this app": [
+  "BeerMat Online n’est pas configuré dans cette appli",
+  "BeerMat Online no está configurado en esta app"
+ ],
+ "No connection to BeerMat Online": [
+  "Pas de connexion à BeerMat Online",
+  "Sin conexión con BeerMat Online"
+ ],
+ "Town or postcode": [
+  "Ville ou code postal",
+  "Ciudad o código postal"
+ ],
+ "Search": [
+  "Rechercher",
+  "Buscar"
+ ],
+ "Quizzes near me": [
+  "Quiz près de moi",
+  "Quizzes cerca de mí"
+ ],
+ "Search by town or postcode instead.": [
+  "Cherchez plutôt par ville ou code postal.",
+  "Busca mejor por ciudad o código postal."
+ ],
+ "This phone doesn’t know where it is yet. Search by town instead.": [
+  "Ce téléphone ne sait pas encore où il est. Cherchez plutôt par ville.",
+  "Este móvil aún no sabe dónde está. Busca por ciudad."
+ ],
+ "Offline: these are the results from {date}; they may be out of date.": [
+  "Hors ligne : voici les résultats du {date} ; ils ne sont peut-être plus à jour.",
+  "Sin conexión: son los resultados del {date}; puede que no estén al día."
+ ],
+ "No quiz nights found there yet.": [
+  "Aucune soirée quiz trouvée par là pour l’instant.",
+  "Todavía no hay noches de quiz por ahí."
+ ],
+ "Your venues": [
+  "Vos lieux",
+  "Tus locales"
+ ],
+ "⏰ Remind me": [
+  "⏰ Me le rappeler",
+  "⏰ Recordármelo"
+ ],
+ "📅 Calendar": [
+  "📅 Agenda",
+  "📅 Calendario"
+ ],
+ "Directions": [
+  "Itinéraire",
+  "Cómo llegar"
+ ],
+ "We’ll remind you two hours before": [
+  "Nous vous le rappellerons deux heures avant",
+  "Te lo recordaremos dos horas antes"
+ ],
+ "It starts within two hours!": [
+  "Ça commence dans moins de deux heures !",
+  "¡Empieza en menos de dos horas!"
+ ],
+ "Notifications are off: add it to your calendar instead.": [
+  "Les notifications sont désactivées : ajoutez-le plutôt à votre agenda.",
+  "Las notificaciones están desactivadas: añádelo al calendario."
+ ],
+ "Quiz night in two hours": [
+  "Soirée quiz dans deux heures",
+  "Noche de quiz dentro de dos horas"
+ ],
+ "{title} at {venue}": [
+  "{title} à {venue}",
+  "{title} en {venue}"
+ ],
+ "Quiz night reminders": [
+  "Rappels de soirées quiz",
+  "Recordatorios de noches de quiz"
+ ],
+ "Quiz night": [
+  "Soirée quiz",
+  "Noche de quiz"
+ ],
+ "All": [
+  "Tous",
+  "Todos"
+ ],
+ "Offline: the venues as last seen.": [
+  "Hors ligne : les lieux tels que vus la dernière fois.",
+  "Sin conexión: los locales tal como se vieron la última vez."
+ ],
+ "Offline: venues from BeerMat’s venue list.": [
+  "Hors ligne : lieux de la liste de BeerMat.",
+  "Sin conexión: locales de la lista de BeerMat."
+ ],
+ "Next: {title}, {date}": [
+  "Prochain : {title}, {date}",
+  "Próximo: {title}, {date}"
+ ],
+ "Quiz nights: {nights}": [
+  "Soirées quiz : {nights}",
+  "Noches de quiz: {nights}"
+ ],
+ "★ Saved": [
+  "★ Enregistré",
+  "★ Guardado"
+ ],
+ "☆ Save venue": [
+  "☆ Enregistrer le lieu",
+  "☆ Guardar local"
+ ],
+ "Website": [
+  "Site web",
+  "Web"
+ ],
+ "No quiz nights published yet.": [
+  "Aucune soirée quiz publiée pour l’instant.",
+  "Todavía no hay noches de quiz publicadas."
+ ],
+ "Connecting to the quiz…": [
+  "Connexion au quiz…",
+  "Conectando con el quiz…"
+ ],
+ "♪  Listen": [
+  "♪  Écoutez",
+  "♪  Escuchad"
+ ],
+ "ANSWER": [
+  "RÉPONSE",
+  "RESPUESTA"
+ ],
+ "VOTES": [
+  "VOTES",
+  "VOTOS"
+ ],
+ "1 team scored: {name}": [
+  "1 équipe a marqué : {name}",
+  "1 equipo ha puntuado: {name}"
+ ],
+ "{n} teams scored — {names}": [
+  "{n} équipes ont marqué — {names}",
+  "{n} equipos han puntuado — {names}"
+ ],
+ "“{answer}” — agree now! {n} agreed": [
+  "« {answer} » — d’accord ? {n} d’accord",
+  "«{answer}» — ¿de acuerdo? {n} de acuerdo"
+ ],
+ "Winner: {names}": [
+  "Gagnant : {names}",
+  "Ganador: {names}"
+ ],
+ "Cannot reach quiz server": [
+  "Serveur du quiz injoignable",
+  "No se puede contactar con el servidor del quiz"
+ ],
+ "Request failed": [
+  "La requête a échoué",
+  "La petición ha fallado"
+ ],
+ "Play this song again": [
+  "Rejouer cette chanson",
+  "Volver a poner esta canción"
+ ],
+ "Read it out: the TV and phones don’t show the wording until the answer is revealed.": [
+  "Lisez-la à voix haute : l’écran et les téléphones n’affichent pas l’énoncé avant la révélation de la réponse.",
+  "Léela en voz alta: la tele y los teléfonos no muestran el enunciado hasta que se revela la respuesta."
+ ],
+ "{name}’s phone": [
+  "Téléphone de {name}",
+  "Teléfono de {name}"
+ ],
+ "No quiz found. Join the quiz Wi-Fi (or the venue’s, with the laptop on it) and try again, or type the laptop’s address.": [
+  "Aucun quiz trouvé. Rejoignez le Wi-Fi du quiz (ou celui de l’établissement, où se trouve aussi l’ordinateur) et réessayez, ou tapez l’adresse de l’ordinateur.",
+  "No se encontró ningún quiz. Conéctate al wifi del quiz (o al del local, con el portátil conectado) y vuelve a intentarlo, o escribe la dirección del portátil."
+ ],
+ "The desk has taken this phone off. Sign in again to host.": [
+  "Le pupitre a retiré ce téléphone. Reconnectez-vous pour animer.",
+  "La mesa ha desconectado este teléfono. Vuelve a entrar para presentar."
+ ],
+ "This phone no longer hosts the quiz": [
+  "Ce téléphone n’anime plus le quiz",
+  "Este teléfono ya no presenta el quiz"
+ ],
+ "Quiz finished: the final standings are on the TV": [
+  "Quiz terminé : le classement final est à l’écran",
+  "Quiz terminado: la clasificación final está en la tele"
+ ],
+ "Leaderboard on the TV": [
+  "Classement à l’écran",
+  "Clasificación en la tele"
+ ],
+ "The secret round’s first answer is on the TV": [
+  "La première réponse de la manche secrète est à l’écran",
+  "La primera respuesta de la ronda secreta está en la tele"
+ ],
+ "The round’s results are on the TV": [
+  "Les résultats de la manche sont à l’écran",
+  "Los resultados de la ronda están en la tele"
+ ],
+ "Next secret answer revealed": [
+  "Réponse secrète suivante révélée",
+  "Siguiente respuesta secreta revelada"
+ ],
+ "The leader revealed": [
+  "Le leader est révélé",
+  "Líder revelado"
+ ],
+ "Second place revealed: the full board": [
+  "Deuxième place révélée : le classement complet",
+  "Segundo puesto revelado: la clasificación completa"
+ ],
+ "Next position revealed": [
+  "Position suivante révélée",
+  "Siguiente puesto revelado"
+ ],
+ "Next question opened": [
+  "Question suivante ouverte",
+  "Siguiente pregunta abierta"
+ ],
+ "Back: {step}": [
+  "Retour : {step}",
+  "Atrás: {step}"
+ ],
+ "Read out before {round}": [
+  "À lire avant {round}",
+  "Para leer antes de {round}"
+ ],
+ "No quiz laptop is open on your account. Open BeerMat on the laptop, signed in to BeerMat Online.": [
+  "Aucun ordinateur de quiz n’est ouvert sur votre compte. Ouvrez BeerMat sur l’ordinateur, connecté à BeerMat Online.",
+  "No hay ningún portátil de quiz abierto en tu cuenta. Abre BeerMat en el portátil, con la sesión iniciada en BeerMat Online."
+ ],
+ "No quiz found. Sign in to BeerMat Online (Profile) with the laptop’s account, or join the quiz Wi-Fi, or type the laptop’s address.": [
+  "Aucun quiz trouvé. Connectez-vous à BeerMat Online (Profil) avec le compte de l’ordinateur, rejoignez le Wi-Fi du quiz ou tapez l’adresse de l’ordinateur.",
+  "No se encontró ningún quiz. Inicia sesión en BeerMat Online (Perfil) con la cuenta del portátil, conéctate al wifi del quiz o escribe la dirección del portátil."
+ ],
+ "{name} can’t be reached: it has no quizmaster link yet. Check it’s on the internet.": [
+  "{name} est injoignable : il n’a pas encore de lien quizmaster. Vérifiez qu’il est connecté à Internet.",
+  "No se puede llegar a {name}: aún no tiene enlace de presentador. Comprueba que tiene internet."
+ ],
+ "Update BeerMat first, or sign this TV in with your BeerMat account.": [
+  "Mettez d’abord BeerMat à jour, ou connectez cette TV avec votre compte BeerMat.",
+  "Actualiza BeerMat primero, o inicia sesión en esta TV con tu cuenta de BeerMat."
+ ],
+ "Sign in with BeerMat": [
+  "Se connecter avec BeerMat",
+  "Iniciar sesión con BeerMat"
+ ],
+ "Right": [
+  "Juste",
+  "Correcto"
+ ],
+ "{n} pts": [
+  "{n} pts",
+  "{n} ptos"
+ ],
+ "No answer yet": [
+  "Pas encore de réponse",
+  "Aún sin respuesta"
+ ],
+ "Marked by hand": [
+  "Corrigé à la main",
+  "Corregido a mano"
+ ],
+ "{team}: {points} points": [
+  "{team} : {points} points",
+  "{team}: {points} puntos"
+ ],
+ "Question sent to the phones": [
+  "Question envoyée aux téléphones",
+  "Pregunta enviada a los teléfonos"
+ ],
+ "Timer paused": [
+  "Minuteur en pause",
+  "Temporizador en pausa"
+ ],
+ "Timer resumed": [
+  "Minuteur relancé",
+  "Temporizador reanudado"
+ ],
+ "Drum roll… the answer appears in {n}s": [
+  "Roulement de tambour… la réponse apparaît dans {n} s",
+  "Redoble de tambor… la respuesta aparece en {n} s"
+ ],
+ "Answer revealed on the TV": [
+  "Réponse révélée à l’écran",
+  "Respuesta revelada en la tele"
+ ],
+ "Marked correct": [
+  "Marqué juste",
+  "Marcado como correcto"
+ ],
+ "Marked wrong": [
+  "Marqué faux",
+  "Marcado como incorrecto"
+ ],
+ "Passed to the next buzzer": [
+  "Passé au buzzer suivant",
+  "Pasa al siguiente pulsador"
+ ],
+ "Asked the desk": [
+  "Demandé au pupitre",
+  "Pedido a la mesa"
+ ],
+ "Reveal next position": [
+  "Révéler la position suivante",
+  "Revelar el siguiente puesto"
+ ],
+ "Reveal the leader": [
+  "Révéler le leader",
+  "Revelar el líder"
+ ],
+ "Reveal second place": [
+  "Révéler la deuxième place",
+  "Revelar el segundo puesto"
+ ],
+ "Show leaderboard": [
+  "Afficher le classement",
+  "Mostrar la clasificación"
+ ],
+ "Reveal the secret round": [
+  "Révéler la manche secrète",
+  "Revelar la ronda secreta"
+ ],
+ "Reveal the next secret answer": [
+  "Révéler la réponse secrète suivante",
+  "Revelar la siguiente respuesta secreta"
+ ],
+ "Show the round’s results": [
+  "Afficher les résultats de la manche",
+  "Mostrar los resultados de la ronda"
+ ],
+ "Finish quiz": [
+  "Terminer le quiz",
+  "Terminar el quiz"
+ ],
+ "Finish quiz & reveal leaderboard": [
+  "Terminer le quiz et révéler le classement",
+  "Terminar el quiz y revelar la clasificación"
+ ],
+ "Start next round": [
+  "Commencer la manche suivante",
+  "Empezar la siguiente ronda"
+ ],
+ "Start next question": [
+  "Commencer la question suivante",
+  "Empezar la siguiente pregunta"
+ ],
+ "Run the night": [
+  "Animer la soirée",
+  "Dirigir la noche"
+ ],
+ "Host the quiz on the laptop from this phone: the questions, the reveals and the leaderboard. The laptop keeps the TV and the sound.": [
+  "Animez le quiz de l’ordinateur depuis ce téléphone : les questions, les révélations et le classement. L’ordinateur garde l’écran et le son.",
+  "Presenta el quiz del portátil desde este teléfono: las preguntas, las revelaciones y la clasificación. El portátil se queda con la tele y el sonido."
+ ],
+ "Looking for the quiz…": [
+  "Recherche du quiz…",
+  "Buscando el quiz…"
+ ],
+ "Find the quiz": [
+  "Trouver le quiz",
+  "Buscar el quiz"
+ ],
+ "Or type the laptop’s address": [
+  "Ou tapez l’adresse de l’ordinateur",
+  "O escribe la dirección del portátil"
+ ],
+ "Found {title}.": [
+  "{title} trouvé.",
+  "Encontrado: {title}."
+ ],
+ "On the laptop: Settings → Phone deck → Show a code. Type it here.": [
+  "Sur l’ordinateur : Réglages → Pupitre téléphone → Afficher un code. Tapez-le ici.",
+  "En el portátil: Ajustes → Mesa en el teléfono → Mostrar un código. Escríbelo aquí."
+ ],
+ "Code": [
+  "Code",
+  "Código"
+ ],
+ "Host this quiz": [
+  "Animer ce quiz",
+  "Presentar este quiz"
+ ],
+ "The desk isn’t open on the laptop: clips, songs and sounds need it.": [
+  "Le pupitre n’est pas ouvert sur l’ordinateur : les extraits, chansons et sons en ont besoin.",
+  "La mesa no está abierta en el portátil: los clips, canciones y sonidos la necesitan."
+ ],
+ "Marking, rounds and settings stay on the laptop’s desk.": [
+  "La correction, les manches et les réglages restent sur le pupitre de l’ordinateur.",
+  "La corrección, las rondas y los ajustes se quedan en la mesa del portátil."
+ ],
+ "Stop hosting from this phone": [
+  "Arrêter d’animer depuis ce téléphone",
+  "Dejar de presentar desde este teléfono"
+ ],
+ "Finish this quiz and close answers and registration? You can resume it later.": [
+  "Terminer ce quiz et fermer les réponses et les inscriptions ? Vous pourrez le reprendre plus tard.",
+  "¿Terminar este quiz y cerrar las respuestas y la inscripción? Puedes reanudarlo más tarde."
+ ],
+ "{n} team(s) have answered; those answers are thrown away.": [
+  "{n} équipe(s) ont répondu ; ces réponses seront perdues.",
+  "{n} equipo(s) han respondido; esas respuestas se descartan."
+ ],
+ "Go back": [
+  "Revenir",
+  "Volver"
+ ],
+ "Waiting to be sent to the phones": [
+  "En attente d’envoi aux téléphones",
+  "Esperando a enviarse a los teléfonos"
+ ],
+ "Open: {s}s left": [
+  "Ouverte : {s} s restantes",
+  "Abierta: quedan {s} s"
+ ],
+ "Drum roll…": [
+  "Roulement de tambour…",
+  "Redoble de tambor…"
+ ],
+ "Closed": [
+  "Fermée",
+  "Cerrada"
+ ],
+ "{n} of {total} teams answered": [
+  "{n} équipes sur {total} ont répondu",
+  "Han respondido {n} de {total} equipos"
+ ],
+ "Send question": [
+  "Envoyer la question",
+  "Enviar la pregunta"
+ ],
+ "Pause timer": [
+  "Mettre le minuteur en pause",
+  "Pausar el temporizador"
+ ],
+ "Resume timer": [
+  "Relancer le minuteur",
+  "Reanudar el temporizador"
+ ],
+ "Close answers": [
+  "Fermer les réponses",
+  "Cerrar las respuestas"
+ ],
+ "Reveal answer": [
+  "Révéler la réponse",
+  "Revelar la respuesta"
+ ],
+ "Play all clips": [
+  "Lire tous les extraits",
+  "Reproducir todos los clips"
+ ],
+ "Clip {n}": [
+  "Extrait {n}",
+  "Clip {n}"
+ ],
+ "Stop": [
+  "Arrêter",
+  "Parar"
+ ],
+ "Call next number": [
+  "Appeler le numéro suivant",
+  "Cantar el siguiente número"
+ ],
+ "Next song": [
+  "Chanson suivante",
+  "Siguiente canción"
+ ],
+ "{team} buzzed": [
+  "{team} a buzzé",
+  "{team} ha pulsado"
+ ],
+ "Wrong": [
+  "Faux",
+  "Incorrecto"
+ ],
+ "Pass": [
+  "Passer",
+  "Pasar"
+ ],
+ "Play the sound again": [
+  "Rejouer le son",
+  "Volver a reproducir el sonido"
+ ],
+ "Pause or carry on": [
+  "Pause ou reprise",
+  "Pausar o seguir"
+ ],
+ "Quizmaster? Run the night from this phone": [
+  "Animateur ? Animez la soirée depuis ce téléphone",
+  "¿Presentador? Dirige la noche desde este teléfono"
+ ]
+}

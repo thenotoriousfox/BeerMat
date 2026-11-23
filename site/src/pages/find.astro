@@ -1,0 +1,181 @@
+---
+import Page from '../layouts/Page.astro';
+import {ONLINE} from '../consts';
+import venueList from '../../../venues.json';
+// Finding a quiz on the website: every venue from BeerMat Online (the venue list built into the site when it can't be
+// reached), on a map and in a list, nearest first. A town or postcode becomes a point through postcodes.io; "use my
+// location" stays in the browser.
+---
+<Page title="Find a pub quiz near you · BeerMat" description="Find a BeerMat pub quiz near you: a map of venues and their quiz nights, by town, postcode or your location.">
+	<section class="wrap py-10">
+		<p class="eyebrow">For players</p>
+		<h1 class="text-4xl sm:text-5xl">Find a quiz near you</h1>
+		<p class="max-w-2xl text-muted">Pubs running BeerMat quizzes and their quiz nights. Search by town or postcode, or use your location.</p>
+
+		<form id="findForm" class="mt-6 flex flex-col gap-3 sm:flex-row">
+			<label class="sr-only" for="where">Town or postcode</label>
+			<input id="where" type="search" placeholder="Town or postcode" autocomplete="postal-code" maxlength="60"
+				class="min-h-12 flex-1 rounded-full border border-white/20 bg-night/70 px-5 text-cream placeholder:text-muted/70 focus:border-amber focus:outline-none" />
+			<button class="btn btn-primary">Search</button>
+			<button id="nearMe" type="button" class="btn btn-ghost">📍 Use my location</button>
+		</form>
+		<div id="days" class="mt-4 flex flex-wrap gap-2" role="group" aria-label="Quiz day"></div>
+		<p id="status" class="mt-4 min-h-6 text-muted" role="status"></p>
+
+		<div class="mt-2 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+			<div id="map" class="h-[360px] overflow-hidden rounded-2xl border border-white/15 sm:h-[480px] lg:h-[600px]"></div>
+			<ol id="results" class="m-0 grid list-none content-start gap-3 p-0 lg:max-h-[600px] lg:overflow-y-auto lg:pr-1"></ol>
+		</div>
+		<p class="mt-6 text-sm text-muted">Run quizzes at your pub? <a href="/#pricing">Get your venue on the map</a>. Want your results and badges too? <a href="/players">Get the BeerMat app</a>.</p>
+	</section>
+	<script is:inline type="application/json" id="venueList" set:html={JSON.stringify(venueList)}></script>
+	<script is:inline type="application/json" id="online" set:html={JSON.stringify(ONLINE)}></script>
+</Page>
+
+<script>
+	import L from 'leaflet';
+	import 'leaflet/dist/leaflet.css';
+
+	const $ = (id: string) => document.getElementById(id)!;
+	const el = (tag: string, text?: string, className?: string) => {const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (className) e.className = className; return e;};
+	type Night = {day: string; time: string};
+	type Venue = {id: string; name: string; town: string; postcode?: string; address?: string; website?: string; lat: number | null; lon: number | null; quizNights: Night[]; directions?: string; next?: {startsAt: number} | null; km?: number};
+
+	const online = JSON.parse($('online').textContent!) as string;
+	const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+	const dayName = (d: string) => d[0].toUpperCase() + d.slice(1);
+	const weekday = (t: number) => days[(new Date(t).getDay() + 6) % 7];
+	const clock = (time: string) => {const [h, m] = time.split(':').map(Number); return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''}${h < 12 ? 'am' : 'pm'}`;};
+	const nightsText = (n: Night[]) => n.map(x => `${dayName(x.day)}s at ${clock(x.time)}`).join(', ');
+	const when = (t: number) => {const d = new Date(t); return `${d.toLocaleDateString('en-GB', {weekday: 'long', day: 'numeric', month: 'long'})}, ${clock(`${d.getHours()}:${d.getMinutes()}`)}`;};
+	const directions = (v: Venue) => v.directions || 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(v.postcode || v.lat === null ? [v.name, v.address, v.town, v.postcode].filter(Boolean).join(', ') : `${v.lat},${v.lon}`);
+	const km = (a: {lat: number; lon: number}, b: {lat: number; lon: number}) => {
+		const r = (x: number) => x * Math.PI / 180, dLat = r(b.lat - a.lat), dLon = r(b.lon - a.lon);
+		return 6371 * 2 * Math.asin(Math.sqrt(Math.sin(dLat / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLon / 2) ** 2));
+	};
+	const quizOn = (v: Venue, d: string) => v.quizNights.some(n => n.day === d) || (!!v.next && weekday(v.next.startsAt) === d);
+
+	let saved = false, venues: Venue[] = [], point: {lat: number; lon: number; label: string} | null = null, day = '', chosen = '';
+	const say = (text: string) => {$('status').textContent = text;};
+
+	// ---- Map ----
+	const map = L.map('map', {scrollWheelZoom: false}).setView([54.4, -3], 5);
+	L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+	const pins = L.layerGroup().addTo(map);
+	let you: L.CircleMarker | null = null;
+	// The app's pin: gold with a question mark for a venue with quiz nights, slate otherwise; bigger when chosen.
+	const icon = (quiz: boolean, on: boolean) => L.divIcon({className: `pin${quiz ? ' quiz' : ''}${on ? ' chosen' : ''}`, iconSize: [34, 44], iconAnchor: [17, 43], tooltipAnchor: [0, -38],
+		html: '<svg viewBox="0 0 34 44" aria-hidden="true"><path class="pin-body" d="M17 1.5C8.4 1.5 1.5 8.3 1.5 16.8 1.5 28.6 17 42.5 17 42.5S32.5 28.6 32.5 16.8C32.5 8.3 25.6 1.5 17 1.5z"/><circle class="pin-face" cx="17" cy="16.5" r="9.5"/><text class="pin-mark" x="17" y="21.6" text-anchor="middle">?</text></svg>'});
+
+	// ---- The list and pins, for the chosen day, nearest first when there's a point ----
+	function render() {
+		const shown = venues.filter(v => !day || quizOn(v, day)).map(v => ({...v, km: point && v.lat !== null && v.lon !== null ? km(point, {lat: v.lat, lon: v.lon}) : undefined}))
+			.sort((a, b) => (a.km ?? Infinity) - (b.km ?? Infinity) || a.name.localeCompare(b.name));
+		pins.clearLayers();
+		for (const v of shown) if (v.lat !== null && v.lon !== null) {
+			const m = L.marker([v.lat, v.lon], {icon: icon(v.quizNights.length > 0 || !!v.next, v.id === chosen), title: v.name, riseOnHover: true});
+			m.bindTooltip(v.quizNights.length ? `${v.name} · ${nightsText(v.quizNights)}` : v.name);
+			m.on('click', () => choose(v.id, false)); m.addTo(pins);
+		}
+		$('results').replaceChildren(...shown.map(v => {
+			const li = el('li', undefined, `card !p-4 cursor-pointer transition ${v.id === chosen ? 'border-amber/70' : ''}`);
+			li.id = 'venue-' + v.id; li.tabIndex = 0;
+			const head = el('div', undefined, 'flex items-baseline justify-between gap-3');
+			head.append(el('h2', v.name, 'text-lg !mb-0'));
+			if (v.km !== undefined) head.append(el('span', v.km < 10 ? `${v.km.toFixed(1)} km` : `${Math.round(v.km)} km`, 'shrink-0 text-sm text-amber'));
+			li.append(head, el('p', [v.address, v.town, v.postcode].filter(Boolean).join(', '), 'text-sm text-muted !mb-2'));
+			if (v.quizNights.length) li.append(el('p', `🗓 ${nightsText(v.quizNights)}`, '!mb-1 text-sm'));
+			if (v.next) li.append(el('p', `Next quiz: ${when(v.next.startsAt)}`, '!mb-2 text-sm text-gold'));
+			const links = el('div', undefined, 'flex flex-wrap gap-2 text-sm');
+			const go = el('a', 'Directions', 'btn btn-primary !min-h-0 !py-1.5 !px-4') as HTMLAnchorElement; go.href = directions(v); go.target = '_blank'; go.rel = 'noopener';
+			links.append(go);
+			if (v.website) {const site = el('a', 'Website', 'btn btn-ghost !min-h-0 !py-1.5 !px-4') as HTMLAnchorElement; site.href = v.website; site.target = '_blank'; site.rel = 'noopener'; links.append(site);}
+			li.append(links);
+			li.onclick = e => {if (!(e.target as Element).closest('a')) choose(v.id, true);};
+			li.onkeydown = e => {if (e.key === 'Enter') choose(v.id, true);};
+			return li;
+		}));
+		const where = point ? ` near ${point.label}` : '';
+		say(!venues.length ? 'No venues yet.' : shown.length ? `${shown.length} venue${shown.length === 1 ? '' : 's'}${day ? ` with a quiz on ${dayName(day)}s` : ''}${where}${point ? ', nearest first' : ''}.`
+			: `No venues with a quiz on ${dayName(day)}s yet. Try another day.`);
+		if (saved) $('status').textContent += ' (Saved venue list: next quiz dates aren’t available right now.)';
+		return shown;
+	}
+	function choose(id: string, fly: boolean) {
+		chosen = id; render();
+		const v = venues.find(x => x.id === id);
+		if (fly && v?.lat != null && v.lon != null) map.flyTo([v.lat, v.lon], Math.max(map.getZoom(), 13));
+		document.getElementById('venue-' + id)?.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+	}
+	function centre(lat: number, lon: number, label: string) {
+		point = {lat, lon, label}; chosen = '';
+		you?.remove(); you = L.circleMarker([lat, lon], {radius: 8, color: '#fff', weight: 3, fillColor: '#1fd6c6', fillOpacity: 1}).addTo(map).bindTooltip(label);
+		const shown = render().filter(v => v.lat !== null && v.lon !== null).slice(0, 5);
+		map.fitBounds(L.latLngBounds([[lat, lon], ...shown.map(v => [v.lat!, v.lon!] as [number, number])]).pad(0.25), {maxZoom: 13});
+	}
+
+	// ---- Days ----
+	function renderDays() {
+		const today = weekday(Date.now());
+		$('days').replaceChildren(...['', ...days].map(d => {
+			const b = el('button', d ? dayName(d).slice(0, 3) : 'Any day', `btn !min-h-0 !py-1.5 !px-4 text-sm ${d === day ? 'btn-primary' : 'btn-ghost'}`) as HTMLButtonElement;
+			b.type = 'button'; b.setAttribute('aria-pressed', String(d === day)); if (d) b.title = d === today ? `${dayName(d)} (today)` : dayName(d);
+			b.onclick = () => {day = d; renderDays(); render();};
+			return b;
+		}));
+	}
+
+	// ---- Searching: a postcode, a postcode area (DE1) or a place name, through postcodes.io ----
+	async function lookup(q: string) {
+		const api = 'https://api.postcodes.io', compact = q.replace(/\s+/g, '').toUpperCase();
+		const get = async (url: string) => {const r = await fetch(url); return r.ok ? (await r.json()).result : null;};
+		if (/^[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2}$/.test(compact)) {const r = await get(`${api}/postcodes/${compact}`); if (r) return {lat: r.latitude, lon: r.longitude, label: r.postcode};}
+		if (/^[A-Z]{1,2}\d[A-Z\d]?$/.test(compact)) {const r = await get(`${api}/outcodes/${compact}`); if (r) return {lat: r.latitude, lon: r.longitude, label: r.outcode};}
+		const places = await get(`${api}/places?q=${encodeURIComponent(q)}&limit=1`);
+		if (places?.[0]) return {lat: places[0].latitude, lon: places[0].longitude, label: places[0].name_1};
+		return null;
+	}
+	$('findForm').addEventListener('submit', async e => {
+		e.preventDefault();
+		const q = ($('where') as HTMLInputElement).value.trim();
+		if (!q) return;
+		say('Looking…');
+		try {const found = await lookup(q); if (!found) return say(`Couldn’t find “${q}”. Try a town or a postcode.`); centre(found.lat, found.lon, found.label);}
+		catch {say('Searching needs an internet connection.');}
+	});
+	$('nearMe').addEventListener('click', () => {
+		if (!navigator.geolocation) return say('This browser can’t share your location. Search by town or postcode instead.');
+		say('Finding you…');
+		navigator.geolocation.getCurrentPosition(p => centre(p.coords.latitude, p.coords.longitude, 'you'),
+			() => say('Location wasn’t shared. Search by town or postcode instead.'), {timeout: 10000, maximumAge: 600000});
+	});
+
+	// ---- Venues ----
+	async function load() {
+		renderDays();
+		try {
+			const r = await fetch(online + '/v1/venues', {signal: AbortSignal.timeout(8000)});
+			if (!r.ok) throw Error();
+			venues = (await r.json()).venues;
+		} catch {
+			venues = (JSON.parse($('venueList').textContent!).venues as (Venue & {onMap?: boolean})[]).filter(v => v.onMap === true).map(v => ({...v, lat: v.lat ?? null, lon: v.lon ?? null, quizNights: v.quizNights || []}));
+			saved = true;
+		}
+		const placed = render().filter(v => v.lat !== null && v.lon !== null);
+		if (placed.length) map.fitBounds(L.latLngBounds(placed.map(v => [v.lat!, v.lon!] as [number, number])).pad(0.3), {maxZoom: 12});
+	}
+	load();
+</script>
+
+<style is:global>
+	.leaflet-container { background: #1a0f3a; font: inherit; }
+	.pin { color: #6f7fa8; background: none; border: 0; }
+	.pin.quiz { color: #f5a300; }
+	.pin svg { width: 34px; height: 44px; overflow: visible; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, .45)); transform-origin: 50% 100%; transition: transform .15s; }
+	.pin.chosen svg { transform: scale(1.25); }
+	.pin.chosen { z-index: 1000 !important; }
+	.pin-body { fill: currentColor; stroke: #fff; stroke-width: 2.5; }
+	.pin-face { fill: #fff; }
+	.pin-mark { fill: #1a1430; font: 900 14px system-ui, sans-serif; }
+	.leaflet-tooltip { font-weight: 600; }
+</style>

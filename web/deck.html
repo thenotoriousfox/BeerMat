@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#140b2e"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/themes.css"><link rel="icon" href="/brand/mark.svg" type="image/svg+xml"><title>Run the night · BeerMat</title></head>
+<body data-role="deck">
+<header class="topbar"><img class="mark" src="/brand/mark.svg" alt=""><div class="brand"><span id="title">BeerMat</span><strong>Run the night</strong></div></header>
+<p id="message" role="status" aria-live="polite"></p>
+<section id="signIn" hidden>
+  <h1 class="join-hero">Run the night</h1>
+  <p class="hint">Host the quiz on the laptop from this phone: the questions, the reveals and the leaderboard. The laptop keeps the TV and the sound.</p>
+  <form id="codeForm"><p id="found"></p><p>On the laptop: Settings → Phone deck → Show a code. Type it here.</p>
+    <label>Code<input id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required></label>
+    <button class="send">Host this quiz</button></form>
+</section>
+<main id="deck" hidden>
+  <section id="recapCard" class="card deck-question" hidden></section>
+  <section id="questionCard" class="card deck-question" hidden>
+    <p id="round" class="eyebrow"></p><h2 id="question"></h2><p id="readItOut" class="deck-read" hidden>Read it out: the TV and phones don’t show the wording until the answer is revealed.</p>
+    <p id="state" class="status-line"></p><p id="answered" class="hint"></p><p id="answer" class="hint"></p><div id="varChecks" class="var-checks"></div>
+    <div id="controls" class="deck-buttons"></div><div id="roundControls" class="deck-buttons"></div><ul id="teamAnswers" class="deck-answers"></ul>
+  </section>
+  <div id="nextRoundIntro" class="round-intro" hidden><p id="nextRoundTitle" class="eyebrow"></p><p id="nextRoundText"></p></div>
+  <button id="next" class="send" type="button"></button>
+  <button id="back" class="subtle" type="button" hidden></button>
+  <p id="deskClosed" class="hint" hidden>The desk isn’t open on the laptop: clips, songs and sounds need it.</p>
+  <h2>Leaderboard</h2><ol id="board" class="leaderboard deck-board"></ol>
+  <p class="hint">Marking, rounds and settings stay on the laptop’s desk.</p>
+  <button id="leave" class="subtle" type="button">Stop hosting from this phone</button>
+</main>
+<script type="module" src="/deck.js"></script>
+</body></html>

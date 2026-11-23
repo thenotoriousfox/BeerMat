@@ -1,0 +1,36 @@
+---
+import Page from '../layouts/Page.astro';
+// The sounds and font that ship with BeerMat. The full source of every file is in sounds/CREDITS.md.
+const moments = [
+	['I did not have sexual relations with that woman', 'Bill Clinton, 1998'],
+	['Well, I’m not a crook', 'Richard Nixon, 1973'],
+	['Mr. Gorbachev, tear down this wall', 'Ronald Reagan, 1987'],
+	['We choose to go to the moon', 'John F. Kennedy, 1962'],
+	['Ich bin ein Berliner', 'John F. Kennedy, 1963'],
+	['Houston, we’ve had a problem', 'NASA, Apollo 13, 1970'],
+	['The Eagle has landed', 'NASA, Apollo 11, 1969'],
+	['One small step for man', 'NASA, Neil Armstrong, Apollo 11, 1969'],
+	['That may have been a small one for Neil', 'NASA, Pete Conrad, Apollo 12, 1969'],
+	['I was strolling on the moon one day', 'NASA, Apollo 17, 1972'],
+];
+---
+<Page title="Credits · BeerMat" description="The sounds and font that come with BeerMat, and where they’re from.">
+	<article class="wrap prose max-w-3xl py-10">
+		<h1 class="text-4xl">Credits</h1>
+
+		<h2>Famous Moments</h2>
+		<p>Recordings made by the US government (NASA and the President in office), which are in the public domain, from Wikimedia Commons.</p>
+		<ul>
+			{moments.map(([line, who]) => <li>“{line}”: {who}</li>)}
+		</ul>
+
+		<h2>Sound effects and the bingo caller</h2>
+		<p>Public domain (CC0): Kenney’s <a href="https://kenney.nl/assets">Music Jingles, Interface Sounds and Voiceover Pack</a>, Joseph Sardin at <a href="https://bigsoundbank.com">BigSoundBank</a>, and aqrezes at <a href="https://opengameart.org/content/arcade-background-music">OpenGameArt</a>. The bingo caller is made with Piper text-to-speech, using a voice trained on public-domain LibriVox recordings.</p>
+
+		<h2>The example quiz</h2>
+		<p>Its flag, world map and music bingo tunes are made by BeerMat: the map is drawn from <a href="https://www.naturalearthdata.com">Natural Earth</a>’s public-domain outlines, and the tunes are traditional and classical melodies in the public domain. Its speeches are the Famous Moments above.</p>
+
+		<h2>Font</h2>
+		<p><a href="https://fonts.google.com/specimen/Fredoka">Fredoka</a>, under the SIL Open Font License.</p>
+	</article>
+</Page>

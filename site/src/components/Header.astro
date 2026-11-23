@@ -1,0 +1,36 @@
+---
+// Hosting comes first: how it works, the round formats (their own page) and pricing, then one main action. Players have their own
+// link, set apart.
+const host = [['/#how', 'How it works'], ['/formats', 'Round formats'], ['/#pricing', 'Pricing'], ['/compare', 'Compare']];
+const path = Astro.url.pathname;
+---
+<header class="wrap flex items-center justify-between gap-4 py-4 sm:py-5">
+	<a href="/" aria-label="BeerMat home" class="shrink-0"><img src="/brand/logo.svg" alt="BeerMat" width="190" height="71" class="h-14 w-auto sm:h-16 lg:h-[4.5rem]" /></a>
+	<nav aria-label="Main" class="hidden items-center gap-1 lg:flex">
+		{host.map(([href, label]) => <a href={href} class="nav-link">{label}</a>)}
+		<span class="mx-2 h-6 w-px bg-white/15" aria-hidden="true"></span>
+		<a href="/players" class="nav-link" aria-current={path.startsWith('/players') ? 'page' : undefined}>For players</a>
+		<a href="/account" class="nav-link" aria-current={path.startsWith('/account') ? 'page' : undefined}>Sign in</a>
+		<a href="/download" class="btn btn-primary ml-3 !min-h-11 whitespace-nowrap !py-2">Get BeerMat</a>
+	</nav>
+	<details class="menu relative lg:hidden">
+		<summary class="btn btn-ghost !min-h-11 cursor-pointer list-none !py-2" aria-label="Menu">
+			<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+			Menu
+		</summary>
+		<nav aria-label="Main" class="card absolute right-0 z-20 mt-2 flex w-64 flex-col !bg-[#221447] !p-2 shadow-2xl shadow-black/60">
+			{host.map(([href, label]) => <a href={href} class="menu-link">{label}</a>)}
+			<a href="/players" class="menu-link">For players</a>
+			<a href="/find" class="menu-link">Find a quiz</a>
+			<a href="/account" class="menu-link">Sign in: your venue</a>
+			<a href="/download" class="btn btn-primary mt-2">Get BeerMat</a>
+		</nav>
+	</details>
+</header>
+<script>
+	// The phone menu closes when a link in it is used (they're mostly links within this page).
+	document.querySelectorAll<HTMLDetailsElement>('details.menu').forEach(menu => {
+		menu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {menu.open = false;}));
+		document.addEventListener('keydown', e => {if (e.key === 'Escape' && menu.open) {menu.open = false; menu.querySelector('summary')?.focus();}});
+	});
+</script>

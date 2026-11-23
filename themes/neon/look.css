@@ -1,0 +1,2 @@
+/* Retro neon: colours for the TV and phones. */
+:root[data-look=neon] { --bg: #0c0214; --bg-2: #24063a; --surface-solid: #2a0b40; --field: #11041c; --gold: #ff3df2; --gold-hi: #ff9cf8; --gold-pale: #ffd1fb; --gold-2: #a63dff; --on-accent: #ffffff; --pink: #3dfcff; --violet: #a63dff; --spot-1: #ff3df2; --spot-2: #3dfcff; --spot-3: #a63dff; --muted: #d1b3e6; }

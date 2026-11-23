@@ -1,0 +1,64 @@
+---
+import Page from '../layouts/Page.astro';
+import Shot from '../components/Shot.astro';
+import Clip from '../components/Clip.astro';
+import {formatGroups, formatCount, extras} from '../formats';
+
+const PHONE = {width: 780, height: 1688}, TV = {width: 1600, height: 900}, DESK = {width: 1600, height: 1000}, VIDEO = {width: 1280, height: 720};
+---
+<Page title="Round formats · BeerMat" description={`All ${formatCount} of BeerMat’s round formats, from multiple choice to link groups, music bingo and video, and the ways to play them.`}>
+	<section class="wrap py-10">
+		<p class="eyebrow">Round formats</p>
+		<h1 class="text-4xl sm:text-5xl">{formatCount} ways to ask a question</h1>
+		<p class="max-w-3xl text-lg text-muted">Every format plays on the phones teams already have, shows on the TV, and is marked by the desk. Mix them however you like: one quiz can have them all.</p>
+		<nav aria-label="Format groups" class="mt-6 flex flex-wrap gap-2">
+			{formatGroups.map(g => <a href={`#${g.title.toLowerCase().replace(/[^a-z]+/g, '-')}`} class="chip no-underline hover:border-amber">{g.title}</a>)}
+			<a href="#ways" class="chip no-underline hover:border-amber">Ways to play</a>
+		</nav>
+	</section>
+
+	{formatGroups.map((group, i) => (
+		<section id={group.title.toLowerCase().replace(/[^a-z]+/g, '-')} class:list={['scroll-mt-6 py-14', i % 2 === 0 && 'border-y border-white/10 bg-white/[.025]']}>
+			<div class="wrap">
+				<h2 class="text-3xl text-balance">{group.title}</h2>
+				<p class="max-w-2xl text-muted">{group.intro}</p>
+				<ul class="mt-8 grid list-none gap-5 p-0 md:grid-cols-2 lg:grid-cols-3">
+					{group.formats.map(f => (
+						<li id={f.id} class="card grid scroll-mt-6 grid-cols-[6.5rem_1fr] items-start gap-4 sm:grid-cols-[7.5rem_1fr]">
+							<Shot src={`/shots/${f.shot}.webp`} alt={`${f.name} on a team’s phone`} {...PHONE} />
+							<div>
+								<h3 class="text-xl">{f.name}</h3>
+								<p class="mb-2 text-sm font-semibold text-amber">Teams: {f.teams}</p>
+								<p class="mb-0 text-muted">{f.text}</p>
+							</div>
+						</li>
+					))}
+				</ul>
+			</div>
+		</section>
+	))}
+
+	<section id="ways" class="wrap scroll-mt-6 py-14">
+		<h2 class="text-3xl text-balance">Ways to play them</h2>
+		<p class="max-w-2xl text-muted">Options any round or the whole night can have, on top of its format.</p>
+		<ul class="mt-8 grid list-none gap-5 p-0 md:grid-cols-2 lg:grid-cols-3">
+			{extras.map(([name, text, picture]) => (
+				<li class:list={['card', picture.kind === 'phone' && 'grid grid-cols-[6.5rem_1fr] items-start gap-4 sm:grid-cols-[7.5rem_1fr]']}>
+					{picture.kind === 'phone' && <Shot src={`/shots/${picture.name}.webp`} alt={`${name} on a team’s phone`} {...PHONE} />}
+					{picture.kind === 'tv' && <Shot src={`/shots/${picture.name}.webp`} alt={`${name} on the TV`} {...TV} retina sizes="(min-width: 1024px) 400px, (min-width: 768px) 50vw, 100vw" class="mb-4" />}
+					{picture.kind === 'desk' && <Shot src={`/shots/${picture.name}.webp`} alt={`${name} on the quizmaster’s desk`} {...DESK} retina sizes="(min-width: 1024px) 400px, (min-width: 768px) 50vw, 100vw" class="mb-4" />}
+					{picture.kind === 'clip' && <Clip name={picture.name} alt={`${name} on the TV`} {...VIDEO} class="mb-4" />}
+					<div>
+						<h3 class="text-xl">{name}</h3>
+						<p class="mb-0 text-muted">{text}</p>
+					</div>
+				</li>
+			))}
+		</ul>
+		<p class="mt-8 text-sm text-muted">Plus fastest-finger bonuses, table numbers for the room, and a report of how each question went.</p>
+		<div class="mt-10 flex flex-wrap gap-3">
+			<a href="/download" class="btn btn-primary">Get BeerMat</a>
+			<a href="/#pricing" class="btn btn-ghost">Pricing</a>
+		</div>
+	</section>
+</Page>

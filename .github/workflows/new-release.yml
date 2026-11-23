@@ -1,0 +1,62 @@
+name: New release
+# Run by hand on main: bumps the version (package.json and its lock, the Android versionCode and versionName, the
+# iPhone app's version and build number, a "Release x.y.z" entry in docs/NATIVE-MIGRATION.md;
+# scripts/bump-version.mjs), merges that into main as a merge commit, tags the merge vX.Y.Z and starts the Release
+# workflow on the tag, which builds and publishes the release files.
+# (A tag pushed with the workflow's own token doesn't start other workflows by itself, so this starts Release.)
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version goes up
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      notes:
+        description: What's in it, for docs/NATIVE-MIGRATION.md (blank lists the pull requests merged since the last release)
+        type: string
+        required: false
+permissions:
+  contents: write
+  actions: write
+concurrency: new-release
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Only from main
+        if: github.ref != 'refs/heads/main'
+        run: echo "Run New release on main, not $GITHUB_REF_NAME"; exit 1
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Bump, merge and tag
+        id: bump
+        env:
+          BUMP: ${{ inputs.bump }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b release-bump
+          version=$(node scripts/bump-version.mjs "$BUMP" "$NOTES")
+          git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null && { echo "v$version is already tagged"; exit 1; }
+          git diff --stat
+          git commit -am "Release $version"
+          git checkout main
+          git merge --no-ff release-bump -m "Merge release $version"
+          git tag "v$version"
+          git push --atomic origin main "v$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Start the Release workflow on the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "v$VERSION"
+          echo "Release v$VERSION started: https://github.com/$GITHUB_REPOSITORY/actions/workflows/release.yml" >> "$GITHUB_STEP_SUMMARY"

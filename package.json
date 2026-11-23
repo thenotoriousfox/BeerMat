@@ -1,0 +1,112 @@
+{
+  "name": "beermat",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node server/server.js",
+    "desktop": "electron .",
+    "test": "node --disable-warning=ExperimentalWarning --test",
+    "test:browser": "node tests/browser.mjs",
+    "test:rehearsal": "node tests/rehearsal.browser.mjs",
+    "test:desktop": "node tests/desktop.e2e.mjs",
+    "test:handover": "node tests/handover.browser.mjs",
+    "test:features": "node tests/features.browser.mjs && node tests/account.browser.mjs && node tests/quizmaster-devices.browser.mjs",
+    "dist:linux": "electron-builder --linux",
+    "dist:win": "electron-builder --win",
+    "online": "node online/service.js"
+  },
+  "devDependencies": {
+    "electron": "github:castlabs/electron-releases#v39.8.10+wvcus",
+    "electron-builder": "^26.15.3",
+    "playwright": "1.64.1"
+  },
+  "allowScripts": {
+    "github:castlabs/electron-releases#62e98b31d8bbfbc70bdc971c6e24b0339e6826d3": true,
+    "electron-winstaller@5.4.0": true
+  },
+  "productName": "BeerMat",
+  "description": "Pub quiz system: quiz desk, TV display and phone play, offline on one laptop",
+  "author": {
+    "name": "Daniel Weatherall",
+    "email": "d.weatherall92@gmail.com"
+  },
+  "license": "UNLICENSED",
+  "main": "desktop/main.js",
+  "build": {
+    "appId": "uk.beermat.desktop",
+    "productName": "BeerMat",
+    "copyright": "Copyright © 2026 Daniel Weatherall",
+    "asar": false,
+    "electronDownload": {
+      "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
+    },
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "package.json",
+      "server/**",
+      "web/**",
+      "shared/**",
+      "desktop/**",
+      "scripts/*.py",
+      "scripts/*.ps1",
+      "scripts/*.mjs",
+      "scripts/beermat.png",
+      "scripts/beermat.svg",
+      "sounds/**",
+      "themes/**",
+      "brand/*.svg",
+      "brand/fredoka.woff2",
+      "brand/Fredoka-OFL.txt",
+      "media/README.md",
+      "!**/__pycache__",
+      "!online/**",
+      "!mobile/**",
+      "!tests/**",
+      "!examples/**",
+      "!docs/**"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
+      "category": "Game",
+      "icon": "build/icon.png",
+      "executableName": "beermat",
+      "desktop": {
+        "entry": {
+          "Name": "BeerMat",
+          "Comment": "Run a pub quiz",
+          "StartupWMClass": "BeerMat"
+        }
+      },
+      "syncDesktopName": true
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "BeerMat",
+      "artifactName": "BeerMat-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "BeerMat-${version}-portable.exe"
+    }
+  },
+  "desktopName": "beermat.desktop"
+}

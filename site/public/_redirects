@@ -1,0 +1,6 @@
+/app        https://online.beermatquiz.co.uk/app/        302
+/app/*      https://online.beermatquiz.co.uk/app/:splat  302
+/admin      https://online.beermatquiz.co.uk/admin/      302
+/admin/*    https://online.beermatquiz.co.uk/admin/:splat 302
+/reset      https://online.beermatquiz.co.uk/reset       302
+/verify     https://online.beermatquiz.co.uk/verify      302

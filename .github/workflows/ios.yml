@@ -1,0 +1,28 @@
+name: iPhone app
+# By hand only (Actions → Run workflow): BeerMatKit's tests on Linux, then the app built on GitHub's Apple hardware
+# (whose minutes count ten times). The Release workflow builds the app anyway, and runs the kit's tests on Linux.
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  kit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      # A test waiting forever fails here with its log (each test's start and end), not after GitHub's six hours.
+      - run: swift --version && swift test
+        working-directory: native/ios/BeerMatKit
+        timeout-minutes: 15
+  # The app built for the simulator, unsigned (BeerMatKit's files are compiled into it too).
+  app:
+    needs: kit
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: xcodebuild -project native/ios/BeerMat.xcodeproj -target BeerMat -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build
+        timeout-minutes: 15

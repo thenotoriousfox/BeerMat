@@ -1,0 +1,39 @@
+name: Venue list backup
+# Every Monday morning (each run counts against the Actions allowance), copies BeerMat Online's venues (kept and edited in its admin console) into venues.json here: a public
+# backup, and the player app's fallback when the service can't be reached. Commits only when something changed.
+on:
+  schedule:
+    - cron: '30 3 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: write
+env:
+  ONLINE: https://online.beermatquiz.co.uk
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Fetch and check the venue list
+        run: |
+          curl -fsS --retry 3 "$ONLINE/v1/venues.json" -o "$RUNNER_TEMP/venues.json"
+          node --input-type=module -e '
+            import {readFileSync, writeFileSync} from "node:fs";
+            import {parseVenueList} from "./shared/venues.js";
+            const copy = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/venues.json", "utf8")), old = JSON.parse(readFileSync("venues.json", "utf8"));
+            const {venues, errors} = parseVenueList(copy);
+            if (errors.length) throw Error("The service sent venues that don’t pass shared/venues.js: " + errors.join("; "));
+            // A list that suddenly lost most of its venues is more likely a fault than a decision: a person checks it.
+            if (venues.length < old.venues.length / 2) throw Error(`Only ${venues.length} venues now, ${old.venues.length} before: not copied`);
+            writeFileSync("venues.json", `{\n  "venues": [\n${copy.venues.map(v => "    " + JSON.stringify(v)).join(",\n")}\n  ]\n}\n`);
+          '
+      - name: Commit if changed
+        run: |
+          if git diff --quiet venues.json; then echo "No changes"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Venue list: nightly copy from BeerMat Online" venues.json
+          git push

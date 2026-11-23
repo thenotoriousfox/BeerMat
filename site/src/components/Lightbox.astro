@@ -1,0 +1,88 @@
+---
+// The screenshot viewer: every Shot on the page opens here, full size. A native <dialog>, so focus stays inside it and
+// Escape closes it; the arrow keys (and swiping on a phone) step through the page's screenshots; focus goes back to
+// the screenshot it was opened from.
+---
+<dialog id="lightbox" class="lightbox" aria-labelledby="lightbox-caption">
+	<div class="lightbox-bar">
+		<p id="lightbox-caption" class="lightbox-caption"></p>
+		<span id="lightbox-count" class="lightbox-count" aria-live="polite"></span>
+		<button type="button" class="lightbox-btn" data-close aria-label="Close">
+			<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+		</button>
+	</div>
+	<div class="lightbox-stage">
+		<button type="button" class="lightbox-btn lightbox-nav" data-step="-1" aria-label="Previous">
+			<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7" /></svg>
+		</button>
+		<img id="lightbox-image" alt="" />
+		<video id="lightbox-video" muted loop playsinline controls hidden></video>
+		<button type="button" class="lightbox-btn lightbox-nav" data-step="1" aria-label="Next">
+			<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7" /></svg>
+		</button>
+	</div>
+	<p class="lightbox-hint">Use ← → to move between screenshots and clips, Esc to close.</p>
+</dialog>
+
+<script>
+	const dialog = document.getElementById('lightbox') as HTMLDialogElement;
+	const image = document.getElementById('lightbox-image') as HTMLImageElement;
+	const video = document.getElementById('lightbox-video') as HTMLVideoElement;
+	const caption = document.getElementById('lightbox-caption')!;
+	const count = document.getElementById('lightbox-count')!;
+	const shots = [...document.querySelectorAll<HTMLButtonElement>('[data-shot]')];
+	let index = 0, opener: HTMLElement | null = null;
+
+	function show(i: number) {
+		index = (i + shots.length) % shots.length;
+		const shot = shots[index].dataset, tall = Number(shot.height) > Number(shot.width);
+		// A clip plays large (still, with its controls, for reduced motion); a screenshot shows as a picture.
+		image.hidden = !!shot.video; video.hidden = !shot.video;
+		video.pause();
+		if (shot.video) {
+			image.removeAttribute('src');
+			video.poster = shot.shot!; video.setAttribute('aria-label', shot.caption!);
+			video.width = Number(shot.width); video.height = Number(shot.height);
+			video.replaceChildren(...[['webm', 'video/webm; codecs="av01.0.05M.10"'], ['mp4', 'video/mp4']].map(([ext, type]) => Object.assign(document.createElement('source'), {src: `${shot.video}.${ext}`, type})));
+			video.load();
+			if (!matchMedia('(prefers-reduced-motion: reduce)').matches) video.play().catch(() => {});
+		} else {
+			video.removeAttribute('poster'); video.replaceChildren(); video.load();
+			image.src = shot.shot!; image.alt = shot.caption!;
+			image.width = Number(shot.width); image.height = Number(shot.height);
+		}
+		// Tall phone screenshots and wide TV ones each fill the screen their own way.
+		image.classList.toggle('is-tall', tall); video.classList.toggle('is-tall', tall);
+		caption.textContent = shot.caption!;
+		count.textContent = shots.length > 1 ? `${index + 1} of ${shots.length}` : '';
+	}
+	// The page behind stays put while the viewer is open, phones included (fixing the body is what stops iOS scrolling).
+	let scrolled = 0;
+	const lock = () => {scrolled = scrollY; Object.assign(document.body.style, {position: 'fixed', top: `-${scrolled}px`, left: '0', right: '0'});};
+	const unlock = () => {Object.assign(document.body.style, {position: '', top: '', left: '', right: ''}); scrollTo({top: scrolled, behavior: 'instant'});};
+	shots.forEach((button, i) => button.addEventListener('click', () => {opener = button; show(i); lock(); dialog.showModal();}));
+	dialog.querySelectorAll<HTMLButtonElement>('[data-step]').forEach(b => b.addEventListener('click', () => show(index + Number(b.dataset.step))));
+	dialog.querySelector('[data-close]')!.addEventListener('click', () => dialog.close());
+	dialog.querySelectorAll<HTMLElement>('.lightbox-nav').forEach(b => {b.hidden = shots.length < 2;});
+	dialog.addEventListener('keydown', e => {
+		// Tab and Shift+Tab go round the viewer's own buttons only.
+		if (e.key === 'Tab') {
+			const stops = [...dialog.querySelectorAll<HTMLElement>('button')].filter(b => !b.hidden && b.offsetParent);
+			const i = stops.indexOf(document.activeElement as HTMLElement);
+			e.preventDefault(); stops[(i + (e.shiftKey ? -1 : 1) + stops.length) % stops.length]?.focus();
+		}
+		if (e.key === 'ArrowRight') {e.preventDefault(); show(index + 1);}
+		if (e.key === 'ArrowLeft') {e.preventDefault(); show(index - 1);}
+	});
+	// A click on the dark backdrop (not the picture or the buttons) closes it.
+	dialog.addEventListener('click', e => {if (e.target === dialog || (e.target as HTMLElement).classList.contains('lightbox-stage')) dialog.close();});
+	dialog.addEventListener('close', () => {unlock(); opener?.focus({preventScroll: true}); image.removeAttribute('src'); video.pause(); video.replaceChildren(); video.load();});
+	// Swiping left or right on a phone.
+	let startX: number | null = null;
+	dialog.addEventListener('touchstart', e => {startX = e.touches[0].clientX;}, {passive: true});
+	dialog.addEventListener('touchend', e => {
+		if (startX === null) return;
+		const dx = e.changedTouches[0].clientX - startX; startX = null;
+		if (Math.abs(dx) > 50) show(index + (dx < 0 ? 1 : -1));
+	});
+</script>

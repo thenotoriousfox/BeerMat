@@ -1,0 +1,25 @@
+---
+import Page from '../layouts/Page.astro';
+import Clip from '../components/Clip.astro';
+
+---
+<Page title="BeerMat for players" description="Find a pub quiz near you, play on your phone, and keep your results if you want to.">
+	<section class="wrap grid items-center gap-10 py-10 lg:grid-cols-[1.2fr_1fr]">
+		<div>
+			<p class="eyebrow">For players</p>
+			<h1 class="text-4xl sm:text-5xl">Your phone is your answer sheet</h1>
+			<p class="text-lg text-muted">At a BeerMat quiz, scan the code on the TV and play in your browser. No app, no account, no sign-up, and it’s always free.</p>
+			<p class="text-muted">If your phone says <strong class="text-cream">Rehearsal mode — Connection successful</strong>, the quizmaster is testing the Wi-Fi before the quiz: you’re connected, and the quiz starts when they host it live.</p>
+			<div class="mt-8 flex flex-wrap gap-3">
+				<a href="/find" class="btn btn-primary">Find a quiz near you</a>
+				<a href="/download#app" class="btn btn-ghost">Get the app</a>
+			</div>
+		</div>
+		<div class="mx-auto w-56 sm:w-64"><Clip name="phone-play" alt="The BeerMat app on a team’s phone: the question arrives, they pick Mars and lock it in, then the answer and their point" width={720} height={1558} eager class="!rounded-3xl border-white/20" /></div>
+	</section>
+	<section class="wrap grid gap-5 py-10 md:grid-cols-3">
+		<div class="card"><h2 class="text-xl">Find a quiz</h2><p class="mb-0 text-muted">The map shows pubs running BeerMat quizzes and their next quiz night. Filter by day, then get directions.</p></div>
+		<div class="card"><h2 class="text-xl">Keep your results</h2><p class="mb-0 text-muted">With a free profile, keep each quiz’s result, see your stats and earn badges. Private unless you choose otherwise.</p></div>
+		<div class="card"><h2 class="text-xl">Your favourite pubs</h2><p class="mb-0 text-muted">Save the pubs you play at and see their upcoming quizzes first.</p></div>
+	</section>
+</Page>

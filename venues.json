@@ -1,0 +1,5 @@
+{
+  "venues": [
+    {"id":"victoria-inn-derby","onMap":true,"name":"The Victoria Inn","town":"Derby","postcode":"DE1 2RR","address":"12 Midland Place","lat":52.91684,"lon":-1.464597,"quizNights":[{"day":"monday","time":"20:00"}]}
+  ]
+}

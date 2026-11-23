@@ -1,0 +1,2 @@
+/* Royal gold: colours for the TV and phones. */
+:root[data-look=royal] { --bg: #0b0905; --bg-2: #1e180b; --surface-solid: #241d0e; --field: #110d06; --gold: #f5c542; --gold-hi: #ffe08a; --gold-pale: #fff0c7; --gold-2: #c8892c; --on-accent: #1d1300; --pink: #d9a441; --violet: #8a6a2c; --spot-1: #c8892c; --spot-2: #f5c542; --spot-3: #7a5a20; --muted: #d6c8a6; }

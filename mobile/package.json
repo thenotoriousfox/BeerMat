@@ -1,0 +1,25 @@
+{
+  "name": "beermat-app",
+  "version": "0.5.5",
+  "private": true,
+  "type": "module",
+  "description": "BeerMat: the optional phone app for BeerMat teams (Android and iOS, Capacitor)",
+  "scripts": {
+    "build": "node scripts/build-web.mjs",
+    "sync": "node scripts/build-web.mjs && cap sync",
+    "android:debug": "node scripts/build-web.mjs && cap sync android && cd android && ./gradlew assembleDebug",
+    "android:release": "node scripts/build-web.mjs && cap sync android && cd android && ./gradlew bundleRelease",
+    "ios": "node scripts/build-web.mjs && cap sync ios && cap open ios"
+  },
+  "dependencies": {
+    "@capacitor-mlkit/barcode-scanning": "8.2.1",
+    "@capacitor/android": "8.5.3",
+    "@capacitor/app-launcher": "8.0.1",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/local-notifications": "8.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

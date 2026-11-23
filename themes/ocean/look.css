@@ -1,0 +1,2 @@
+/* Electric blue: colours for the TV and phones. */
+:root[data-look=ocean] { --bg: #04101f; --bg-2: #0a2240; --surface-solid: #0d2340; --field: #061629; --gold: #3ddcff; --gold-hi: #9ff0ff; --gold-pale: #d4f8ff; --gold-2: #2f7bff; --on-accent: #021426; --pink: #6b7bff; --violet: #2f7bff; --spot-1: #2f7bff; --spot-2: #19e6c1; --spot-3: #6b7bff; --muted: #a9c3e0; }

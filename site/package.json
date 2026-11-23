@@ -1,0 +1,25 @@
+{
+	"name": "beermat-site",
+	"description": "beermatquiz.co.uk: what BeerMat is, pricing, downloads, terms and privacy.",
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": ">=22"
+	},
+	"scripts": {
+		"dev": "astro dev",
+		"build": "node scripts/copy-brand.mjs && astro build",
+		"preview": "astro build && wrangler dev",
+		"deploy": "npm run build && wrangler deploy"
+	},
+	"dependencies": {
+		"@astrojs/sitemap": "3.6.1",
+		"@tailwindcss/vite": "4.3.0",
+		"astro": "5.16.9",
+		"leaflet": "1.9.4",
+		"tailwindcss": "4.3.0"
+	},
+	"devDependencies": {
+		"wrangler": "4.56.0"
+	}
+}

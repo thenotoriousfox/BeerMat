@@ -1,0 +1,21 @@
+---
+import '../styles/global.css';
+interface Props {title: string; description: string;}
+const {title, description} = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="theme-color" content="#140b2e" />
+<link rel="icon" type="image/svg+xml" href="/brand/mark.svg" />
+<link rel="preload" href="/brand/fredoka.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="canonical" href={canonical} />
+<link rel="sitemap" href="/sitemap-index.xml" />
+<title>{title}</title>
+<meta name="description" content={description} />
+<meta property="og:type" content="website" />
+<meta property="og:url" content={canonical} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:image" content={new URL('/shots/og.png', Astro.site)} />
+<meta name="twitter:card" content="summary_large_image" />

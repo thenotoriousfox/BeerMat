@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#140b2e">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; connect-src *; style-src 'self'; script-src 'self'; base-uri 'none'">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css"><link rel="stylesheet" href="app.css"><link rel="icon" href="/brand/mark.svg" type="image/svg+xml"><title>BeerMat</title></head>
+<body>
+<header class="bar"><h1><img class="logo" src="/brand/logo.svg" alt="BeerMat"></h1><span id="offline" class="pill" hidden>Offline</span></header>
+<p id="status" class="status" role="status" aria-live="polite"></p>
+<main>
+<section id="play" class="tab" aria-labelledby="tab-play">
+  <h2>Join a quiz</h2>
+  <p class="hint">No account needed. Teams on the app and teams in a phone browser play the same quiz.</p>
+  <button id="scan" class="big" type="button" hidden>📷 Scan the code on the TV</button>
+  <div id="wifiStep" class="card" hidden><p id="wifiText"></p><p class="hint">Open your phone’s Wi-Fi settings and join it. Then come back here.</p><button id="wifiContinue" class="big" type="button">I’m on the quiz Wi-Fi — open the quiz</button></div>
+  <form id="addressForm" class="card"><label for="address">Or type the address on the TV</label><input id="address" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="192.168.1.20:3000 or https://…"><button class="big">Open the quiz</button></form>
+  <button id="openAnyway" type="button" class="subtle" hidden>Open it anyway</button>
+  <div id="recentBox" hidden><h3>Recent quizzes</h3><ul id="recent" class="list"></ul></div>
+</section>
+<section id="profile" class="tab" aria-labelledby="tab-profile" hidden>
+  <h2>Your profile</h2>
+  <p id="onlineMissing" class="card hint" hidden>BeerMat Online isn’t set up in this copy of the app. You can still play every quiz as a guest.</p>
+  <div id="signedOut" hidden>
+    <p class="hint">Optional. Keep your quiz results, see your statistics and earn badges. Your profile stays private unless you choose otherwise.</p>
+    <form id="signInForm" class="card"><h3>Sign in</h3><label>Email<input id="signInEmail" type="email" autocomplete="email" required></label><label>Password<input id="signInPassword" type="password" autocomplete="current-password" required></label><button class="big">Sign in</button><p class="hint"><a id="forgotPassword" target="_blank" rel="noopener">Forgot your password?</a></p></form>
+    <form id="signUpForm" class="card"><h3>Create an account</h3><label>Name shown to others (if you allow it)<input id="signUpName" maxlength="40" autocomplete="nickname" required></label><label>Email<input id="signUpEmail" type="email" autocomplete="email" required></label><label>Password (10 characters or more)<input id="signUpPassword" type="password" minlength="10" autocomplete="new-password" required></label><label class="check"><input id="signUpConsent" type="checkbox" required> I agree that BeerMat Online keeps my email, name and the quiz results I choose to save, until I delete my account.</label><button class="big">Create account</button></form>
+  </div>
+  <div id="signedIn" hidden>
+    <div class="card me"><img id="avatar" class="avatar" alt="" hidden><div><strong id="meName"></strong><p id="meTeam" class="hint"></p></div></div>
+    <p id="verifyNote" class="card hint" hidden><span></span> <button id="resendVerify" type="button" class="subtle">Send the link again</button></p>
+    <p id="pending" class="card hint" hidden></p>
+    <p id="statsStale" class="card warning" hidden></p>
+    <div id="stats" class="stats"></div>
+    <h3>Badges</h3><ul id="badges" class="badges"></ul>
+    <details class="card"><summary>Edit profile</summary><form id="editForm"><label>Name<input id="editName" maxlength="40" required></label><label>Usual team name<input id="editTeam" maxlength="40"></label><label class="file">Profile picture<input id="editPhoto" type="file" accept="image/*"></label><button id="removePhoto" type="button" class="subtle">Remove picture</button><button class="big">Save</button></form></details>
+    <details class="card"><summary>Privacy</summary><p class="hint">All off until you switch them on.</p><label class="check"><input id="privLeaderboards" type="checkbox"> Show my name and results on public leaderboards</label><label class="check"><input id="privPhoto" type="checkbox"> Show my picture to others</label><label class="check"><input id="privHistory" type="checkbox"> Let others see my quiz history</label></details>
+    <details class="card"><summary>Your data</summary><button id="exportData" type="button">Download everything BeerMat Online holds about you</button><button id="deleteAccount" type="button" class="danger">Delete my account and results</button></details>
+    <button id="signOut" type="button" class="subtle">Sign out</button>
+  </div>
+</section>
+<section id="find" class="tab" aria-labelledby="tab-find" hidden>
+  <h2>Find a quiz</h2>
+  <div id="dayFilter" class="days" role="group" aria-label="Quiz day" hidden></div>
+  <div id="mapBox" hidden><div id="map" class="map" role="region" aria-label="Map of quiz venues"></div><p id="mapNote" class="hint"></p></div>
+  <div id="venueCard" class="card venue" hidden></div>
+  <form id="searchForm" class="card"><label for="search">Town or postcode</label><input id="search" autocomplete="postal-code" placeholder="Bristol or BS1"><button class="big">Search</button><button id="nearMe" type="button" class="subtle">📍 Use my location once</button></form>
+  <p id="findStale" class="card warning" hidden></p>
+  <ul id="events" class="list events"></ul>
+  <div id="favouritesBox" hidden><h3>Your venues</h3><ul id="favourites" class="list"></ul></div>
+</section>
+</main>
+<nav class="tabs" role="tablist"><button id="tab-play" role="tab" data-tab="play" aria-selected="true">Play</button><button id="tab-profile" role="tab" data-tab="profile">Profile</button><button id="tab-find" role="tab" data-tab="find">Find a quiz</button></nav>
+<script src="vendor/leaflet/leaflet.js"></script><script type="module" src="main.js"></script>
+</body></html>

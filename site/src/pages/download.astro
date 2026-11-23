@@ -1,0 +1,58 @@
+---
+import Page from '../layouts/Page.astro';
+import {DOWNLOADS, DOWNLOADS_READY, CONTACT} from '../consts';
+import pkg from '../../../package.json';
+// Each release is copied to downloads.beermatquiz.co.uk/<version>/ (.github/workflows/release.yml), which keeps only
+// the latest (earlier ones stay with their GitHub releases), and the site is
+// rebuilt with the new version.
+const v = pkg.version, file = (name: string) => `${DOWNLOADS}/${v}/${name}`;
+// BeerMat Desk, the native app (native/beermat_desk), is the download.
+const desktop = [
+	['Windows 10 and 11', 'Installer', `BeerMat-Desk-Setup-${v}.exe`, 'Installs BeerMat Desk with a Start menu entry. Recommended.'],
+	['Windows 10 and 11', 'Portable (zip)', `BeerMat-Desk-${v}-win-x64.zip`, 'Unzip anywhere (a USB stick too) and open BeerMat-Desk.exe. Nothing installed.'],
+	['Linux', 'AppImage', `BeerMat-Desk-${v}-linux-x64.AppImage`, 'One file: make it executable and open it. Tested on CachyOS.'],
+	['Linux', 'tar.gz', `BeerMat-Desk-${v}-linux-x64.tar.gz`, 'The app as a folder, for packaging it yourself.'],
+];
+---
+<Page title="Download BeerMat" description={`Download BeerMat ${v} for Windows and Linux, and the BeerMat app for Android.`}>
+	<section class="wrap py-10">
+		<p class="eyebrow">Version {v}</p>
+		<h1 class="text-4xl sm:text-5xl">Download BeerMat</h1>
+		<p class="max-w-2xl text-lg text-muted">For the quizmaster’s laptop. BeerMat Free makes and rehearses whole quizzes, with simulated teams, the TV and real phones testing the connection. BeerMat Pro hosts them live.</p>
+		<p class="max-w-2xl text-muted">TVs wired to a computer behind the bar? Install BeerMat there too and choose <strong class="text-cream">Use this computer as a TV screen</strong> in Settings: it signs in with your BeerMat account, finds the quiz laptop through it (even where the venue’s Wi-Fi keeps devices apart) and shows the TV, with the clips and music playing through its speakers.</p>
+		{!DOWNLOADS_READY && <div class="card mt-8 border-amber/60"><h2 class="text-xl">Downloads open soon</h2><p class="mb-0 text-muted">BeerMat is in a private beta with a few pubs. Want to run your quiz with it? Email <a href={`mailto:${CONTACT}?subject=BeerMat%20beta`}>{CONTACT}</a> and we’ll send you a copy.</p></div>}
+		{DOWNLOADS_READY && <>
+		<div class="mt-8 grid gap-4 md:grid-cols-2">
+			{desktop.map(([system, kind, name, note]) => (
+				<a href={file(name)} class="card block no-underline transition hover:border-amber/60">
+					<p class="eyebrow !mb-1">{system}</p>
+					<h2 class="text-xl">{kind}</h2>
+					<p class="mb-2 text-muted">{note}</p>
+					<span class="text-sm text-amber">{name} ↓</span>
+				</a>
+			))}
+		</div>
+		<div class="card mt-8">
+			<h2 class="text-xl">Windows says “Windows protected your PC”?</h2>
+			<p class="mb-0 text-muted">BeerMat isn’t code-signed yet, so Windows doesn’t recognise it. Click <strong>More info</strong>, then <strong>Run anyway</strong>. Check the file first if you like: its checksum is in <a href={file('SHA256SUMS.txt')}>SHA256SUMS.txt</a>.</p>
+		</div>
+
+		</>}
+
+		<h2 id="app" class="mt-16 scroll-mt-8 text-3xl">The BeerMat app, for players and quizmasters</h2>
+		<p class="max-w-2xl text-muted">Teams don’t need it: every quiz plays in the phone’s browser. The app adds finding quizzes near you, a profile with your results and badges, and joining by scanning. For the quizmaster, <strong class="text-cream">Run the night</strong> hosts the quiz from your phone: sign in with your venue’s account, or type the code the desk shows.</p>
+		<div class="mt-6 grid gap-4 md:grid-cols-2">
+			{DOWNLOADS_READY ? <a href={file(`BeerMat-${v}.apk`)} class="card block no-underline transition hover:border-amber/60">
+				<p class="eyebrow !mb-1">Android</p>
+				<h2 class="text-xl">Download the app</h2>
+				<p class="mb-2 text-muted">Open the file on your phone and allow installing it. Google Play is coming. On an Android TV, Google TV or Fire TV stick it’s <strong class="text-cream">BeerMat TV</strong>: the quiz on the TV with no cable to the laptop.</p>
+				<span class="text-sm text-amber">BeerMat-{v}.apk ↓</span>
+			</a> : <div class="card"><p class="eyebrow !mb-1">Android</p><h2 class="text-xl">Coming soon</h2><p class="mb-0 text-muted">With the first public release. Until then, every quiz plays in the phone’s browser.</p></div>}
+			<div class="card">
+				<p class="eyebrow !mb-1">iPhone</p>
+				<h2 class="text-xl">Coming to the App Store</h2>
+				<p class="mb-0 text-muted">Until then, iPhones play in Safari, and the web app finds quizzes: <a href="/app/">beermatquiz.co.uk/app</a>.</p>
+			</div>
+		</div>
+	</section>
+</Page>

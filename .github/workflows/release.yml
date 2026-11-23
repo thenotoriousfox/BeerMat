@@ -1,0 +1,236 @@
+name: Release
+# Push a tag like v0.4.0 (matching package.json's version) to build BeerMat Desk (Qt, native/beermat_desk) for
+# Windows and Linux, the native Android app (native/android, an APK) and the iPhone app (native/ios, an unsigned .ipa
+# for sideloading), and publish them as a GitHub release:
+# https://github.com/DTJW92/BeerMat/releases/latest. (The Electron desk and the Capacitor app are no longer released;
+# releases up to 0.5.5 have them.)
+# They're also copied to https://downloads.beermatquiz.co.uk/<version>/ (Cloudflare R2), where the website's download
+# page links, and the website is redeployed to show the new version. Run it by hand on a branch to build without
+# publishing (a test build: its files are deleted when it ends). The New release workflow bumps the version, tags it
+# and runs this on the tag.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desk:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    # Every job takes minutes (desk 4–6, Android 4–6, downloads 2–4): a hang fails here, with its log, instead of
+    # holding the release for GitHub's six hours (0.5.9's Linux desk tests hung and it never published).
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Tag matches package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: test "${GITHUB_REF_NAME#v}" = "$(node -p 'require("./package.json").version')" || { echo "Tag $GITHUB_REF_NAME does not match package.json version"; exit 1; }
+      - run: python -m pip install PySide6-Essentials==6.11.1 PySide6-Addons==6.11.1 keyring pyinstaller
+      - name: Tests (offscreen)
+        if: runner.os == 'Linux'
+        timeout-minutes: 25
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libglib2.0-0 libpulse0 libpulse-mainloop-glib0 ffmpeg >/dev/null
+          npm install -g npm@12 && npm ci
+          # Everything the pull request checks used to run, once, here: the quiz server and pages (ffmpeg for the
+          # buzzer library), the laptop scripts, and the iPhone app's BeerMatKit (Swift is on GitHub's Linux machines).
+          npm test
+          python3 -m unittest discover -s tests -p 'test_*.py' && bash -n scripts/setup.sh scripts/start.sh scripts/connectivity.sh && python3 scripts/hotspot.py --help >/dev/null
+          (cd native/ios/BeerMatKit && swift test)
+          # One process per test module: Qt objects from one module can leave PySide wrappers behind that confuse the next.
+          cd native && for t in tests/test_*.py; do QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests -p "$(basename "$t")" || exit 1; done
+      - name: AppImage tool
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y -qq desktop-file-utils >/dev/null   # appimagetool stops without desktop-file-validate
+          curl -fsSL -o "$RUNNER_TEMP/appimagetool" https://github.com/AppImage/appimagetool/releases/download/1.9.0/appimagetool-x86_64.AppImage
+          chmod +x "$RUNNER_TEMP/appimagetool" && echo "APPIMAGETOOL=$RUNNER_TEMP/appimagetool" >> "$GITHUB_ENV" && echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"
+      - run: python native/packaging/build.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desk-${{ runner.os }}
+          path: |
+            dist/native/*.tar.gz
+            dist/native/*.AppImage
+            dist/native/*.zip
+            dist/native/*.exe
+          if-no-files-found: error
+          retention-days: ${{ startsWith(github.ref, 'refs/tags/v') && 7 || 1 }}
+
+  # The native Android app (Kotlin, native/android): the same app id and signing key as the Capacitor app, with a
+  # higher version code, so it installs over it.
+  android-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Signing key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE" && test -n "$PASSWORD" || { echo "ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD secrets are missing"; exit 1; }
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=upload\nkeyPassword=%s\n' "$RUNNER_TEMP/upload.jks" "$PASSWORD" "$PASSWORD" > native/android/keystore.properties
+      - name: Build
+        working-directory: native/android
+        run: |
+          ./gradlew testReleaseUnitTest assembleRelease
+          mkdir -p ../../dist && cp app/build/outputs/apk/release/app-release.apk "../../dist/BeerMat-$(node -p 'require("../../package.json").version').apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android-native
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: ${{ startsWith(github.ref, 'refs/tags/v') && 7 || 1 }}
+
+  # The iPhone app (native/ios), unsigned: there's no Apple Developer account behind it, so it can't go to TestFlight or
+  # the App Store. The .ipa installs on an iPhone once someone signs it with their own Apple ID (AltStore, Sideloadly).
+  # Its version is package.json's and its build number the Android app's versionCode.
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          build=$(sed -nE 's/.*versionCode = ([0-9]+).*/\1/p' native/android/app/build.gradle.kts)
+          xcodebuild -project native/ios/BeerMat.xcodeproj -target BeerMat -sdk iphoneos -configuration Release \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$build" SYMROOT="$RUNNER_TEMP/build" build
+          mkdir -p "$RUNNER_TEMP/ipa/Payload" dist
+          cp -R "$RUNNER_TEMP/build/Release-iphoneos/BeerMat.app" "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/dist/BeerMat-$version-ios-unsigned.ipa" Payload)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iOS
+          path: dist/*.ipa
+          if-no-files-found: error
+          retention-days: ${{ startsWith(github.ref, 'refs/tags/v') && 7 || 1 }}
+
+  release:
+    needs: [desk, android-native, ios]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+      - name: Checksums
+        working-directory: files
+        run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" files/* --repo "$GITHUB_REPOSITORY" --title "BeerMat $GITHUB_REF_NAME" --generate-notes
+
+  # The same files on downloads.beermatquiz.co.uk (the beermat-downloads R2 bucket), then the website rebuilt, so its
+  # download page points at them. Needs the CLOUDFLARE_API_TOKEN secret (R2 and Workers edit) and the
+  # CLOUDFLARE_ACCOUNT_ID variable.
+  downloads:
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+      - name: Cloudflare is set up
+        run: test -n "$CLOUDFLARE_API_TOKEN" && test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "The CLOUDFLARE_API_TOKEN secret or the CLOUDFLARE_ACCOUNT_ID variable is missing"; exit 1; }
+      - name: Website tools
+        working-directory: site
+        run: npm ci
+      - name: Copy to downloads.beermatquiz.co.uk
+        working-directory: files
+        run: |
+          sha256sum * > SHA256SUMS.txt
+          version="${GITHUB_REF_NAME#v}"
+          for f in *; do ../site/node_modules/.bin/wrangler r2 object put "beermat-downloads/$version/$f" --file "$f" --remote; done
+      # The signed update manifest the apps check (shared/update.js), once every file it names is there.
+      - name: Tell the apps about this version
+        env:
+          UPDATE_KEY: ${{ secrets.UPDATE_KEY }}
+        run: |
+          test -n "$UPDATE_KEY" || { echo "The UPDATE_KEY secret is missing"; exit 1; }
+          node scripts/update-manifest.mjs files "${GITHUB_REF_NAME#v}" > latest.json
+          site/node_modules/.bin/wrangler r2 object put beermat-downloads/latest.json --file latest.json --content-type application/json --cache-control no-cache --remote
+      - name: Redeploy the website
+        working-directory: site
+        run: npm run deploy
+      # The bucket holds only the version the website offers (and latest.json); every earlier one is kept with its GitHub release. Only
+      # once the website points at this version, and only if the listing shows this version is all there.
+      - name: Remove earlier versions from downloads.beermatquiz.co.uk
+        run: |
+          version="${GITHUB_REF_NAME#v}" api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/beermat-downloads/objects"
+          cursor="" keys=""
+          while :; do
+            page=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$api?per_page=1000${cursor:+&cursor=$cursor}")
+            test "$(echo "$page" | jq -r .success)" = true
+            keys="$keys$(echo "$page" | jq -r '.result[].key')"$'\n'
+            cursor=$(echo "$page" | jq -r '.result_info.cursor // empty')
+            [ "$(echo "$page" | jq -r '.result_info.is_truncated // false')" = true ] && [ -n "$cursor" ] || break
+          done
+          for f in files/*; do grep -qxF "$version/$(basename "$f")" <<< "$keys" || { echo "$version/$(basename "$f") isn't in the bucket: keeping earlier versions"; exit 1; }; done
+          grep -v -e '^$' -e "^$version/" -e '^latest\.json$' <<< "$keys" | while IFS= read -r key; do
+            echo "Removing $key"; site/node_modules/.bin/wrangler r2 object delete "beermat-downloads/$key" --remote
+          done
+
+  # The build files are only handed between these jobs; they count against the account's Actions storage. A test build's
+  # (run by hand on a branch) go as soon as it ends, pass or fail. A release's go once it's published (the GitHub release and
+  # downloads.beermatquiz.co.uk keep them); if a release fails they stay a week, so its failed jobs can be re-run.
+  cleanup-artifacts:
+    if: always() && (!startsWith(github.ref, 'refs/tags/v') || needs.downloads.result == 'success')
+    needs: [desk, android-native, ios, release, downloads]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+    steps:
+      - name: Delete this run's build files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          run_id="$GITHUB_RUN_ID"
+          gh api --paginate "repos/$repo/actions/runs/$run_id/artifacts?per_page=100" --jq '.artifacts[].id' |
+            while IFS= read -r artifact_id; do
+              [ -n "$artifact_id" ] || continue
+              gh api -X DELETE "repos/$repo/actions/artifacts/$artifact_id"
+              echo "Deleted artifact $artifact_id"
+            done
