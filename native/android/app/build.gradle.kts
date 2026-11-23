@@ -29,7 +29,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // BeerMat Online and the venue list, as mobile/www/config.js.
         buildConfigField("String", "ONLINE_SERVICE", "\"${project.findProperty("onlineService") ?: "https://online.beermatquiz.co.uk"}\"")
-        buildConfigField("String", "VENUE_LIST", "\"https://raw.githubusercontent.com/DTJW92/BeerMat/main/venues.json\"")
+        buildConfigField("String", "VENUE_LIST", "\"https://raw.githubusercontent.com/thenotoriousfox/BeerMat/main/venues.json\"")
         // Updates from BeerMat's website (update/Updates.kt). A store build (-PstoreBuild) leaves them to the store.
         buildConfigField("String", "DOWNLOADS", "\"https://downloads.beermatquiz.co.uk\"")
         buildConfigField("boolean", "SELF_UPDATE", "${project.findProperty("storeBuild") == null}")

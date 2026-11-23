@@ -268,7 +268,7 @@ function run() {
         {label: 'Open the TV by itself when a screen is connected', type: 'checkbox', checked: tv.autoOpen, click: item => screens.setAutoOpen(item.checked)},
       ]},
       {label: 'View', submenu: [{role: 'reload'}, {role: 'resetZoom'}, {role: 'zoomIn'}, {role: 'zoomOut'}, {type: 'separator'}, {role: 'togglefullscreen'}, ...(app.isPackaged ? [] : [{role: 'toggleDevTools'}])]},
-      {label: 'Help', submenu: [{label: 'Quizmaster guide', click: () => external('https://github.com/DTJW92/BeerMat/blob/main/docs/QUIZMASTER.md')}, {label: 'Troubleshooting', click: () => external('https://github.com/DTJW92/BeerMat/blob/main/docs/DESKTOP.md')}]},
+      {label: 'Help', submenu: [{label: 'Quizmaster guide', click: () => external('https://github.com/thenotoriousfox/BeerMat/blob/main/docs/QUIZMASTER.md')}, {label: 'Troubleshooting', click: () => external('https://github.com/thenotoriousfox/BeerMat/blob/main/docs/DESKTOP.md')}]},
     ];
     Menu.setApplicationMenu(Menu.buildFromTemplate(template));
   }

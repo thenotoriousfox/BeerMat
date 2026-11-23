@@ -112,7 +112,7 @@ changing it, run `node scripts/export-i18n.mjs`: the Android and iOS apps' tests
   for). Before a merge, run only the tests for what the change touches (the full suites take 15–20 minutes, too long
   for every change); run every suite here before a release. The Release workflow runs the tests once (Node, Python,
   Qt, BeerMatKit, Android) before it builds; Offline quiz tests and iPhone app run only by hand. Don't start test builds
-  of Release without a reason; check usage with `gh api users/DTJW92/settings/billing/usage`.
+  of Release without a reason; check usage with `gh api users/thenotoriousfox/settings/billing/usage`.
 
 ## Releasing
 

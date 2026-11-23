@@ -50,7 +50,7 @@ final class OnlineModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     override init() {
         let storage = PhoneStorage()
-        client = OnlineClient(baseUrl: storage.get("baseUrl") ?? OnlineModel.defaultService, venueListUrl: "https://raw.githubusercontent.com/DTJW92/BeerMat/main/venues.json", storage: storage)
+        client = OnlineClient(baseUrl: storage.get("baseUrl") ?? OnlineModel.defaultService, venueListUrl: "https://raw.githubusercontent.com/thenotoriousfox/BeerMat/main/venues.json", storage: storage)
         super.init()
         location.delegate = self
         profile = client.profile; outbox = client.outbox.count

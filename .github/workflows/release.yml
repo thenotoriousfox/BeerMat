@@ -2,7 +2,7 @@ name: Release
 # Push a tag like v0.4.0 (matching package.json's version) to build BeerMat Desk (Qt, native/beermat_desk) for
 # Windows and Linux, the native Android app (native/android, an APK) and the iPhone app (native/ios, an unsigned .ipa
 # for sideloading), and publish them as a GitHub release:
-# https://github.com/DTJW92/BeerMat/releases/latest. (The Electron desk and the Capacitor app are no longer released;
+# https://github.com/thenotoriousfox/BeerMat/releases/latest. (The Electron desk and the Capacitor app are no longer released;
 # releases up to 0.5.5 have them.)
 # They're also copied to https://downloads.beermatquiz.co.uk/<version>/ (Cloudflare R2), where the website's download
 # page links, and the website is redeployed to show the new version. Run it by hand on a branch to build without
